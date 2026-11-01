@@ -37,8 +37,8 @@ export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: st
   {
     key: "so", label: "Sales Order", icon: "receipt_long",
     columns: ["docNo", "soDate", "ref", "agent", "debtor", "soTotal", "salesLoc", "balance", "processing", "reqDate", "itemGroup", "itemCode", "detail", "detail2", "unitPrice", "lineQty",
-      "proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType"],
-    hidden: ["proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType"],
+      "proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
+    hidden: ["proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
   },
   { key: "general", label: "Overview", icon: "dashboard", columns: ["order", "proceed", "items", "stock", "delivery", "payment", "pic", "problems"] },
   { key: "payment", label: "Payment", icon: "account_balance_wallet", columns: ["order", "value", "paid", "balance", "rcpt", "payDue", "payment", "hold"] },
@@ -170,6 +170,7 @@ export type CellContext = {
   payment: (r: RegisterRow) => string;
   owned: (r: RegisterRow) => OwnedRead;
   payBy: (r: RegisterRow) => PayByRead;
+  customerType: (r: RegisterRow) => string;
 };
 
 /** Run `fn` on the order's owner facts, or print the honest read state. */
@@ -275,6 +276,8 @@ export const COLUMNS: Record<string, Column> = {
   postcode: { key: "postcode", label: "Postcode", width: "80px", cell: (r) => textCell(r.o.customer_address_postcode) },
   state: { key: "state", label: "State", width: "110px", filterable: true, cell: (r) => textCell(r.o.customer_address_state) },
   payMethod: { key: "payMethod", label: "Payment Method", width: "130px", cell: (r) => textCell(atSalePaymentWord(r.o.payment_method, r.o.installment_months ?? null)) },
+  createdBy: { key: "createdBy", label: "Created by", width: "130px", filterable: true, cell: (r) => textCell(r.o.created_by_name) },
+  customerType: { key: "customerType", label: "Customer type", width: "110px", filterable: true, cell: (r, ctx) => textCell(ctx.customerType(r)) },
   buildingType: { key: "buildingType", label: "Building Type", width: "110px", filterable: true, cell: (r) => textCell(r.o.building_type) },
   proceed: {
     key: "proceed", label: "Proceed date", width: "120px",

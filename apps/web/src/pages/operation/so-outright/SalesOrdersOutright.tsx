@@ -38,7 +38,7 @@ import Button from "@/components/kit/Button";
 import { useAuth } from "@/lib/auth";
 import { appTodayIso, fmtDateShort } from "@/lib/fmt-date";
 import { CDate, CInput, CSelect } from "../so-detail/ui";
-import { useOperationWarehouse, useSalesOrderRegisterFacts, useSalesOrderRegisterOrders } from "@/lib/queries";
+import { useCustomerFirstPlaced, useOperationWarehouse, useSalesOrderRegisterFacts, useSalesOrderRegisterOrders } from "@/lib/queries";
 import { buildRegisterRow, type RegisterRow } from "../sales-order-columns";
 import { isRental, lineName } from "../sales-order-facts";
 import { PAYMENT_STATUSES, STOCK_STATUSES, paymentStatusOf, skuKey, stockStatusOf, useCatalogNames } from "../sales-order-register-readings";
@@ -62,7 +62,7 @@ import {
   type LayoutKey,
 } from "./outright-columns";
 import { readStateOf, usePayBy } from "./pay-by";
-import { CHOICE_FILTERS, DATE_PRESETS, FOOTER_CATS, RANGE_FILTERS, TEXT_FILTERS, footerCat, isMoreFilterParam, matchesMoreFilters, moreFilterChips, presetRange } from "./more-filters";
+import { CHOICE_FILTERS, customerTypeOf, DATE_PRESETS, FOOTER_CATS, RANGE_FILTERS, TEXT_FILTERS, footerCat, isMoreFilterParam, matchesMoreFilters, moreFilterChips, presetRange } from "./more-filters";
 import { OrderCards, OrderQuickView } from "./OrderQuickView";
 
 type Tab = "open" | "delivered" | "all";
@@ -209,6 +209,7 @@ export default function SalesOrdersOutright() {
   const factsState = readStateOf([factsQ]);
   const factsFailed = factsQ.data?.failed;
   const payBy = usePayBy();
+  const firstPlaced = useCustomerFirstPlaced().data?.firstPlaced;
   const ctx: CellContext = useMemo(
     () => ({
       payment: paymentStatusOf,
@@ -222,8 +223,9 @@ export default function SalesOrdersOutright() {
               failed: { ...(factsFailed ?? {}), cases: factsFailed?.cases ?? false },
             },
       payBy: (r) => payBy(r.id),
+      customerType: (r) => customerTypeOf(r.o.customer_phone, r.o.placed_at, firstPlaced),
     }),
-    [facts, factsFailed, factsState, payBy],
+    [facts, factsFailed, factsState, payBy, firstPlaced],
   );
 
   /* ── list state: tab · column view · header filters, in the URL ── */
@@ -287,12 +289,12 @@ export default function SalesOrdersOutright() {
         (r) =>
           inTab(r) &&
           dateRanges.every((d) => inDateRange(d.iso(r), d.from, d.to)) &&
-          matchesMoreFilters(r, moreParams, appTodayIso()) &&
+          matchesMoreFilters(r, moreParams, appTodayIso(), customerTypeOf(r.o.customer_phone, r.o.placed_at, firstPlaced)) &&
           (!warehouseParam || r.o.warehouse_id === warehouseParam) &&
           (!requested || inRequestedNarrowing(r.customerDelivery, requested, isDelivered(r))) &&
           Object.entries(filters).every(([k, v]) => v.includes(COLUMNS[k]!.cell(r, ctx).t)),
       ),
-    [all, inTab, requested, filters, ctx, dateRanges, moreParams, warehouseParam],
+    [all, inTab, requested, filters, ctx, dateRanges, moreParams, warehouseParam, firstPlaced],
   );
 
   /* ── sort (the engine's header) · Group by (⋮) · paging ── */

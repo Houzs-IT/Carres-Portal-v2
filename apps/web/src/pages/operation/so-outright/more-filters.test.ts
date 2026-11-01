@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMoreFilterParam, matchesMoreFilters, moreFilterChips, presetRange } from "./more-filters";
+import { customerTypeOf, isMoreFilterParam, matchesMoreFilters, moreFilterChips, presetRange } from "./more-filters";
 import type { RegisterRow } from "../sales-order-columns";
 
 const row = (over: Record<string, unknown> = {}, o: Record<string, unknown> = {}) =>
@@ -40,6 +40,44 @@ describe("matchesMoreFilters", () => {
     expect(matchesMoreFilters(row(), at("is.overdue=yes"), TODAY)).toBe(true);
     expect(matchesMoreFilters(row({}, { delivery_date: "2026-11-04" }), at("is.overdue=yes"), TODAY)).toBe(false);
     expect(matchesMoreFilters(row({}, { delivery_date: null }), at("is.overdue=yes"), TODAY)).toBe(false);
+  });
+});
+
+describe("Created by and Remarks", () => {
+  it("finds the creator's name, and nothing on an unrecorded one", () => {
+    expect(matchesMoreFilters(row({}, { created_by_name: "Tan Mei" }), at("has.createdBy=mei"), TODAY)).toBe(true);
+    expect(matchesMoreFilters(row({}, { created_by_name: null }), at("has.createdBy=mei"), TODAY)).toBe(false);
+  });
+  it.each([
+    [{ order_annotations: [{ content: "Call FIRST" }] }],
+    [{ ops_order_control: { carres_remark: "call first" } }],
+    [{ ops_order_control: [{ warehouse_remark: "call first" }] }],
+    [{ ops_order_control: { customer_request: "call first" } }],
+  ])("searches every remark field: %j", (o) => {
+    expect(matchesMoreFilters(row({}, o), at("has.remarks=call first"), TODAY)).toBe(true);
+    expect(matchesMoreFilters(row({}, o), at("has.remarks=gate"), TODAY)).toBe(false);
+  });
+});
+
+describe("customerTypeOf", () => {
+  const first = { "123456789": "2026-01-01T00:00:00Z" };
+  it("does not count the order itself", () => {
+    expect(customerTypeOf("012-3456789", "2026-01-01T00:00:00Z", first)).toBe("New");
+  });
+  it("reads an earlier order on the same number, however it was typed", () => {
+    expect(customerTypeOf("+60 12 345 6789", "2026-02-01T00:00:00Z", first)).toBe("Existing");
+  });
+  it("reads each number in a field holding two", () => {
+    expect(customerTypeOf("013-9876543/012-3456789", "2026-02-01T00:00:00Z", first)).toBe("Existing");
+  });
+  it("never calls an unread answer or a missing phone New", () => {
+    expect(customerTypeOf("012-3456789", "2026-02-01T00:00:00Z", undefined)).toBe("Not recorded");
+    expect(customerTypeOf(null, "2026-02-01T00:00:00Z", first)).toBe("Not recorded");
+    expect(customerTypeOf("019-9999999", "2026-02-01T00:00:00Z", first)).toBe("Not recorded");
+  });
+  it("filters on the type it is given", () => {
+    expect(matchesMoreFilters(row(), at("is.customerType=Existing"), TODAY, "Existing")).toBe(true);
+    expect(matchesMoreFilters(row(), at("is.customerType=New"), TODAY, "Existing")).toBe(false);
   });
 });
 

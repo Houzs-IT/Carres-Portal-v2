@@ -112,7 +112,7 @@ function mockTables(t: Tables) {
     }
     const chain: Record<string, unknown> = {};
     for (const k of ["in", "eq", "ilike", "or", "not", "is", "order"]) chain[k] = vi.fn(() => chain);
-    chain.limit = vi.fn().mockResolvedValue({ data: t.orders ?? [ORDER], error: null });
+    chain.limit = vi.fn((_n: number, o?: { referencedTable?: string }) => (o?.referencedTable ? chain : Promise.resolve({ data: t.orders ?? [ORDER], error: null })));
     return { select: vi.fn(() => chain) };
   });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

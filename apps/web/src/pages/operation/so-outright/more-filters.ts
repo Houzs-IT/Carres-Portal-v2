@@ -1,10 +1,9 @@
 /**
  * The list's More filters beyond the date ranges, following Houzs's
  * so-list-filter-model. Every value rides the URL, as the date ranges do. Only
- * facts already on the list's read are offered: Created by, Remarks and Customer
- * type have no stored fact on a Carres order.
+ * facts already on the list's read are offered.
  */
-import { goodsCategoryWordOf } from "@carres/shared";
+import { goodsCategoryWordOf, phoneKeysMy } from "@carres/shared";
 import type { RegisterRow } from "../sales-order-columns";
 import { isDelivered, klDay } from "./outright-columns";
 
@@ -21,10 +20,34 @@ export const RANGE_FILTERS: { key: string; label: string; value: (r: RegisterRow
   { key: "total", label: "Total", value: (r) => (r.total.kind === "amount" ? r.total.value : null) },
 ];
 
+/* An order with an earlier placed_at on the same phone is Existing. An unread
+   answer or a missing phone is Not recorded, never New. */
+export type CustomerType = "New" | "Existing" | "Not recorded";
+export function customerTypeOf(
+  phone: string | null | undefined,
+  placedAt: string | null | undefined,
+  firstPlaced: Record<string, string> | undefined,
+): CustomerType {
+  if (!firstPlaced || !placedAt) return "Not recorded";
+  const firsts = phoneKeysMy(phone).flatMap((k) => firstPlaced[k] ?? []);
+  if (firsts.length === 0) return "Not recorded";
+  return firsts.some((f) => new Date(f) < new Date(placedAt)) ? "Existing" : "New";
+}
+
+const remarksOf = (r: RegisterRow) => {
+  const control = [r.o.ops_order_control ?? []].flat();
+  return [
+    ...(r.o.order_annotations ?? []).map((a) => a.content),
+    ...control.flatMap((c) => [c.carres_remark, c.warehouse_remark, c.customer_request]),
+  ].filter(Boolean).join("\n").toLowerCase();
+};
+
 const digits = (s: string) => s.replace(/\D/g, "");
 export const TEXT_FILTERS: { key: string; label: string; matches: (r: RegisterRow, typed: string) => boolean }[] = [
   { key: "contact", label: "Contact no.", matches: (r, typed) => digits(typed) !== "" && r.phoneDigits.includes(digits(typed)) },
   { key: "email", label: "Email", matches: (r, typed) => (r.o.customer_email ?? "").toLowerCase().includes(typed.trim().toLowerCase()) },
+  { key: "createdBy", label: "Created by", matches: (r, typed) => (r.o.created_by_name ?? "").toLowerCase().includes(typed.trim().toLowerCase()) },
+  { key: "remarks", label: "Remarks", matches: (r, typed) => remarksOf(r).includes(typed.trim().toLowerCase()) },
 ];
 
 export const isOverdue = (r: RegisterRow, today: string) =>
@@ -37,7 +60,7 @@ export const CHOICE_FILTERS: {
   key: string;
   label: string;
   choices: { value: string; label: string }[];
-  matches: (r: RegisterRow, value: string, today: string) => boolean;
+  matches: (r: RegisterRow, value: string, today: string, customerType: CustomerType) => boolean;
 }[] = [
   {
     key: "overdue", label: "Overdue",
@@ -54,12 +77,17 @@ export const CHOICE_FILTERS: {
     choices: [{ value: "yes", label: "Has a pending amendment" }, { value: "no", label: "No pending amendment" }],
     matches: (r, value) => hasPendingAmendment(r) === (value === "yes"),
   },
+  {
+    key: "customerType", label: "Customer type",
+    choices: [{ value: "New", label: "New" }, { value: "Existing", label: "Existing" }],
+    matches: (_r, value, _today, customerType) => customerType === value,
+  },
 ];
 
 const MORE_PREFIXES = ["min.", "max.", "has.", "is."];
 export const isMoreFilterParam = (key: string) => MORE_PREFIXES.some((p) => key.startsWith(p));
 
-export function matchesMoreFilters(r: RegisterRow, params: URLSearchParams, today: string): boolean {
+export function matchesMoreFilters(r: RegisterRow, params: URLSearchParams, today: string, customerType: CustomerType = "Not recorded"): boolean {
   for (const f of RANGE_FILTERS) {
     const min = params.get(`min.${f.key}`), max = params.get(`max.${f.key}`);
     if (!min && !max) continue;
@@ -72,7 +100,7 @@ export function matchesMoreFilters(r: RegisterRow, params: URLSearchParams, toda
   }
   for (const f of CHOICE_FILTERS) {
     const value = params.get(`is.${f.key}`);
-    if (value && !f.matches(r, value, today)) return false;
+    if (value && !f.matches(r, value, today, customerType)) return false;
   }
   return true;
 }

@@ -46,3 +46,8 @@ export const phoneKeyMy = (p: string | null | undefined): string => {
  *  byte-identical output. */
 export const nameKey = (n: string | null | undefined): string =>
   (n ?? "").trim().toLowerCase();
+
+/** Each number in a phone field, as phoneKeyMy keys. People type two numbers in
+ *  one field (`012-3456789/013-9876543`). Too short to be a number is dropped. */
+export const phoneKeysMy = (p: string | null | undefined): string[] =>
+  (p ?? "").split(/[/,;]/).map(phoneKeyMy).filter((k) => k.length >= 7);
