@@ -179,6 +179,7 @@ describe("Outright record return context", () => {
     const scroll = screen.getByTestId("grid-scroll");
     scroll.scrollTop = 240; fireEvent.scroll(scroll);
     fireEvent.click(screen.getByText("SO-1040", {exact:true}));
+    fireEvent.click(screen.getByRole("button", {name:"Open full page"}));
     expect(screen.getByRole("link", {name:"Back to Sales Orders"})).toHaveAttribute("href", "/operation/orders?cols=payment&f.payment=Owes");
     fireEvent.click(screen.getByRole("link", {name:"Back to Sales Orders"}));
     await waitFor(()=>expect(footer()).toHaveTextContent("2 / 3"));
@@ -194,6 +195,7 @@ describe("Outright record return context", () => {
     fireEvent.click(screen.getByRole("button", {name:"Next page"}));
     expect(footer()).toHaveTextContent("2 / 2");
     fireEvent.click(screen.getByText("SO-1051", {exact:true}));
+    fireEvent.click(screen.getByRole("button", {name:"Open full page"}));
     fireEvent.click(screen.getByRole("link", {name:"Back to Sales Orders"}));
     await waitFor(()=>expect(footer()).toHaveTextContent("2 / 2"));
     expect(screen.getByRole("button", {name:"Rows 50"})).toBeInTheDocument();
@@ -225,5 +227,29 @@ describe("New Sales Order on the Register", () => {
     </QueryClientProvider>);
     fireEvent.click(within(screen.getByTestId("outright-toolbar")).getByRole("button", {name:"New Sales Order"}));
     expect(await screen.findByText("TEST create page")).toBeVisible();
+  });
+});
+
+describe("Outright quick view and cards (Houzs, Weisiang 1 Nov)", () => {
+  it("a plain row click opens the quick view and stays on the list", async () => {
+    mount();
+    fireEvent.click(screen.getAllByTestId(/^outright-row-/)[0]!);
+    const drawer = await screen.findByTestId("outright-quick-view");
+    expect(within(drawer).getByRole("button", {name:"Open full page"})).toBeVisible();
+    expect(within(drawer).getByRole("button", {name:"Copy as new"})).toBeVisible();
+    expect(screen.getByTestId("register-location").textContent ?? "").not.toContain("/so/");
+  });
+  it("the Cards view lists the same page of orders, and a card opens the quick view", async () => {
+    mount("/operation/orders?view=cards");
+    const cards = screen.getByTestId("outright-cards");
+    expect(within(cards).getAllByRole("button")).toHaveLength(20);
+    expect(screen.getByTestId("outright-footer")).toBeVisible();
+    fireEvent.click(within(cards).getAllByRole("button")[0]!);
+    expect(await screen.findByTestId("outright-quick-view")).toBeVisible();
+  });
+  it("a More filters param narrows the list, shows a chip and is cleared with the rest", async () => {
+    mount("/operation/orders?max.so=1&is.amendment=yes");
+    expect(screen.getByRole("button", {name:/Sales order no\.: Any to 1/})).toBeVisible();
+    expect(screen.queryAllByTestId(/^outright-row-/)).toHaveLength(0);
   });
 });
