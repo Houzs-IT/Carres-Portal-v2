@@ -256,7 +256,7 @@ describe("GET /api/ops/service-cases", () => {
     const res = await get("/ops/service-cases", sb);
     const body = (await res.json()) as { items: { so: number | null; orderId: string }[] };
 
-    expect(selects[0]).toContain("orders(so)");
+    expect(selects[0]).toContain("orders(so,");
     expect(body.items[0].so).toBe(1258);
     expect(body.items[0].orderId).toBe("ord-1");
   });

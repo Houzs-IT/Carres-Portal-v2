@@ -73,7 +73,7 @@ scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
  * costs one extra column per row.
  */
 const CASE_SELECT =
-  "*, service_case_types(label), service_case_statuses(label,is_closed), orders(so), suppliers(name)";
+  "*, service_case_types(label), service_case_statuses(label,is_closed), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /config — config-driven Case Type + Status (active only, sorted)
@@ -1013,6 +1013,13 @@ interface OrderRow {
   delivery_date: string | null;
 }
 
+interface RawCaseOrder {
+  so: number;
+  salespersons?: { name: string | null } | { name: string | null }[] | null;
+  ops_delivery_orders?: { do_number: string; voided_at: string | null }[] | null;
+  order_supplier_threads?: { po_id: string | null }[] | null;
+}
+
 interface RawCase {
   id: string;
   case_no: string;
@@ -1058,7 +1065,7 @@ interface RawCase {
   service_case_statuses: { label: string; is_closed: boolean } | null;
   /** J2 — embedded `orders(so)`. A to-one embed, but PostgREST has been seen
    *  to hand back an array shape, so both are tolerated. */
-  orders: { so: number } | { so: number }[] | null;
+  orders: RawCaseOrder | RawCaseOrder[] | null;
 }
 
 function shapeCase(r: RawCase) {
@@ -1085,6 +1092,7 @@ function shapeCase(r: RawCase) {
     statusLabel:         r.service_case_statuses?.label ?? null,
     statusIsClosed:      r.service_case_statuses?.is_closed ?? false,
     so:                  embeddedSo(r.orders),
+    ...embeddedOrderFacts(r.orders),
 
     // S1 — the guided intake's answers travel back so the case can be READ the
     // way it was filed (list badge, case view). `?? null` rather than a spread
@@ -1158,6 +1166,17 @@ function embeddedSo(o: RawCase["orders"]): number | null {
   if (!o) return null;
   const row = Array.isArray(o) ? o[0] : o;
   return row?.so ?? null;
+}
+
+/** The linked order's Salesperson, live DO numbers and PO numbers (Houzs list columns). */
+function embeddedOrderFacts(o: RawCase["orders"]) {
+  const row = Array.isArray(o) ? o[0] : o;
+  const person = Array.isArray(row?.salespersons) ? row?.salespersons[0] : row?.salespersons;
+  return {
+    salespersonName: person?.name ?? null,
+    doNumbers: (row?.ops_delivery_orders ?? []).filter((d) => !d.voided_at).map((d) => d.do_number),
+    poNumbers: [...new Set((row?.order_supplier_threads ?? []).map((t) => t.po_id).filter((v): v is string => !!v))],
+  };
 }
 
 export default scRouter;
