@@ -140,6 +140,19 @@ export function renderGrnPdf(data: GrnTemplateData): Promise<Blob> {
   return toBlob(GrnTemplate(data));
 }
 
+/** Several GRNs in one PDF, each its own governed page: the same move as
+ *  `renderCombinedDoPdf`. */
+export function renderCombinedGrnPdf(list: GrnTemplateData[]): Promise<Blob> {
+  const pages = list.map((data, i) => {
+    const doc = GrnTemplate(data) as ReactElement<{ children: ReactElement }>;
+    return createElement(
+      doc.props.children.type,
+      { ...doc.props.children.props, key: `grn-${i}` },
+    );
+  });
+  return toBlob(createElement(Document, null, ...pages) as ReactElement);
+}
+
 /** Migration 0242 — ON LOAN delivery-note (the customer signs on hand-over of a
  *  loaner). Rendered on-demand from the ops_sofa_loans row + order. */
 export function renderLoanNotePdf(data: LoanNoteTemplateData): Promise<Blob> {

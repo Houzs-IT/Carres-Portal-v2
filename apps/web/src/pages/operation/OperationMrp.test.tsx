@@ -41,6 +41,17 @@ describe("OperationMrp", () => {
     expect(screen.getByText("SKU-A")).toBeTruthy();
   });
 
+  it("filters by warehouse and by From and To on the chosen date, and prints each line's PO and ETA", () => {
+    show([
+      line({ warehouse: "Klang", poCover: [{ poId: "PO-1", qty: 2, eta: "2026-11-25" }] }),
+      line({ lineId: "L2", sku: "SKU-B", warehouse: "Penang", delivery: "2026-12-20" }),
+    ]);
+    fireEvent.click(screen.getByTestId("mrp-warehouse-Klang"));
+    expect(screen.queryByText("SKU-B")).toBeNull();
+    fireEvent.click(screen.getByLabelText(/SKU-A/));
+    expect(screen.getByTestId("mrp-detail-SKU-A").textContent).toContain("PO-1");
+  });
+
   it("says a failed read failed, not that nothing is needed", () => {
     mrpQuery.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
     render(<MemoryRouter><OperationMrp /></MemoryRouter>);

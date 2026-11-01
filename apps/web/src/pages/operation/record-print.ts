@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { ApiError, apiFetch } from "@/lib/api";
 import { fetchReceivingSessionDetail, type ReceivingSessionDetail } from "@/lib/queries";
 import {
+  renderCombinedGrnPdf,
   renderCombinedSalesOrderPdf,
   renderDoPdf,
   renderGrnPdf,
@@ -83,4 +84,22 @@ export async function printGrn(
 ): Promise<void> {
   const detail = await read(sessionId);
   openPdfForPrint(await renderGrnPdf(grnTemplateDataOf(detail)));
+}
+
+/** The register's `Print N GRNs`: every ticked GRN in one PDF, Houzs
+ *  GoodsReceivedListV2.tsx:723. A row with no GRN yet has no paper. */
+export async function printGrnsOrSay(
+  rows: ReadonlyArray<{ id: string; status?: string | null }>,
+  read: (id: string) => Promise<ReceivingSessionDetail> = fetchReceivingSessionDetail,
+): Promise<void> {
+  const paper = rows.filter((r) => receivingHasGrn(r.status));
+  if (paper.length === 0) return;
+  try {
+    const data = [];
+    for (const r of paper) data.push(grnTemplateDataOf(await read(r.id)));
+    openPdfForPrint(await renderCombinedGrnPdf(data));
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : String(error);
+    toast.error(`Printing ${paper.length} GRN${paper.length === 1 ? "" : "s"} failed: ${message}`);
+  }
 }

@@ -17,6 +17,21 @@ const IMAGE_MIMES = ["image/jpeg", "image/png"] as const;
 const VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/webm"] as const;
 const PDF_MIMES = ["application/pdf"] as const;
 const MAX_SIZE = 10 * 1024 * 1024;
+export const SUPPLIER_ANSWER_MIMES: readonly string[] = [...IMAGE_MIMES, ...VIDEO_MIMES, ...PDF_MIMES];
+export const SUPPLIER_ANSWER_MAX_BYTES = MAX_SIZE;
+
+/** The signed upload slot for one PO's answer evidence. */
+export const signSupplierAnswerUpload = (poId: string, poVersion: number, file: File) =>
+  apiFetch<{ token: string; path: string }>("/api/storage/dos/sign-upload", {
+    method: "POST",
+    body: JSON.stringify({
+      po_id: poId,
+      do_number: `V${poVersion}-answer`,
+      mime_type: file.type,
+      size_bytes: file.size,
+      kind: "answer",
+    }),
+  });
 
 type Props = {
   poId: string;
@@ -40,17 +55,7 @@ export default function SupplierAnswerEvidenceUploadField({
   testId,
 }: Props) {
   const sign = useCallback(
-    (file: File) =>
-      apiFetch<{ token: string; path: string }>("/api/storage/dos/sign-upload", {
-        method: "POST",
-        body: JSON.stringify({
-          po_id: poId,
-          do_number: `V${poVersion}-answer`,
-          mime_type: file.type,
-          size_bytes: file.size,
-          kind: "answer",
-        }),
-      }),
+    (file: File) => signSupplierAnswerUpload(poId, poVersion, file),
     [poId, poVersion],
   );
   return (

@@ -84,6 +84,7 @@ import OperationSuppliers from "./OperationSuppliers";
 import OperationSupplierItems from "./OperationSupplierItems";
 import OperationPurchaseInvoices from "./OperationPurchaseInvoices";
 import OperationPurchaseInvoiceNew, { OperationPurchaseInvoiceEdit } from "./OperationPurchaseInvoiceNew";
+import OperationPurchaseInvoiceDetail from "./OperationPurchaseInvoiceDetail";
 // 2026-05-20 — Phase A · AutoCount integration tabs.
 import OperationImport from "./OperationImport";
 import OperationInbox from "./OperationInbox";
@@ -472,6 +473,7 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             <Route path="purchase-invoices/new" element={<OperationPurchaseInvoiceNew />} />
             <Route path="purchase-invoices/from-grn" element={<OperationPurchaseInvoiceNew fromGrn />} />
             <Route path="purchase-invoices/:id/edit" element={<OperationPurchaseInvoiceEdit />} />
+            <Route path="purchase-invoices/:id" element={<OperationPurchaseInvoiceDetail />} />
             <Route
               path="procurement/:slug"
               element={<TabbedProcurementShell />}
