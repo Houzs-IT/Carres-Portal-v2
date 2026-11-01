@@ -5,9 +5,9 @@ import type { CreditNoteRow } from "@carres/shared/schemas/finance-credit-note";
 import type { CreditNotePrintData } from "@carres/shared/schemas/finance-credit-note";
 import ListPageShell from "@/components/ListPageShell";
 import Button from "@/components/kit/Button";
-import Loading from "@/components/kit/Loading";
 import Input from "@/components/kit/Input";
 import Modal from "@/components/kit/Modal";
+import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import { apiFetch } from "@/lib/api";
 import { rm } from "@/lib/format-currency";
 import { renderCreditNotePdf } from "@/lib/pdf/render";
@@ -33,6 +33,7 @@ export default function FinanceCreditNotes() {
   });
   const [issuing, setIssuing] = useState(false);
   const [voiding, setVoiding] = useState<CreditNoteRow | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState(new Set<string>());
 
   const open = async (row: CreditNoteRow) => {
     try {
@@ -44,53 +45,52 @@ export default function FinanceCreditNotes() {
   };
 
   const rows = list.data ?? [];
+  const printMany = async (picked: CreditNoteRow[]) => {
+    for (const r of picked) await open(r);
+  };
+  const statusOf = (r: CreditNoteRow) => (r.status === "voided" ? "Voided" : "Issued");
+  const soOf = (r: CreditNoteRow) => (r.so != null ? `SO-${r.so}` : "");
+  // The Houzs columns (CreditNotes.tsx:345-359); Journal is not on this row.
+  const columns: DataGridColumn<CreditNoteRow>[] = [
+    { key: "no", label: "Number", width: 160, accessor: (r) => <span className="font-mono font-semibold">{r.credit_note_no}</span>,
+      searchValue: (r) => r.credit_note_no, exportValue: (r) => r.credit_note_no },
+    { key: "date", label: "Date", width: 120, accessor: (r) => r.note_date, dateValue: (r) => r.note_date, filterType: "date", exportValue: (r) => r.note_date },
+    { key: "party", label: "Party", width: 220, wrap: true, accessor: (r) => r.customer_name ?? "", searchValue: (r) => r.customer_name ?? "" },
+    { key: "ref", label: "Reference", width: 160, accessor: (r) => r.invoice_no ?? "", searchValue: (r) => r.invoice_no ?? "" },
+    { key: "so", label: "SO", width: 110, accessor: soOf, searchValue: soOf },
+    { key: "reason", label: "Reason", width: 240, wrap: true, accessor: (r) => r.reason, searchValue: (r) => r.reason },
+    { key: "total", label: "Total", width: 130, align: "right", accessor: (r) => <span className="font-mono font-semibold">{rm(r.amount)}</span>,
+      numberValue: (r) => r.amount, filterType: "number", exportValue: (r) => r.amount },
+    { key: "status", label: "Status", width: 110, accessor: statusOf, filterValue: statusOf, filterType: "enum", exportValue: statusOf },
+    { key: "voidReason", label: "Void reason", width: 220, wrap: true, defaultHidden: true, accessor: (r) => r.void_reason ?? "" },
+    { key: "actions", label: "", width: 150, accessor: (r) => <span className="whitespace-nowrap">
+        <Button size="sm" onClick={() => open(r)}>Open</Button>{" "}
+        {r.status === "issued" ? <Button size="sm" onClick={() => setVoiding(r)}>Void</Button> : null}
+      </span>, exportValue: () => "" },
+  ];
   return (
     <ListPageShell
       register
       title="Customer Credit Notes"
       actions={<Button variant="primary" onClick={() => setIssuing(true)}>Issue credit note</Button>}
     >
-      <div className="bg-card rounded-md border border-border overflow-auto">
-        <table className="w-full text-meta">
-          <thead>
-            <tr className="bg-muted/40 text-label uppercase tracking-[0.06em] text-muted-foreground text-left">
-              <th className="px-4 py-2.5">Credit Note</th>
-              <th className="px-4 py-2.5">Date</th>
-              <th className="px-4 py-2.5">Invoice</th>
-              <th className="px-4 py-2.5">SO</th>
-              <th className="px-4 py-2.5">Customer</th>
-              <th className="px-4 py-2.5">Reason</th>
-              <th className="px-4 py-2.5 text-right">Amount</th>
-              <th className="px-4 py-2.5">Status</th>
-              <th className="px-4 py-2.5" />
-            </tr>
-          </thead>
-          <tbody>
-            {list.isLoading ? (
-              <tr><td colSpan={9} className="p-10"><Loading variant="skeleton" label="Loading credit notes" /></td></tr>
-            ) : list.isError && !list.data ? (
-              <tr><td colSpan={9}><LoadFailed what="The credit notes" onRetry={() => void list.refetch()} /></td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={9} className="p-10 text-center text-muted-foreground">No credit notes yet.</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="border-t border-border">
-                <td className="px-4 py-2.5 font-mono font-semibold">{r.credit_note_no}</td>
-                <td className="px-4 py-2.5">{r.note_date}</td>
-                <td className="px-4 py-2.5 font-mono">{r.invoice_no ?? ""}</td>
-                <td className="px-4 py-2.5">{r.so != null ? `SO-${r.so}` : ""}</td>
-                <td className="px-4 py-2.5">{r.customer_name ?? ""}</td>
-                <td className="px-4 py-2.5 max-w-[240px] truncate" title={r.reason}>{r.reason}</td>
-                <td className="px-4 py-2.5 text-right font-mono font-semibold">{rm(r.amount)}</td>
-                <td className="px-4 py-2.5">{r.status === "voided" ? "Voided" : "Issued"}</td>
-                <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                  <Button size="sm" onClick={() => open(r)}>Open</Button>{" "}
-                  {r.status === "issued" ? <Button size="sm" onClick={() => setVoiding(r)}>Void</Button> : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {list.isError && !list.data
+        ? <LoadFailed what="The credit notes" onRetry={() => void list.refetch()} />
+        : <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id}
+            storageKey="carres.finance.customer-credit-notes.v1" appearance="reference" exportName="Customer Credit Notes"
+            groupBanner={false} stickyIdentity isLoading={list.isLoading} searchPlaceholder="Search credit notes…"
+            emptyMessage="No credit notes yet."
+            selectable={{ selectedKeys, onToggle: (key) => setSelectedKeys((before) => {
+              const next = new Set(before); if (next.has(key)) next.delete(key); else next.add(key); return next;
+            }), onToggleAll: (keys, all) => setSelectedKeys((before) => {
+              const next = new Set(before); keys.forEach((key) => { if (all) next.delete(key); else next.add(key); }); return next;
+            }) }}
+            selectionActions={[{
+              kind: "output",
+              label: (n) => `Print ${n} ${n === 1 ? "credit note" : "credit notes"}`,
+              onClick: (picked) => void printMany(picked as unknown as CreditNoteRow[]),
+            }]}
+            statusSummary={(visible) => <span data-testid="credit-notes-summary">{visible.length} {visible.length === 1 ? "credit note" : "credit notes"}</span>} />}
 
       <IssueModal
         open={issuing}

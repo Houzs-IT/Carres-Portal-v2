@@ -6157,10 +6157,22 @@ Source: `apps/web/src/pages/finance/SalesInvoices.tsx`.
 | Where | Words |
 |---|---|
 | Side menu row and page title | `Sales Invoices` |
-| Columns, in order | `Invoice No` · `Invoice date` · `SO No` · `Customer` · `Ref No` · `Status` · `Still owed on SO` · `Invoice total` |
-| Status | `Draft` · `Issued` · `Voided` |
+| Columns, in order | `SI No.` · `Date` · `SO No.` · `Customer` · `Ref No.` · `Status` · `Outstanding on SO` · `Total`; hidden until chosen: `Paid on SO` · `Phone` |
+| Status | `Draft` · `Submitted` · `Partially paid` · `Paid` · `Cancelled` (Paid and Partially paid read the order's money) |
+| Tabs and tiles | `All` · `Sent` · `Partial` · `Paid` · `Cancelled`; `Total Invoices` · `Billed` · `Outstanding` · `Paid` |
+| Quick view | `Customer` · `Invoice info` · `Line items · {n}` · `Payments` · `Open on Monitor` |
 | A draft's Invoice No | `Draft, no number yet` |
-| Search, summary, empty, failed | `Search sales invoices…` · `{n} sales invoices` · `No sales invoices yet.` · `Sales Invoices could not be loaded. Try again.` |
+| Search, summary, empty, failed | `Search SI, customer, phone, ref…` · `{n} sales invoices` · `No sales invoices yet.` · `Sales Invoices could not be loaded. Try again.` |
+
+## Finance lists, following Houzs · Weisiang, WhatsApp 1 Nov 2026
+
+| Where | Words |
+|---|---|
+| Payment Vouchers tabs | `All` · `Draft` · `Prepared` · `Checked` · `Approved` · `Advance open` · `Cancelled` |
+| Payment Vouchers notice | `{n} payment requests are waiting for Finance` · `Print {n} vouchers` |
+| Payment Requests tabs | `All` · `Waiting for Finance` · `Processing` · `Paid` · `Returned / withdrawn` |
+| Suppliers tabs and columns | `All` · `Trade` · `Other` · `Missing TIN`; `Owed` · `Advance` · `Open bills` |
+| Customer Credit Notes columns | `Number` · `Date` · `Party` · `Reference` · `SO` · `Reason` · `Total` · `Status`; hidden until chosen: `Void reason`; `Print {n} credit notes` |
 
 ## New Sales Invoice words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22) · BUILT ON BRANCH `feat/office-new-sales-invoice` (0712 not applied)
 

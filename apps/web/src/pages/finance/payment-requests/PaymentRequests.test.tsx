@@ -159,12 +159,18 @@ describe("Payment Requests, as Finance", () => {
     ] };
   });
 
-  it("opens on what waits for Finance; All requests shows every one", async () => {
+  it("the stage tabs split the requests", async () => {
+    show("/finance/payment-requests?view=paid");
+    expect(await screen.findByTestId("payment-request-row-PRQ261001-0001")).toHaveTextContent("Paid");
+    expect(screen.queryByTestId("payment-request-row-PRQ261003-4821")).not.toBeInTheDocument();
+  });
+
+  it("opens on what waits for Finance; All shows every one", async () => {
     show("/finance/payment-requests");
     await screen.findByTestId("payment-request-row-PRQ261003-4821");
     expect(screen.queryByTestId("payment-request-row-PRQ261001-0001")).not.toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "All requests" }));
-    fireEvent.click(screen.getByRole("tab", { name: "All requests" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "All" }));
+    fireEvent.click(screen.getByRole("tab", { name: "All" }));
     expect(await screen.findByTestId("payment-request-row-PRQ261001-0001")).toHaveTextContent("Paid");
   });
 
