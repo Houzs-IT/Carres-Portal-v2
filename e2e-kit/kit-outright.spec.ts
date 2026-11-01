@@ -267,7 +267,13 @@ test("Sales Order Outright opened row: Qty and Supplier are reachable by keyboar
   expect(await inBox("Qty")).not.toBe("missing");
   expect(await inBox("Supplier"), "Supplier comes into view with the arrow keys").toBe("in view");
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), "the page itself never scrolls sideways").toBeLessThanOrEqual(0);
-  const scrollLeft = await page.locator("[data-list-scroll]").evaluate((box) => box.scrollLeft);
+  /* The last arrow key may still be scrolling: read once it has settled. */
+  let scrollLeft = -1;
+  await expect.poll(async () => {
+    const before = scrollLeft;
+    scrollLeft = await page.locator("[data-list-scroll]").evaluate((box) => box.scrollLeft);
+    return scrollLeft === before;
+  }).toBe(true);
   await setPanels(page, false, true);
   await expect(page.getByRole("dialog", { name: "Tasks", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
