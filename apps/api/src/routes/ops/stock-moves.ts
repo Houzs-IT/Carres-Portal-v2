@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireOperationOrPrincipal } from "../../lib/auth-guards";
 import { userClient } from "../../lib/supabase";
 import { parseBody } from "../../lib/route-helpers";
-import { resolveActorNames } from "../../lib/actor-names";
+import { withPerformedBy } from "../../lib/actor-names";
 import type { AppEnv } from "../../types";
 
 /**
@@ -74,12 +74,6 @@ router.get("/incoming", requireOperationOrPrincipal, async (c) => {
   for (const r of rows) bySku[r.sku] = (bySku[r.sku] ?? 0) + (r.qty ?? 1);
   return c.json({ incoming: bySku });
 });
-
-/** Puts the staff name beside each row; the created_by uuid stays server-side. */
-async function withPerformedBy<T extends { created_by: string | null }>(sb: Parameters<typeof resolveActorNames>[0], rows: T[]) {
-  const names = await resolveActorNames(sb, rows.map((r) => r.created_by));
-  return rows.map(({ created_by, ...r }) => ({ ...r, performed_by: (created_by && names.get(created_by)) ?? null }));
-}
 
 /**
  * List figures for a Stock Take (Houzs StockTakesListV2.tsx:304-312). A blind
