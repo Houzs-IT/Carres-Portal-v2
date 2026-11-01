@@ -236,22 +236,34 @@ function ResidenceRules({ rules, onSaved }: { rules: Rule[]; onSaved: () => void
   );
 }
 
+const ALL_REGIONS = "__all__";
+
 /** Row 33 — the planning board, its Regions list and its Residence rules. */
 export function DeliveryPlanning() {
   const { q, rows, refresh } = usePlan();
   const [view, setView] = useState("board");
   const [editing, setEditing] = useState<PlanRow | null>(null);
   const columns = useMemo(() => [...baseColumns, ...moreColumns, ...ruleColumns, requestedColumn, dayColumn, carrierColumn, slotColumn, statusColumn], []);
+  /* Houzs DeliveryPlanningBoard.tsx:240-245: one tab per region. */
+  const [region, setRegion] = useState(ALL_REGIONS);
+  const regions = useMemo(() => [...new Set(rows.map((r) => r.region))].sort(), [rows]);
+  const shown = useMemo(() => rows.filter((r) => region === ALL_REGIONS || r.region === region), [rows, region]);
   return (
     <Page word="Delivery Planning" testId="delivery-planning">
       <div className="px-4 pt-2">
         <Tabs label="Delivery Planning" variant="segmented" value={view} onValueChange={setView}
           tabs={[{ value: "board", label: "Board" }, { value: "regions", label: "Regions" }, { value: "rules", label: "Residence rules" }]} />
       </div>
+      {view === "board" && regions.length > 0 && (
+        <div className="px-4 pt-2" data-testid="delivery-planning-regions">
+          <Tabs label="Region" variant="segmented" value={region} onValueChange={setRegion}
+            tabs={[{ value: ALL_REGIONS, label: `All (${rows.length})` }, ...regions.map((r) => ({ value: r, label: `${r} (${rows.filter((x) => x.region === r).length})` }))]} />
+        </div>
+      )}
       {q.isError && !q.data ? loadError(q.refetch) : (
         <ListPageShell register>
           {view === "board" && (
-            <DataGrid rows={rows} columns={columns} rowKey={(r) => r.key} storageKey="carres.delivery.planning.v2" appearance="reference"
+            <DataGrid rows={shown} columns={columns} rowKey={(r) => r.key} storageKey="carres.delivery.planning.v2" appearance="reference"
               exportName="Delivery Planning" initialGroupBy={["region"]} sortDefault={{ key: "requested", dir: "asc" }}
               stickyIdentity isLoading={!q.isSuccess} searchPlaceholder="Search SO, DO, customer or location…"
               onRowClick={setEditing} emptyMessage="No orders waiting for delivery." />

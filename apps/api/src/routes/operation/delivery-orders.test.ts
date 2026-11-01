@@ -73,7 +73,7 @@ function mockSb(
     const res = queue.shift() ?? { data: null, error: null };
     const chain: Record<string, unknown> = {};
     const self = () => chain;
-    for (const m of ["select", "eq", "in", "order", "limit", "maybeSingle"]) {
+    for (const m of ["select", "eq", "in", "or", "order", "limit", "maybeSingle"]) {
       chain[m] = vi.fn().mockImplementation(self);
     }
     (chain as { then: unknown }).then = (
@@ -153,6 +153,18 @@ describe("GET /api/operation/delivery-orders — the register", () => {
     const body = (await res.json()) as { proofReviews: unknown[]; attemptEvidence: unknown[] };
     expect(body.proofReviews).toEqual([review]);
     expect(body.attemptEvidence).toEqual([]);
+  });
+
+  it("carries the POs and Delivery Returns of the documents, and a failed read fails the register", async () => {
+    const links = [{ data: [DO_ROW] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+    const po = { id: "PO-7", so: 1322, so_refs: null };
+    const back = { delivery_order_id: DO_ROW.id, return_no: "DR-1" };
+    mockSb([...links, { data: [po] }, { data: [back] }]);
+    const body = (await (await call("", "operation")).json()) as { sourcePos: unknown[]; deliveryReturns: unknown[] };
+    expect(body.sourcePos).toEqual([po]);
+    expect(body.deliveryReturns).toEqual([back]);
+    mockSb([...links, { error: { code: "42501", message: "permission denied" } }]);
+    expect((await call("", "operation")).status).toBe(500);
   });
 
   it("§6.1 — any other proof-record failure is a failed register, never a silent empty queue", async () => {

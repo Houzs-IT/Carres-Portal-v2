@@ -7726,6 +7726,9 @@ export interface DeliveryOrdersRegisterPayload {
   deliveryOrders: DeliveryOrderRow[];
   attempts: DeliveryOrderAttemptRow[];
   handoverEvents: DeliveryHandoverKindRow[];
+  /** Absent on an older Worker = none shown. */
+  sourcePos?: { id: string; so: number | null; so_refs: number[] | null }[];
+  deliveryReturns?: { delivery_order_id: string; return_no: string | null }[];
   /** §6.1 (0489) — Operation's reviews and the per-attempt evidence clocks.
    *  Absent on an older Worker = unknown, read as no review recorded. */
   proofReviews?: DeliveryProofReviewRow[];

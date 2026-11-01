@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dueBuckets, monthsOf, notClosed, openOrders, periodFigures, weeksOf } from "./logistic-overview";
+import { daysOf, dueBuckets, monthsOf, notClosed, openOrders, periodFigures, weeksOf } from "./logistic-overview";
 import type { DoRegisterRow } from "./delivery-orders-register";
 import type { PlanRow } from "./delivery-planning";
 
@@ -54,6 +54,11 @@ describe("logistic overview", () => {
     const span = weeksOf([], "2026-11-01", "2026-12-31", "2026-11-01");
     expect(span[0]!.label).toBe("2026-11 · W1");
     expect(span.at(-1)!.to).toBe("2026-12-31");
+  });
+
+  it("lists the window's days newest first, with their documents, and leaves cancelled out", () => {
+    const dos = [doc("created", "2026-11-02T01:00:00Z"), doc("delivered", "2026-11-03T01:00:00Z"), doc("cancelled", "2026-11-03T01:00:00Z"), doc("created", "2026-10-30T01:00:00Z")];
+    expect(daysOf(dos, "2026-11-01", "2026-11-30").map((d) => [d.day, d.issued, d.delivered])).toEqual([["2026-11-03", 1, 1], ["2026-11-02", 1, 0]]);
   });
 
   it("flags a document out over 7 days as not closed", () => {

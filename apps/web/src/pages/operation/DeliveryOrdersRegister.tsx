@@ -53,6 +53,8 @@ import {
   type DataGridContextMenuItem,
 } from "@/components/register/DataGrid";
 import { documentRowMenu } from "@/components/register/row-menu";
+import Button from "@/components/kit/Button";
+import Drawer from "@/components/kit/Drawer";
 import { printDeliveryOrder } from "./record-print";
 import Select from "@/components/kit/Select";
 import ModuleHeader from "./components/ModuleHeader";
@@ -83,6 +85,7 @@ import {
   buildDoRegisterRails,
   buildDoRegisterRow,
   doRegisterFooter,
+  documentLinksOf,
   matchesDoFilters,
   type DoRegisterFilters,
   type DoRegisterRow,
@@ -226,6 +229,61 @@ async function printDeliveryOrders(rows: DoRegisterRow[]): Promise<void> {
  *  spelling — cell, search, per-column filter and Excel export alike. */
 function requestedText(r: DoRegisterRow): string {
   return requestedDeliveryText({ iso: r.requestedDelivery, tbd: r.requestedTbd });
+}
+
+/** One file per document, through the single-DO print. */
+async function printDeliveryOrdersSeparately(rows: DoRegisterRow[]): Promise<void> {
+  for (const r of rows) {
+    try {
+      await printDeliveryOrder(r.orderId, r.doNumber);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : `Delivery Order ${r.doNumber} PDF failed`);
+    }
+  }
+}
+
+/** Follows Houzs MfgDeliveryOrdersListV2.tsx:415-621: click a row for the quick view. */
+function DoQuickView({ row, onClose, onOpenFull }: { row: DoRegisterRow; onClose: () => void; onOpenFull: () => void }) {
+  const facts: Array<[string, string | null]> = [
+    ["SO No", `SO-${row.so}`],
+    ["Ref No.", row.refNo],
+    ["DO date", fmtDate(row.issuedAt)],
+    ["Delivery Date", row.confirmedDelivery ? fmtDate(row.confirmedDelivery) : DOR_COPY.noConfirmedDate],
+    ["Requested Delivery Date", requestedText(row)],
+    ["Driver", row.driver],
+    ["Vehicle", row.vehicle],
+    ["Logistics", row.logisticsPartner],
+    ["Salesperson", row.salesperson],
+    ["Amount", row.amount == null ? null : rm(row.amount)],
+    ["Invoice No", row.invoiceNos.join(", ") || "Not invoiced"],
+    ["Source PO", row.sourcePos?.join(", ") || "No PO"],
+    ["Delivery Return", row.returnNos?.join(", ") || "No return"],
+    ["Phone", row.phone],
+    ["Email", row.email],
+    ["Address", row.address],
+  ];
+  return (
+    <Drawer
+      open
+      variant="quick-view"
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      title={`${row.doNumber} · ${row.customer}`}
+      headerActions={<Button variant="neutral" onClick={onOpenFull}>Open full page</Button>}
+    >
+      <div className="flex flex-col gap-4" data-testid="do-quick-view">
+        <div><StatusPill tone={STATUS_TONE[row.status.kind]}>{row.status.label}</StatusPill></div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-body">
+          {facts.map(([label, value]) => (
+            <div key={label} className="min-w-0">
+              <dt className="text-meta text-base-600">{label}</dt>
+              <dd className="break-words">{value ?? <Absent>{DOR_COPY.notRecorded}</Absent>}</dd>
+            </div>
+          ))}
+        </dl>
+        <DoExpansion row={row} />
+      </div>
+    </Drawer>
+  );
 }
 
 /** Which viewer a click opened, and over which document. */
@@ -521,6 +579,7 @@ export default function DeliveryOrdersRegister() {
 
   /* Which attachment viewer is open, over which document. */
   const [viewer, setViewer] = useState<ViewerPick>(null);
+  const [quickView, setQuickView] = useState<DoRegisterRow | null>(null);
 
   const allRows = useMemo<DoRegisterRow[]>(() => {
     const attemptsByDo = new Map<string, DeliveryOrderAttemptRow[]>();
@@ -539,9 +598,11 @@ export default function DeliveryOrdersRegister() {
     }
     // §6.1 (0489) — the review and evidence records, grouped once.
     const proofRecords = groupProofRecords(data?.proofReviews, data?.attemptEvidence);
-    return (data?.deliveryOrders ?? []).map((r) =>
-      buildDoRegisterRow(r, attemptsByDo, handoverByDoId, proofRecords),
-    );
+    const links = documentLinksOf(data?.sourcePos, data?.deliveryReturns);
+    return (data?.deliveryOrders ?? []).map((r) => {
+      const row = buildDoRegisterRow(r, attemptsByDo, handoverByDoId, proofRecords);
+      return { ...row, sourcePos: links.posBySo.get(row.so) ?? [], returnNos: links.returnsByDo.get(row.id) ?? [] };
+    });
   }, [data]);
 
   /* Houzs DoDateFilter, riding the URL with the other picks. */
@@ -696,6 +757,42 @@ export default function DeliveryOrdersRegister() {
         searchValue: (r) => r.invoiceNos.join(" "),
         exportValue: (r) => r.invoiceNos.join(", "),
         filterValue: (r) => r.invoiceNos.join(", ") || "Not invoiced",
+      },
+      {
+        /* Houzs `Transfer from`: the POs this document's order names. */
+        key: "source_po",
+        label: "Source PO",
+        width: 150,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Document",
+        accessor: (r) =>
+          r.sourcePos?.length ? (
+            <span className="block truncate font-mono" title={r.sourcePos.join(", ")}>{r.sourcePos.join(", ")}</span>
+          ) : (
+            <Absent>No PO</Absent>
+          ),
+        searchValue: (r) => r.sourcePos?.join(" ") ?? "",
+        exportValue: (r) => r.sourcePos?.join(", ") ?? "",
+        filterValue: (r) => r.sourcePos?.join(", ") || "No PO",
+      },
+      {
+        /* Houzs return chip: the Delivery Returns raised from this document. */
+        key: "delivery_return",
+        label: "Delivery Return",
+        width: 150,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Document",
+        accessor: (r) =>
+          r.returnNos?.length ? (
+            <span className="block truncate font-mono" title={r.returnNos.join(", ")}>{r.returnNos.join(", ")}</span>
+          ) : (
+            <Absent>No return</Absent>
+          ),
+        searchValue: (r) => r.returnNos?.join(" ") ?? "",
+        exportValue: (r) => r.returnNos?.join(", ") ?? "",
+        filterValue: (r) => r.returnNos?.join(", ") || "No return",
       },
       {
         key: "customer",
@@ -905,7 +1002,12 @@ export default function DeliveryOrdersRegister() {
         width: 214,
         sortable: true,
         chooserGroup: "Delivery",
-        accessor: (r) => <DriverSubmissionCell row={r} onOpen={setViewer} />,
+        /* A door in the cell must not also open the quick view. */
+        accessor: (r) => (
+          <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
+            <DriverSubmissionCell row={r} onOpen={setViewer} />
+          </span>
+        ),
         searchValue: (r) => submissionSearchText(r),
         exportValue: (r) => submissionSearchText(r),
         filterValue: (r) => {
@@ -1090,12 +1192,15 @@ export default function DeliveryOrdersRegister() {
                  one offering a single `(blank)` option, whose only possible
                  effect was to hide the row the operator came to act on. */
               filterable: false,
+              /* React events bubble out of this door's dialogs too: none may open the quick view. */
               accessor: (r: DoRegisterRow) => (
-                <QueueAction
-                  row={r}
-                  queue={filters.queue as DoWorkQueue}
-                  onOpenDeliveryOrder={openDeliveryOrder}
-                />
+                <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
+                  <QueueAction
+                    row={r}
+                    queue={filters.queue as DoWorkQueue}
+                    onOpenDeliveryOrder={openDeliveryOrder}
+                  />
+                </span>
               ),
               /* A door is not a fact: it never joins the search, the export or
                  a per-column filter. */
@@ -1262,6 +1367,7 @@ export default function DeliveryOrdersRegister() {
               groupBanner={false}
               stickyIdentity
               chooserGroupOrder={["Document", "Customer", "Delivery", "Dates"]}
+              onRowClick={(r) => setQuickView(r)}
               onRowDoubleClick={openDeliveryOrder}
               contextMenu={contextMenu}
               expandTitle="Show delivery order goods"
@@ -1282,6 +1388,14 @@ export default function DeliveryOrdersRegister() {
                   kind: "output",
                   onClick: (picked) => {
                     void printDeliveryOrders(picked as unknown as DoRegisterRow[]);
+                  },
+                },
+                {
+                  /* Houzs Export PDF, separate: one file per document. */
+                  label: (n) => `Print ${n} separately`,
+                  kind: "output",
+                  onClick: (picked) => {
+                    void printDeliveryOrdersSeparately(picked as unknown as DoRegisterRow[]);
                   },
                 },
               ]}
@@ -1353,6 +1467,9 @@ export default function DeliveryOrdersRegister() {
       </div>
       {/* The gallery and the player - opened from a count, showing exactly
           the files that count counted. */}
+      {quickView ? (
+        <DoQuickView row={quickView} onClose={() => setQuickView(null)} onOpenFull={() => openDeliveryOrder(quickView)} />
+      ) : null}
       {viewer ? (
         <DriverSubmissionViewer
           orderId={viewer.row.orderId}

@@ -87,6 +87,15 @@ export function weeksOf(dos: readonly DoRegisterRow[], from: string, to: string,
   });
 }
 
+/** Houzs daily section: each day of the window that issued a document, newest first. */
+export function daysOf(dos: readonly DoRegisterRow[], from: string, to: string) {
+  const by = new Map<string, DoRegisterRow[]>();
+  for (const r of periodFigures(dos, from, to).rows) by.set(issuedDay(r), [...(by.get(issuedDay(r)) ?? []), r]);
+  return [...by.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([day, rows]) => ({ key: day, day, ...figures(rows) }));
+}
+
 export function monthsOf(dos: readonly DoRegisterRow[]) {
   const by = new Map<string, DoRegisterRow[]>();
   for (const r of dos) {
