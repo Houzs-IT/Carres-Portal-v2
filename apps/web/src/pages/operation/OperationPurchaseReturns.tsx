@@ -634,7 +634,8 @@ export default function OperationPurchaseReturns({ consignment = false }: { cons
   const query = useOperationPurchaseReturns(claim, undefined, consignment);
   const label = consignment ? "Consignment Returns" : "Purchase Returns";
   const status = (query.error as { status?: number } | null)?.status;
-  const [creating, setCreating] = useState(false);
+  /* `?new=1&supplier=`: the GRN page's Convert to PR opens the same form. */
+  const [creating, setCreating] = useState(!consignment && params.get("new") === "1");
 
   /* `?pr=` opens the full-width record (§9.6: full width after issue); the
      register's own link and every Work card land here. */
@@ -664,10 +665,20 @@ export default function OperationPurchaseReturns({ consignment = false }: { cons
   }
 
   if (creating) {
-    return <NewPurchaseReturn onClose={() => setCreating(false)} onIssued={(id) => {
+    return <NewPurchaseReturn initialSupplierId={params.get("supplier")} onClose={() => {
       setCreating(false);
       setParams((previous) => {
         const next = new URLSearchParams(previous);
+        next.delete("new");
+        next.delete("supplier");
+        return next;
+      });
+    }} onIssued={(id) => {
+      setCreating(false);
+      setParams((previous) => {
+        const next = new URLSearchParams(previous);
+        next.delete("new");
+        next.delete("supplier");
         next.set("pr", id);
         return next;
       });
@@ -703,9 +714,9 @@ export const NEW_PURCHASE_RETURN = "New Purchase Return";
  * form lists that supplier's Units in stock. Weisiang's decision (Mr Lim,
  * WhatsApp 2026-10-22); Jess was not part of it.
  */
-function NewPurchaseReturn({ onClose, onIssued }: { onClose: () => void; onIssued: (id: string) => void }) {
+function NewPurchaseReturn({ initialSupplierId, onClose, onIssued }: { initialSupplierId: string | null; onClose: () => void; onIssued: (id: string) => void }) {
   const suppliers = useOperationSuppliers();
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierId, setSupplierId] = useState(initialSupplierId ?? "");
   if (supplierId) return <PurchaseReturnIssue supplierId={supplierId} onClose={onClose} onIssued={onIssued} />;
   return (
     <div className="flex max-w-md flex-col gap-3 p-4" data-testid="purchase-return-new">

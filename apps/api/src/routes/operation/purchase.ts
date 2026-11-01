@@ -502,7 +502,7 @@ purchaseRouter.get("/mrp", requireOperation, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
   const res = await loadToOrder(sb);
   if (!res.ok) return c.json(res.body as never, res.status as never);
-  const { registerFacts, supplierNames, openPoBySku, today } = res.data;
+  const { registerFacts, supplierNames, openPoBySku, openPoRefs, openPoEta, today } = res.data;
 
   // `required`: a failed stock read refuses the page rather than print Free Stock 0.
   let freeStock: Record<string, { qty: number }[]>;
@@ -511,6 +511,20 @@ purchaseRouter.get("/mrp", requireOperation, async (c) => {
   } catch {
     return c.json({ error: "stock_coverage_unavailable" }, 503);
   }
+
+  // Names only: a failed read prints the Warehouse as Not recorded, the figures stand.
+  const warehouseNames = new Map<string, string>();
+  try {
+    const { data } = await sb.from("warehouses").select("id, name");
+    for (const w of data ?? []) warehouseNames.set(w.id as string, w.name as string);
+  } catch {
+    warehouseNames.clear();
+  }
+  // A timestamp to the MYT day it fell on, the api's own idiom.
+  const mytDay = (ts: string | null | undefined) => {
+    const ms = ts ? Date.parse(ts) : NaN;
+    return Number.isNaN(ms) ? null : new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+  };
 
   const sources: MrpSourceLine[] = registerFacts.soLines.map((l) => {
     const order = registerFacts.ordersById.get(l.orderId);
@@ -525,6 +539,10 @@ purchaseRouter.get("/mrp", requireOperation, async (c) => {
       category: l.category as ProductCategory,
       supplierName: l.supplierId ? (supplierNames.get(l.supplierId) ?? null) : null,
       delivery: order?.delivery ?? null,
+      warehouse: order?.warehouseId ? (warehouseNames.get(order.warehouseId) ?? null) : null,
+      proceedDate: mytDay(order?.proceededAt),
+      soDate: mytDay(l.placedAt),
+      poHeld: l.poHeld,
       placedAt: l.placedAt ?? today,
       needed: l.qty,
       heldInStock: l.heldInStock ?? 0,
@@ -538,7 +556,7 @@ purchaseRouter.get("/mrp", requireOperation, async (c) => {
   }
 
   return c.json(mrpResponseSchema.parse({
-    lines: buildMrpLines(sources, openPoBySku ?? {}, today),
+    lines: buildMrpLines(sources, openPoBySku ?? {}, today, { refs: openPoRefs, eta: openPoEta }),
     freeStockBySku,
   }));
 });

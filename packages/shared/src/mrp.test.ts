@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMrpLines, mrpCsv, mrpRows, type MrpSourceLine } from "./mrp";
+import { buildMrpLines, mrpExportSheets, mrpRows, type MrpSourceLine } from "./mrp";
 import { buildToOrder, type ToOrderLine } from "./to-order";
 
 const src = (over: Partial<MrpSourceLine> = {}): MrpSourceLine => ({
@@ -107,9 +107,58 @@ describe("the four MRP numbers", () => {
   });
 });
 
-describe("mrpCsv", () => {
-  it("prints the four numbers and quotes a SKU holding a quote", () => {
-    const rows = mrpRows(buildMrpLines([src({ sku: 'Leg 4"', needed: 2 })], {}, TODAY), {}, ALL);
-    expect(mrpCsv(rows).split("\r\n")[1]).toBe('"Leg 4""","Haven King","Mattress","Test Supplier","2","0","0","2","0"');
+describe("mrpExportSheets", () => {
+  it("prints one row per SKU and one per line, with the line's PO and ETA", () => {
+    const lines = buildMrpLines([src({ needed: 2, warehouse: "Klang" })], { "SKU-A": 1 }, TODAY, {
+      refs: { "SKU-A": [{ poId: "PO-1", qty: 1 }] }, eta: { "PO-1": "2026-11-05" },
+    });
+    const sheets = mrpExportSheets(mrpRows(lines, { "SKU-A": 3 }, ALL), (d) => d);
+    expect(sheets.items[1]).toEqual(["Klang", "SKU-A", "Haven King", "Mattress", "Test Supplier", 2, 0, 1, 1, 3]);
+    expect(sheets.lines[1].at(-1)).toBe("PO-1 · 1 · ETA 2026-11-05");
+  });
+});
+
+describe("per-line PO cover", () => {
+  it("names the POs in the engine's draw order, earliest delivery first", () => {
+    const lines = buildMrpLines(
+      [
+        src({ lineId: "late", orderId: "O2", delivery: "2026-12-01", needed: 2 }),
+        src({ lineId: "soon", orderId: "O1", delivery: "2026-11-01", needed: 2 }),
+      ],
+      { "SKU-A": 3 },
+      TODAY,
+      { refs: { "SKU-A": [{ poId: "PO-1", qty: 1 }, { poId: "PO-2", qty: 2 }] }, eta: { "PO-1": "2026-11-05", "PO-2": null } },
+    );
+    expect(lines.find((l) => l.lineId === "soon")?.poCover).toEqual([
+      { poId: "PO-1", qty: 1, eta: "2026-11-05" }, { poId: "PO-2", qty: 1, eta: null },
+    ]);
+    expect(lines.find((l) => l.lineId === "late")?.poCover).toEqual([{ poId: "PO-2", qty: 1, eta: null }]);
+  });
+
+  it("names a reserved PO first, and its cover always adds up to On PO", () => {
+    const [line] = buildMrpLines(
+      [src({ needed: 5, heldOnPo: 2, poHeld: [{ poId: "PO-9", qty: 2 }] })],
+      { "SKU-A": 1 }, TODAY, { refs: { "SKU-A": [{ poId: "PO-1", qty: 1 }] } },
+    );
+    expect(line.poCover?.map((p) => p.poId)).toEqual(["PO-9", "PO-1"]);
+    expect(line.poCover?.reduce((n, p) => n + p.qty, 0)).toBe(line.onPo);
+  });
+});
+
+describe("warehouse and date filters", () => {
+  const lines = buildMrpLines(
+    [
+      src({ lineId: "a", warehouse: "Klang", soDate: "2026-10-01", needed: 2 }),
+      src({ lineId: "b", warehouse: null, soDate: null, needed: 3 }),
+    ],
+    {}, TODAY,
+  );
+  it("filters by warehouse, and `none` finds the line with none", () => {
+    expect(mrpRows(lines, {}, { ...ALL, warehouse: "Klang" })[0]).toMatchObject({ needed: 2, warehouses: ["Klang"] });
+    expect(mrpRows(lines, {}, { ...ALL, warehouse: "none" })[0].needed).toBe(3);
+  });
+  it("reads From and To on the chosen date, and a line with no such date is out", () => {
+    expect(mrpRows(lines, {}, { ...ALL, basis: "so", from: "2026-10-01", to: "2026-10-01" })[0].needed).toBe(2);
+    expect(mrpRows(lines, {}, { ...ALL, basis: "so", from: "2026-10-02" })).toEqual([]);
   });
 });

@@ -2657,6 +2657,8 @@ export interface SupplierRow {
   whatsapp_group_url: string | null;
   /** The mailto: door's address (0313 — the ONE email column). */
   contact_email?: string | null;
+  /** 0383. Optional so a browser on this build against an older Worker still parses. */
+  address?: string | null;
   po_send_channel?: string | null;
 }
 export interface SuppliersListResponse {
@@ -4655,6 +4657,8 @@ export interface ReceivingSessionDetail {
     id: string;
     supplier_id: string;
     warehouse_id: string;
+    is_consignment?: boolean;
+    suppliers?: { name: string | null; contact: string | null; contact_email: string | null; address: string | null } | null;
     purchase_order_lines: Array<{
       id: string;
       sku: string;

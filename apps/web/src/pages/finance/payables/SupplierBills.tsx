@@ -1093,16 +1093,18 @@ function BillLineRow({ line, index, accounts, usualGoods, usualTransport, onChan
 /** The GRNs that still have goods to bill. Picking one fills the lines from
  *  the GRN — never re-keyed: open qty, the PO's price, account 5100. */
 /** 0721: also Purchasing's way to add goods received to a bill. */
-export function GrnPicker({ open, supplierId, poId, onClose, onPick }: {
+export function GrnPicker({ open, supplierId, poId, receiptId = null, onClose, onPick }: {
   open: boolean;
   supplierId: string | null;
   poId: string | null;
+  /** One GRN only: the GRN page's `Convert to PI`. */
+  receiptId?: string | null;
   onClose: () => void;
   onPick: (lines: LineDraft[], supplierId: string, poTermsDays: number | null) => void;
 }) {
   const candidates = useGrnCandidates(supplierId, open);
   const [busy, setBusy] = useState<string | null>(null);
-  const rows = (candidates.data ?? []).filter((r) => !poId || r.po_id === poId);
+  const rows = (candidates.data ?? []).filter((r) => (!poId || r.po_id === poId) && (!receiptId || r.receipt_id === receiptId));
   const pick = async (g: GrnCandidateRow) => {
     setBusy(g.receipt_id);
     try {

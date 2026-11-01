@@ -27,7 +27,7 @@ import { fmtDate, fmtDateShort } from "@/lib/fmt-date";
 import { DataGrid, type DataGridColumn, type DataGridContextMenuItem } from "@/components/register/DataGrid";
 import { documentRowMenu } from "@/components/register/row-menu";
 import { toast } from "sonner";
-import { printGrn, receivingHasGrn } from "./record-print";
+import { printGrn, printGrnsOrSay, receivingHasGrn } from "./record-print";
 import { REGISTER_FIELD_WIDTH } from "@/components/register/register-field-widths";
 import {
   FilterRail,
@@ -191,6 +191,11 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
   useEffect(() => {
     setOffset(0);
   }, [filterKey]);
+  /* Ticks for `Print N GRNs`; they belong to the page of rows on screen. */
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setTicked(new Set());
+  }, [filterKey, offset, columnQuery]);
 
   const registerFilters = {
     view: view as "records" | "differences",
@@ -1025,6 +1030,21 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
               }}
               onRowClick={setQuickReceipt}
               contextMenu={rowMenu}
+              selectable={{
+                selectedKeys: ticked,
+                onToggle: (key) => setTicked((prev) => {
+                  const next = new Set(prev);
+                  if (!next.delete(key)) next.add(key);
+                  return next;
+                }),
+                onToggleAll: (keys, allSelected) => setTicked(allSelected ? new Set() : new Set(keys)),
+              }}
+              selectionSummary={(n) => (n === 1 ? "1 GRN selected" : `${n} GRNs selected`)}
+              selectionActions={[{
+                label: (n) => `Print ${n} GRN${n === 1 ? "" : "s"}`,
+                kind: "output",
+                onClick: (picked) => void printGrnsOrSay(picked as unknown as WarehouseReceiptQueueRow[]),
+              }]}
               toolbarStart={<>
                 <button
                   type="button"

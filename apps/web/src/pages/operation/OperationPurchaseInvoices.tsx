@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { fmtDate } from "@/lib/fmt-date";
 import { BILL_STATUS_WORD, money, word } from "@/pages/finance/payables/payables-words";
 import ModuleHeader from "./components/ModuleHeader";
+import { PurchaseInvoiceLines } from "./OperationPurchaseInvoiceDetail";
 
 /**
  * PURCHASE INVOICES — the supplier bills inside Purchasing.
@@ -119,8 +120,14 @@ export default function OperationPurchaseInvoices() {
           columns={columns}
           rowKey={(r) => r.id}
           rowTestId={(r) => `purchase-invoice-row-${r.id}`}
-          // 2026-10-26 (YH, Houzs): your own bill opens to be changed until a payment.
-          onRowClick={(r) => { if (r.mine) navigate(`/operation/purchase-invoices/${r.id}/edit`); }}
+          // Every bill opens to read; your own has Change on that page (YH, Houzs 2026-10-26).
+          onRowClick={(r) => navigate(`/operation/purchase-invoices/${r.id}`)}
+          // Houzs PurchaseInvoicesListV2.tsx:1318, the lines under the row.
+          expandTitle="Show lines"
+          expandable={{
+            testId: (r) => `purchase-invoice-expand-${r.id}`,
+            renderExpansion: (r) => <div className="px-2 py-3"><PurchaseInvoiceLines id={r.id} /></div>,
+          }}
           storageKey="carres.operation.purchase-invoices.v2"
           appearance="reference"
           fillColumn="supplier"

@@ -78,7 +78,7 @@ function supplier(
 
 const qcRef: { current: QueryClient | null } = { current: null };
 
-function mount(suppliers: ReturnType<typeof supplier>[]) {
+function mount(suppliers: ReturnType<typeof supplier>[], entry = "/operation?tab=suppliers") {
   vi.mocked(apiFetch).mockImplementation(async (path: string) => {
     if (path.endsWith("/pos")) return { pos: [] };
     return {
@@ -90,7 +90,7 @@ function mount(suppliers: ReturnType<typeof supplier>[]) {
   qcRef.current = qc;
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <OperationSuppliers />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -98,6 +98,26 @@ function mount(suppliers: ReturnType<typeof supplier>[]) {
 }
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("Supplier detail and New Supplier", () => {
+  it("opens the detail page from the supplier in the URL, with its four tabs and a way back", async () => {
+    const one = supplier("Ohana", [], []);
+    mount([one], `/operation?tab=suppliers&supplier=${one.id}`);
+    expect(await screen.findByTestId("supplier-detail")).toBeTruthy();
+    for (const name of ["Details", "Lead Times", "Items", "Purchase Orders"]) {
+      expect(screen.getByRole("tab", { name })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByTestId("supplier-detail-back"));
+    expect(await screen.findByTestId(`supplier-row-${one.id}`)).toBeTruthy();
+  });
+
+  it("shows New Supplier only to the role the POST accepts", async () => {
+    const one = supplier("Ohana", [], []);
+    mount([one]);
+    await screen.findByTestId(`supplier-row-${one.id}`);
+    expect(screen.queryByTestId("supplier-new")).toBeNull();
+  });
+});
 
 describe("OperationSuppliers · the scorecard", () => {
   it("shows a sentence and NO percentage for a supplier with no PO", async () => {
@@ -211,7 +231,9 @@ describe("OperationSuppliers · page states", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>
-        <OperationSuppliers />
+        <MemoryRouter>
+          <OperationSuppliers />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not be loaded");
@@ -248,7 +270,9 @@ describe("OperationSuppliers · page states", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={qc}>
-        <OperationSuppliers />
+        <MemoryRouter>
+          <OperationSuppliers />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
     expect(screen.queryByText(/active · upstream/)).not.toBeInTheDocument();

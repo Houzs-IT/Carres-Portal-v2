@@ -1,15 +1,30 @@
 import { GOODS_ABSENCE_WORDS } from "@carres/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   MIN_JUDGED_POS,
   SCORECARD_UNKNOWN_TEXT,
   scorecardHeadline,
+  supplierCreateInput,
   type ScorecardRate,
   type SupplierScorecard,
 } from "@carres/shared";
-import { qk, useSetSupplierTermsDays } from "@/lib/queries";
+import {
+  qk,
+  useAllSkuSupplierOffers,
+  useCatalog,
+  useCreateSupplier,
+  useOperationSuppliers,
+  usePurchasingSettings,
+  useSetSupplierChannel,
+  useSetSupplierTermsDays,
+} from "@/lib/queries";
+import { useAuth } from "@/lib/auth";
+import Modal from "@/components/kit/Modal";
+import Select from "@/components/kit/Select";
+import { buildSupplierItems } from "./supplier-items";
 import Input from "@/components/kit/Input";
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
@@ -114,6 +129,18 @@ export default function OperationSuppliers() {
   const win = data?.scorecardWindow;
   const [open, setOpen] = useState<SupplierRow | null>(null);
   const [category, setCategory] = useState("all");
+  const role = useAuth((s) => s.role);
+  const [adding, setAdding] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [batching, setBatching] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const detailId = params.get("supplier");
+  const showDetail = (id: string | null) => setParams((prev) => {
+    const next = new URLSearchParams(prev);
+    if (id) next.set("supplier", id);
+    else next.delete("supplier");
+    return next;
+  });
   const categories = [...new Set(suppliers.flatMap((s) => s.catCovered))].sort();
   // No ModuleHeader on this page, so it names the browser tab itself (same as ModuleHeader).
   useEffect(() => {
@@ -123,8 +150,18 @@ export default function OperationSuppliers() {
     };
   }, []);
 
+  if (detailId && data) {
+    const found = suppliers.find((s) => s.id === detailId);
+    return <SupplierDetail supplier={found ?? null} onBack={() => showDetail(null)} />;
+  }
+
   return (
     <div className="px-9 py-8 pb-14">
+      {role === "principal" && (
+        <div className="float-right">
+          <Button variant="primary" onClick={() => setAdding(true)} data-testid="supplier-new">New Supplier</Button>
+        </div>
+      )}
       <div className="mb-[22px]">
         <div className="kicker">HQ · Network</div>
         {/* Desktop: the shell header prints the page's h1. Phone: OperationApp's phone bar prints none, so this one does. */}
@@ -173,22 +210,285 @@ export default function OperationSuppliers() {
             columns={SUPPLIER_COLUMNS} rowKey={(s) => s.id} rowTestId={(s) => `supplier-row-${s.id}`}
             storageKey="carres.operation.suppliers.v1" appearance="reference" fillColumn="name" groupBanner={false}
             exportName="Suppliers" searchPlaceholder="Search by name / contact…" emptyMessage="No suppliers match."
-            onRowClick={setOpen} />
+            onRowClick={setOpen}
+            selectable={{
+              selectedKeys: picked as Set<string>,
+              onToggle: (key) => setPicked((prev) => {
+                const next = new Set(prev);
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
+                return next;
+              }),
+              onToggleAll: (keys, allSelected) => setPicked((prev) => {
+                const next = new Set(prev);
+                for (const key of keys) {
+                  if (allSelected) next.delete(key);
+                  else next.add(key);
+                }
+                return next;
+              }),
+            }}
+            selectionPrimary={<Button size="sm" onClick={() => setBatching(true)} data-testid="supplier-batch-edit">Batch edit</Button>} />
         </>
       )}
 
-      {open && <SupplierDrawer supplier={open} onClose={() => setOpen(null)} />}
+      {open && <SupplierDrawer supplier={open} onClose={() => setOpen(null)} onOpenDetail={() => { setOpen(null); showDetail(open.id); }} />}
+      {adding && <NewSupplierModal onClose={() => setAdding(false)} />}
+      {batching && <BatchEditModal supplierIds={[...picked]} onClose={() => setBatching(false)} onDone={() => setPicked(new Set())} />}
     </div>
   );
 }
 
-function SupplierDrawer({ supplier, onClose }: { supplier: SupplierRow; onClose: () => void }) {
+const CATEGORIES = ["mattress", "bedframe", "sofa"] as const;
+const WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const notSaved = (e: unknown) => (e instanceof Error ? e.message : "Not saved. Try again.");
+
+/**
+ * New Supplier (Houzs Suppliers.tsx). Same fields, schema and principal-only
+ * POST as the catalog's add-supplier form (catalog/tabs/NewSkuModal.tsx).
+ */
+function NewSupplierModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const create = useCreateSupplier();
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<"own_logistics" | "factory_pickup">("factory_pickup");
+  const [cats, setCats] = useState<(typeof CATEGORIES)[number][]>([]);
+  const [days, setDays] = useState<Record<string, string>>({});
+  const [offDays, setOffDays] = useState<number[]>([0]);
+  const input = supplierCreateInput.safeParse({
+    name, kind, catCovered: cats, offDays,
+    productionDays: cats.map((category) => ({ category, workingDays: Number(days[category]) })),
+  });
+  const save = () => {
+    if (!input.success) return;
+    create.mutateAsync(input.data)
+      .then(() => {
+        void qc.invalidateQueries({ queryKey: qk.operation.suppliersOverview() });
+        toast.success("Saved");
+        onClose();
+      })
+      .catch((e: unknown) => toast.error(notSaved(e)));
+  };
+  return (
+    <Modal open onOpenChange={(o) => { if (!o) onClose(); }} title="New Supplier"
+      footer={<Button variant="primary" disabled={!input.success || create.isPending} onClick={save} data-testid="supplier-new-save">Add Supplier</Button>}>
+      <div className="flex flex-col gap-3">
+        <Input id="supplier-new-name" label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Select id="supplier-new-kind" label="Pickup" value={kind} onValueChange={(v) => setKind(v as typeof kind)}
+          options={[{ value: "own_logistics", label: "Own Logistics" }, { value: "factory_pickup", label: "Factory Pickup" }]} />
+        <fieldset>
+          <legend className="text-meta text-kit-slate-11 mb-1">Supply Category</legend>
+          <div className="flex gap-3">
+            {CATEGORIES.map((c) => (
+              <label key={c} className="text-meta capitalize">
+                <input type="checkbox" checked={cats.includes(c)}
+                  onChange={() => setCats((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))} /> {c}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {cats.map((c) => (
+          <Input key={c} id={`supplier-new-days-${c}`} label={`${c[0].toUpperCase()}${c.slice(1)} · Production Days`} type="number" min={1} max={180} step={1}
+            value={days[c] ?? ""} onChange={(e) => setDays((prev) => ({ ...prev, [c]: e.target.value }))} />
+        ))}
+        <fieldset>
+          <legend className="text-meta text-kit-slate-11 mb-1">Supplier work week</legend>
+          <div className="flex flex-wrap gap-2">
+            {WEEK.map((label, day) => (
+              <label key={day} className="text-meta">
+                <input type="checkbox" checked={!offDays.includes(day)}
+                  onChange={() => setOffDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))} /> {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+    </Modal>
+  );
+}
+
+const KEEP = "keep";
+
+/**
+ * Batch edit (Houzs Suppliers.tsx bulk bar), on the two fields Carres holds that
+ * have one-supplier writes: each row goes through the existing door with its own
+ * role gate. Channel needs Purchasing Settings edit, so it only shows to those who hold it.
+ */
+function BatchEditModal({ supplierIds, onClose, onDone }: { supplierIds: string[]; onClose: () => void; onDone: () => void }) {
+  const qc = useQueryClient();
+  const setTerms = useSetSupplierTermsDays();
+  const setChannel = useSetSupplierChannel();
+  const settings = usePurchasingSettings();
+  const [terms, setTermsDraft] = useState("");
+  const [channel, setChannelDraft] = useState(KEEP);
+  const [busy, setBusy] = useState(false);
+  const days = terms.trim() === "" ? null : Number(terms);
+  const termsOk = days === null || (Number.isInteger(days) && days >= 0 && days <= 365);
+  const canChannel = settings.data?.canEdit === true;
+  const save = async () => {
+    setBusy(true);
+    const results = await Promise.allSettled(supplierIds.map(async (supplierId) => {
+      if (days !== null) await setTerms.mutateAsync({ supplierId, days });
+      if (canChannel && channel !== KEEP) await setChannel.mutateAsync({ supplierId, kind: "poSendChannel", text: channel });
+    }));
+    setBusy(false);
+    void qc.invalidateQueries({ queryKey: qk.operation.suppliersOverview() });
+    const saved = results.filter((r) => r.status === "fulfilled").length;
+    if (saved === results.length) {
+      toast.success(`${saved} suppliers saved`);
+      onDone();
+      onClose();
+    } else {
+      toast.error(`${saved} of ${results.length} suppliers saved`);
+    }
+  };
+  return (
+    <Modal open onOpenChange={(o) => { if (!o) onClose(); }} title="Batch edit"
+      footer={<Button variant="primary" loading={busy} disabled={busy || !termsOk || (days === null && channel === KEEP)} onClick={() => void save()} data-testid="supplier-batch-apply">Apply</Button>}>
+      <div className="flex flex-col gap-3">
+        <Input id="supplier-batch-terms" label="Payment Terms (days)" type="number" min={0} max={365} step={1} value={terms}
+          placeholder="Leave as it is" error={termsOk ? undefined : "0 to 365"} onChange={(e) => setTermsDraft(e.target.value)} />
+        {canChannel && (
+          <Select id="supplier-batch-channel" label="Channel" value={channel} onValueChange={setChannelDraft}
+            options={[{ value: KEEP, label: "Leave as it is" }, { value: "email", label: "Email" }, { value: "whatsapp", label: "WhatsApp" }]} />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Supplier detail (Houzs SupplierDetail.tsx). Every tab reads what Carres already
+ * holds. Lead Times shows the Purchasing Settings numbers and sends edits back there,
+ * so there is one place to change them. Items carries no cost.
+ */
+function SupplierDetail({ supplier, onBack }: { supplier: SupplierRow | null; onBack: () => void }) {
+  const [tab, setTab] = useState("details");
+  const back = <Button variant="ghost" size="sm" onClick={onBack} data-testid="supplier-detail-back">Back to Suppliers</Button>;
+  if (!supplier) return <div className="px-9 py-8"><EmptyState title="No suppliers match." action={back} /></div>;
+  return (
+    <div className="px-9 py-8 pb-14" data-testid="supplier-detail">
+      {back}
+      <h2 className="text-page font-display mt-2 mb-3">{supplier.name}</h2>
+      <Tabs label={supplier.name} value={tab} onValueChange={setTab}
+        tabs={[{ value: "details", label: "Details" }, { value: "lead", label: "Lead Times" }, { value: "items", label: "Items" }, { value: "pos", label: "Purchase Orders" }]} />
+      <div className="mt-4 max-w-[720px]">
+        {tab === "details" && (
+          <>
+            <div className="text-body text-base-800 mb-4">{supplier.contactEmail ?? supplier.contact ?? GOODS_ABSENCE_WORDS.notRecorded}</div>
+            <TermsDaysField supplier={supplier} />
+            <ScorecardBlock sc={supplier.scorecard} />
+          </>
+        )}
+        {tab === "lead" && <SupplierLeadTimes supplierId={supplier.id} />}
+        {tab === "items" && <SupplierItemsTab supplierId={supplier.id} />}
+        {tab === "pos" && <RecentPos supplierId={supplier.id} />}
+      </div>
+    </div>
+  );
+}
+
+function SupplierLeadTimes({ supplierId }: { supplierId: string }) {
+  const q = usePurchasingSettings();
+  if (q.isLoading) return <Loading variant="skeleton" label="Loading" />;
+  if (!q.data) {
+    return <div role="alert"><EmptyState title="Could not be loaded" action={<Button variant="neutral" onClick={() => void q.refetch()}>Try again</Button>} /></div>;
+  }
+  const row = q.data.suppliers.find((s) => s.id === supplierId);
+  const held = q.data.productionDays.filter((d) => d.supplierId === supplierId);
+  const off = row?.offDays;
+  return (
+    <div data-testid="supplier-lead-times">
+      <div className="border border-base-200 rounded mb-3">
+        <div className="px-3.5 py-2 text-meta text-kit-slate-11 flex justify-between"><span>Category</span><span>Production Days</span></div>
+        {(row?.categories ?? []).map((category) => {
+          const found = held.find((d) => d.category === category);
+          return (
+            <div key={category} className="px-3.5 py-2 border-t border-base-100 flex justify-between text-body">
+              <span className="capitalize">{category}</span>
+              <span className="tabular-nums">{found ? `${found.workingDays} Working days` : "Set a number"}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-meta text-kit-slate-11">Supplier work week</div>
+      <div className="text-body mb-3">{off ? WEEK.filter((_, day) => !off.includes(day)).join(" · ") : GOODS_ABSENCE_WORDS.notRecorded}</div>
+      <Link to="/operation?tab=purchasing-settings" className="text-meta text-kit-blue-9 underline underline-offset-2">Change these on Purchasing Settings.</Link>
+    </div>
+  );
+}
+
+function SupplierItemsTab({ supplierId }: { supplierId: string }) {
+  const catalog = useCatalog({ admin: true });
+  const roster = useOperationSuppliers();
+  const offers = useAllSkuSupplierOffers();
+  const items = useMemo(
+    () => buildSupplierItems(catalog.data, roster.data?.suppliers, offers.data?.offers).filter((r) => r.supplierId === supplierId),
+    [catalog.data, roster.data?.suppliers, offers.data?.offers, supplierId],
+  );
+  if (catalog.isLoading || roster.isLoading) return <Loading variant="skeleton" label="Loading" />;
+  if (catalog.isError || roster.isError) {
+    return <div role="alert"><EmptyState title="Could not be loaded" action={<Button variant="neutral" onClick={() => { void catalog.refetch(); void roster.refetch(); }}>Try again</Button>} /></div>;
+  }
+  return (
+    <DataGrid rows={items} rowKey={(r) => `${r.sku}-${r.source}`} storageKey="carres.operation.supplier-detail-items.v1" appearance="reference"
+      groupBanner={false} exportName="Supplier items" emptyMessage="No suppliers match." fillColumn="ourName"
+      columns={[
+        { key: "theirCode", label: "Their code", width: 160, accessor: (r) => r.supplierCode ?? "" },
+        { key: "sku", label: "Our code", width: 180, accessor: (r) => r.sku },
+        { key: "ourName", label: "Our name", width: 260, wrap: true, accessor: (r) => r.ourName },
+      ]} />
+  );
+}
+
+/** The supplier's recent POs, shared by the drawer and the detail page. */
+function RecentPos({ supplierId }: { supplierId: string }) {
   const { data, isLoading, isError, refetch } = useQuery<{ pos: PoRow[] }>({
-    queryKey: qk.operation.suppliersOverviewPos(supplier.id),
-    queryFn: () => apiFetch(`/api/operation/suppliers-overview/${supplier.id}/pos`),
+    queryKey: qk.operation.suppliersOverviewPos(supplierId),
+    queryFn: () => apiFetch(`/api/operation/suppliers-overview/${supplierId}/pos`),
   });
   const pos = data?.pos ?? [];
+  return (
+    <div className="border border-base-200 rounded">
+      {isLoading && <div className="p-4"><Loading variant="skeleton" label="Loading recent POs" /></div>}
+      {isError && !data && (
+        <div role="alert">
+          <EmptyState
+            title="Could not be loaded"
+            detail="The recent POs did not arrive."
+            action={<Button variant="neutral" onClick={() => void refetch()}>Try again</Button>}
+          />
+        </div>
+      )}
+      {data && pos.length === 0 && (
+        <div className="p-4 text-meta text-base-500">No POs yet.</div>
+      )}
+      {pos.map((p, i) => (
+        <div
+          key={p.id}
+          className={`px-3.5 py-2.5 flex justify-between text-meta ${i ? "border-t border-base-100" : ""}`}
+        >
+          <div>
+            <div className="font-mono text-body font-semibold">{p.id}</div>
+            <div className="text-meta text-base-500 mt-0.5">
+              {fmtDate(p.placedAt)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-label text-base-500 uppercase tracking-[0.06em]">
+              {(p.supStatus ?? p.status)?.replace(/_/g, " ")}
+            </div>
+            <div className="text-meta text-base-500 mt-0.5">
+              {p.etaDate ? `ETA ${p.etaDate}` : ""}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
+function SupplierDrawer({ supplier, onClose, onOpenDetail }: { supplier: SupplierRow; onClose: () => void; onOpenDetail: () => void }) {
   return (
     <div className="fixed inset-0 z-[90] flex justify-end">
       <div onClick={onClose} className="absolute inset-0 bg-black/40" />
@@ -214,6 +514,10 @@ function SupplierDrawer({ supplier, onClose }: { supplier: SupplierRow; onClose:
           </button>
         </div>
 
+        <div className="mb-4">
+          <Button variant="neutral" size="sm" onClick={onOpenDetail} data-testid="supplier-open-detail">Open supplier</Button>
+        </div>
+
         <TermsDaysField supplier={supplier} />
 
         <ScorecardBlock sc={supplier.scorecard} />
@@ -221,42 +525,7 @@ function SupplierDrawer({ supplier, onClose }: { supplier: SupplierRow; onClose:
         <div className="text-strong text-kit-slate-12 mb-2">
           Recent POs
         </div>
-        <div className="border border-base-200 rounded">
-          {isLoading && <div className="p-4"><Loading variant="skeleton" label="Loading recent POs" /></div>}
-          {isError && !data && (
-            <div role="alert">
-              <EmptyState
-                title="Could not be loaded"
-                detail="The recent POs did not arrive."
-                action={<Button variant="neutral" onClick={() => void refetch()}>Try again</Button>}
-              />
-            </div>
-          )}
-          {data && pos.length === 0 && (
-            <div className="p-4 text-meta text-base-500">No POs yet.</div>
-          )}
-          {pos.map((p, i) => (
-            <div
-              key={p.id}
-              className={`px-3.5 py-2.5 flex justify-between text-meta ${i ? "border-t border-base-100" : ""}`}
-            >
-              <div>
-                <div className="font-mono text-body font-semibold">{p.id}</div>
-                <div className="text-meta text-base-500 mt-0.5">
-                  {fmtDate(p.placedAt)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-label text-base-500 uppercase tracking-[0.06em]">
-                  {(p.supStatus ?? p.status)?.replace(/_/g, " ")}
-                </div>
-                <div className="text-meta text-base-500 mt-0.5">
-                  {p.etaDate ? `ETA ${p.etaDate}` : ""}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <RecentPos supplierId={supplier.id} />
       </div>
     </div>
   );

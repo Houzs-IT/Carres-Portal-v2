@@ -3,14 +3,18 @@ import { Link } from "react-router-dom";
 import {
   MRP_WORDS as W,
   categoryLabel,
-  mrpCsv,
+  mrpCoverText,
+  mrpExportSheets,
   mrpRows,
+  type MrpDateBasis,
   type MrpRow,
 } from "@carres/shared";
 import Button from "@/components/kit/Button";
+import DatePicker from "@/components/kit/DatePicker";
+import Select from "@/components/kit/Select";
 import DataTable, { type Column } from "@/components/kit/DataTable";
 import EmptyState from "@/components/kit/EmptyState";
-import { fmtDate, fmtMonth } from "@/lib/fmt-date";
+import { appTodayIso, fmtDate, fmtMonth } from "@/lib/fmt-date";
 import { useMrp } from "@/lib/queries";
 import PurchasingTabs from "./PurchasingTabs";
 import SearchInput from "@/components/kit/SearchInput";
@@ -28,14 +32,16 @@ import { RailGroup, RailItem } from "./components/workspace-rail";
 // same frame as OperationPurchasingReport.
 
 const NO_DATE = "none";
+const day = (iso: string) => fmtDate(iso);
 
-function download(csv: string) {
-  const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "mrp.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+/** Items and Lines sheets, as the page is filtered. xlsx is dynamic-imported, as DataGrid does. */
+async function downloadXlsx(rows: readonly MrpRow[]) {
+  const sheets = mrpExportSheets(rows, day);
+  const XLSX = await import("xlsx");
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheets.items), W.itemsSheet);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheets.lines), W.linesSheet);
+  XLSX.writeFile(wb, `MRP ${appTodayIso()}.xlsx`);
 }
 
 const number = (key: keyof MrpRow & string, label: string, width: string): Column<MrpRow> => ({
@@ -52,6 +58,7 @@ const COLUMNS: Column<MrpRow>[] = [
   { key: "item", label: W.item, width: "220px", cell: (r) => <span className="truncate">{r.item}</span> },
   { key: "category", label: W.category, width: "90px", cell: (r) => categoryLabel(r.category) },
   { key: "supplier", label: W.supplier, width: "150px", cell: (r) => <span className="truncate">{r.supplierName ?? W.notRecorded}</span> },
+  { key: "warehouse", label: W.warehouse, width: "130px", cell: (r) => <span className="truncate">{r.warehouses.join(", ") || W.notRecorded}</span> },
   number("needed", W.needed, "72px"),
   number("inStock", W.inStock, "72px"),
   number("onPo", W.onPo, "64px"),
@@ -69,26 +76,31 @@ export default function OperationMrp() {
   const [month, setMonth] = useState<string | null>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [warehouse, setWarehouse] = useState<string | null>(null);
+  const [basis, setBasis] = useState<MrpDateBasis>("delivery");
+  const [from, setFrom] = useState<string | null>(null);
+  const [to, setTo] = useState<string | null>(null);
 
   const rows = useMemo(
     () => {
       // Houzs's toolbar search (Mrp.tsx "Code, description, SO no, customer…").
       const words = search.trim().toLowerCase();
-      return mrpRows(lines, free, { category, month, shortagesOnly }).filter((row) => !words
+      return mrpRows(lines, free, { category, month, shortagesOnly, warehouse, basis, from: from ?? "", to: to ?? "" }).filter((row) => !words
         || [row.sku, row.item, ...row.lines.flatMap((l) => [l.so, l.customer])].some((v) => String(v ?? "").toLowerCase().includes(words)));
     },
-    [lines, free, category, month, shortagesOnly, search],
+    [lines, free, category, month, shortagesOnly, search, warehouse, basis, from, to],
   );
   const categories = useMemo(() => [...new Set(lines.map((l) => l.category))].sort(), [lines]);
   const months = useMemo(
     () => [...new Set(lines.map((l) => l.delivery?.slice(0, 7) ?? NO_DATE))].sort(),
     [lines],
   );
+  const warehouses = useMemo(() => [...new Set(lines.map((l) => l.warehouse ?? NO_DATE))].sort(), [lines]);
   const shortageCount = useMemo(
     () => mrpRows(lines, free, { category: null, month: null, shortagesOnly: true }).length,
     [lines, free],
   );
-  const filtering = shortagesOnly || category != null || month != null;
+  const filtering = shortagesOnly || category != null || month != null || warehouse != null || from != null || to != null;
   const sum = (key: "needed" | "inStock" | "onPo" | "shortage") =>
     rows.reduce((n, r) => n + r[key], 0);
 
@@ -97,7 +109,7 @@ export default function OperationMrp() {
       <PurchasingTabs
         right={<span className="flex items-center gap-2">
           <SearchInput id="mrp-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Code, description, SO no, customer…" data-testid="mrp-search" />
-          <Button variant="ghost" size="sm" disabled={rows.length === 0} onClick={() => download(mrpCsv(rows))} data-testid="mrp-export">
+          <Button variant="ghost" size="sm" disabled={rows.length === 0} onClick={() => void downloadXlsx(rows)} data-testid="mrp-export">
             {W.export}
           </Button>
         </span>}
@@ -118,6 +130,12 @@ export default function OperationMrp() {
               <RailItem key={c} label={categoryLabel(c)} active={category === c} onClick={() => setCategory(category === c ? null : c)} testId={`mrp-category-${c}`} />
             ))}
           </RailGroup>
+          <RailGroup title={W.warehouse}>
+            <RailItem label={W.all} active={warehouse == null} onClick={() => setWarehouse(null)} testId="mrp-warehouse-all" />
+            {warehouses.map((w) => (
+              <RailItem key={w} label={w === NO_DATE ? W.notRecorded : w} active={warehouse === w} onClick={() => setWarehouse(warehouse === w ? null : w)} testId={`mrp-warehouse-${w}`} />
+            ))}
+          </RailGroup>
           <RailGroup title={W.delivery}>
             <RailItem label={W.all} active={month == null} onClick={() => setMonth(null)} testId="mrp-month-all" />
             {months.map((m) => (
@@ -127,6 +145,14 @@ export default function OperationMrp() {
         </nav>
 
         <div className="flex-1 min-w-0 flex flex-col min-h-0 px-4 pt-3 pb-3">
+          <div className="mb-2 flex flex-wrap items-end gap-3 shrink-0" data-testid="mrp-dates">
+            <div className="w-40">
+              <Select id="mrp-date-basis" label={W.dateBasis} value={basis} onValueChange={(v) => setBasis(v as MrpDateBasis)}
+                options={[{ value: "delivery", label: W.delivery }, { value: "proceed", label: W.proceedDate }, { value: "so", label: W.soDate }]} />
+            </div>
+            <DatePicker id="mrp-from" label={W.from} value={from} onChange={setFrom} />
+            <DatePicker id="mrp-to" label={W.to} value={to} onChange={setTo} />
+          </div>
           <DataTable<MrpRow>
             rows={rows}
             columns={COLUMNS}
@@ -152,6 +178,9 @@ export default function OperationMrp() {
                           setShortagesOnly(false);
                           setCategory(null);
                           setMonth(null);
+                          setWarehouse(null);
+                          setFrom(null);
+                          setTo(null);
                         }}
                       >
                         {W.clearFilters}
@@ -181,11 +210,13 @@ export default function OperationMrp() {
                     >
                       <span className="w-24 shrink-0 tabular-nums">{l.so != null ? `SO-${l.so}` : W.notRecorded}</span>
                       <span className="min-w-0 flex-1 truncate">{l.customer ?? W.notRecorded}</span>
+                      <span className="w-24 shrink-0 truncate">{l.warehouse ?? W.notRecorded}</span>
                       <span className="w-24 shrink-0 tabular-nums">{l.delivery ? fmtDate(l.delivery) : W.notRecorded}</span>
                       <span className="w-16 shrink-0 text-right tabular-nums" title={W.needed}>{l.needed}</span>
                       <span className="w-16 shrink-0 text-right tabular-nums" title={W.inStock}>{l.inStock}</span>
                       <span className="w-16 shrink-0 text-right tabular-nums" title={W.onPo}>{l.onPo}</span>
                       <span className="w-16 shrink-0 text-right tabular-nums" title={W.shortage}>{l.shortage}</span>
+                      <span className="w-56 shrink-0 truncate tabular-nums" title={W.coverage}>{mrpCoverText(l, day)}</span>
                     </Link>
                   ))}
                 </div>

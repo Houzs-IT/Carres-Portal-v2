@@ -2340,10 +2340,12 @@ export {
 export {
   MRP_WORDS,
   buildMrpLines,
-  mrpCsv,
+  mrpCoverText,
+  mrpExportSheets,
   mrpLineSchema,
   mrpResponseSchema,
   mrpRows,
+  type MrpDateBasis,
   type MrpFilters,
   type MrpLine,
   type MrpResponse,

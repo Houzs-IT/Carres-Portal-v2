@@ -258,6 +258,14 @@ export default function ReceivingRecord({
         />
       ) : (
         <>
+          {/* ── Supplier, Houzs GoodsReceivedDetailV2.tsx:749 ─────────── */}
+          <Section title="Supplier">
+            <Prop label="Supplier">{r.supplier_name ?? "Not recorded"}</Prop>
+            <Prop label="Contact">{po?.suppliers?.contact || "Not recorded"}</Prop>
+            <Prop label="Email">{po?.suppliers?.contact_email || "Not recorded"}</Prop>
+            <Prop label="Address">{po?.suppliers?.address || "Not recorded"}</Prop>
+          </Section>
+
           {/* ── The facts ─────────────────────────────────────────────── */}
           <Section title="Receiving Details">
             <Prop label={isGrn ? "Linked PO" : "Linked PO"}>
@@ -424,36 +432,43 @@ export default function ReceivingRecord({
 
           {/* ── Lines ─────────────────────────────────────────────────── */}
           <Section title="Items">
-            {lines.map((l) => (
-              <div key={l.id} className="receiving-item-row flex flex-wrap gap-2 py-1 text-body border-b border-kit-slate-4">
-                <span className="flex-1 min-w-0 font-mono text-kit-slate-12 break-words">
-                  {l.sku}
-                </span>
-                <span className="w-24 text-right tabular-nums">
-                  {l.received_now} received
-                </span>
-                {l.damaged_qty > 0 ? (
-                  <span className="w-24 text-right tabular-nums text-kit-red-11">
-                    {l.damaged_qty} damaged
-                  </span>
-                ) : null}
-                {l.wrong_item_qty > 0 ? (
-                  <span className="w-24 text-right tabular-nums text-kit-red-11">
-                    {l.wrong_item_qty} wrong
-                  </span>
-                ) : null}
-              </div>
-            ))}
-            {(r.extra_lines ?? []).map((x, i) => (
-              <div key={`x${i}`} className="receiving-item-row flex flex-wrap gap-2 py-1 text-body border-b border-kit-slate-4">
-                <span className="flex-1 min-w-0 font-mono text-kit-slate-12 break-words">
-                  {x.sku}
-                </span>
-                <span className="w-40 text-right tabular-nums text-kit-amber-11">
-                  {x.qty} extra, not Inventory
-                </span>
-              </div>
-            ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-body" data-testid="grn-items-table">
+                <thead>
+                  <tr className="text-left text-meta text-kit-slate-11">
+                    <th className="py-1 pr-2 font-medium">Items</th>
+                    <th className="py-1 pr-2 font-medium">SKU</th>
+                    <th className="py-1 pr-2 text-right font-medium">Received Qty</th>
+                    <th className="py-1 pr-2 text-right font-medium">Damaged Qty</th>
+                    <th className="py-1 pr-2 text-right font-medium">Wrong Item Qty</th>
+                    <th className="py-1 text-right font-medium">Extra Qty</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular-nums">
+                  {lines.map((l) => (
+                    <tr key={l.id} className="border-t border-kit-slate-4">
+                      <td className="py-1 pr-2">{detail.line_info?.[l.sku]?.description ?? l.sku}</td>
+                      <td className="py-1 pr-2 font-mono">{l.sku}</td>
+                      <td className="py-1 pr-2 text-right">{l.received_now}</td>
+                      <td className={`py-1 pr-2 text-right ${l.damaged_qty > 0 ? "text-kit-red-11" : ""}`}>{l.damaged_qty}</td>
+                      <td className={`py-1 pr-2 text-right ${l.wrong_item_qty > 0 ? "text-kit-red-11" : ""}`}>{l.wrong_item_qty}</td>
+                      <td className="py-1 text-right" />
+                    </tr>
+                  ))}
+                  {/* Extra goods were on no order and never enter Inventory. */}
+                  {(r.extra_lines ?? []).map((x, i) => (
+                    <tr key={`x${i}`} className="border-t border-kit-slate-4">
+                      <td className="py-1 pr-2">{detail.line_info?.[x.sku]?.description ?? x.sku}</td>
+                      <td className="py-1 pr-2 font-mono">{x.sku}</td>
+                      <td className="py-1 pr-2" />
+                      <td className="py-1 pr-2" />
+                      <td className="py-1 pr-2" />
+                      <td className="py-1 text-right text-kit-amber-11">{x.qty} extra, not Inventory</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Section>
 
           {/* ── Consequences ──────────────────────────────────────────── */}
@@ -625,6 +640,26 @@ export default function ReceivingRecord({
         data-testid="grn-preview-pane"
       >
         <div className="mx-auto mb-3 flex max-w-[700px] items-center justify-end gap-2">
+          {/* Houzs GoodsReceivedDetailV2.tsx:728: a posted GRN opens the existing forms. These only
+              navigate; each form keeps its own save and role check. PR is Purchase Return, as in Houzs. */}
+          {r.status === "posted" && !amending && po && !po.is_consignment ? (
+            <Link
+              data-testid="grn-convert-pr"
+              to={`/operation?tab=purchase-returns&new=1&supplier=${encodeURIComponent(po.supplier_id)}`}
+              className="inline-flex h-7 items-center rounded-control border border-kit-slate-5 bg-white px-2.5 text-body font-medium text-kit-slate-12 hover:bg-kit-slate-3"
+            >
+              Convert to PR
+            </Link>
+          ) : null}
+          {r.status === "posted" && !amending ? (
+            <Link
+              data-testid="grn-convert-pi"
+              to={`/operation/purchase-invoices/from-grn?grn=${encodeURIComponent(r.id)}`}
+              className="inline-flex h-7 items-center rounded-control border border-kit-slate-5 bg-white px-2.5 text-body font-medium text-kit-slate-12 hover:bg-kit-slate-3"
+            >
+              Convert to PI
+            </Link>
+          ) : null}
           <button
             type="button"
             data-testid="grn-print"
