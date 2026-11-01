@@ -1,5 +1,9 @@
 # Carres Portal — Copy Standard
 
+**30Oct shared UI intake:** current visual measurements and Shell/Send-card composition live only in `ui/MASTER.md`. The Send task uses Download → WhatsApp or Email → Record the result; this changes presentation, not the owning action meaning. Preserve exact document/version, recipient, actual actor/time and per-document persisted outcome. Opening a channel or downloading a file never means sent or done. Existing module approval/issue/send wording remains governed here and in its MASTER.
+
+**Supplied template display grammar:** stock age, where already applicable, is `{n} days` (e.g. `112 days`), not rounded months. Governed relative deadlines may show `Late {n}d` / `{n}d left`; the underlying deadline, working/calendar-day basis and status meaning remain module-owned. Quantity keeps its own column; an item's second line is specification, not a second quantity location.
+
 ## Current template copy correction — owner24Oct2026
 
 The latest Sales Order Template Spec in UI MASTER governs label case and missing values across all modules: field labels Title Case, table headers CAPS, sentences/notes sentence case. Missing values show nothing; `Not recorded` is retired as an empty-value placeholder, including quick cards and generated document fields. Keep labels, truthful read/error/permission/setup states and required-field validation. `Not received`, `No PO yet` and other actual business states remain facts, never invented to fill an empty value. Historical quoted observations containing the retired wording are evidence only. The optional Journey-step dash marks not-applicable, not a missing value. UI MASTER owns the exact current type/colour/geometry; this file owns copy.
@@ -6145,6 +6149,18 @@ DEL-04 · DEL-05 · OFF-01/05, owner confirmed 9 Oct 2026). No dash is used as a
 | Order Route LOGISTICS node, no company yet | `Logistics not assigned` over `Assign logistics by {date}` | the one assignment deadline; printed only when the stored lead was read |
 | Work action, `Assign logistics` | line two `Choose the company that carries this delivery · due {date}` | the hard-coded `3 working days before · {date}` is retired |
 | Logistics card, first check | `{n} working days before · {date}` with `n` = the stored Contact lead (`Contact lead days`, DEL-05); at the default it reads the ruled `3 working days before`. `2 working days before` and `1 working day before` stay fixed (Workspace §5.9) | the contact day follows its one setting |
+
+## Sales Invoices list words · YH 30 Oct 2026, following Houzs
+
+Source: `apps/web/src/pages/finance/SalesInvoices.tsx`.
+
+| Where | Words |
+|---|---|
+| Side menu row and page title | `Sales Invoices` |
+| Columns, in order | `Invoice No` · `Invoice date` · `SO No` · `Customer` · `Ref No` · `Status` · `Still owed on SO` · `Invoice total` |
+| Status | `Draft` · `Issued` · `Voided` |
+| A draft's Invoice No | `Draft, no number yet` |
+| Search, summary, empty, failed | `Search sales invoices…` · `{n} sales invoices` · `No sales invoices yet.` · `Sales Invoices could not be loaded. Try again.` |
 
 ## New Sales Invoice words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22) · BUILT ON BRANCH `feat/office-new-sales-invoice` (0712 not applied)
 
