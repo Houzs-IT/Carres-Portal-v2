@@ -142,9 +142,11 @@ function fakeDb(rows: Row[], opts: { headCountError?: unknown } = {}) {
           const [col, a1, a2] = args as [string, unknown, unknown];
           switch (prop) {
             case "not":
+              if (a1 === "is" && a2 === null) { filters.push((r) => r[col] != null); break; }
               if (a1 !== "in") throw new Error(`fake PostgREST: unsupported not ${String(a1)}`);
               filters.push((r) => !test(r, col, "in", String(a2)));
               break;
+            case "neq": filters.push((r) => test(r, col, "neq", String(a1))); break;
             case "or": {
               const tokens = splitTop(col);
               filters.push((r) => tokens.some((t) => orToken(r, t)));
@@ -157,7 +159,8 @@ function fakeDb(rows: Row[], opts: { headCountError?: unknown } = {}) {
             case "ilike": filters.push((r) => test(r, col, "ilike", String(a1))); break;
             case "order": break;
             case "range": window = [Number(col), Number(a1)]; break;
-            case "limit": limit = Number(col); break;
+            /* A limit on an embed limits the embed, never the parent rows. */
+            case "limit": if (!(a1 as { referencedTable?: string } | undefined)?.referencedTable) limit = Number(col); break;
             default: throw new Error(`fake PostgREST: unsupported orders method ${prop}`);
           }
           return self;
@@ -172,6 +175,14 @@ function fakeDb(rows: Row[], opts: { headCountError?: unknown } = {}) {
   } as never);
   return reads;
 }
+
+/* Any chain, answering these rows when awaited. */
+const thenable = (data: unknown[]): unknown =>
+  new Proxy({}, {
+    get: (_t, prop) => (prop === "then"
+      ? (resolve: (v: unknown) => unknown) => resolve({ data, error: null })
+      : () => thenable(data)),
+  });
 
 const jwtOf = (role: string) =>
   signTestJwt("11111111-1111-1111-1111-000000000999", { email: `${role}@carres.com`, app_metadata: { role } });
@@ -241,6 +252,47 @@ describe("count=only — the Register's own rows for the same phone and caller, 
   it("is behind the Register's own guard — a dealer gets no count", async () => {
     fakeDb(ORDERS);
     const { res } = await get(registerPath("019-00000075", true), "dealer");
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("Created by: the first history row's person", () => {
+  const creator = "11111111-1111-1111-1111-000000000123";
+  it("names the person, and leaves an order with no recorded actor empty", async () => {
+    fakeDb([
+      { ...ORDERS[0]!, first_history: [{ by_user_id: creator, occurred_at: "2026-09-01T00:00:00Z", metadata: null }] },
+      { ...ORDERS[1]!, first_history: [] },
+    ]);
+    const base = vi.mocked(userClient)({} as never, "") as unknown as { from: (t: string) => unknown };
+    vi.mocked(userClient).mockReturnValue({
+      from: (t: string) => (t === "app_users" ? thenable([{ id: creator, name: "Tan Mei" }]) : base.from(t)),
+      rpc: () => thenable([{ id: creator, name: "Tan Mei", role: "operation", is_person: true }]),
+    } as never);
+    const { res, body } = await get("/api/operation/orders?stage=proceeded");
+    expect(res.status).toBe(200);
+    const rows = body.orders as Row[];
+    expect(rows.find((o) => o.id === ORDERS[0]!.id)).toMatchObject({ created_by_name: "Tan Mei" });
+    expect(rows.find((o) => o.id === ORDERS[1]!.id)).toMatchObject({ created_by_name: null });
+    expect(rows[0]).not.toHaveProperty("first_history");
+  });
+});
+
+describe("GET /customer-first-placed", () => {
+  it("keys the earliest non-cancelled order by number, however it was typed", async () => {
+    fakeDb([
+      { ...ORDERS[0]!, placed_at: "2026-03-01T00:00:00Z" },
+      { ...ORDERS[1]!, placed_at: "2026-02-01T00:00:00Z" },
+      { ...ORDERS[2]!, placed_at: "2026-01-01T00:00:00Z" }, // cancelled
+      { ...ORDERS[5]!, placed_at: "2026-04-01T00:00:00Z", customer_phone: null },
+    ].sort((a, b) => String(a.placed_at).localeCompare(String(b.placed_at))));
+    const { res, body } = await get("/api/operation/orders/customer-first-placed");
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ firstPlaced: { "1900000075": "2026-02-01T00:00:00Z" } });
+  });
+
+  it("is behind the Register's own guard", async () => {
+    fakeDb(ORDERS);
+    const { res } = await get("/api/operation/orders/customer-first-placed", "dealer");
     expect(res.status).toBe(403);
   });
 });

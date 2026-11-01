@@ -73,8 +73,9 @@ describe("GET /api/operation/orders", () => {
     const not = vi.fn().mockReturnThis();
     const is = vi.fn().mockReturnThis();
     const order = vi.fn().mockReturnThis();
-    const limit = vi.fn().mockResolvedValue({ data: rows, error: null });
-    const select = vi.fn((_fields?: string) => ({ in: inFn, eq, ilike, or, not, is, order, limit }));
+    const limit = vi.fn((_n: number, o?: { referencedTable?: string }) => (o?.referencedTable ? chainRef.current : Promise.resolve({ data: rows, error: null })));
+    const chainRef: { current: unknown } = { current: null };
+    const select = vi.fn((_fields?: string) => (chainRef.current = { in: inFn, eq, ilike, or, not, is, order, limit }));
     vi.mocked(userClient).mockReturnValue({
       from: vi.fn(() => ({ select })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -452,7 +453,7 @@ describe("GET /api/operation/orders", () => {
         const chain: Record<string, unknown> = {};
         for (const k of ["in", "eq", "ilike", "or", "not", "is", "order"])
           chain[k] = vi.fn(() => chain);
-        chain.limit = vi.fn().mockResolvedValue({ data: orders, error: null });
+        chain.limit = vi.fn((_n: number, o?: { referencedTable?: string }) => (o?.referencedTable ? chain : Promise.resolve({ data: orders, error: null })));
         return { select: vi.fn(() => chain) };
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -586,7 +587,7 @@ describe("GET /api/operation/orders", () => {
         const chain: Record<string, unknown> = {};
         for (const k of ["in", "eq", "ilike", "or", "not", "is", "order"])
           chain[k] = vi.fn(() => chain);
-        chain.limit = vi.fn().mockResolvedValue({ data: orders, error: null });
+        chain.limit = vi.fn((_n: number, o?: { referencedTable?: string }) => (o?.referencedTable ? chain : Promise.resolve({ data: orders, error: null })));
         return { select: vi.fn(() => chain) };
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

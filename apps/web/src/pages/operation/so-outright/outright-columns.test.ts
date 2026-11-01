@@ -33,6 +33,7 @@ const facts = (over: Partial<OutrightOrderFacts> = {}): OutrightOrderFacts => ({
 });
 
 const ctxOf = (owned: OwnedRead, payBy: PayByRead = { state: "ok", row: null }, payment = "unpaid"): CellContext => ({
+  customerType: () => "Not recorded",
   payment: () => payment,
   owned: () => owned,
   payBy: () => payBy,

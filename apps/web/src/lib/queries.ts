@@ -2968,6 +2968,8 @@ export interface operationOrderListRow {
   /** Phase B (migration 0138) — latest annotation snippet for kanban card.
    *  PostgREST returns all annotations; card picks newest by created_at. */
   order_annotations: { content: string; tag: string | null; created_at: string }[];
+  /** The person on the order's first history row; null when none was recorded. */
+  created_by_name?: string | null;
   /** Jess 2026-06-24 — the 4 operator remark fields surfaced into the list (was
    *  drawer-only) so the Orders table's Remark column can show them. From
    *  ops_order_control (1:1 via order_id); PostgREST returns the embed as a
@@ -6119,6 +6121,15 @@ export function useSalesOrderRegisterOrders(filters: operationOrderFilters, enab
     /* Same reason as `useOperationOrders`: a new search keeps the last
        complete list on screen instead of unmounting the grid mid-keystroke. */
     placeholderData: keepPreviousData,
+  });
+}
+
+/** The earliest placed_at per phone key, for the list's Customer type. */
+export function useCustomerFirstPlaced() {
+  return useQuery<{ firstPlaced: Record<string, string> }>({
+    queryKey: [...qk.operation.orders({ stage: "proceeded" }), "customer-first-placed"],
+    queryFn: ({ signal }) => apiFetch("/api/operation/orders/customer-first-placed", { signal }),
+    staleTime: 5 * 60_000,
   });
 }
 
