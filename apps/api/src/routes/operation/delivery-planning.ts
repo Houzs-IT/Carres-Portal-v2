@@ -35,7 +35,7 @@ router.get("/", requireOperationOrPrincipal, async (c) => {
     sb
       .from("orders")
       .select(
-        "id, so, customer_name, customer_address, customer_address_line1, customer_address_city, customer_address_state, customer_address_postcode, delivery_date, delivery_date_tbd, entry_data",
+        "id, so, source_ref, customer_name, customer_phone, customer_address, customer_address_line1, customer_address_city, customer_address_state, customer_address_postcode, delivery_date, delivery_date_tbd, entry_data, salespersons(name), order_lines(qty, unit_price), order_addons(qty, unit_price)",
       )
       .in("status", ["place", "proceed_order"])
       .order("delivery_date", { ascending: true, nullsFirst: false })

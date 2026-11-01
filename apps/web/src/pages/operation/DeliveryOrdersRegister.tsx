@@ -32,11 +32,12 @@
  * DO when a trip's requirements are met; still no Release, Approve or Issue.
  */
 import { useCallback, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ExternalLink, Image as ImageIcon, PanelLeftOpen, Video } from "lucide-react";
 import { toast } from "sonner";
 import type { DeliveryHandoverKind, DeliveryOrderStatus, OrderActionTone } from "@carres/shared";
 import { fmtDate } from "@/lib/fmt-date";
+import { rm } from "@/lib/format-currency";
 import StatusPill from "@/components/kit/StatusPill";
 import { ApiError, apiFetch } from "@/lib/api";
 import { renderCombinedDoPdf } from "@/lib/pdf/render";
@@ -55,6 +56,7 @@ import { documentRowMenu } from "@/components/register/row-menu";
 import { printDeliveryOrder } from "./record-print";
 import Select from "@/components/kit/Select";
 import ModuleHeader from "./components/ModuleHeader";
+import OperationKpiTile from "./components/OperationKpiTile";
 import DeliveryResultAction from "./components/DeliveryResultAction";
 import NewDeliveryOrderDialog from "./components/NewDeliveryOrderDialog";
 import {
@@ -73,6 +75,9 @@ import {
   DOR_COPY,
   DO_QUEUE_LABEL,
   groupProofRecords,
+  doRegisterTiles,
+  matchesDoDates,
+  type DoDateBy,
   DO_STATUS_KEYS,
   DO_WORK_QUEUES,
   buildDoRegisterRails,
@@ -144,9 +149,6 @@ const FILTER_RAIL_STORAGE_KEY = "carres.deliveryOrders.filterRail";
 /** Below this the 240px rail costs more sheet than it earns (owner ruling
  *  2026-09-11, validated at the observed 949px viewport). */
 const NARROW_VIEWPORT_PX = 1100;
-
-/** The dropdown's own value for "no status condition". Never a status. */
-const ALL_STATUS = "__all__";
 
 /** ⭐ AN ABSENCE IS QUIETER THAN A FACT — owner ruling 2026-08-15. */
 function Absent({ children }: { children: string }) {
@@ -448,6 +450,10 @@ function QueueAction({
   );
 }
 
+const PILL = "rounded-full border border-base-200 bg-white px-3 py-1 text-meta text-base-700 hover:bg-base-50";
+const PILL_ON = "rounded-full border border-primary bg-primary px-3 py-1 text-meta font-medium text-white";
+const DATE_INPUT = "h-7 rounded-control border border-kit-slate-6 bg-white px-2 text-body";
+
 export default function DeliveryOrdersRegister() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -474,11 +480,6 @@ export default function DeliveryOrdersRegister() {
     const next = new URLSearchParams(searchParams);
     if (searchParams.get(key) === value) next.delete(key);
     else next.set(key, value);
-    setSearchParams(next, { replace: false });
-  };
-  const setParam = (key: "work" | "status", value: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set(key, value);
     setSearchParams(next, { replace: false });
   };
   const clearParam = (key: "work" | "status") => {
@@ -543,10 +544,33 @@ export default function DeliveryOrdersRegister() {
     );
   }, [data]);
 
-  const rails = useMemo(() => buildDoRegisterRails(allRows, filters), [allRows, filters]);
+  /* Houzs DoDateFilter, riding the URL with the other picks. */
+  const dateWindow = useMemo(
+    () => ({
+      from: searchParams.get("from"),
+      to: searchParams.get("to"),
+      by: (searchParams.get("by") === "delivery" ? "delivery" : "do") as DoDateBy,
+    }),
+    [searchParams],
+  );
+  const setDateParam = (key: "from" | "to" | "by", value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
+  };
+  const windowRows = useMemo(
+    () => allRows.filter((r) => matchesDoDates(r, dateWindow)),
+    [allRows, dateWindow],
+  );
+  const rails = useMemo(() => buildDoRegisterRails(windowRows, filters), [windowRows, filters]);
   const rows = useMemo(
-    () => allRows.filter((r) => matchesDoFilters(r, filters)),
-    [allRows, filters],
+    () => windowRows.filter((r) => matchesDoFilters(r, filters)),
+    [windowRows, filters],
+  );
+  const tiles = useMemo(
+    () => doRegisterTiles(windowRows.filter((r) => filters.queue === null || r.queue === filters.queue)),
+    [windowRows, filters.queue],
   );
 
   /* ── SELECTION — ticks scope document OUTPUT only, never a write. ──────── */
@@ -655,6 +679,25 @@ export default function DeliveryOrdersRegister() {
         sortFn: (a, b) => a.so - b.so,
       },
       {
+        /* Houzs `Invoiced to`: the Sales Invoices of this document's order. */
+        key: "invoice_no",
+        label: "Invoice No",
+        width: 150,
+        sortable: true,
+        chooserGroup: "Document",
+        accessor: (r) =>
+          r.invoiceNos.length > 0 ? (
+            <span className="block truncate font-mono" title={r.invoiceNos.join(", ")}>
+              {r.invoiceNos.join(", ")}
+            </span>
+          ) : (
+            <Absent>Not invoiced</Absent>
+          ),
+        searchValue: (r) => r.invoiceNos.join(" "),
+        exportValue: (r) => r.invoiceNos.join(", "),
+        filterValue: (r) => r.invoiceNos.join(", ") || "Not invoiced",
+      },
+      {
         key: "customer",
         label: "Customer",
         width: 190,
@@ -667,6 +710,52 @@ export default function DeliveryOrdersRegister() {
         ),
         searchValue: (r) => r.customer,
         filterValue: (r) => r.customer,
+      },
+      {
+        /* `Scheduled delivery` — the agreed operational day (owner ruling
+           2026-09-24 overwrites `Confirmed Delivery`). `Scheduled time` is
+           its own optional column in the chooser. */
+        key: "confirmed_delivery",
+        label: "Delivery Date",
+        width: 150,
+        sortable: true,
+        chooserGroup: "Dates",
+        filterType: "date",
+        dateValue: (r) => r.confirmedDelivery,
+        accessor: (r) =>
+          r.confirmedDelivery ? (
+            fmtDate(r.confirmedDelivery)
+          ) : (
+            <Absent>{DOR_COPY.noConfirmedDate}</Absent>
+          ),
+        searchValue: (r) =>
+          r.confirmedDelivery ? fmtDate(r.confirmedDelivery) : DOR_COPY.noConfirmedDate,
+        filterValue: (r) =>
+          r.confirmedDelivery ? fmtDate(r.confirmedDelivery) : DOR_COPY.noConfirmedDate,
+        sortFn: (a, b) =>
+          (a.confirmedDelivery ?? "").localeCompare(b.confirmedDelivery ?? ""),
+      },
+      {
+        key: "driver",
+        label: "Driver",
+        width: 150,
+        sortable: true,
+        chooserGroup: "Delivery",
+        accessor: (r) => r.driver ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.driver ?? "",
+        exportValue: (r) => r.driver ?? "",
+        filterValue: (r) => r.driver ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "ref_no",
+        label: "Ref No.",
+        width: 130,
+        sortable: true,
+        chooserGroup: "Document",
+        accessor: (r) => r.refNo ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.refNo ?? "",
+        exportValue: (r) => r.refNo ?? "",
+        filterValue: (r) => r.refNo ?? DOR_COPY.notRecorded,
       },
       {
         /* ⭐ ONE STATUS COLUMN, MOVED TO THE FRONT (owner ruling 2026-09-11):
@@ -728,6 +817,7 @@ export default function DeliveryOrdersRegister() {
            day the document was issued — keeps its place at the far end; it is
            never either delivery date. */
         key: "customer_delivery",
+        defaultHidden: true,
         label: "Requested Delivery Date",
         width: 176,
         sortable: true,
@@ -755,31 +845,8 @@ export default function DeliveryOrdersRegister() {
           (a.requestedDelivery ?? "").localeCompare(b.requestedDelivery ?? ""),
       },
       {
-        /* `Scheduled delivery` — the agreed operational day (owner ruling
-           2026-09-24 overwrites `Confirmed Delivery`). `Scheduled time` is
-           its own optional column in the chooser. */
-        key: "confirmed_delivery",
-        label: "Scheduled delivery",
-        width: 150,
-        sortable: true,
-        chooserGroup: "Dates",
-        filterType: "date",
-        dateValue: (r) => r.confirmedDelivery,
-        accessor: (r) =>
-          r.confirmedDelivery ? (
-            fmtDate(r.confirmedDelivery)
-          ) : (
-            <Absent>{DOR_COPY.noConfirmedDate}</Absent>
-          ),
-        searchValue: (r) =>
-          r.confirmedDelivery ? fmtDate(r.confirmedDelivery) : DOR_COPY.noConfirmedDate,
-        filterValue: (r) =>
-          r.confirmedDelivery ? fmtDate(r.confirmedDelivery) : DOR_COPY.noConfirmedDate,
-        sortFn: (a, b) =>
-          (a.confirmedDelivery ?? "").localeCompare(b.confirmedDelivery ?? ""),
-      },
-      {
         key: "confirmed_time",
+        defaultHidden: true,
         label: "Scheduled time",
         width: 120,
         sortable: true,
@@ -792,6 +859,7 @@ export default function DeliveryOrdersRegister() {
       {
         /* The partner named on the document — a snapshot fact of THIS trip. */
         key: "logistics",
+        defaultHidden: true,
         /* Shortened to `Logistics` (owner ruling 2026-09-11) so the register
            spends its width on facts rather than on a heading. The Logistics
            word law keeps the s; the full role word `Logistics Partner` stays
@@ -808,6 +876,7 @@ export default function DeliveryOrdersRegister() {
       },
       {
         key: "location",
+        defaultHidden: true,
         label: "Delivery Location",
         width: 180,
         sortable: true,
@@ -831,6 +900,7 @@ export default function DeliveryOrdersRegister() {
            An upload is evidence of an upload; it is not proof accepted and
            not a successful delivery, and no tick here says otherwise. */
         key: "driver_submission",
+        defaultHidden: true,
         label: DOR_COPY.driverSubmission,
         width: 214,
         sortable: true,
@@ -849,6 +919,127 @@ export default function DeliveryOrdersRegister() {
         sortFn: (a, b) =>
           a.submission.photos + a.submission.videos -
           (b.submission.photos + b.submission.videos),
+      },
+      {
+        key: "amount",
+        label: "Amount",
+        width: 120,
+        align: "right",
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Document",
+        accessor: (r) => (r.amount == null ? <Absent>{DOR_COPY.notRecorded}</Absent> : rm(r.amount)),
+        numberValue: (r) => r.amount ?? 0,
+        exportValue: (r) => r.amount ?? "",
+        searchValue: (r) => (r.amount == null ? "" : rm(r.amount)),
+      },
+      {
+        key: "salesperson",
+        label: "Salesperson",
+        width: 150,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.salesperson ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.salesperson ?? "",
+        exportValue: (r) => r.salesperson ?? "",
+        filterValue: (r) => r.salesperson ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "vehicle",
+        label: "Vehicle",
+        width: 120,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Delivery",
+        accessor: (r) => r.vehicle ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.vehicle ?? "",
+        exportValue: (r) => r.vehicle ?? "",
+        filterValue: (r) => r.vehicle ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "phone",
+        label: "Phone",
+        width: 130,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.phone ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.phone ?? "",
+        exportValue: (r) => r.phone ?? "",
+        filterValue: (r) => r.phone ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "email",
+        label: "Email",
+        width: 190,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.email ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.email ?? "",
+        exportValue: (r) => r.email ?? "",
+        filterValue: (r) => r.email ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "address",
+        label: "Address",
+        width: 240,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.address ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.address ?? "",
+        exportValue: (r) => r.address ?? "",
+        filterValue: (r) => r.address ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "city",
+        label: "City",
+        width: 120,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.city ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.city ?? "",
+        exportValue: (r) => r.city ?? "",
+        filterValue: (r) => r.city ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "state",
+        label: "State",
+        width: 120,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.state ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.state ?? "",
+        exportValue: (r) => r.state ?? "",
+        filterValue: (r) => r.state ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "postcode",
+        label: "Postcode",
+        width: 90,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.postcode ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.postcode ?? "",
+        exportValue: (r) => r.postcode ?? "",
+        filterValue: (r) => r.postcode ?? DOR_COPY.notRecorded,
+      },
+      {
+        key: "building_type",
+        label: "Building Type",
+        width: 130,
+        sortable: true,
+        defaultHidden: true,
+        chooserGroup: "Customer",
+        accessor: (r) => r.buildingType ?? <Absent>{DOR_COPY.notRecorded}</Absent>,
+        searchValue: (r) => r.buildingType ?? "",
+        exportValue: (r) => r.buildingType ?? "",
+        filterValue: (r) => r.buildingType ?? DOR_COPY.notRecorded,
       },
       {
         key: "goods",
@@ -965,7 +1156,57 @@ export default function DeliveryOrdersRegister() {
         word={DOR_COPY.page}
         docTitle={DOR_COPY.docTitle}
         destinationHeader
+        right={
+          <span className="flex items-center gap-3 text-body" data-testid="delivery-orders-links">
+            <Link className="text-c-link underline" to="/operation?tab=logistic-overview">{DOR_COPY.logisticOverview}</Link>
+            <Link className="text-c-link underline" to="/operation?tab=orders">{DOR_COPY.salesOrders}</Link>
+            <Link className="text-c-link underline" to="/operation?tab=delivery-planning">{DOR_COPY.deliveryPlanning}</Link>
+          </span>
+        }
       />
+      <div className="grid grid-cols-2 gap-2 px-2 pt-2 lg:grid-cols-4" data-testid="delivery-orders-tiles">
+        <OperationKpiTile label={DOR_COPY.totalDos} value={tiles.total} hint="" accent="primary" />
+        <OperationKpiTile label={DOR_COPY.revenue} value={rm(tiles.revenue)} hint="" accent="success" />
+        <OperationKpiTile label={DOR_COPY.inTransit} value={tiles.inTransit} hint="" accent="warning" onClick={() => toggleParam("status", "out_for_delivery")} />
+        <OperationKpiTile label={DOR_COPY.delivered} value={tiles.delivered} hint="" accent="success" onClick={() => toggleParam("status", "delivered")} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 px-2 pt-2" data-testid="delivery-orders-status">
+        <button
+          type="button"
+          aria-pressed={!filters.status}
+          className={filters.status ? PILL : PILL_ON}
+          onClick={() => clearParam("status")}
+        >
+          {DOR_COPY.allDocuments} ({rails.total})
+        </button>
+        {DO_STATUS_KEYS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={filters.status === key}
+            className={filters.status === key ? PILL_ON : PILL}
+            data-testid={`delivery-orders-status-${key}`}
+            onClick={() => toggleParam("status", key)}
+          >
+            {STATUS_LABEL[key]} ({rails.status[key]})
+          </button>
+        ))}
+        <span className="ml-auto flex flex-wrap items-center gap-2" data-testid="delivery-orders-dates">
+          <Select
+            id="delivery-orders-date-by"
+            toolbar
+            aria-label={DOR_COPY.dateBy}
+            value={dateWindow.by}
+            onValueChange={(v) => setDateParam("by", v === "delivery" ? v : "")}
+            options={[
+              { value: "do", label: DOR_COPY.doDate },
+              { value: "delivery", label: DOR_COPY.deliveryDate },
+            ]}
+          />
+          <input type="date" aria-label={DOR_COPY.from} className={DATE_INPUT} value={dateWindow.from ?? ""} onChange={(e) => setDateParam("from", e.target.value)} />
+          <input type="date" aria-label={DOR_COPY.to} className={DATE_INPUT} value={dateWindow.to ?? ""} onChange={(e) => setDateParam("to", e.target.value)} />
+        </span>
+      </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {filterRailOpen ? (
           <FilterRail
@@ -983,39 +1224,6 @@ export default function DeliveryOrdersRegister() {
                   testId={`delivery-orders-work-${key}`}
                 />
               ))}
-            </FilterRailGroup>
-            {/* ⭐ DOCUMENT STATUS IS THE KIT'S OWN DROPDOWN (owner ruling
-                2026-09-11). Six stacked rows spent a third of the rail on a
-                choice that is one value at a time; the kit Select states the
-                current pick in one line and hands the rail's height back to
-                WORK TO DO, which is where the day actually starts. Each row
-                still carries its live count - the number is why an operator
-                picks it. `All` clears the status condition ONLY; a picked
-                work queue survives, because they are two questions. */}
-            <FilterRailGroup
-              title={DOR_COPY.railStatus}
-              icon="order"
-              chosen={filters.status ? STATUS_LABEL[filters.status] : null}
-            >
-              <Select
-                id="delivery-orders-status"
-                value={filters.status ?? ALL_STATUS}
-                onValueChange={(value) =>
-                  value === ALL_STATUS
-                    ? clearParam("status")
-                    : setParam("status", value)
-                }
-                options={[
-                  {
-                    value: ALL_STATUS,
-                    label: `${DOR_COPY.allDocuments} (${rails.total})`,
-                  },
-                  ...DO_STATUS_KEYS.map((key) => ({
-                    value: key,
-                    label: `${STATUS_LABEL[key]} (${rails.status[key]})`,
-                  })),
-                ]}
-              />
             </FilterRailGroup>
           </FilterRail>
         ) : null}
@@ -1041,7 +1249,7 @@ export default function DeliveryOrdersRegister() {
               appearance="reference"
               rows={rows}
               columns={columns}
-              storageKey="carres.deliveryOrders.register.v4"
+              storageKey="carres.deliveryOrders.register.v5"
               rowKey={(r) => r.id}
               exportName="Delivery Orders"
               searchPlaceholder={DOR_COPY.search}
@@ -1102,11 +1310,28 @@ export default function DeliveryOrdersRegister() {
                       },
                     ]
                   : []),
+                ...(dateWindow.from || dateWindow.to
+                  ? [
+                      {
+                        key: "dates",
+                        label: `${dateWindow.by === "do" ? DOR_COPY.doDate : DOR_COPY.deliveryDate}: ${dateWindow.from ? fmtDate(dateWindow.from) : ""} to ${dateWindow.to ? fmtDate(dateWindow.to) : ""}`,
+                        onClear: () => {
+                          const next = new URLSearchParams(searchParams);
+                          next.delete("from");
+                          next.delete("to");
+                          setSearchParams(next, { replace: false });
+                        },
+                      },
+                    ]
+                  : []),
               ]}
               onClearConditions={() => {
                 const next = new URLSearchParams(searchParams);
                 next.delete("work");
                 next.delete("status");
+                next.delete("from");
+                next.delete("to");
+                next.delete("by");
                 setSearchParams(next, { replace: false });
               }}
               toolbarStart={!filterRailOpen ? showFiltersButton : undefined}

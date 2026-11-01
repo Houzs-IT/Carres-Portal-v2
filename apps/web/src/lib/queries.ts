@@ -7642,6 +7642,18 @@ export interface DeliveryOrderRow {
   orders: {
     id: string;
     so: number;
+    /* Houzs DO list hidden columns (MfgDeliveryOrdersListV2.tsx:1352-1565). */
+    source_ref?: string | null;
+    customer_phone?: string | null;
+    customer_email?: string | null;
+    customer_address_line1?: string | null;
+    customer_address_line2?: string | null;
+    customer_address_postcode?: string | null;
+    building_type?: string | null;
+    invoice_no?: string | null;
+    salespersons?: { name: string | null } | { name: string | null }[] | null;
+    invoice_documents?: Array<{ invoice_no: string | null; voided_at: string | null }> | null;
+    order_addons?: Array<{ qty: number; unit_price: number | string | null }> | null;
     customer_name: string | null;
     /** The written address, and the two structured columns beside it — read
      *  through the ONE shared interpretation (`resolveDeliveryLocality`), so
@@ -7668,6 +7680,8 @@ export interface DeliveryOrderRow {
       confirmed_date: string | null;
       confirmed_time: string | null;
       partner_id: string | null;
+      driver_name?: string | null;
+      vehicle?: string | null;
       delivery_partners?: { name: string } | { name: string }[] | null;
     }>;
     /** The order's goods lines — the register expansion derives THIS TRIP's
@@ -7676,6 +7690,7 @@ export interface DeliveryOrderRow {
       id?: string;
       sku: string;
       qty: number;
+      unit_price?: number | string | null;
       attrs?: Record<string, unknown> | null;
     }>;
     /** T6 (0280) — the delivery-photo ledger; PostgREST may embed the overlay
@@ -8027,6 +8042,9 @@ export interface DeliveryOrderDetailPayload {
     order_id: string;
     orders: DeliveryOrderRow["orders"] & {
       customer_phone: string | null;
+      customer_email?: string | null;
+      source_ref?: string | null;
+      salespersons?: { name: string | null } | { name: string | null }[] | null;
       customer_emergency: string | null;
       customer_address: string | null;
       /** The signed DO on file (0087) — production's real proof columns; the

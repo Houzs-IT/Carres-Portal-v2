@@ -4135,6 +4135,7 @@ pages say (`apps/web/src/pages/operation/fleet.ts`, `FL`).
 
 | Where | The words |
 |---|---|
+| Delivery page words (Weisiang, 2026-11-01, Delivery MASTER last section) | `Logistic Overview` · `Last Mile Delivery` · `Lorry Live Map` · `Carriers & Rates` · `Coverage & Fleet` · `Total DOs` · `Revenue` · `In transit` · `Delivered` · `Total Trips` · `Available Days` · `Orders/Delivery Trip` · `Delivery Revenue` · `Revenue/Order` |
 | Delivery sidebar children | `Fleet Day` · `Live Map` · `Lorry Capacity` · `Crew Leave` |
 | The own-fleet Logistics company | `Carres Lorries` (seeded by 0724; its Vehicles and Drivers live in Settings → Logistics) |
 | Settings → Logistics → Drivers and Vehicles | `Role` · `Driver` · `Helper` |

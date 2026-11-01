@@ -1915,6 +1915,7 @@ export default function OperationDelivery() {
         word={MONITOR_COPY.page}
         docTitle={MONITOR_COPY.docTitle}
         destinationHeader
+        right={<Link className="text-body text-c-link underline" to="/operation?tab=logistic-overview" data-testid="monitor-logistic-overview">Logistic Overview</Link>}
       />
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {railVisible ? (

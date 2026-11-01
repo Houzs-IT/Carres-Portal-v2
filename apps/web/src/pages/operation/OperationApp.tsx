@@ -98,7 +98,8 @@ import WarehouseStockRegister from "./WarehouseStockRegister";
 import { DeliveryReturns, LoadScan } from "./DeliveryReturns";
 import { DeliveryReturnLinesReport } from "./DeliveryReturnLines";
 import { CustomerConsignmentOrders, ConsignmentNotes, CustomerConsignmentReturns } from "./CustomerConsignment";
-import { AutoSchedule, DeliveryPlanning, DpOrders, Trips } from "./DeliveryPlanning";
+import { AutoSchedule, CoverageFleet, DeliveryPlanning, DpOrders, Trips } from "./DeliveryPlanning";
+import { LogisticOverview } from "./LogisticOverview";
 import { StockAdjustments, StockTransfers, StockTakes } from "./WarehouseStockMoves";
 import WarehouseWorkspace from "./WarehouseWorkspace";
 import { LEGACY_SCHEDULE_TABS } from "./warehouse-schedule-view";
@@ -610,6 +611,9 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             {/* T11 — Delivery: the 3-pane module (queues · calendar · detail).
                 Read-only by design; every write stays behind the order drawer. */}
             {tab === "delivery" && <OperationDelivery />}
+            {/* Houzs Logistic Overview and Coverage & Fleet, Weisiang's decision 2026-11-01. */}
+            {tab === "logistic-overview" && <LogisticOverview />}
+            {tab === "coverage-fleet" && <CoverageFleet />}
             {/* 0716 — Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): office staff
                 record Delivery Returns and mark DOs Delivered by load scan, the Houzs
                 way. Overturns Jess's Delivery MASTER §6.1/§7/§8; Jess was not part of
