@@ -941,7 +941,7 @@ describe("PortalSidebar — the Purchasing map", () => {
     expect(tree.querySelector(".border-t")).toBeNull();
   });
 
-  it("fifteen pages in the approved order, and not a sixteenth", () => {
+  it("sixteen pages in the approved order, and not a seventeenth", () => {
     renderAt("/operation?tab=purchase");
     for (const key of [
       "purchasing-buy",
@@ -959,6 +959,7 @@ describe("PortalSidebar — the Purchasing map", () => {
     expect(rows).toEqual([
       "SO Batch Purchase",
       "Forecast Purchase",
+      "MRP",
       "Manual Purchase Request",
       "Purchase Orders",
       /* 0717 · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22; Jess was not part of this decision). */
@@ -1035,7 +1036,7 @@ describe("PortalSidebar — the Purchasing map", () => {
         .getByTestId("nav-group-children-purchasing-buy")
         .querySelectorAll("[data-testid^='nav-child-']"),
     ).map((el) => el.textContent?.replace("Coming soon", "").trim());
-    expect(rows).toEqual(["SO Batch Purchase", "Forecast Purchase", "Manual Purchase Request", "Purchase Orders", "PO Amendments", "Cancellation Requests"]);
+    expect(rows).toEqual(["SO Batch Purchase", "Forecast Purchase", "MRP", "Manual Purchase Request", "Purchase Orders", "PO Amendments", "Cancellation Requests"]);
   });
 
   it("the rail word is `Manual Purchase Request`, in BUY (owner 2026-09-23)", () => {

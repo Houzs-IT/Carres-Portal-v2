@@ -29,6 +29,15 @@ describe("Customer Credit Notes states", () => {
     await waitFor(() => expect(apiFetch).toHaveBeenCalled());
   });
 
+  it("lists the notes in the register grid with the Houzs columns", async () => {
+    vi.mocked(apiFetch).mockResolvedValue([NOTE]);
+    show();
+    await screen.findByText("CN-0001");
+    const heads = screen.getAllByRole("columnheader").map((h) => h.textContent?.trim()).filter(Boolean);
+    expect(heads.slice(0, 4)).toEqual(["Number", "Date", "Party", "Reference"]);
+    expect(screen.getByTestId("credit-notes-summary")).toHaveTextContent("1 credit note");
+  });
+
   it("a failed background refetch keeps the notes already read", async () => {
     vi.mocked(apiFetch).mockResolvedValue([NOTE]);
     const qc = show();

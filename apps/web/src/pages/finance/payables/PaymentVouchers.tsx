@@ -17,6 +17,9 @@ import {
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
+import Tabs from "@/components/kit/Tabs";
+import { awaitsFinance, paymentRequestStage } from "@carres/shared/payment-requests";
+import { usePaymentRequests } from "@/lib/payment-request-queries";
 import Modal from "@/components/kit/Modal";
 import { fieldCls } from "@/components/Field";
 import type { DepartmentType } from "@carres/shared";
@@ -144,7 +147,14 @@ function VoucherRegister() {
   const [peek, setPeek] = useState<string | null>(null);
   const [dept, setDept] = useDepartmentParam();
   const query = usePaymentVouchers(dept);
-  const rows = query.data ?? [];
+  const [tab, setTab] = useState<VoucherTab>("all");
+  const [selectedKeys, setSelectedKeys] = useState(new Set<string>());
+  const requests = usePaymentRequests(true);
+  const waitingRequests = (requests.data ?? []).filter((r) => awaitsFinance(paymentRequestStage(r))).length;
+  const rows = useMemo(() => (query.data ?? []).filter((r) => voucherInTab(r, tab)), [query.data, tab]);
+  const printMany = async (picked: PaymentVoucherRegisterRow[]) => {
+    for (const r of picked) if (r.voucher_no) await printVoucherById(qc, r.id);
+  };
   const columns = useMemo<DataGridColumn<PaymentVoucherRegisterRow>[]>(() => [
     { key: "voucher", label: "Voucher No", width: FINANCE_WIDTH.documentNo,
       accessor: (r) => <Link className="text-kit-blue-11 underline underline-offset-2" to={`/finance/payment-vouchers/${r.id}`}>{r.voucher_no ?? "Draft, no number yet"}</Link>,
@@ -184,7 +194,17 @@ function VoucherRegister() {
     <div className="flex h-full min-h-0 flex-col">
       <ModuleHeader destinationHeader testId="vouchers-destination-header" word="Payment Vouchers"
         docTitle="Payment Vouchers · Carres" />
-      {query.isError ? <ReadFailed what="Payment vouchers" onRetry={() => void query.refetch()} /> : (
+      {query.isError ? <ReadFailed what="Payment vouchers" onRetry={() => void query.refetch()} /> : <>
+        {waitingRequests > 0 && (
+          <div className="shrink-0 px-4 pt-2 text-body" data-testid="vouchers-requests-waiting">
+            <Link className="text-kit-blue-11 underline underline-offset-2" to="/finance/payment-requests">
+              {waitingRequests} payment {waitingRequests === 1 ? "request is" : "requests are"} waiting for Finance
+            </Link>
+          </div>
+        )}
+        <div className="shrink-0 px-4 pt-2">
+          <Tabs label="Voucher status" value={tab} onValueChange={(v) => { setTab(v as VoucherTab); setSelectedKeys(new Set()); }} tabs={VOUCHER_TABS} />
+        </div>
         <ListPageShell register>
           <DataGrid
             rows={rows}
@@ -212,6 +232,16 @@ function VoucherRegister() {
               </span>
             }
             emptyMessage="No payment vouchers yet. Every payment to a supplier or creditor starts here."
+            selectable={{ selectedKeys, onToggle: (key) => setSelectedKeys((before) => {
+              const next = new Set(before); if (next.has(key)) next.delete(key); else next.add(key); return next;
+            }), onToggleAll: (keys, all) => setSelectedKeys((before) => {
+              const next = new Set(before); keys.forEach((key) => { if (all) next.delete(key); else next.add(key); }); return next;
+            }) }}
+            selectionActions={[{
+              kind: "output",
+              label: (n) => `Print ${n} ${n === 1 ? "voucher" : "vouchers"}`,
+              onClick: (picked) => void printMany(picked as unknown as PaymentVoucherRegisterRow[]),
+            }]}
             onRowDoubleClick={(r) => setPeek(r.id)}
             contextMenu={(r) => documentRowMenu({
               view: () => navigate(`/finance/payment-vouchers/${r.id}`),
@@ -233,13 +263,25 @@ function VoucherRegister() {
             }}
           />
         </ListPageShell>
-      )}
+      </>}
       <VoucherPreview id={peek} onClose={() => setPeek(null)} onView={(id) => navigate(`/finance/payment-vouchers/${id}`)} />
     </div>
   );
 }
 
 /** The advance the cell shows first; null for "No advance", which sorts last. */
+// The Houzs chips (PaymentVouchers.tsx:42,61-64).
+const VOUCHER_TABS = [
+  { value: "all", label: "All" }, { value: "draft", label: "Draft" }, { value: "prepared", label: "Prepared" },
+  { value: "checked", label: "Checked" }, { value: "approved", label: "Approved" },
+  { value: "advance", label: "Advance open" }, { value: "cancelled", label: "Cancelled" },
+] as const;
+type VoucherTab = (typeof VOUCHER_TABS)[number]["value"];
+function voucherInTab(r: PaymentVoucherRegisterRow, tab: VoucherTab): boolean {
+  if (tab === "all") return true;
+  return tab === "advance" ? (num(r.advance_open) ?? 0) > 0 : r.status === tab;
+}
+
 function advanceAmount(r: PaymentVoucherRegisterRow): number | null {
   const amount = num(r.advance_amount) ?? 0;
   return amount > 0 ? amount : null;

@@ -107,7 +107,7 @@ export default function Collection() {
       footerTotal: (rows) => amountCell(rows.reduce((s, r) => s + pick(r), 0) / 100),
     });
     const name: DataGridColumn<CollectionRow> = { key: "who", label: "Salesperson", width: 220, wrap: true, accessor: who,
-      searchValue: who, exportValue: who };
+      searchValue: who, exportValue: who, filterValue: who, filterType: "enum" };
     if (view === "deposit") {
       return [
         name,

@@ -1276,6 +1276,8 @@ admitted by this naming ruling. Chinese explanations may accompany names in owne
 | Blank Consignment Note money (Houzs consignment-notes.ts:445,465, 1074-1160) | field `Price (RM) · {unit}` on a blank note · columns `Total` · `Balance` (`On order` when the note comes from an order) · `Sold Units are sold at their price on this note. Record the customer's payment below.` |
 | Return dialog line | `Unsold Units come back into stock. No refund: nothing was paid for them.` |
 | Columns | `Order No` · `Consignment Note No` · `Return No` · `Date` · `Delivery Date` · `Customer` · `Phone` · `Dealer` · `Units` · `At customer` · `Delivery Location` · `Note` |
+| List and detail words, Houzs way (Weisiang, WhatsApp 2026-11-01: same as Houzs; Houzs ConsignmentOrders.tsx, ConsignmentNotes.tsx, ConsignmentReturns.tsx) | Columns `Doc. No.` · `Note No.` · `Return No.` · `Expected` · `Local Total` · `Address 1` · `Returned Value`; cards `Total Orders` · `Revenue` · `Outstanding` · `Paid` · `Total Notes` · `Total Returns`; tabs `All` · `Outstanding` · `At customer`; sections `Customer` · `Line Items ({n})` · `Return Info` · `Returned Items ({n})`; button `Create Consignment Return` |
+| Warehouse list and detail words, Houzs way (Weisiang, WhatsApp 2026-11-01; Houzs StockAdjustments.tsx, StockTransfersListV2.tsx, StockTakesListV2.tsx) | Stock moves say `Warehouse`, not Site. Columns `Transfer No.` · `From` · `To` · `Lines` · `Notes` · `Created By` · `Take No.` · `Variance` · `Items` · `Net Qty` · `Performed By`; status `Confirmed` for a posted transfer or take; `Hidden` for Lines and Variance on an open blind count; cards `Adjustments · 30d` · `Net qty delta` · `Total Transfers` · `Line count` · `Posted` · `Total Takes` · `Open` · `Lines counted` · `Net variance` · `Own Stock Qty` · `Current Qty` · `Last Movement`; `Variance Summary` · `Fill all to system` · `Total slots` · `Occupied` · `Occupancy` |
 | Empty / refusal | `No customer consignment orders yet.` · `No consignment notes yet.` · `No customer consignment returns yet.` · `Every Unit on this order has gone out.` · `No Units are at the customer on this note.` · `No Units are at a customer.` · `{Unit ID} belongs to its supplier` · `{Unit ID} is not out on a Consignment Note` · `Choose the customer or dealer` |
 | Dealer picker | `No dealer` |
 
@@ -2447,6 +2449,10 @@ the same name (Purchase Orders rail uses `Confirm tomorrow's supplier delivery`)
 Use `Listing` consistently for module list-view navigation. The page title identifies the module;
 do not repeat SO/PO in the tab. This is the shared navigation label.
 Other views retain their purpose-specific names, such as `Monthly demand`.
+
+### MRP page (YH, 30 Oct 2026; Purchasing MASTER §5.1)
+
+`MRP` is the team's own word for this page. Heads: `SKU` · `Item` · `Category` · `Supplier` · `Needed` · `In Stock` · `On PO` · `Shortage` · `Free Stock`; under a row `Sales Order` · `Customer` · `Delivery Date`. Rail: `Show` (`All` · `Shortages`), `Category`, `Delivery Date`. Button `Export`. Empty: `Nothing is needed for these filters.` Note under the table: `Shortage is Needed less In Stock less On PO. In Stock is held for these orders. Free Stock is held for no order and lowers Shortage only once it is taken on SO Batch Purchase. Each sofa module counts as its own item.`
 
 ### Forecast Purchase · Outright — design handoff 13 Oct 2026 · approval ruling 14 Oct 2026 (A) · BUILT · DEPLOYED 14 Oct 2026 (Purchasing MASTER §9.14)
 
@@ -6158,10 +6164,22 @@ Source: `apps/web/src/pages/finance/SalesInvoices.tsx`.
 | Where | Words |
 |---|---|
 | Side menu row and page title | `Sales Invoices` |
-| Columns, in order | `Invoice No` · `Invoice date` · `SO No` · `Customer` · `Ref No` · `Status` · `Still owed on SO` · `Invoice total` |
-| Status | `Draft` · `Issued` · `Voided` |
+| Columns, in order | `SI No.` · `Date` · `SO No.` · `Customer` · `Ref No.` · `Status` · `Outstanding on SO` · `Total`; hidden until chosen: `Paid on SO` · `Phone` |
+| Status | `Draft` · `Submitted` · `Partially paid` · `Paid` · `Cancelled` (Paid and Partially paid read the order's money) |
+| Tabs and tiles | `All` · `Sent` · `Partial` · `Paid` · `Cancelled`; `Total Invoices` · `Billed` · `Outstanding` · `Paid` |
+| Quick view | `Customer` · `Invoice info` · `Line items · {n}` · `Payments` · `Open on Monitor` |
 | A draft's Invoice No | `Draft, no number yet` |
-| Search, summary, empty, failed | `Search sales invoices…` · `{n} sales invoices` · `No sales invoices yet.` · `Sales Invoices could not be loaded. Try again.` |
+| Search, summary, empty, failed | `Search SI, customer, phone, ref…` · `{n} sales invoices` · `No sales invoices yet.` · `Sales Invoices could not be loaded. Try again.` |
+
+## Finance lists, following Houzs · Weisiang, WhatsApp 1 Nov 2026
+
+| Where | Words |
+|---|---|
+| Payment Vouchers tabs | `All` · `Draft` · `Prepared` · `Checked` · `Approved` · `Advance open` · `Cancelled` |
+| Payment Vouchers notice | `{n} payment requests are waiting for Finance` · `Print {n} vouchers` |
+| Payment Requests tabs | `All` · `Waiting for Finance` · `Processing` · `Paid` · `Returned / withdrawn` |
+| Suppliers tabs and columns | `All` · `Trade` · `Other` · `Missing TIN`; `Owed` · `Advance` · `Open bills` |
+| Customer Credit Notes columns | `Number` · `Date` · `Party` · `Reference` · `SO` · `Reason` · `Total` · `Status`; hidden until chosen: `Void reason`; `Print {n} credit notes` |
 
 ## New Sales Invoice words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22) · BUILT ON BRANCH `feat/office-new-sales-invoice` (0712 not applied)
 

@@ -335,7 +335,6 @@ function PartyRegister({ onNewInvoice }: { onNewInvoice: (partyId: string | null
         key: "phone",
         label: "Phone",
         width: 140,
-        defaultHidden: true,
         accessor: (r) => r.phone ?? "No phone on file",
       },
       {
@@ -384,7 +383,7 @@ function PartyRegister({ onNewInvoice }: { onNewInvoice: (partyId: string | null
         rows={query.data ?? []}
         columns={columns}
         rowKey={(r) => r.party_id}
-        storageKey="carres.finance.other-debtor-parties.v3"
+        storageKey="carres.finance.other-debtor-parties.v4"
         appearance="reference"
         look="finance" personalLayouts={personalLayouts} fillColumn="name"
         exportName="Other debtor parties"
