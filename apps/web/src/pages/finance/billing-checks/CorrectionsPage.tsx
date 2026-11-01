@@ -77,7 +77,7 @@ export default function CorrectionsPage() {
             searchPlaceholder="Search order, receipt, reason…"
             emptyMessage="No payment was corrected or voided in this month."
             toolbarStart={
-              <input type="month" aria-label="Month" className={controlClass(false)} value={month} max={appTodayIso().slice(0, 7)}
+              <input type="month" aria-label="Month" className={controlClass(false, "single")} value={month} max={appTodayIso().slice(0, 7)}
                 onChange={(e) => setMonth(e.target.value)} />
             }
             statusSummary={(visible) => (
