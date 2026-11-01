@@ -20,7 +20,8 @@ import { rm } from "@/lib/format-currency";
 import { useManualMethods } from "@/lib/payment-methods";
 import DocumentTable from "@/components/kit/DocumentTable";
 import Tabs from "@/components/kit/Tabs";
-import { DetailSection, Facts, KpiRow } from "./houzs-list-bits";
+import { documentRowMenu } from "@/components/register/row-menu";
+import { DetailSection, DocHistory, Facts, KpiRow, RelationshipMap, TableCardsTabs, cardsProps, printDocument, useOpenFromUrl, type HistoryEvent } from "./houzs-list-bits";
 
 /**
  * Customer Consignment Order · Consignment Note · Customer Consignment Return
@@ -154,6 +155,16 @@ function LineItems({ lines }: { lines: OrderLine[] }) {
   );
 }
 
+const PRINT = "Print PDF";
+const lineTable = (lines: OrderLine[]) => ({
+  title: "Line Items", headers: ["Item", "Unit ID", "Qty", "Total", "Sold"], numeric: ["Qty", "Total"],
+  rows: lines.map((l) => [l.ops_stock_items?.sku ?? "", l.ops_stock_items?.unit_code ?? "", "1", rm(Number(l.price)), l.sold_at ? fmtDate(l.sold_at) : ""]),
+});
+const paymentEvents = (list: Payment[]): HistoryEvent[] => list.map((p) => ({ at: p.paid_at, word: `Payment ${rm(Number(p.amount))}` }));
+const soldEvents = (lines: OrderLine[]): HistoryEvent[] => lines.filter((l) => l.sold_at).map((l) => ({ at: l.sold_at, word: `Sold ${l.ops_stock_items?.unit_code ?? ""}` }));
+const TAB = { order: "customer-consignment-orders", note: "consignment-notes", ret: "customer-consignment-returns" } as const;
+const WORD = { order: "Customer Consignment Order", note: "Consignment Note", ret: "Customer Consignment Return" } as const;
+
 // ── Customer Consignment Order ────────────────────────────────────────────────
 type OrderLine = UnitLink & { price: string | number; sold_at: string | null };
 type Payment = { id: string; paid_at: string; method: string; amount: string | number; reference: string | null; note: string | null };
@@ -224,6 +235,9 @@ export function Payments({ path, money, payments, onSaved }: { path: string; mon
 export function CustomerConsignmentOrders() {
   const qc = useQueryClient();
   const choices = useChoices();
+  const notes = useNotes();
+  const returns = useReturns();
+  const [display, setDisplay] = useState("table");
   const list = useQuery({ queryKey: ["customer-consignment", "orders"], queryFn: () => apiFetch<{ orders: OrderRow[] }>(`${BASE}/orders`) });
   const [open, setOpen] = useState(false);
   const [dealerId, setDealerId] = useState(NO_DEALER);
@@ -235,6 +249,14 @@ export function CustomerConsignmentOrders() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const sending = (list.data?.orders ?? []).find((o) => o.id === sendingId) ?? null;
   const setSending = (o: OrderRow | null) => setSendingId(o?.id ?? null);
+  useOpenFromUrl(list.data?.orders, (o) => o.order_no, setSending);
+  const notesOf = (o: OrderRow) => (notes.data?.notes ?? []).filter((n) => n.order_id === o.id);
+  const printIt = (o: OrderRow) => printDocument({
+    title: WORD.order, docNo: o.order_no, date: fmtDate(o.created_at),
+    facts: [["Customer", o.customer_name], ["Phone", o.customer_phone ?? ""], ["Delivery Address", o.customer_address ?? ""], ["Note", o.note ?? ""],
+      ["Total", rm(o.total)], ["Paid", rm(o.paid)], ["Balance", rm(o.balance)]],
+    tables: [lineTable(o.customer_consignment_order_units)],
+  });
   const priced = picked.length > 0 && picked.every((id) => PRICE_RE.test(prices[id] ?? ""));
   const [sendPicked, setSendPicked] = useState<string[]>([]);
   const [date, setDate] = useState("");
@@ -278,10 +300,14 @@ export function CustomerConsignmentOrders() {
             storageKey="carres.delivery.customer-consignment-orders.v1" appearance="reference" exportName="Customer Consignment Orders"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search order, customer or Unit ID…"
             onRowClick={(r) => { setSending(r); setSendPicked([]); }}
+            contextMenu={(r) => documentRowMenu({ view: () => { setSending(r); setSendPicked([]); }, print: () => printIt(r) })}
+            {...cardsProps<OrderRow>(display, (r) => r.id, (r) => { setSending(r); setSendPicked([]); }, (r) => ({ title: r.order_no, facts: [
+              ["Customer", r.customer_name], ["Date", fmtDate(r.created_at)], ["Local Total", rm(r.total)], ["Balance", rm(r.balance)],
+            ] }))}
             toolbarStart={<Tabs variant="segmented" label="Balance" value={paidTab} onValueChange={setPaidTab} tabs={[
               { value: "all", label: "All" }, { value: "outstanding", label: "Outstanding" },
             ]} />}
-            toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Customer Consignment Order</Button>}
+            toolbarEnd={<><TableCardsTabs label="Customer Consignment Orders" value={display} onChange={setDisplay} /><Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Customer Consignment Order</Button></>}
             emptyMessage="No customer consignment orders yet." />
         </ListPageShell>
       )}
@@ -304,6 +330,7 @@ export function CustomerConsignmentOrders() {
         description="Issue a Consignment Note for the picked Units, and record the customer's payments on this order."
         footer={<>
           <Button variant="neutral" onClick={() => setSending(null)}>Close</Button>
+          {sending && <Button variant="neutral" icon="print" onClick={() => printIt(sending)}>{PRINT}</Button>}
           <Button variant="primary" loading={send.isPending} disabled={sendPicked.length === 0} onClick={() => send.mutate()}>Issue Consignment Note</Button>
         </>}>
         <div className="flex flex-col gap-3">
@@ -317,6 +344,16 @@ export function CustomerConsignmentOrders() {
           <Ticks list={toSend} picked={sendPicked} onChange={setSendPicked} empty="Every Unit on this order has gone out." />
           {send.isError && <FieldError>{errorText(send.error)}</FieldError>}
           {sending && <Payments path={`/orders/${sending.id}`} money={sending} payments={sending.customer_consignment_order_payments} onSaved={done} />}
+          {sending && <RelationshipMap current={{ kind: WORD.order, no: sending.order_no }} links={[
+            ...notesOf(sending).map((n) => ({ kind: WORD.note, no: n.note_no, tab: TAB.note })),
+            ...returnsOfNotes(returns.data?.returns, notesOf(sending).map((n) => n.note_no)).map((r) => ({ kind: WORD.ret, no: r.return_no, tab: TAB.ret })),
+          ]} />}
+          {sending && <DocHistory events={[
+            { at: sending.created_at, word: "Created" },
+            ...notesOf(sending).map((n) => ({ at: n.created_at, word: `Consignment Note ${n.note_no} issued` })),
+            ...soldEvents(sending.customer_consignment_order_units),
+            ...paymentEvents(sending.customer_consignment_order_payments),
+          ]} />}
         </div>
       </Modal>
     </Page>
@@ -335,11 +372,18 @@ type NoteRow = Money & {
 function useNotes() {
   return useQuery({ queryKey: ["customer-consignment", "notes"], queryFn: () => apiFetch<{ notes: NoteRow[] }>(`${BASE}/notes`) });
 }
+function useReturns() {
+  return useQuery({ queryKey: ["customer-consignment", "returns"], queryFn: () => apiFetch<{ returns: ReturnRow[] }>(`${BASE}/returns`) });
+}
+const returnsOfNotes = (list: ReturnRow[] | undefined, noteNos: string[]) =>
+  (list ?? []).filter((r) => r.customer_consignment_return_units.some((l) => noteNos.includes(l.consignment_notes?.note_no ?? "")));
 
 export function ConsignmentNotes() {
   const qc = useQueryClient();
   const choices = useChoices();
   const list = useNotes();
+  const returns = useReturns();
+  const [display, setDisplay] = useState("table");
   const [open, setOpen] = useState(false);
   const [dealerId, setDealerId] = useState(NO_DEALER);
   const [c, setC] = useState<Customer>(EMPTY);
@@ -351,6 +395,14 @@ export function ConsignmentNotes() {
   const [sellingId, setSellingId] = useState<string | null>(null);
   const selling = (list.data?.notes ?? []).find((n) => n.id === sellingId) ?? null;
   const setSelling = (n: NoteRow | null) => setSellingId(n?.id ?? null);
+  useOpenFromUrl(list.data?.notes, (n) => n.note_no, setSelling);
+  const printIt = (n: NoteRow) => printDocument({
+    title: WORD.note, docNo: n.note_no, date: fmtDate(n.created_at),
+    facts: [["Customer", n.customer_name], ["Phone", n.customer_phone ?? ""], ["Delivery Address", n.customer_address ?? ""],
+      ["Expected Delivery", fmtDate(n.delivery_date)], ["Order No", n.customer_consignment_orders?.order_no ?? ""], ["Note", n.note ?? ""]],
+    tables: [lineTable(n.consignment_note_units)],
+    signatures: ["Issued by", "Received by"],
+  });
   const [soldPicked, setSoldPicked] = useState<string[]>([]);
   const [outTab, setOutTab] = useState("all");
   const [, setParams] = useSearchParams();
@@ -394,10 +446,14 @@ export function ConsignmentNotes() {
             storageKey="carres.delivery.consignment-notes.v1" appearance="reference" exportName="Consignment Notes"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search note, customer or Unit ID…"
             onRowClick={(r) => { setSelling(r); setSoldPicked([]); }}
+            contextMenu={(r) => documentRowMenu({ view: () => { setSelling(r); setSoldPicked([]); }, print: () => printIt(r) })}
+            {...cardsProps<NoteRow>(display, (r) => r.id, (r) => { setSelling(r); setSoldPicked([]); }, (r) => ({ title: r.note_no, facts: [
+              ["Customer", r.customer_name], ["Expected", fmtDate(r.delivery_date)], ["Local Total", rm(r.total)], ["At customer", codes(outOn(r.note_no, units(r.consignment_note_units)))],
+            ] }))}
             toolbarStart={<Tabs variant="segmented" label="Where the Units are" value={outTab} onValueChange={setOutTab} tabs={[
               { value: "all", label: "All" }, { value: "out", label: "At customer" },
             ]} />}
-            toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Consignment Note</Button>}
+            toolbarEnd={<><TableCardsTabs label="Consignment Notes" value={display} onChange={setDisplay} /><Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Consignment Note</Button></>}
             emptyMessage="No consignment notes yet." />
         </ListPageShell>
       )}
@@ -423,6 +479,7 @@ export function ConsignmentNotes() {
           : "Sold Units are sold at their price on this note. Record the customer's payment below."}
         footer={<>
           <Button variant="neutral" onClick={() => setSelling(null)}>Close</Button>
+          {selling && <Button variant="neutral" icon="print" onClick={() => printIt(selling)}>{PRINT}</Button>}
           {out.length > 0 && selling && (
             <Button variant="neutral" onClick={() => setParams((p) => { p.set("tab", "customer-consignment-returns"); p.set("fromNote", selling.note_no); return p; })}>
               Create Consignment Return
@@ -443,6 +500,16 @@ export function ConsignmentNotes() {
           {selling && !selling.order_id && (
             <Payments path={`/notes/${selling.id}`} money={selling} payments={selling.consignment_note_payments} onSaved={done} />
           )}
+          {selling && <RelationshipMap current={{ kind: WORD.note, no: selling.note_no }} links={[
+            ...(selling.customer_consignment_orders ? [{ kind: WORD.order, no: selling.customer_consignment_orders.order_no, tab: TAB.order }] : []),
+            ...returnsOfNotes(returns.data?.returns, [selling.note_no]).map((r) => ({ kind: WORD.ret, no: r.return_no, tab: TAB.ret })),
+          ]} />}
+          {selling && <DocHistory events={[
+            { at: selling.created_at, word: "Issued" },
+            ...soldEvents(selling.consignment_note_units),
+            ...paymentEvents(selling.consignment_note_payments),
+            ...returnsOfNotes(returns.data?.returns, [selling.note_no]).map((r) => ({ at: r.created_at, word: `Returned on ${r.return_no}` })),
+          ]} />}
         </div>
       </Modal>
     </Page>
@@ -459,12 +526,14 @@ export function CustomerConsignmentReturns() {
   const qc = useQueryClient();
   const choices = useChoices();
   const notes = useNotes();
-  const list = useQuery({ queryKey: ["customer-consignment", "returns"], queryFn: () => apiFetch<{ returns: ReturnRow[] }>(`${BASE}/returns`) });
+  const list = useReturns();
+  const [display, setDisplay] = useState("table");
   const [open, setOpen] = useState(false);
   const [siteId, setSiteId] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [viewing, setViewing] = useState<ReturnRow | null>(null);
+  useOpenFromUrl(list.data?.returns, (r) => r.return_no, setViewing);
   // Arriving from a Consignment Note's Create Consignment Return: start with that note's Units ticked.
   const [params, setParams] = useSearchParams();
   const fromNote = params.get("fromNote");
@@ -487,6 +556,15 @@ export function CustomerConsignmentReturns() {
   const linePrice = (l: ReturnRow["customer_consignment_return_units"][number]) =>
     priceOn.get(`${l.consignment_notes?.note_no}|${l.ops_stock_items?.unit_code}`) ?? 0;
   const returned = (r: ReturnRow) => lines(r).reduce((n, l) => n + linePrice(l), 0);
+  const printIt = (r: ReturnRow) => printDocument({
+    title: WORD.ret, docNo: r.return_no, date: fmtDate(r.created_at),
+    facts: [["Delivery Location", siteName(r.warehouse_id)], ["Returned Value", rm(returned(r))], ["Note", r.note ?? ""]],
+    tables: [{
+      title: "Returned Items", headers: ["Item", "Unit ID", "Customer", "Consignment Note No", "Qty", "Total"], numeric: ["Qty", "Total"],
+      rows: lines(r).map((l) => [l.ops_stock_items?.sku ?? "", l.ops_stock_items?.unit_code ?? "", l.consignment_notes?.customer_name ?? "", l.consignment_notes?.note_no ?? "", "1", rm(linePrice(l))]),
+    }],
+    signatures: ["Returned by", "Received by"],
+  });
   const columns = useMemo<DataGridColumn<ReturnRow>[]>(() => [
     { key: "no", label: "Return No.", width: 170, accessor: (r) => r.return_no },
     { key: "date", label: "Date", width: 110, accessor: (r) => fmtDate(r.created_at), dateValue: (r) => r.created_at, filterType: "date" },
@@ -513,12 +591,19 @@ export function CustomerConsignmentReturns() {
             storageKey="carres.delivery.customer-consignment-returns.v1" appearance="reference" exportName="Customer Consignment Returns"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search return, customer or Unit ID…"
             onRowClick={setViewing}
-            toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Customer Consignment Return</Button>}
+            contextMenu={(r) => documentRowMenu({ view: () => setViewing(r), print: () => printIt(r) })}
+            {...cardsProps<ReturnRow>(display, (r) => r.id, setViewing, (r) => ({ title: r.return_no, facts: [
+              ["Date", fmtDate(r.created_at)], ["Delivery Location", siteName(r.warehouse_id)], ["Units", lines(r).length], ["Returned Value", rm(returned(r))],
+            ] }))}
+            toolbarEnd={<><TableCardsTabs label="Customer Consignment Returns" value={display} onChange={setDisplay} /><Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Customer Consignment Return</Button></>}
             emptyMessage="No customer consignment returns yet." />
         </ListPageShell>
       )}
       <Modal open={viewing !== null} onOpenChange={(o) => !o && setViewing(null)} width="wide" title={viewing?.return_no ?? "Customer Consignment Return"}
-        footer={<Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>}>
+        footer={<>
+          <Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>
+          {viewing && <Button variant="neutral" icon="print" onClick={() => printIt(viewing)}>{PRINT}</Button>}
+        </>}>
         {viewing && (
           <div className="flex flex-col gap-4">
             <DetailSection title="Return Info">
@@ -535,6 +620,9 @@ export function CustomerConsignmentReturns() {
                   cells: { sku: l.ops_stock_items?.sku ?? "", unit: l.ops_stock_items?.unit_code ?? "", customer: l.consignment_notes?.customer_name ?? "", csn: l.consignment_notes?.note_no ?? "", qty: 1, total: rm(linePrice(l)) },
                 }))} />
             </DetailSection>
+            <RelationshipMap current={{ kind: WORD.ret, no: viewing.return_no }}
+              links={[...new Set(lines(viewing).map((l) => l.consignment_notes?.note_no).filter((x): x is string => Boolean(x)))].map((no) => ({ kind: WORD.note, no, tab: TAB.note }))} />
+            <DocHistory events={[{ at: viewing.created_at, word: "Created" }]} />
           </div>
         )}
       </Modal>

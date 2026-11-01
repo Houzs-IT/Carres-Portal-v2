@@ -62,6 +62,19 @@ router.get("/units", requireOperationOrPrincipal, async (c) => {
   return c.json({ units });
 });
 
+/** Units heading to one Site, per SKU: the Inventory page's Incoming column (Houzs Inventory.tsx:653). */
+router.get("/incoming", requireOperationOrPrincipal, async (c) => {
+  const site = uuid.safeParse(c.req.query("siteId"));
+  if (!site.success) throw new HTTPException(400, { message: "siteId required" });
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const rows = await read<Array<{ sku: string; qty: number | null }>>(
+    sb.from("ops_stock_items").select("sku, qty").eq("warehouse_id", site.data).eq("status", "incoming").limit(5000),
+  );
+  const bySku: Record<string, number> = {};
+  for (const r of rows) bySku[r.sku] = (bySku[r.sku] ?? 0) + (r.qty ?? 1);
+  return c.json({ incoming: bySku });
+});
+
 /** Puts the staff name beside each row; the created_by uuid stays server-side. */
 async function withPerformedBy<T extends { created_by: string | null }>(sb: Parameters<typeof resolveActorNames>[0], rows: T[]) {
   const names = await resolveActorNames(sb, rows.map((r) => r.created_by));

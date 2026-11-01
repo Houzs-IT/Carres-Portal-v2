@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
@@ -17,7 +17,9 @@ import { fmtDate } from "@/lib/fmt-date";
 import { useCatalog } from "@/lib/queries";
 import DocumentTable from "@/components/kit/DocumentTable";
 import Tabs from "@/components/kit/Tabs";
-import { DetailSection, Facts, KpiRow } from "./houzs-list-bits";
+import { documentRowMenu } from "@/components/register/row-menu";
+import { DetailSection, DocHistory, Facts, KpiRow, RelationshipMap, TableCardsTabs, cardsProps, printDocument, useOpenFromUrl } from "./houzs-list-bits";
+import { downloadCountSheet, readCountedFile } from "./stock-take-sheet";
 
 /**
  * Stock Adjustment · Stock Transfer · Stock Take (migration 0714).
@@ -132,6 +134,8 @@ function errorText(e: unknown) {
   return e instanceof Error ? e.message : "Could not save. Try again.";
 }
 
+const PRINT = "Print PDF";
+
 // ── Stock Adjustment ──────────────────────────────────────────────────────────
 type AdjustmentRow = {
   id: string; adjustment_no: string; warehouse_id: string; reason: string; created_at: string; performed_by: string | null;
@@ -146,6 +150,7 @@ export function StockAdjustments() {
   const qc = useQueryClient();
   const sites = useSites();
   const list = useQuery({ queryKey: ["stock-moves", "adjustments"], queryFn: () => apiFetch<{ adjustments: AdjustmentRow[] }>(`${BASE}/adjustments`) });
+  const [display, setDisplay] = useState("table");
   const [open, setOpen] = useState(false);
   const [siteId, setSiteId] = useState("");
   const [reason, setReason] = useState("");
@@ -153,6 +158,16 @@ export function StockAdjustments() {
   const [plus, setPlus] = useState<PlusLine[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [viewing, setViewing] = useState<AdjustmentRow | null>(null);
+  useOpenFromUrl(list.data?.adjustments, (r) => r.adjustment_no, setViewing);
+  const printIt = (r: AdjustmentRow) => printDocument({
+    title: "Stock Adjustment", docNo: r.adjustment_no, date: fmtDate(r.created_at),
+    facts: [["Warehouse", siteName(sites.data?.sites, r.warehouse_id)], ["Performed By", r.performed_by ?? ""], ["Net Qty", String(netQty(r))], ["Stock Take", r.stock_counts?.count_no ?? ""], ["Reason", r.reason]],
+    tables: [{
+      title: "Items", headers: ["SKU", "Unit ID", "Qty"], numeric: ["Qty"],
+      rows: r.stock_adjustment_units.map((u) => [u.ops_stock_items?.sku ?? "", u.ops_stock_items?.unit_code ?? "", u.direction === "plus" ? "1" : "-1"]),
+    }],
+    signatures: ["Performed by", "Checked by"],
+  });
   const save = useMutation({
     mutationFn: () => post("/adjustments", { siteId, reason, minusUnitIds: minus, plus: plusPayload(plus) }),
     onSuccess: () => {
@@ -191,7 +206,11 @@ export function StockAdjustments() {
             storageKey="carres.warehouse.stock-adjustments.v1" appearance="reference" exportName="Stock Adjustment"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search adjustment, reason or Unit ID…"
             onRowClick={setViewing}
-            toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Adjustment</Button>}
+            contextMenu={(r) => documentRowMenu({ view: () => setViewing(r), print: () => printIt(r) })}
+            {...cardsProps<AdjustmentRow>(display, (r) => r.id, setViewing, (r) => ({ title: r.adjustment_no, facts: [
+              ["Date", fmtDate(r.created_at)], ["Warehouse", siteName(sites.data?.sites, r.warehouse_id)], ["Net Qty", netQty(r)], ["Reason", r.reason],
+            ] }))}
+            toolbarEnd={<><TableCardsTabs label="Stock Adjustment" value={display} onChange={setDisplay} /><Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Adjustment</Button></>}
             emptyMessage="No stock adjustments yet." />
         </ListPageShell>
       )}
@@ -213,7 +232,10 @@ export function StockAdjustments() {
         </div>
       </Modal>
       <Modal open={viewing !== null} onOpenChange={(o) => !o && setViewing(null)} width="wide" title={viewing?.adjustment_no ?? "Stock Adjustment"}
-        footer={<Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>}>
+        footer={<>
+          <Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>
+          {viewing && <Button variant="neutral" icon="print" onClick={() => printIt(viewing)}>{PRINT}</Button>}
+        </>}>
         {viewing && (
           <div className="flex flex-col gap-4">
             <DetailSection title="Adjustment">
@@ -234,6 +256,9 @@ export function StockAdjustments() {
                   cells: { n: i + 1, sku: u.ops_stock_items?.sku ?? "", unit: u.ops_stock_items?.unit_code ?? "", qty: u.direction === "plus" ? 1 : -1 },
                 }))} />
             </DetailSection>
+            <RelationshipMap current={{ kind: "Stock Adjustment", no: viewing.adjustment_no }}
+              links={viewing.stock_counts ? [{ kind: "Stock Take", no: viewing.stock_counts.count_no, tab: "stock-takes" }] : []} />
+            <DocHistory events={[{ at: viewing.created_at, word: "Created", who: viewing.performed_by }]} />
           </div>
         )}
       </Modal>
@@ -248,13 +273,14 @@ export function StockAdjustments() {
 // ── Stock Transfer ────────────────────────────────────────────────────────────
 type TransferRow = {
   id: string; transfer_no: string; from_site_id: string; to_site_id: string; note: string | null;
-  status: "posted" | "cancelled"; created_at: string; cancel_reason: string | null; performed_by: string | null;
+  status: "posted" | "cancelled"; created_at: string; cancelled_at: string | null; cancel_reason: string | null; performed_by: string | null;
   stock_transfer_units: UnitRef[];
 };
 
 const TRANSFER_WORD = { posted: "Confirmed", cancelled: "Cancelled" } as const;
 
 export function StockTransfers() {
+  const [display, setDisplay] = useState("table");
   const qc = useQueryClient();
   const sites = useSites();
   const list = useQuery({ queryKey: ["stock-moves", "transfers"], queryFn: () => apiFetch<{ transfers: TransferRow[] }>(`${BASE}/transfers`) });
@@ -266,6 +292,19 @@ export function StockTransfers() {
   const [cancelling, setCancelling] = useState<TransferRow | null>(null);
   const [viewing, setViewing] = useState<TransferRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  useOpenFromUrl(list.data?.transfers, (r) => r.transfer_no, setViewing);
+  const printIt = (r: TransferRow) => printDocument({
+    title: "Stock Transfer", docNo: r.transfer_no, date: fmtDate(r.created_at),
+    facts: [
+      ["From Warehouse", siteName(sites.data?.sites, r.from_site_id)], ["To Warehouse", siteName(sites.data?.sites, r.to_site_id)],
+      ["Status", TRANSFER_WORD[r.status]], ["Created By", r.performed_by ?? ""], ["Notes", r.cancel_reason ?? r.note ?? ""],
+    ],
+    tables: [{
+      title: "Items", headers: ["SKU", "Unit ID", "Qty"], numeric: ["Qty"],
+      rows: r.stock_transfer_units.map((u) => [u.ops_stock_items?.sku ?? "", u.ops_stock_items?.unit_code ?? "", "1"]),
+    }],
+    signatures: ["Released by", "Received by"],
+  });
   const done = () => void qc.invalidateQueries({ queryKey: ["stock-moves"] });
   const save = useMutation({
     mutationFn: () => post("/transfers", { fromSiteId: from, toSiteId: to, unitIds: units, note }),
@@ -312,12 +351,20 @@ export function StockTransfers() {
             storageKey="carres.warehouse.stock-transfers.v1" appearance="reference" exportName="Stock Transfer"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search transfer or Unit ID…"
             onRowClick={setViewing}
+            contextMenu={(r) => documentRowMenu({
+              view: () => setViewing(r), print: () => printIt(r),
+              more: r.status === "posted" ? [{ label: "Cancel", onClick: () => setCancelling(r) }] : [],
+            })}
+            {...cardsProps<TransferRow>(display, (r) => r.id, setViewing, (r) => ({ title: r.transfer_no, facts: [
+              ["Date", fmtDate(r.created_at)], ["Status", TRANSFER_WORD[r.status]],
+              ["From", siteName(sites.data?.sites, r.from_site_id)], ["To", siteName(sites.data?.sites, r.to_site_id)], ["Lines", r.stock_transfer_units.length],
+            ] }))}
             toolbarStart={<Tabs variant="segmented" label="Status" value={statusTab} onValueChange={setStatusTab} tabs={[
               { value: "all", label: `All (${list.data?.transfers.length ?? 0})` },
               { value: "posted", label: `Confirmed (${list.data?.transfers.filter((r) => r.status === "posted").length ?? 0})` },
               { value: "cancelled", label: `Cancelled (${list.data?.transfers.filter((r) => r.status === "cancelled").length ?? 0})` },
             ]} />}
-            toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Transfer</Button>}
+            toolbarEnd={<><TableCardsTabs label="Stock Transfer" value={display} onChange={setDisplay} /><Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Transfer</Button></>}
             emptyMessage="No stock transfers yet." />
         </ListPageShell>
       )}
@@ -339,6 +386,7 @@ export function StockTransfers() {
       <Modal open={viewing !== null} onOpenChange={(o) => !o && setViewing(null)} width="wide" title={viewing?.transfer_no ?? "Stock Transfer"}
         footer={<>
           <Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>
+          {viewing && <Button variant="neutral" icon="print" onClick={() => printIt(viewing)}>{PRINT}</Button>}
           {viewing?.status === "posted" && <Button variant="neutral" onClick={() => { setCancelling(viewing); setViewing(null); }}>Cancel</Button>}
         </>}>
         {viewing && (
@@ -360,6 +408,10 @@ export function StockTransfers() {
                   key: String(i), cells: { sku: u.ops_stock_items?.sku ?? "", unit: u.ops_stock_items?.unit_code ?? "", qty: 1 },
                 }))} />
             </DetailSection>
+            <DocHistory events={[
+              { at: viewing.created_at, word: "Created", who: viewing.performed_by },
+              { at: viewing.cancelled_at, word: `Cancelled${viewing.cancel_reason ? `: ${viewing.cancel_reason}` : ""}` },
+            ]} />
           </div>
         )}
       </Modal>
@@ -388,12 +440,29 @@ type CountRow = {
   lines: number | null; counted: number | null; variance: number | null;
 };
 type CountDetail = {
-  count: { id: string; count_no: string; blind: boolean; status: "open" | "posted"; extras: { sku: string; qty: number }[] };
+  count: { id: string; count_no: string; warehouse_id: string; note: string | null; blind: boolean; status: "open" | "posted"; extras: { sku: string; qty: number }[] };
   units: { found: boolean | null; ops_stock_items: { id: string; unit_code: string; sku: string } | null }[];
   foundCodes: string[];
 };
 
-function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
+/** Blind and open: the API returned no Units, so only what was counted can print. */
+function countDoc(d: CountDetail, codes: string[], extras: PlusLine[], site: string, when: string | null) {
+  const listed = d.units.flatMap((u) => (u.ops_stock_items ? [u.ops_stock_items] : []));
+  const rows = listed.length > 0
+    ? listed.map((u) => [u.unit_code, u.sku, codes.includes(u.unit_code) ? "Yes" : ""])
+    : codes.map((code) => [code, "", "Yes"]);
+  return {
+    title: "Stock Take", docNo: d.count.count_no, date: when ? fmtDate(when) : "",
+    facts: [["Warehouse", site], ["Status", d.count.status === "open" ? "Open" : "Confirmed"], ["Blind count", d.count.blind ? "Yes" : "No"], ["Note", d.count.note ?? ""]] as [string, string][],
+    tables: [
+      { title: "Units", headers: ["Unit ID", "SKU", "Counted"], rows },
+      { title: "Goods with no Unit ID", headers: ["SKU", "Qty"], numeric: ["Qty"], rows: extras.map((e) => [e.sku, e.qty]) },
+    ],
+    signatures: ["Counted by", "Checked by"],
+  };
+}
+
+function CountSheet({ id, row, sites, onClose }: { id: string; row: CountRow | undefined; sites: Site[] | undefined; onClose: () => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["stock-moves", "count", id], queryFn: () => apiFetch<CountDetail>(`${BASE}/counts/${id}`) });
   const [found, setFound] = useState<string[] | null>(null);
@@ -401,6 +470,8 @@ function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const [rawCodes, setRawCodes] = useState<string | null>(null);
   const [confirmingPost, setConfirmingPost] = useState(false);
   const [extras, setExtras] = useState<PlusLine[] | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [upload, setUpload] = useState<{ ok: string | null; error: string | null }>({ ok: null, error: null });
   const codes = rawCodes !== null ? rawCodes.split(/\s+/).filter(Boolean) : found ?? q.data?.foundCodes ?? [];
   const lines = extras ?? (q.data?.count.extras ?? []).map((e) => ({ sku: e.sku, qty: String(e.qty) }));
   const record = useMutation({
@@ -414,17 +485,43 @@ function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
   const needle = lineFilter.trim().toLowerCase();
   // Units on the sheet that have not been counted: Post writes these off.
   const uncounted = (q.data?.units ?? []).filter((u) => u.ops_stock_items && !codes.includes(u.ops_stock_items.unit_code)).length;
+  const blindOpen = Boolean(c?.blind && isOpen);
+  // Fills the sheet on screen only; nothing is saved until Save or Post.
+  const uploadSheet = async (file: File) => {
+    try {
+      const sheet = await readCountedFile(file, blindOpen ? null : allCodes);
+      if (blindOpen) setRawCodes(sheet.codes.join("\n")); else setFound(sheet.codes);
+      if (sheet.extras) setExtras(sheet.extras);
+      setUpload({ ok: `${sheet.codes.length} Units counted from ${file.name}. Check them, then Save or Post.${sheet.unknown.length ? ` Not on this Stock Take, left out: ${sheet.unknown.join(", ")}.` : ""}`, error: null });
+    } catch (e) {
+      setUpload({ ok: null, error: errorText(e) });
+    }
+  };
+  const exportSheet = () => {
+    const listed = (q.data?.units ?? []).flatMap((u) => (u.ops_stock_items ? [u.ops_stock_items] : []));
+    const units = listed.length > 0
+      ? listed.map((u) => ({ code: u.unit_code, sku: u.sku, counted: codes.includes(u.unit_code) }))
+      : codes.map((code) => ({ code, sku: "", counted: true }));
+    downloadCountSheet(c!.count_no, units, lines).catch((e: unknown) => setUpload({ ok: null, error: errorText(e) }));
+  };
   return (
     <Modal open onOpenChange={(o) => !o && onClose()} width="wide" title={c ? `Stock Take ${c.count_no}` : "Stock Take"}
       description={isOpen ? "Post writes off every Unit not counted and adds the goods with no Unit ID." : undefined}
       footer={<>
         <Button variant="neutral" onClick={onClose}>Close</Button>
+        {q.data && <Button variant="neutral" icon="print" onClick={() => printDocument(countDoc(q.data, codes, lines, siteName(sites, q.data.count.warehouse_id), row?.created_at ?? null))}>{PRINT}</Button>}
+        {c && <Button variant="neutral" onClick={exportSheet}>Export Excel</Button>}
+        {isOpen && <Button variant="neutral" onClick={() => fileRef.current?.click()}>Upload counted sheet</Button>}
         {isOpen && <Button variant="neutral" loading={record.isPending && record.variables === false} onClick={() => record.mutate(false)}>Save</Button>}
         {isOpen && <Button variant="primary" loading={record.isPending && record.variables === true} onClick={() => setConfirmingPost(true)}>Post</Button>}
       </>}>
       {q.isError && <LoadError message="The Stock Take could not be loaded." onRetry={() => void q.refetch()} />}
       {c && (
         <div className="flex flex-col gap-3">
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" aria-label="Upload counted sheet"
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadSheet(f); }} />
+          {upload.ok && <p className="text-body text-c-muted" role="status">{upload.ok}</p>}
+          {upload.error && <FieldError>{upload.error}</FieldError>}
           <DetailSection title="Variance Summary">
             {c.blind && isOpen
               ? <Facts facts={[["Counted", codes.length], ["Variance", "Hidden"]]} />
@@ -461,6 +558,9 @@ function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
           <p className="text-body font-semibold">Goods with no Unit ID</p>
           {isOpen ? <PlusLines lines={lines} onChange={setExtras} /> : <p className="text-body">{lines.map((l) => `${l.sku} ×${l.qty}`).join(", ")}</p>}
           {!confirmingPost && record.isError && <FieldError>{errorText(record.error)}</FieldError>}
+          {row && <RelationshipMap current={{ kind: "Stock Take", no: row.count_no }}
+            links={row.stock_adjustments.map((a) => ({ kind: "Stock Adjustment", no: a.adjustment_no, tab: "stock-adjustments" }))} />}
+          {row && <DocHistory events={[{ at: row.created_at, word: "Started", who: row.performed_by }, { at: row.posted_at, word: "Posted" }]} />}
         </div>
       )}
       <ConfirmActionDialog open={confirmingPost} title="Post this Stock Take?"
@@ -483,6 +583,12 @@ export function StockTakes() {
   const [note, setNote] = useState("");
   const [sheet, setSheet] = useState<string | null>(null);
   const [statusTab, setStatusTab] = useState("all");
+  const [display, setDisplay] = useState("table");
+  useOpenFromUrl(list.data?.counts, (r) => r.count_no, (r) => setSheet(r.id));
+  const printRow = (r: CountRow) => printDocument(async () => {
+    const d = await apiFetch<CountDetail>(`${BASE}/counts/${r.id}`);
+    return countDoc(d, d.foundCodes, d.count.extras.map((e) => ({ sku: e.sku, qty: String(e.qty) })), siteName(sites.data?.sites, r.warehouse_id), r.created_at);
+  });
   const start = useMutation({
     mutationFn: () => post<{ id: string }>("/counts", { siteId, blind, note }),
     onSuccess: (r) => { setOpen(false); setNote(""); void qc.invalidateQueries({ queryKey: ["stock-moves"] }); setSheet(r.id); },
@@ -514,12 +620,17 @@ export function StockTakes() {
             storageKey="carres.warehouse.stock-takes.v1" appearance="reference" exportName="Stock Take"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search take, warehouse, notes…"
             onRowClick={(r) => setSheet(r.id)}
+            contextMenu={(r) => documentRowMenu({ view: () => setSheet(r.id), print: () => printRow(r) })}
+            {...cardsProps<CountRow>(display, (r) => r.id, (r) => setSheet(r.id), (r) => ({ title: r.count_no, facts: [
+              ["Date", fmtDate(r.created_at)], ["Status", r.status === "open" ? "Open" : "Confirmed"],
+              ["Warehouse", siteName(sites.data?.sites, r.warehouse_id)], ["Variance", r.variance ?? "Hidden"],
+            ] }))}
             toolbarStart={<Tabs variant="segmented" label="Status" value={statusTab} onValueChange={setStatusTab} tabs={[
               { value: "all", label: `All (${list.data?.counts.length ?? 0})` },
               { value: "open", label: `Open (${list.data?.counts.filter((r) => r.status === "open").length ?? 0})` },
               { value: "posted", label: `Confirmed (${list.data?.counts.filter((r) => r.status === "posted").length ?? 0})` },
             ]} />}
-            toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Take</Button>}
+            toolbarEnd={<><TableCardsTabs label="Stock Take" value={display} onChange={setDisplay} /><Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Take</Button></>}
             emptyMessage="No stock takes yet." />
         </ListPageShell>
       )}
@@ -535,7 +646,7 @@ export function StockTakes() {
           {start.isError && <FieldError>{errorText(start.error)}</FieldError>}
         </div>
       </Modal>
-      {sheet && <CountSheet key={sheet} id={sheet} onClose={() => setSheet(null)} />}
+      {sheet && <CountSheet key={sheet} id={sheet} row={list.data?.counts.find((r) => r.id === sheet)} sites={sites.data?.sites} onClose={() => setSheet(null)} />}
     </Page>
   );
 }
