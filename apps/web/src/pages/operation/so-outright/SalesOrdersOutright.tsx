@@ -478,6 +478,22 @@ export default function SalesOrdersOutright() {
     setCompact(0);
   }, [chips.length, layoutKey]);
 
+  /* The search box gives up its toolbar room first: on a short line it moves
+     into More filters, so no control is cut. */
+  const searchForm = (
+    <form
+      role="search"
+      className="w-[220px] max-md:w-full"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const value = String(new FormData(e.currentTarget).get("search") ?? "").trim();
+        setParam("search", value || null);
+      }}
+    >
+      <CInput key={seededSearch} name="search" type="search" label="Search sales orders" placeholder="Search doc no, customer, phone, ref…" defaultValue={seededSearch} />
+    </form>
+  );
+
   /* Footer: `72 orders · Qty: Mattress 72 · Pillow 91 …` in the fixed order; the
      short forms (`MS 72 · BF 14 · M.P 4 · SOF 22 sets`) when two lines are not enough. */
   const totals = useMemo(() => {
@@ -656,7 +672,7 @@ export default function SalesOrdersOutright() {
           failure={failedList ? <SalesOrderReadFailure error={listError} surface="sales-orders-register" onRetry={retryList} /> : undefined}
         />
       )}
-      <main className={`grid min-h-0 min-w-0 flex-1 gap-2.5 ${loadingList || failedList ? "grid-rows-[auto_minmax(0,1fr)]" : "grid-rows-[auto_auto_minmax(0,1fr)]"}`}>
+      <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5">
         {selectedRows.length > 0 ? (
           <div
             role="toolbar"
@@ -714,27 +730,18 @@ export default function SalesOrdersOutright() {
                 )}
               </span>
             )}
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-              <form
-                role="search"
-                className={`${compact >= 1 ? "w-[150px]" : "w-[220px]"} max-md:w-full`}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const value = String(new FormData(e.currentTarget).get("search") ?? "").trim();
-                  setParam("search", value || null);
-                }}
-              >
-                <CInput key={seededSearch} name="search" type="search" label="Search sales orders" placeholder="Search doc no, customer, phone, ref…" defaultValue={seededSearch} />
-              </form>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 max-md:ml-0 max-md:w-full max-md:flex-wrap">
+              {compact === 0 && searchForm}
               <CPopover
                 label="More filters"
                 role="dialog"
                 width={300}
                 open={filtersOpen}
                 onOpenChange={setFiltersOpen}
-                trigger={<CViewButton icon="filter_list" name="More filters" open={filtersOpen} />}
+                trigger={<CIconButton icon="filter_list" label="More filters" pressed={filtersOpen} />}
               >
                 <div className="flex flex-col gap-3 p-2.5" data-testid="outright-more-filters">
+                  {compact >= 1 && searchForm}
                   {dateRanges.map((d) => (
                     <div key={d.key} className="flex flex-col gap-1">
                       <span className="text-[12px] text-c-secondary">{d.label}</span>
@@ -792,18 +799,17 @@ export default function SalesOrdersOutright() {
           </div>
         )}
 
+        <section ref={gridBox} aria-label="Sales orders" className={`grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2.5 ${loadingList || failedList ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]"}`} data-carres-table="list">
         {!loadingList && !failedList && (
           <div className="grid grid-cols-4 gap-2.5 max-md:grid-cols-2" data-testid="outright-stats">
             {stats.map((s) => (
               <div key={s.label} className="flex flex-col rounded-[10px] border border-c-card-border bg-c-card px-3.5 py-2">
                 <span className="text-[12px] text-c-secondary">{s.label}</span>
-                <span className="text-[16px] font-semibold tabular-nums text-c-ink">{s.value}</span>
+                <span className="text-[15px] font-medium tabular-nums text-c-ink">{s.value}</span>
               </div>
             ))}
           </div>
         )}
-
-        <section ref={gridBox} aria-label="Sales orders" className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]" data-carres-table="list">
           <DataGrid<RegisterRow>
             rows={shown}
             columns={gridColumns}

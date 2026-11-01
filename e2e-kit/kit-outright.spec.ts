@@ -12,7 +12,7 @@ import { expect, test, type Page } from "@playwright/test";
  *            quantity line never widens the list)
  *   toolbar  one 36px line, every button on it 32 high
  *   rows     every list row 54: each cell on one line, none past its column
- *   frozen   scrolled to its right end, the list still shows SO no.
+ *   frozen   scrolled to its right end, the list still shows Doc. No.
  *   check    `carres-check.js`, as the repository ships it, answers PASS
  *   align    v12's fingerprint (fix list 14 Oct): toolbar 32, tabs 32, the view
  *            button with its name, ⋮ 32, header 40 grey 12/500, rows 54/54, sticky
@@ -35,7 +35,7 @@ const V12 = {
   toolbar: { height: 32, tabs: "32 rgb(226, 228, 232)", viewBtn: "32 · Sales Order", more: 32 },
   table: {
     headH: 40, headBg: "rgb(248, 249, 250)", headFont: "12px/500",
-    headWords: "Proceed date · SO no. · Items · Sales location · Delivery location · Customer’s originalrequested delivery",
+    headWords: "Doc. No. · Date · Ref No. · Agent · Debtor Name · Total · Sales Location · Balance · Processing Date · Customer’s originalrequested delivery · Item Group · Item Code · Detail Description · Detail Description 2 · Unit Price · Qty",
     rowH: "54/54", sticky: "sticky", footer: "pager",
   },
   dates: "no year",
@@ -92,7 +92,7 @@ async function measure(page: Page) {
     const toolbar = document.querySelector('[data-testid="outright-toolbar"]') as HTMLElement | null;
     const edge = card.getBoundingClientRect();
     box.scrollLeft = box.scrollWidth;
-    const soNo = [...card.querySelectorAll("thead th")].find((h) => h.textContent?.trim() === "SO no.") as HTMLElement;
+    const soNo = [...card.querySelectorAll("thead th")].find((h) => h.textContent?.trim() === "Doc. No.") as HTMLElement;
     const soAt = soNo.getBoundingClientRect();
     const rows = [...card.querySelectorAll("tbody tr")].filter((r) => !r.hasAttribute("data-expansion-of") && r.getAttribute("aria-hidden") !== "true");
     const cells = rows.flatMap((r) => [...r.querySelectorAll(":scope > td")]);
@@ -138,7 +138,7 @@ for (const width of WIDTHS) {
           expect(m.buttonHeights, `${state}: every toolbar button is 32 high`).toEqual([32]);
           expect(m.rowHeights, `${state}: every list row is 54`).toEqual([54]);
           expect(m.cellsPastColumn, `${state}: no cell runs past its column`).toBe(0);
-          expect(m.soNoInView, `${state}: SO no. stays in view at the list's right end`).toBe(true);
+          expect(m.soNoInView, `${state}: Doc. No. stays in view at the list's right end`).toBe(true);
           expect(await carresCheck(page), `${state}: carres-check.js`).toEqual(PASS);
           /* With a row open its items sit between the rows: rows 54/54 is measured closed. */
           const { rowH: _rowH, ...openTable } = V12.table;
@@ -149,13 +149,14 @@ for (const width of WIDTHS) {
   }
 }
 
-test("Sales Order Outright headers read the v12 words and the preserved date's two lines (owner 14 Oct)", async ({ page }) => {
+test("Sales Order Outright headers follow Houzs's order and keep the preserved date's two lines (Weisiang 1 Nov)", async ({ page }) => {
   await page.setViewportSize({ width: 1164, height: 900 });
   await page.goto(PAGE, { waitUntil: "networkidle" });
   await page.locator('[data-testid^="outright-row-"]').first().waitFor();
   const heads = await page.locator(`${TABLE} thead tr`).first().locator("th").allInnerTexts();
   expect(heads.map((h) => h.replace(/\n/g, " / ")).filter(Boolean)).toEqual([
-    "Proceed date", "SO no.", "Items", "Sales location", "Delivery location", "Customer’s original / requested delivery",
+    "Doc. No.", "Date", "Ref No.", "Agent", "Debtor Name", "Total", "Sales Location", "Balance", "Processing Date", "Customer’s original / requested delivery",
+    "Item Group", "Item Code", "Detail Description", "Detail Description 2", "Unit Price", "Qty",
   ]);
 });
 
