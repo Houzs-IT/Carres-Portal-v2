@@ -34,8 +34,8 @@ describe("the Houzs tree", () => {
         blocks: [
           "Sales Order: Sales Orders · Subscription · Sales Order Amendment · Delivery Orders · Sales Invoices · Delivery Returns",
           "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Receive · Purchase Consignment Return · Display Requests",
-          "Procurement: Products & Maintenance · Suppliers · Supplier items · MRP · Stock Status · SO Batch Purchase · Forecast Purchase · Manual Purchase Request · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns · Supplier Claims · Repair Orders",
-          "Transportation: Monitor · Delivery Planning · DP Orders · Last Mile Delivery · Lorry Live Map · Lorry Capacity · Crew Leave · Load Scan · Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
+          "Procurement: Procurement Overview · Products & Maintenance · Suppliers · Supplier items · MRP · Stock Status · SO Batch Purchase · Forecast Purchase · Manual Purchase Request · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns · Supplier Claims · Repair Orders",
+          "Transportation: Logistic Overview · Monitor · Delivery Planning · DP Orders · Last Mile Delivery · Lorry Live Map · Lorry Capacity · Crew Leave · Load Scan · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
           "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take · Arrival Schedule · Pickup Schedule · Inbound · Outbound",
         ],
       },

@@ -310,7 +310,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
        * (Weisiang, WhatsApp 2026-11-01); a row marked Carres-only has no Houzs row
        * and stays in the closest place. Every address is unchanged, so bookmarks
        * and in-page links still land. Pages taken off the rail earlier
-       * (`/operation/old-orders`, `?tab=auto-schedule`, `?tab=trips`, `?tab=stock-plan`,
+       * (`/operation/old-orders`, `?tab=auto-schedule`, `?tab=trips`, `?tab=fleet`, `?tab=stock-plan`,
        * `?tab=movements`) stay mounted in OperationApp. */
 
       /* WORKSPACE — Sidebar.tsx:239-280. */
@@ -379,6 +379,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "display-requests", label: "Display Requests", icon: Store, soon: true, section: "Consignment" },
 
       /* PROCUREMENT — Sidebar.tsx:579-588. A flat list, as in Houzs. */
+      { key: "procurement-overview", label: "Procurement Overview", icon: LayoutDashboard, section: "Purchasing" },
       { key: "op-catalog", label: "Products & Maintenance", icon: BookOpen, section: "Purchasing" },
       { key: "suppliers", label: "Suppliers", icon: Truck, section: "Purchasing" },
       // Carres-only: what each supplier sells, beside the supplier list.
@@ -415,6 +416,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "repair-orders", label: "Repair Orders", icon: ArrowUpRight, section: "Purchasing" },
 
       /* TRANSPORTATION — Sidebar.tsx:601-664. */
+      { key: "logistic-overview", label: "Logistic Overview", icon: LayoutDashboard, section: "Delivery" },
       // Carres-only: the calendar where delivery results are recorded.
       {
         key: "delivery",
@@ -431,7 +433,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "crew-leave", label: "Crew Leave", icon: CalendarOff, section: "Delivery" },
       // Carres-only (0716): DOs marked Delivered by load scan.
       { key: "load-scan", label: "Load Scan", icon: PackageCheck, tab: "load-scan", section: "Delivery" },
-      { key: "fleet", label: "Fleet", icon: Truck, section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "coverage-fleet", label: "Coverage & Fleet", icon: Truck, section: "Delivery", pageGroup: "transportation-maintenance" },
       { key: "delivery-zones", label: "Delivery Zones", icon: MapPin, section: "Delivery", pageGroup: "transportation-maintenance" },
       { key: "rate-cards", label: "Carriers & Rates", icon: Receipt, section: "Delivery", pageGroup: "transportation-maintenance" },
       { key: "fleet-health", label: "Fleet Health", icon: ShieldCheck, section: "Delivery", pageGroup: "transportation-maintenance" },

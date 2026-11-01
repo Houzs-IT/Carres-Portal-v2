@@ -17,7 +17,7 @@ import {
 
 /**
  * PROCUREMENT AND TRANSPORTATION IN THE HOUZS TREE (Weisiang, WhatsApp
- * 2026-11-01). Procurement is one flat list of fifteen pages with no groups;
+ * 2026-11-01). Procurement is one flat list of sixteen pages with no groups;
  * the only page group left is Transportation's `Maintenance`. This file owns
  * the grouping rules and the Procurement page list: words and order, the live
  * addresses byte-for-byte, and the rows that may never return.
@@ -62,8 +62,9 @@ describe("the page groups", () => {
 });
 
 describe("the approved hierarchy", () => {
-  it("Procurement draws fifteen direct rows, in the Houzs order", () => {
+  it("Procurement draws sixteen direct rows, in the Houzs order", () => {
     expect(moduleChildBlocks(purchasing).map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
+      "Procurement Overview",
       "Products & Maintenance",
       "Suppliers",
       "Supplier items",
@@ -82,9 +83,10 @@ describe("the approved hierarchy", () => {
     ]);
   });
 
-  it("Transportation draws its eight direct rows, then the one Maintenance group", () => {
+  it("Transportation draws its nine direct rows, then the one Maintenance group", () => {
     const blocks = moduleChildBlocks(delivery);
     expect(blocks.map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
+      "Logistic Overview",
       "Monitor",
       "Delivery Planning",
       "DP Orders",
@@ -97,15 +99,15 @@ describe("the approved hierarchy", () => {
     ]);
     const group = blocks.find((b) => b.kind === "group");
     expect(group?.kind === "group" ? group.pages.map(label) : []).toEqual([
-      "Fleet",
+      "Coverage & Fleet",
       "Delivery Zones",
       "Carriers & Rates",
       "Fleet Health",
     ]);
   });
 
-  it("is exactly fifteen pages", () => {
-    expect(purchasing).toHaveLength(15);
+  it("is exactly sixteen pages", () => {
+    expect(purchasing).toHaveLength(16);
   });
 
   it("no row carries a hairline — Reports are central, not a Purchasing row", () => {
@@ -148,12 +150,13 @@ describe("the approved hierarchy", () => {
 
 /** THE ROUTE TRUTH — the Card's own minimum assertion. Words moved; no address did. */
 describe("the live destinations keep their exact current addresses", () => {
-  it("fifteen live pages, at their unchanged addresses", () => {
+  it("sixteen live pages, at their unchanged addresses", () => {
     expect(
       purchasing
         .filter((item) => !item.soon)
         .map((item) => [item.label, navItemHref(operation, item)]),
     ).toEqual([
+      ["Procurement Overview", "/operation?tab=procurement-overview"],
       ["Products & Maintenance", "/operation?tab=op-catalog"],
       ["Suppliers", "/operation?tab=suppliers"],
       ["Supplier items", "/operation?tab=supplier-items"],
@@ -216,7 +219,7 @@ describe("the live destinations keep their exact current addresses", () => {
 
 describe("the group holding the page you are on", () => {
   it("finds the group of a live destination", () => {
-    for (const key of ["fleet", "delivery-zones", "rate-cards", "fleet-health"]) {
+    for (const key of ["coverage-fleet", "delivery-zones", "rate-cards", "fleet-health"]) {
       expect(activePageGroup(delivery, key), key).toBe("transportation-maintenance");
     }
   });

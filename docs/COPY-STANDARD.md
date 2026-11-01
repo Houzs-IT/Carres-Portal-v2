@@ -5169,8 +5169,8 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Supply Chain modules | `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
 | Sales Order | `Sales Orders` · `Sales Order Amendment` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
 | Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
-| Procurement | `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
-| Transportation | `Delivery Planning` · `DP Orders` · `Last Mile Delivery` · `Lorry Live Map` · `Lorry Capacity` · `Crew Leave` · group `Maintenance`: `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
+| Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
+| Transportation | `Logistic Overview` · `Delivery Planning` · `DP Orders` · `Last Mile Delivery` · `Lorry Live Map` · `Lorry Capacity` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |

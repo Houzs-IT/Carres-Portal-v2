@@ -686,7 +686,7 @@ describe("the tree line", () => {
     expect(trunk("fleet-day").style.height).toBe("100%");
     // Load Scan is the last page before the group word: the line stops there.
     expect(trunk("load-scan").style.height).toBe("calc(50% - 8px)");
-    expect(trunk("fleet").style.height).toBe("100%");
+    expect(trunk("coverage-fleet").style.height).toBe("100%");
     expect(trunk("rate-cards").style.height).toBe("100%");
     expect(trunk("fleet-health").style.height).toBe("calc(50% - 8px)");
   });
@@ -848,7 +848,7 @@ describe("the active page — theme select colours, never flame", () => {
     }
   });
 
-  it("the collapsed rail navigates fifteen pages by ONE icon, not fifteen", () => {
+  it("the collapsed rail navigates sixteen pages by ONE icon, not sixteen", () => {
     localStorage.setItem("carres-menu-collapsed", "1");
     try {
       renderAt("/operation?tab=purchase");
@@ -1105,23 +1105,24 @@ describe("PortalSidebar — the Sales Order module", () => {
  * No address moved.
  */
 describe("PortalSidebar — the Procurement map", () => {
-  it("opens onto fifteen direct rows — no drawer, no Report, no hairline", () => {
+  it("opens onto sixteen direct rows — no drawer, no Report, no hairline", () => {
     renderAt("/operation?tab=purchase");
     const tree = screen.getByTestId("nav-children-purchasing");
     // Every child of the tree line IS a page row — no group word sits among them.
     expect(tree.querySelectorAll("[data-testid^='nav-group-']")).toHaveLength(0);
-    expect(tree.querySelectorAll("[data-testid^='nav-child-']")).toHaveLength(15);
+    expect(tree.querySelectorAll("[data-testid^='nav-child-']")).toHaveLength(16);
     // Reports moved to the central Reports area, so the rule above them went too.
     expect(tree.querySelector(".border-t")).toBeNull();
   });
 
-  it("fifteen pages in the Houzs order, and not a sixteenth", () => {
+  it("sixteen pages in the Houzs order, and not a seventeenth", () => {
     renderAt("/operation?tab=purchase");
     const tree = screen.getByTestId("nav-children-purchasing");
     const rows = Array.from(tree.querySelectorAll("[data-testid^='nav-child-']")).map(
       (el) => el.textContent?.replace("Coming soon", "").trim(),
     );
     expect(rows).toEqual([
+      "Procurement Overview",
       "Products & Maintenance",
       "Suppliers",
       "Supplier items",
@@ -1452,12 +1453,12 @@ describe("PortalSidebar — the Maintenance group", () => {
     expect(row.getAttribute("href")).toBeNull();
   });
 
-  it("holds Fleet, Delivery Zones, Carriers & Rates and Fleet Health, in that order", () => {
+  it("holds Coverage & Fleet, Delivery Zones, Carriers & Rates and Fleet Health, in that order", () => {
     renderAt("/operation?tab=fleet-day");
     const rows = Array.from(
       screen.getByTestId(`nav-group-children-${MAINTENANCE}`).querySelectorAll("[data-testid^='nav-child-']"),
     ).map((el) => el.textContent?.trim());
-    expect(rows).toEqual(["Fleet", "Delivery Zones", "Carriers & Rates", "Fleet Health"]);
+    expect(rows).toEqual(["Coverage & Fleet", "Delivery Zones", "Carriers & Rates", "Fleet Health"]);
   });
 
   it("the group holding the current page opens itself and REFUSES to shut", () => {
@@ -1484,7 +1485,7 @@ describe("PortalSidebar — the Maintenance group", () => {
     expect(screen.queryByTestId(`nav-group-children-${MAINTENANCE}`)).not.toBeInTheDocument();
     fireEvent.click(group_(MAINTENANCE));
     expect(group_(MAINTENANCE).getAttribute("aria-expanded")).toBe("true");
-    expect(child("fleet")).toBeInTheDocument();
+    expect(child("coverage-fleet")).toBeInTheDocument();
   });
 
   /* The group word sits on the same 46px as the page text under it: the tree
@@ -1494,8 +1495,8 @@ describe("PortalSidebar — the Maintenance group", () => {
     expect(screen.getByTestId("nav-children-delivery").className).toContain("ml-[18px]");
     expect(group_(MAINTENANCE).className).toContain("pl-7");
     expect(treeRow("fleet-day").className).toContain("pl-[18px]");
-    expect(child("fleet").className).toContain("px-2.5");
-    expect(child("fleet").className).toContain("text-[13px]");
+    expect(child("coverage-fleet").className).toContain("px-2.5");
+    expect(child("coverage-fleet").className).toContain("text-[13px]");
   });
 
   it("the group word carries no trunk and no elbow: the line stops before it", () => {
@@ -1661,6 +1662,7 @@ describe("PortalSidebar — the Transportation module", () => {
         .querySelectorAll("[data-testid^='nav-child-']"),
     ).map((el) => el.textContent?.replace("Coming soon", "").trim());
     expect(rows).toEqual([
+      "Logistic Overview",
       "Monitor",
       "Delivery Planning",
       "DP Orders",
@@ -1669,7 +1671,7 @@ describe("PortalSidebar — the Transportation module", () => {
       "Lorry Capacity",
       "Crew Leave",
       "Load Scan",
-      "Fleet",
+      "Coverage & Fleet",
       "Delivery Zones",
       "Carriers & Rates",
       "Fleet Health",
@@ -1679,6 +1681,7 @@ describe("PortalSidebar — the Transportation module", () => {
   it("keeps every Transportation address", () => {
     renderAt("/operation?tab=delivery");
     for (const [key, href] of [
+      ["logistic-overview", "/operation?tab=logistic-overview"],
       ["delivery", "/operation?tab=delivery"],
       ["delivery-planning", "/operation?tab=delivery-planning"],
       ["dp-orders", "/operation?tab=dp-orders"],
@@ -1687,7 +1690,7 @@ describe("PortalSidebar — the Transportation module", () => {
       ["fleet-capacity", "/operation?tab=fleet-capacity"],
       ["crew-leave", "/operation?tab=crew-leave"],
       ["load-scan", "/operation?tab=load-scan"],
-      ["fleet", "/operation?tab=fleet"],
+      ["coverage-fleet", "/operation?tab=coverage-fleet"],
       ["delivery-zones", "/operation?tab=delivery-zones"],
       ["rate-cards", "/operation?tab=rate-cards"],
       ["fleet-health", "/operation?tab=fleet-health"],
