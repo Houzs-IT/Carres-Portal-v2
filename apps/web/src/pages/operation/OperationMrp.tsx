@@ -13,6 +13,7 @@ import EmptyState from "@/components/kit/EmptyState";
 import { fmtDate, fmtMonth } from "@/lib/fmt-date";
 import { useMrp } from "@/lib/queries";
 import PurchasingTabs from "./PurchasingTabs";
+import SearchInput from "@/components/kit/SearchInput";
 import { RailGroup, RailItem } from "./components/workspace-rail";
 
 /**
@@ -67,10 +68,16 @@ export default function OperationMrp() {
   const [category, setCategory] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const [search, setSearch] = useState("");
 
   const rows = useMemo(
-    () => mrpRows(lines, free, { category, month, shortagesOnly }),
-    [lines, free, category, month, shortagesOnly],
+    () => {
+      // Houzs's toolbar search (Mrp.tsx "Code, description, SO no, customer…").
+      const words = search.trim().toLowerCase();
+      return mrpRows(lines, free, { category, month, shortagesOnly }).filter((row) => !words
+        || [row.sku, row.item, ...row.lines.flatMap((l) => [l.so, l.customer])].some((v) => String(v ?? "").toLowerCase().includes(words)));
+    },
+    [lines, free, category, month, shortagesOnly, search],
   );
   const categories = useMemo(() => [...new Set(lines.map((l) => l.category))].sort(), [lines]);
   const months = useMemo(
@@ -88,11 +95,12 @@ export default function OperationMrp() {
   return (
     <div className="h-full min-h-0 flex flex-col bg-kit-canvas" data-testid="mrp-page">
       <PurchasingTabs
-        right={
+        right={<span className="flex items-center gap-2">
+          <SearchInput id="mrp-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Code, description, SO no, customer…" data-testid="mrp-search" />
           <Button variant="ghost" size="sm" disabled={rows.length === 0} onClick={() => download(mrpCsv(rows))} data-testid="mrp-export">
             {W.export}
           </Button>
-        }
+        </span>}
       />
       <div className="flex-1 min-h-0 flex overflow-hidden">
         <nav

@@ -537,7 +537,7 @@ describe("Purchase Orders Register", () => {
     renderPage();
     const grid = screen.getByTestId("register-grid");
     expect(screen.getByTestId("register-columns")).toHaveTextContent(
-      /^PO No \| PO Doc Date \| SO No \/ MPR No \| Supplier \| Items \| Supplier Deliver To \| PO Delivery Date \| Supplier Confirmed Delivery Date \| Goods Received Date \| GRN No \| PO Version$/,
+      /^PO No \| SO No \/ MPR No \| Supplier \| Items \| Supplier Deliver To \| PO Doc Date \| PO Delivery Date \| Supplier Confirmed Delivery Date \| Goods Received Date \| GRN No \| PO Version$/,
     );
     /* `Expected Delivery Date` is retired BY NAME: what we planned and what
        the factory promised are two facts, and one cell holding whichever it
@@ -545,7 +545,7 @@ describe("Purchase Orders Register", () => {
     for (const retired of ["PO Issued", "Expected Delivery Date", "Order Qty", "Received Qty", "Pending Delivery Qty", "Sent to Supplier", "Source"]) {
       expect(screen.getByTestId("register-columns")).not.toHaveTextContent(retired);
     }
-    expect(grid).toHaveAttribute("data-leading", "po,po_date");
+    expect(grid).toHaveAttribute("data-leading", "po");
     expect(screen.getByTestId("grid-row-PO-20260828-4827")).toHaveTextContent("Fri, 28 Aug");
     expect(screen.getByTestId("grid-row-PO-LEGACY")).toBeInTheDocument();
   });

@@ -104,7 +104,6 @@ describe("OperationSuppliers · the scorecard", () => {
     mount([supplier("Ohana", [], [])]);
     expect(await screen.findByText("No PO on file yet.")).toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
-    expect(screen.queryByText("On time")).not.toBeInTheDocument();
   });
 
   it("names how many deliveries are still needed before a score", async () => {

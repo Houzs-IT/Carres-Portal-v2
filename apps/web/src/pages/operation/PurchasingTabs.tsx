@@ -52,6 +52,7 @@ import ModuleHeader from "./components/ModuleHeader";
  */
 
 type PurchasingPage =
+  | "procurement-overview"
   | "purchase-demands"
   | "to-order"
   | "manual-purchase"
@@ -84,6 +85,7 @@ type PurchasingPage =
  *  retired their RAIL rows, not their pages: the routes remain reachable and a
  *  page that still renders may not lose the word it prints. */
 const PAGE_WORD: Record<PurchasingPage, string> = {
+  "procurement-overview": "Procurement Overview",
   /* Reachable by direct URL only since 2026-08-22 — no rail row, same word. */
   "purchase-demands": "SO Batch Purchase",
   "to-order": "SO Batch Purchase",
@@ -119,6 +121,8 @@ export default function PurchasingTabs({ right }: { right?: ReactNode } = {}) {
   const tabParam = new URLSearchParams(location.search).get("tab");
   const active: PurchasingPage = onProcurement
     ? "purchase-orders"
+    : tabParam === "procurement-overview"
+      ? "procurement-overview"
     : tabParam === "purchase-demands"
       ? "purchase-demands"
       : tabParam === "manual-purchase"

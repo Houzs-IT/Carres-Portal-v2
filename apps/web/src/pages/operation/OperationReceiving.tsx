@@ -298,10 +298,10 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
    * and no other (`purchasing/MASTER.md` §9.4):
    *
    * ```
-   * GRN No · GRN Doc Date · SO No / MPR No / CO No / RO No · PO No · Supplier ·
-   * Supplier Deliver To · Goods arrived at · Supplier Confirmed Delivery Date ·
-   * Goods Received Date · Supplier DO No · Items · Received Qty ·
-   * Damaged Qty · Wrong Item Qty · Extra Qty
+   * GRN No · Supplier DO No · GRN Doc Date · Supplier · Items · Received Qty ·
+   * Damaged Qty · Wrong Item Qty · Extra Qty · Supplier Deliver To ·
+   * Goods arrived at · Supplier Confirmed Delivery Date · Goods Received Date ·
+   * PO No · SO No / MPR No / CO No / RO No (Houzs grn-list-export.ts:116-121)
    * ```
    *
    * THERE IS NO `Status` COLUMN. A normal GRN shows no status label at all;
@@ -349,6 +349,22 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
         ),
       },
       {
+        key: "doNo",
+        /* `No` takes NO full stop — owner ruling 2026-09-18. §9.4's column
+           list already carries the corrected word; this screen was the lag. */
+        label: "Supplier DO No",
+        headerLines: ["Supplier", "DO No"],
+        width: REGISTER_FIELD_WIDTH.supplierDoNo,
+        sortable: true,
+        searchValue: (r) => r.do_number ?? "",
+        exportValue: (r) => r.do_number ?? "",
+        accessor: (r) => (
+          <span className="font-mono text-body text-base-900">
+            {r.do_number}
+          </span>
+        ),
+      },
+      {
         key: "grnDate",
         label: "GRN Doc Date",
         width: REGISTER_FIELD_WIDTH.date,
@@ -370,44 +386,6 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
           ),
       },
       {
-        key: "source",
-        filterValue: r => (r.source_refs ?? []).map(ref => documentDisplayNumber(ref)).join(" · "),
-        label: "SO No / MPR No / CO No / RO No",
-        headerLines: ["SO No / MPR No", "CO No / RO No"],
-        width: REGISTER_FIELD_WIDTH.mixedReferenceFourWay,
-        sortable: true,
-        /* The receipt's ACTUAL linked documents — every one it has, blank when
-           it has none. No word stands in for a missing number, and no PO is
-           invented for a receipt that came back through an arrival source. */
-        searchValue: (r) => (r.source_refs ?? []).join(" "),
-        exportValue: (r) => (r.source_refs ?? []).map(ref => documentDisplayNumber(ref)).join(" · "),
-        sortFn: (a, b) =>
-          (a.source_refs?.[0] ?? "").localeCompare(b.source_refs?.[0] ?? ""),
-        accessor: (r) => (
-          <span className="flex flex-col">
-            {(r.source_refs ?? []).map((ref) => (
-              <span key={ref} className="font-mono text-body text-base-900">
-                {documentDisplayNumber(ref)}
-              </span>
-            ))}
-          </span>
-        ),
-      },
-      {
-        key: "po",
-        filterValue: r => documentDisplayNumber(r.po_id ?? ""),
-        label: "PO No",
-        width: REGISTER_FIELD_WIDTH.documentNo,
-        sortable: true,
-        /* Its own column, and blank for a CO or RO receipt that has no
-           purchase order — an absence, never a borrowed number. */
-        searchValue: (r) => `${r.po_id ?? ""} ${documentDisplayNumber(r.po_id ?? "")}`,
-        exportValue: (r) => documentDisplayNumber(r.po_id ?? ""),
-        accessor: (r) => (
-          <span className="font-mono text-body text-base-900">{documentDisplayNumber(r.po_id ?? "")}</span>
-        ),
-      },
-      {
         key: "supplier",
         label: "Supplier",
         width: REGISTER_FIELD_WIDTH.supplier,
@@ -418,128 +396,6 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
         accessor: (r) => (
           <span className="truncate text-body text-base-900">
             {r.supplier_name ?? ""}
-          </span>
-        ),
-      },
-      {
-        key: "deliverTo",
-        label: "Supplier Deliver To",
-        headerLines: ["Supplier", "Deliver To"],
-        width: REGISTER_FIELD_WIDTH.supplierDeliverTo,
-        sortable: true,
-        /* Where the PO INSTRUCTED the supplier to deliver. It is never
-           overwritten by where the goods actually landed. */
-        searchValue: (r) => r.warehouse_name ?? "",
-        exportValue: (r) => r.warehouse_name ?? "",
-        overflowText: (r) => r.warehouse_name ?? "",
-        accessor: (r) => (
-          <span className="truncate text-body text-base-900">
-            {r.warehouse_name ?? ""}
-          </span>
-        ),
-      },
-      {
-        key: "actualSite",
-        label: "Goods arrived at",
-        headerLines: ["Goods", "arrived at"],
-        width: REGISTER_FIELD_WIDTH.goodsArrivedAt,
-        sortable: true,
-        searchValue: (r) => r.actual_site_name ?? r.warehouse_name ?? "",
-        exportValue: (r) => r.actual_site_name ?? r.warehouse_name ?? "",
-        accessor: (r) =>
-          r.actual_site_name && r.actual_site_name !== r.warehouse_name ? (
-            /* The physical truth, preserved BESIDE the instruction — never
-               overwriting `Supplier Deliver To` (owner correction 2026-09-06).
-               Amber only when the goods landed somewhere other than
-               instructed. */
-            <span className="truncate text-body text-kit-amber-11">
-              {r.actual_site_name}
-            </span>
-          ) : (
-            <span className="truncate text-body text-base-900">
-              {r.actual_site_name ?? r.warehouse_name ?? ""}
-            </span>
-          ),
-      },
-      {
-        key: "supplierConfirmedDeliveryDate",
-        label: "Supplier Confirmed Delivery Date",
-        headerLines: ["Supplier Confirmed", "Delivery Date"],
-        width: REGISTER_FIELD_WIDTH.supplierConfirmedDeliveryDate,
-        sortable: true,
-        /* The linked PO's governed supplier answer (`poSupplierDeliveryDateOf`,
-           server-resolved) — the SAME word the Purchase Orders register uses.
-           `Not confirmed` while the supplier has not evidenced one. */
-        searchValue: (r) => r.supplier_delivery_date ?? "Not confirmed",
-        exportValue: (r) =>
-          r.supplier_delivery_date
-            ? fmtDate(r.supplier_delivery_date)
-            : "Not confirmed",
-        filterType: "date",
-        dateValue: (r) => r.supplier_delivery_date,
-        sortFn: (a, b) =>
-          (a.supplier_delivery_date ?? "").localeCompare(
-            b.supplier_delivery_date ?? "",
-          ),
-        accessor: (r) =>
-          r.supplier_delivery_date ? (
-            <span className="tabular-nums text-body text-base-900">
-              {fmtDate(r.supplier_delivery_date)}
-            </span>
-          ) : (
-            <span className="text-body text-kit-slate-11">Not confirmed</span>
-          ),
-      },
-      {
-        key: "receivedAt",
-        label: "Goods Received Date",
-        headerLines: ["Goods Received", "Date"],
-        width: REGISTER_FIELD_WIDTH.goodsReceivedDate,
-        sortable: true,
-        searchValue: (r) => r.goods_received_at ?? "",
-        exportValue: (r) =>
-          r.goods_received_time
-            ? fmtDate(r.goods_received_time, { time: true })
-            : r.goods_received_at
-              ? `${fmtDate(r.goods_received_at)} · Time not recorded`
-              : "",
-        /* The table's date column OWNS detailed date filtering (owner
-           correction 2026-09-06) — the rail's date group is the GRN's
-           creation date, which is a different fact. */
-        filterType: "date",
-        dateValue: (r) => r.goods_received_at,
-        sortFn: (a, b) =>
-          (a.goods_received_at ?? "").localeCompare(b.goods_received_at ?? ""),
-        /* 0601 · the date, then its KL clock on the inline second line; an
-           older GRN says `Time not recorded` — never back-filled. */
-        accessor: (r) => (
-          <span className="flex flex-col" data-testid={`grn-received-${r.id}`}>
-            <span className="tabular-nums text-body text-base-900">
-              {r.goods_received_at ? fmtDate(r.goods_received_at) : ""}
-            </span>
-            {r.goods_received_at ? (
-              <span className="tabular-nums text-meta text-base-500">
-                {r.goods_received_time
-                  ? fmtDate(r.goods_received_time, { timeOnly: true })
-                  : "Time not recorded"}
-              </span>
-            ) : null}
-          </span>
-        ),
-      },
-      {
-        key: "doNo",
-        /* `No` takes NO full stop — owner ruling 2026-09-18. §9.4's column
-           list already carries the corrected word; this screen was the lag. */
-        label: "Supplier DO No",
-        headerLines: ["Supplier", "DO No"],
-        width: REGISTER_FIELD_WIDTH.supplierDoNo,
-        sortable: true,
-        searchValue: (r) => r.do_number ?? "",
-        exportValue: (r) => r.do_number ?? "",
-        accessor: (r) => (
-          <span className="font-mono text-body text-base-900">
-            {r.do_number}
           </span>
         ),
       },
@@ -679,6 +535,150 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
             </span>
           );
         },
+      },
+      {
+        key: "deliverTo",
+        label: "Supplier Deliver To",
+        headerLines: ["Supplier", "Deliver To"],
+        width: REGISTER_FIELD_WIDTH.supplierDeliverTo,
+        sortable: true,
+        /* Where the PO INSTRUCTED the supplier to deliver. It is never
+           overwritten by where the goods actually landed. */
+        searchValue: (r) => r.warehouse_name ?? "",
+        exportValue: (r) => r.warehouse_name ?? "",
+        overflowText: (r) => r.warehouse_name ?? "",
+        accessor: (r) => (
+          <span className="truncate text-body text-base-900">
+            {r.warehouse_name ?? ""}
+          </span>
+        ),
+      },
+      {
+        key: "actualSite",
+        label: "Goods arrived at",
+        headerLines: ["Goods", "arrived at"],
+        width: REGISTER_FIELD_WIDTH.goodsArrivedAt,
+        sortable: true,
+        searchValue: (r) => r.actual_site_name ?? r.warehouse_name ?? "",
+        exportValue: (r) => r.actual_site_name ?? r.warehouse_name ?? "",
+        accessor: (r) =>
+          r.actual_site_name && r.actual_site_name !== r.warehouse_name ? (
+            /* The physical truth, preserved BESIDE the instruction — never
+               overwriting `Supplier Deliver To` (owner correction 2026-09-06).
+               Amber only when the goods landed somewhere other than
+               instructed. */
+            <span className="truncate text-body text-kit-amber-11">
+              {r.actual_site_name}
+            </span>
+          ) : (
+            <span className="truncate text-body text-base-900">
+              {r.actual_site_name ?? r.warehouse_name ?? ""}
+            </span>
+          ),
+      },
+      {
+        key: "supplierConfirmedDeliveryDate",
+        label: "Supplier Confirmed Delivery Date",
+        headerLines: ["Supplier Confirmed", "Delivery Date"],
+        width: REGISTER_FIELD_WIDTH.supplierConfirmedDeliveryDate,
+        sortable: true,
+        /* The linked PO's governed supplier answer (`poSupplierDeliveryDateOf`,
+           server-resolved) — the SAME word the Purchase Orders register uses.
+           `Not confirmed` while the supplier has not evidenced one. */
+        searchValue: (r) => r.supplier_delivery_date ?? "Not confirmed",
+        exportValue: (r) =>
+          r.supplier_delivery_date
+            ? fmtDate(r.supplier_delivery_date)
+            : "Not confirmed",
+        filterType: "date",
+        dateValue: (r) => r.supplier_delivery_date,
+        sortFn: (a, b) =>
+          (a.supplier_delivery_date ?? "").localeCompare(
+            b.supplier_delivery_date ?? "",
+          ),
+        accessor: (r) =>
+          r.supplier_delivery_date ? (
+            <span className="tabular-nums text-body text-base-900">
+              {fmtDate(r.supplier_delivery_date)}
+            </span>
+          ) : (
+            <span className="text-body text-kit-slate-11">Not confirmed</span>
+          ),
+      },
+      {
+        key: "receivedAt",
+        label: "Goods Received Date",
+        headerLines: ["Goods Received", "Date"],
+        width: REGISTER_FIELD_WIDTH.goodsReceivedDate,
+        sortable: true,
+        searchValue: (r) => r.goods_received_at ?? "",
+        exportValue: (r) =>
+          r.goods_received_time
+            ? fmtDate(r.goods_received_time, { time: true })
+            : r.goods_received_at
+              ? `${fmtDate(r.goods_received_at)} · Time not recorded`
+              : "",
+        /* The table's date column OWNS detailed date filtering (owner
+           correction 2026-09-06) — the rail's date group is the GRN's
+           creation date, which is a different fact. */
+        filterType: "date",
+        dateValue: (r) => r.goods_received_at,
+        sortFn: (a, b) =>
+          (a.goods_received_at ?? "").localeCompare(b.goods_received_at ?? ""),
+        /* 0601 · the date, then its KL clock on the inline second line; an
+           older GRN says `Time not recorded` — never back-filled. */
+        accessor: (r) => (
+          <span className="flex flex-col" data-testid={`grn-received-${r.id}`}>
+            <span className="tabular-nums text-body text-base-900">
+              {r.goods_received_at ? fmtDate(r.goods_received_at) : ""}
+            </span>
+            {r.goods_received_at ? (
+              <span className="tabular-nums text-meta text-base-500">
+                {r.goods_received_time
+                  ? fmtDate(r.goods_received_time, { timeOnly: true })
+                  : "Time not recorded"}
+              </span>
+            ) : null}
+          </span>
+        ),
+      },
+      {
+        key: "po",
+        filterValue: r => documentDisplayNumber(r.po_id ?? ""),
+        label: "PO No",
+        width: REGISTER_FIELD_WIDTH.documentNo,
+        sortable: true,
+        /* Its own column, and blank for a CO or RO receipt that has no
+           purchase order — an absence, never a borrowed number. */
+        searchValue: (r) => `${r.po_id ?? ""} ${documentDisplayNumber(r.po_id ?? "")}`,
+        exportValue: (r) => documentDisplayNumber(r.po_id ?? ""),
+        accessor: (r) => (
+          <span className="font-mono text-body text-base-900">{documentDisplayNumber(r.po_id ?? "")}</span>
+        ),
+      },
+      {
+        key: "source",
+        filterValue: r => (r.source_refs ?? []).map(ref => documentDisplayNumber(ref)).join(" · "),
+        label: "SO No / MPR No / CO No / RO No",
+        headerLines: ["SO No / MPR No", "CO No / RO No"],
+        width: REGISTER_FIELD_WIDTH.mixedReferenceFourWay,
+        sortable: true,
+        /* The receipt's ACTUAL linked documents — every one it has, blank when
+           it has none. No word stands in for a missing number, and no PO is
+           invented for a receipt that came back through an arrival source. */
+        searchValue: (r) => (r.source_refs ?? []).join(" "),
+        exportValue: (r) => (r.source_refs ?? []).map(ref => documentDisplayNumber(ref)).join(" · "),
+        sortFn: (a, b) =>
+          (a.source_refs?.[0] ?? "").localeCompare(b.source_refs?.[0] ?? ""),
+        accessor: (r) => (
+          <span className="flex flex-col">
+            {(r.source_refs ?? []).map((ref) => (
+              <span key={ref} className="font-mono text-body text-base-900">
+                {documentDisplayNumber(ref)}
+              </span>
+            ))}
+          </span>
+        ),
       },
     ],
     [],
@@ -988,7 +988,7 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
               /* v2 — the approved sixteen-column, date-first register
                  replaces v1's eleven, so a saved v1 layout cannot pin a
                  column that no longer exists. */
-              storageKey="carres.receiving.register.v2"
+              storageKey="carres.receiving.register.v3"
               rowKey={(r) => r.id}
               exportName="Receiving"
               loadExportRows={() => fetchGrnRegisterExport(registerFilters)}
@@ -998,7 +998,7 @@ export default function OperationReceiving({ consignmentPage = false }: { consig
               serverColumns={{ values: registerQ.data?.column_values ?? {}, onChange: changeColumns }}
               /* GRN Doc Date and GRN No lead and pin at a canvas ≥768px; below it
                  the number pins alone. No column is hidden by width. */
-              pinnedPrefix={{ columns: ["grn", "grnDate"], narrow: ["grn"] }}
+              pinnedPrefix={{ columns: ["grn"], narrow: ["grn"] }}
               activeConditions={activeConditions}
               onClearConditions={clearRail}
               groupBanner={false}
