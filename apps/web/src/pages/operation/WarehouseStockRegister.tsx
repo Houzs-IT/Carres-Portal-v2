@@ -28,6 +28,9 @@ import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import ModuleHeader from "./components/ModuleHeader";
 import { FilterRail, FilterRailGroup, FilterRailRow, useFilterRailOpen } from "./components/workspace-rail";
 import Button from "@/components/kit/Button";
+import Select from "@/components/kit/Select";
+import Tabs from "@/components/kit/Tabs";
+import StockBalancesView from "./StockBalancesView";
 import WarehouseUnitDetail from "./WarehouseUnitDetail";
 
 /**
@@ -142,6 +145,18 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
     ? (requestedStatus as InventoryStatus)
     : null;
   const sourceReady = !!data && !isLoading && !isError;
+  // Showroom stays a Unit list; `Balances` is the owning register's per-product view.
+  const balances = !showroom && params.get("display") === "balances";
+
+  function setDisplay(next: string) {
+    const updated = new URLSearchParams(params);
+    updated.delete("view");
+    updated.delete("status");
+    updated.delete("history");
+    if (next === "balances") updated.set("display", "balances");
+    else updated.delete("display");
+    setParams(updated, { replace: true });
+  }
 
   function setView(next: InventoryView) {
     const updated = new URLSearchParams(params);
@@ -198,7 +213,7 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
   }
 
   function clearAll() {
-    setParams(new URLSearchParams({ tab: showroom ? "showroom" : "stock-onhand" }), { replace: true });
+    setParams(new URLSearchParams({ tab: showroom ? "showroom" : "stock-onhand", ...(balances ? { display: "balances" } : {}) }), { replace: true });
     setSearch("");
     setGridRevision((revision) => revision + 1);
   }
@@ -495,7 +510,29 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
       ...columns.filter((column) => !first.includes(column.key)).map((column) => ({ ...column, defaultHidden: true }))];
   }, [columns, showroom]);
 
-  const filtered = isRailFiltered({ ...sel, query: search }) || !!status || view !== "all";
+  const filtered = balances
+    ? isRailFiltered({ ...sel, query: "", showEnded: false })
+    : isRailFiltered({ ...sel, query: search }) || !!status || view !== "all";
+
+  const balanceUnits = useMemo(
+    () => (balances ? applyRailSelection(allUnits, { ...sel, query: "", showEnded: false }, now) : []),
+    [balances, allUnits, sel, now],
+  );
+  const siteOptions = useMemo(() => {
+    const sites = new Map<string, string>();
+    for (const u of allUnits) if (u.warehouseId && u.siteName && isCurrentUnit(u)) sites.set(u.warehouseId, u.siteName);
+    return [...sites].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [allUnits]);
+
+  const displayTabs = showroom ? undefined : (
+    <Tabs
+      variant="segmented"
+      label="Inventory display"
+      value={balances ? "balances" : "units"}
+      onValueChange={setDisplay}
+      tabs={[{ value: "units", label: "Units" }, { value: "balances", label: "Balances" }]}
+    />
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -530,7 +567,7 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
         <div ref={canvasRef} className="flex min-h-0 flex-1" data-testid="stock-register">
           {railOpen ? (
             <FilterRail testId="stock-rail" onHide={() => setRailOpen(false)}>
-              <FilterRailGroup title="Stock" icon="order">
+              {balances ? null : <FilterRailGroup title="Stock" icon="order">
                 {STOCK_VIEWS.map(([key, label]) => (
                   <FilterRailRow
                     key={key}
@@ -552,7 +589,7 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
                     onClick={() => setStatus(word)}
                   />
                 ))}
-              </FilterRailGroup>
+              </FilterRailGroup>}
               {sourceReady ? (
                 <>
                   <FilterRailGroup title="Category" icon="goods">
@@ -590,7 +627,7 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
                   </FilterRailGroup>
                 </>
               ) : null}
-              <FilterRailGroup title="Control" icon="history">
+              {balances ? null : <FilterRailGroup title="Control" icon="history">
                 <FilterRailRow
                   testId="rail-history"
                   label="History"
@@ -598,7 +635,7 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
                   count={sourceReady ? allUnits.filter((u) => !isCurrentUnit(u)).length : undefined}
                   onClick={() => setView("history")}
                 />
-              </FilterRailGroup>
+              </FilterRailGroup>}
             </FilterRail>
           ) : null}
 
@@ -628,9 +665,27 @@ export default function WarehouseStockRegister({ showroom = false }: { showroom?
                   Try again
                 </button>
               </div>
+            ) : balances ? (
+              <StockBalancesView
+                key={gridRevision}
+                units={balanceUnits}
+                isLoading={isLoading || !data}
+                categoryLabel={(c) => CATEGORY_LABEL[c ?? ""] ?? (c ?? NO_CATALOG_LABEL)}
+                toolbar={<>
+                  {displayTabs}
+                  <Select
+                    id="balances-site"
+                    toolbar
+                    value={sel.site ?? "all"}
+                    onValueChange={(v) => setRail("site", v === "all" ? null : v)}
+                    options={[{ value: "all", label: "All warehouses" }, ...siteOptions]}
+                  />
+                </>}
+              />
             ) : (
               <DataGrid<StockRegisterUnit>
                 key={gridRevision}
+                toolbarStart={displayTabs}
                 appearance="reference"
                 rows={rows}
                 columns={displayColumns}
