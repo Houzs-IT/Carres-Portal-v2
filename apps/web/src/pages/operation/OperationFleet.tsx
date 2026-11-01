@@ -7,6 +7,7 @@ import Select from "@/components/kit/Select";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
 import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
+import OperationKpiTile from "./components/OperationKpiTile";
 import { FL, mapHref, monthRange, refusalOf, useFleet, useFleetWrite, type FleetPayload } from "./fleet";
 
 /**
@@ -158,11 +159,14 @@ export function FleetLiveMapPage() {
     const p = q.data?.positions.find((x) => x.vehicleId === l.id);
     return { vehicleId: l.id, plate: l.plate, lat: p?.lat ?? null, lng: p?.lng ?? null, recordedAt: p?.recordedAt ?? null };
   }), [q.data]);
-  const old = (iso: string) => Date.now() - new Date(iso).getTime() > 30 * 60_000;
+  /* Houzs LorryLiveMap: last seen as an age, stale after 15 minutes. */
+  const minutesAgo = (iso: string) => Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  const ago = (m: number) => (m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`);
+  const old = (iso: string) => minutesAgo(iso) > 15;
   const columns: DataGridColumn<MapRow>[] = [
     { key: "lorry", label: FL.lorry, width: 160, accessor: (r) => r.plate },
     { key: "seen", label: FL.lastSeen, width: 220, accessor: (r) => r.recordedAt
-      ? `${fmtDate(r.recordedAt, { time: true })}${old(r.recordedAt) ? ` · ${FL.oldPosition}` : ""}` : FL.noPosition,
+      ? `${ago(minutesAgo(r.recordedAt))} · ${fmtDate(r.recordedAt, { time: true })}${old(r.recordedAt) ? ` · ${FL.oldPosition}` : ""}` : FL.noPosition,
       dateValue: (r) => r.recordedAt ?? "" },
     { key: "position", label: FL.position, width: 200, accessor: (r) => (r.lat == null ? "" : `${r.lat}, ${r.lng}`) },
     { key: "map", label: "", exportLabel: FL.openMap, width: 120, sortable: false, filterable: false, accessor: (r) => r.lat == null ? "" : (
@@ -180,11 +184,28 @@ export function FleetLiveMapPage() {
 
 /* ── Lorry Capacity (Houzs LorryCapacity: utilisation + revenue per trip) ── */
 
+const ALL_LORRIES = "all";
+
+/** The page's tiles over the rows shown. */
+export function capacityTotals(rows: readonly LorryCapacityRow[]) {
+  const trips = rows.reduce((n, r) => n + r.trips, 0);
+  const days = rows.reduce((n, r) => n + r.workingDays, 0);
+  const stops = rows.reduce((n, r) => n + r.stops, 0);
+  const revenue = rows.reduce((n, r) => n + r.revenue, 0);
+  const div = (a: number, b: number) => (b > 0 ? a / b : null);
+  return { trips, days, revenue, utilisation: div(trips, days), ordersPerTrip: div(stops, trips), revenuePerOrder: div(revenue, stops), revenuePerTrip: div(revenue, trips) };
+}
+
 export function LorryCapacityPage() {
-  const [month, setMonth] = useState(() => appTodayIso().slice(0, 7));
-  const { from, to } = monthRange(month);
+  const [range, setRange] = useState(() => monthRange(appTodayIso().slice(0, 7)));
+  const { from, to } = range;
+  const [lorry, setLorry] = useState(ALL_LORRIES);
   const q = useFleet(from, to);
-  const rows = useMemo(() => lorryCapacity(from, to, q.data?.lorries ?? [], q.data?.stops ?? []), [q.data, from, to]);
+  const rows = useMemo(
+    () => lorryCapacity(from, to, q.data?.lorries ?? [], q.data?.stops ?? []).filter((r) => lorry === ALL_LORRIES || r.vehicleId === lorry),
+    [q.data, from, to, lorry],
+  );
+  const t = capacityTotals(rows);
   const num = (n: number | null, f: (x: number) => string) => (n == null ? "" : f(n));
   const columns: DataGridColumn<LorryCapacityRow>[] = [
     { key: "lorry", label: FL.lorry, width: 150, accessor: (r) => r.plate },
@@ -199,10 +220,29 @@ export function LorryCapacityPage() {
   ];
   return (
     <Page word={FL.capacity} testId="fleet-capacity" payload={q.data} error={q.isError}>
+      {/* Houzs LorryCapacity.tsx:276-321. */}
+      <div className="grid grid-cols-2 gap-2 px-4 pb-2 lg:grid-cols-4 xl:grid-cols-8" data-testid="fleet-capacity-tiles">
+        <OperationKpiTile label={FL.lorries} value={rows.length} hint="" accent="primary" />
+        <OperationKpiTile label={FL.totalTrips} value={t.trips} hint="" accent="primary" />
+        <OperationKpiTile label={FL.availableDays} value={t.days} hint="" accent="muted" />
+        <OperationKpiTile label={FL.utilisation} value={t.utilisation == null ? "" : `${Math.round(t.utilisation * 100)}%`} hint="" accent="success" />
+        <OperationKpiTile label={FL.ordersPerTrip} value={t.ordersPerTrip == null ? "" : t.ordersPerTrip.toFixed(1)} hint="" accent="muted" />
+        <OperationKpiTile label={FL.deliveryRevenue} value={rm(t.revenue)} hint="" accent="success" />
+        <OperationKpiTile label={FL.revenuePerOrder} value={t.revenuePerOrder == null ? "" : rm(t.revenuePerOrder)} hint="" accent="muted" />
+        <OperationKpiTile label={FL.revenuePerTrip} value={t.revenuePerTrip == null ? "" : rm(t.revenuePerTrip)} hint="" accent="muted" />
+      </div>
       <DataGrid rows={rows} columns={columns} rowKey={(r) => r.vehicleId} storageKey="carres.operation.fleet-capacity.v1"
-        appearance="reference" exportName={`${FL.capacity} ${month}`} groupBanner={false} isLoading={!q.isSuccess && !q.isError}
-        toolbarStart={<input type="month" aria-label={FL.month} className={dateInput} value={month} data-testid="fleet-capacity-month"
-          onChange={(e) => e.target.value && setMonth(e.target.value)} />}
+        appearance="reference" exportName={`${FL.capacity} ${from} ${to}`} groupBanner={false} isLoading={!q.isSuccess && !q.isError}
+        toolbarStart={
+          <span className="flex items-center gap-2">
+            <input type="date" aria-label={FL.from} className={dateInput} value={from} data-testid="fleet-capacity-from"
+              onChange={(e) => e.target.value && setRange((x) => ({ ...x, from: e.target.value }))} />
+            <input type="date" aria-label={FL.to} className={dateInput} value={to} data-testid="fleet-capacity-to"
+              onChange={(e) => e.target.value && setRange((x) => ({ ...x, to: e.target.value }))} />
+            <Select id="fleet-capacity-lorry" toolbar value={lorry} onValueChange={setLorry}
+              options={[{ value: ALL_LORRIES, label: FL.allLorries }, ...(q.data?.lorries ?? []).map((l) => ({ value: l.id, label: l.plate }))]} />
+          </span>
+        }
         emptyMessage={FL.noLorries}
         statusSummary={(v) => {
           const trips = v.reduce((n, r) => n + r.trips, 0);

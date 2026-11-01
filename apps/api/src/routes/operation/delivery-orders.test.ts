@@ -135,7 +135,7 @@ describe("GET /api/operation/delivery-orders — the register", () => {
     const chain = from.mock.results[0]!.value as { select: ReturnType<typeof vi.fn> };
     const selected = String(chain.select.mock.calls[0]![0]);
     expect(selected).toContain("do_file_path");
-    expect(selected).toContain("order_lines(id, sku, qty, attrs)");
+    expect(selected).toContain("order_lines(id, sku, qty, unit_price, attrs)");
     expect(selected).toContain("ops_order_control(delivery_photos)");
   });
 

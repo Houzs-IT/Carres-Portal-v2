@@ -258,6 +258,7 @@ export default function DeliveryOrderPage() {
   }
 
   const customer = displayCustomerName(order.customer_name ?? "") || "No customer name";
+  const salesperson = Array.isArray(order.salespersons) ? order.salespersons[0]?.name : order.salespersons?.name;
   const onLoan = (data?.loans ?? []).filter((l) => l.status === "on_loan");
   const returnedLoans = (data?.loans ?? []).filter((l) => l.status === "returned");
   const photoRows = photos.data?.photos ?? [];
@@ -387,8 +388,11 @@ export default function DeliveryOrderPage() {
           {/* 1 · DELIVERY ORDER — customer, address, Warehouse, partner,
               arrangement, goods scope, site requirements, current facts and
               the live document (Delivery MASTER §9). */}
-          <Panel title="Delivery Order">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="do-section-order">
+          {/* Houzs sections (DeliveryOrderDetailV2.tsx:1303-1476), Weisiang's decision
+              2026-11-01: Customer info, Delivery address, Delivery info, Line items. */}
+          <div className="flex flex-col gap-3" data-testid="do-section-order">
+          <Panel title="Customer info">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="do-section-customer">
               <Fact label="Name">{customer}</Fact>
               <Fact label="Phone">
                 {order.customer_phone || <Absence>No phone recorded. Check the Sales Order</Absence>}
@@ -398,11 +402,33 @@ export default function DeliveryOrderPage() {
                   <Absence>No emergency contact. Used only if the customer cannot be reached</Absence>
                 )}
               </Fact>
+              <Fact label="Email">{order.customer_email || <Absence>Not recorded</Absence>}</Fact>
+              <Fact label="Salesperson">{salesperson || <Absence>Not recorded</Absence>}</Fact>
+              <Fact label="Ref No.">{order.source_ref || <Absence>Not recorded</Absence>}</Fact>
+              <Fact label="Customer SO No">SO-{order.so}</Fact>
+            </div>
+          </Panel>
+          <Panel title="Delivery address">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="do-section-address">
               <Fact label="Delivery address">
                 {order.customer_address || (
                   <Absence>No address recorded. Record it on the Sales Order before the trip</Absence>
                 )}
               </Fact>
+              <Fact label="Building type">{order.building_type || <Absence>Not recorded</Absence>}</Fact>
+              <Fact label="Floor">
+                {order.delivery_floor == null ? <Absence>Not recorded</Absence> : String(order.delivery_floor)}
+              </Fact>
+              <Fact label="Lift">
+                {order.delivery_has_lift == null ? <Absence>Not recorded</Absence> : order.delivery_has_lift ? "Lift" : "No lift"}
+              </Fact>
+              <Fact label="Stairs">{order.delivery_stair_items || <Absence>Not recorded</Absence>}</Fact>
+              <Fact label="Access">{arrangement?.condo_registration || <Absence>Not recorded</Absence>}</Fact>
+            </div>
+          </Panel>
+          <Panel title="Delivery info">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="do-section-delivery">
+              <Fact label="DO date">{fmtDate(d.issued_at)}</Fact>
               {/* A Journey leg's document leaves from ITS OWN source stop — leg 1
                   the configured Carres source, a later leg the previous
                   partner's warehouse (`from_loc`). The order-level warehouse is
@@ -460,22 +486,14 @@ export default function DeliveryOrderPage() {
                   {d.trip_groups.map((g) => deliveryGroupLabel(g as DeliveryGroupKey)).join(" + ")}
                 </Fact>
               ) : null}
-              <Fact label="Building type">{order.building_type || <Absence>Not recorded</Absence>}</Fact>
-              <Fact label="Floor">
-                {order.delivery_floor == null ? <Absence>Not recorded</Absence> : String(order.delivery_floor)}
-              </Fact>
-              <Fact label="Lift">
-                {order.delivery_has_lift == null ? <Absence>Not recorded</Absence> : order.delivery_has_lift ? "Lift" : "No lift"}
-              </Fact>
-              <Fact label="Stairs">{order.delivery_stair_items || <Absence>Not recorded</Absence>}</Fact>
-              <Fact label="Access">{arrangement?.condo_registration || <Absence>Not recorded</Absence>}</Fact>
               <Fact label="Customer request">{control?.customer_request || <Absence>None recorded</Absence>}</Fact>
               <Fact label="Instruction for logistics">
                 {arrangement?.logistics_note || control?.action_for_logistic || <Absence>None recorded</Absence>}
               </Fact>
             </div>
-
-            <div className="mt-4 border-t border-base-200 pt-3">
+          </Panel>
+          <Panel title="Line items">
+            <div>
               <span className="text-label uppercase tracking-[0.06em] text-base-500">Goods on this trip</span>
               {tripLines.length === 0 ? (
                 <p className="mt-1">
@@ -516,6 +534,7 @@ export default function DeliveryOrderPage() {
               )}
             </div>
           </Panel>
+          </div>
 
           {/* 2 · DELIVERY HISTORY — every recorded trip and its result. */}
           <Panel title="Delivery history">

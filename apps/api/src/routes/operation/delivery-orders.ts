@@ -87,7 +87,7 @@ const deliveryOrdersRouter = new Hono<AppEnv>();
  *  same canonical column the single-document read below already selects, on the
  *  same route and the same role — no new permission and no new table. */
 const ORDER_EMBED =
-  "orders!inner(id, so, customer_name, customer_address, customer_address_city, customer_address_state, delivery_date, delivery_date_tbd, do_number, do_file_path, do_uploaded_at, delivery_stops, order_lines(id, sku, qty, attrs), ops_order_control(delivery_photos), ops_delivery_arrangements(leg, confirmed_date, confirmed_time, partner_id, delivery_partners(name)))";
+  "orders!inner(id, so, source_ref, customer_name, customer_phone, customer_email, customer_address, customer_address_line1, customer_address_line2, customer_address_city, customer_address_state, customer_address_postcode, building_type:entry_data->fields->>building_type, invoice_no, salespersons(name), invoice_documents:invoices(invoice_no, voided_at), delivery_date, delivery_date_tbd, do_number, do_file_path, do_uploaded_at, delivery_stops, order_lines(id, sku, qty, unit_price, attrs), order_addons(qty, unit_price), ops_order_control(delivery_photos), ops_delivery_arrangements(leg, confirmed_date, confirmed_time, partner_id, driver_name, vehicle, delivery_partners(name)))";
 
 /**
  * §6.1 (0489) — the proof reviews and the attempt evidence of a set of
@@ -343,8 +343,9 @@ deliveryOrdersRouter.get("/:id", requireOperationOrPrincipal, async (c) => {
     .select(
       `id, order_id, do_number, leg, trip, issued_at, trip_groups, delivery_date, time_slot,
        logistics_partner, voided_at, void_reason,
-       orders!inner(id, so, customer_name, customer_phone, customer_emergency,
+       orders!inner(id, so, source_ref, customer_name, customer_phone, customer_email, customer_emergency,
          customer_address, customer_address_city, customer_address_state,
+         salespersons(name),
          do_file_path, do_uploaded_at,
          pod_signature_url, pod_signed_by, pod_signed_at,
          do_number, delivery_stops,

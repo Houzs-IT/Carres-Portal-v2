@@ -20,6 +20,10 @@ export type PlanOrder = {
   customer_address_postcode: string | null;
   delivery_date: string | null; delivery_date_tbd: boolean | null;
   entry_data: { fields?: Record<string, unknown> } | null;
+  source_ref?: string | null; customer_phone?: string | null;
+  salespersons?: { name: string | null } | { name: string | null }[] | null;
+  order_lines?: { qty: number; unit_price: number | string | null }[] | null;
+  order_addons?: { qty: number; unit_price: number | string | null }[] | null;
 };
 export type PlanArrangement = {
   order_id: string; leg: number; partner_id: string | null;
@@ -47,6 +51,9 @@ export type PlanRow = {
   partnerId: string | null; ownLorry: boolean; carrier: string; vehicle: string | null;
   /** The trip day: the scheduled day when there is one, else the planned day. */
   day: string | null; scheduled: boolean; seq: number | null; timeSlot: string | null;
+  /* Houzs board and DP Orders columns (DeliveryPlanningBoard.tsx:1015-1402, DpOrders.tsx). */
+  phone: string | null; salesperson: string | null; refNo: string | null;
+  address: string | null; postcode: string | null; amount: number;
 };
 
 export const carrierOf = (partner: { name: string; own_fleet: boolean } | null, vehicle: string | null) =>
@@ -71,6 +78,9 @@ export function planRows(feed: PlanFeed): PlanRow[] {
     const legs = new Set([0, ...feed.arrangements.filter((a) => a.order_id === o.id).map((a) => a.leg)]);
     const loc = resolveDeliveryLocality(o);
     const buildingType = String(o.entry_data?.fields?.building_type ?? "").trim();
+    const money = (xs?: { qty: number; unit_price: number | string | null }[] | null) =>
+      (xs ?? []).reduce((n, x) => n + Number(x.unit_price ?? 0) * Number(x.qty), 0);
+    const amount = money(o.order_lines) + money(o.order_addons);
     for (const leg of [...legs].sort((a, b) => a - b)) {
       const a = arr.get(`${o.id}#${leg}`);
       const partner = a?.partner_id ? company.get(a.partner_id) ?? null : null;
@@ -90,6 +100,10 @@ export function planRows(feed: PlanFeed): PlanRow[] {
         day: a?.confirmed_date ?? a?.planned_date ?? null,
         scheduled: Boolean(a?.confirmed_date),
         seq: a?.stop_seq ?? null, timeSlot: a?.time_slot ?? null,
+        phone: o.customer_phone ?? null,
+        salesperson: (Array.isArray(o.salespersons) ? o.salespersons[0]?.name : o.salespersons?.name) ?? null,
+        refNo: o.source_ref ?? null,
+        address: o.customer_address ?? null, postcode: o.customer_address_postcode ?? null, amount,
       });
     }
   }

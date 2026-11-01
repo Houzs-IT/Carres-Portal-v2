@@ -15,6 +15,8 @@ import CouldNotLoad from "@/pages/operation/components/CouldNotLoad";
 import { Link } from "react-router-dom";
 import { ApiError, apiFetch } from "@/lib/api";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
+import { rm } from "@/lib/format-currency";
+import { FleetPage } from "./OperationFleetSetup";
 import { useDeliveryDays } from "@/lib/deadline-queries";
 import {
   OWN_LORRY, carrierOf, companyDateAgreed, fillTimeSlots, ownFleetOf, planRows, planStatus, proposeDates, tripsOf,
@@ -81,6 +83,16 @@ const dayColumn: DataGridColumn<PlanRow> = {
 const requestedColumn: DataGridColumn<PlanRow> = {
   key: "requested", label: "Requested Delivery Date", width: 150, accessor: (r) => (r.requested ? fmtDate(r.requested) : ""), dateValue: (r) => r.requested, filterType: "date",
 };
+/* Houzs board's other order facts, in the chooser. */
+const moreColumns: DataGridColumn<PlanRow>[] = [
+  { key: "salesperson", label: "Salesperson", width: 150, accessor: (r) => r.salesperson ?? "", filterType: "enum" },
+  { key: "phone", label: "Phone", width: 130, defaultHidden: true, accessor: (r) => r.phone ?? "" },
+  { key: "ref", label: "Ref No.", width: 130, defaultHidden: true, accessor: (r) => r.refNo ?? "" },
+  { key: "address", label: "Address", width: 240, defaultHidden: true, accessor: (r) => r.address ?? "" },
+  { key: "postcode", label: "Postcode", width: 90, defaultHidden: true, accessor: (r) => r.postcode ?? "" },
+  { key: "state", label: "State", width: 120, defaultHidden: true, accessor: (r) => r.state ?? "", filterType: "enum" },
+  { key: "amount", label: "Amount", width: 120, align: "right", defaultHidden: true, accessor: (r) => rm(r.amount), numberValue: (r) => r.amount, exportValue: (r) => r.amount },
+];
 const carrierColumn: DataGridColumn<PlanRow> = { key: "carrier", label: "Lorry or Logistics", width: 180, accessor: (r) => r.carrier, filterType: "enum" };
 const slotColumn: DataGridColumn<PlanRow> = { key: "slot", label: "Time slot", width: 120, accessor: (r) => r.timeSlot ?? (r.day ? "No time slot" : "") };
 const statusColumn: DataGridColumn<PlanRow> = { key: "status", label: "Status", width: 220, accessor: planStatus, filterType: "enum" };
@@ -229,7 +241,7 @@ export function DeliveryPlanning() {
   const { q, rows, refresh } = usePlan();
   const [view, setView] = useState("board");
   const [editing, setEditing] = useState<PlanRow | null>(null);
-  const columns = useMemo(() => [...baseColumns, ...ruleColumns, requestedColumn, dayColumn, carrierColumn, slotColumn, statusColumn], []);
+  const columns = useMemo(() => [...baseColumns, ...moreColumns, ...ruleColumns, requestedColumn, dayColumn, carrierColumn, slotColumn, statusColumn], []);
   return (
     <Page word="Delivery Planning" testId="delivery-planning">
       <div className="px-4 pt-2">
@@ -239,7 +251,7 @@ export function DeliveryPlanning() {
       {q.isError && !q.data ? loadError(q.refetch) : (
         <ListPageShell register>
           {view === "board" && (
-            <DataGrid rows={rows} columns={columns} rowKey={(r) => r.key} storageKey="carres.delivery.planning.v1" appearance="reference"
+            <DataGrid rows={rows} columns={columns} rowKey={(r) => r.key} storageKey="carres.delivery.planning.v2" appearance="reference"
               exportName="Delivery Planning" initialGroupBy={["region"]} sortDefault={{ key: "requested", dir: "asc" }}
               stickyIdentity isLoading={!q.isSuccess} searchPlaceholder="Search SO, DO, customer or location…"
               onRowClick={setEditing} emptyMessage="No orders waiting for delivery." />
@@ -260,6 +272,7 @@ export function DpOrders() {
   const { q, rows, refresh } = usePlan();
   const [creating, setCreating] = useState(false);
   const [cancelling, setCancelling] = useState<PlanRow | null>(null);
+  const [scheduling, setScheduling] = useState<PlanRow | null>(null);
   const jobs = useMemo<Job[]>(() => {
     if (!q.data) return [];
     const live = rows.filter((r) => r.day).map((r) => ({
@@ -282,9 +295,15 @@ export function DpOrders() {
     { key: "do", label: "DO No", width: 150, accessor: (r) => r.doNumber },
     { key: "so", label: "SO No", width: 130, accessor: (r) => r.so },
     { key: "customer", label: "Customer", width: 200, accessor: (r) => r.customer },
+    { key: "salesperson", label: "Salesperson", width: 150, accessor: (r) => r.row?.salesperson ?? "", filterType: "enum" },
+    { key: "phone", label: "Phone", width: 130, defaultHidden: true, accessor: (r) => r.row?.phone ?? "" },
+    { key: "requested", label: "Requested Delivery Date", width: 150, accessor: (r) => (r.row?.requested ? fmtDate(r.row.requested) : ""), dateValue: (r) => r.row?.requested ?? null, filterType: "date" },
     { key: "day", label: "Delivery date", width: 130, accessor: (r) => (r.day ? fmtDate(r.day) : ""), dateValue: (r) => r.day, filterType: "date" },
+    { key: "amount", label: "Total Amount", width: 120, align: "right", accessor: (r) => (r.row ? rm(r.row.amount) : ""), numberValue: (r) => r.row?.amount ?? 0, exportValue: (r) => r.row?.amount ?? "" },
     { key: "carrier", label: "Lorry or Logistics", width: 180, accessor: (r) => r.carrier, filterType: "enum" },
     { key: "slot", label: "Time slot", width: 120, accessor: (r) => r.timeSlot },
+    { key: "address", label: "Address", width: 240, defaultHidden: true, accessor: (r) => r.row?.address ?? "" },
+    { key: "state", label: "State", width: 120, defaultHidden: true, accessor: (r) => r.row?.state ?? "", filterType: "enum" },
     { key: "status", label: "Status", width: 120, accessor: (r) => r.status, filterType: "enum" },
     { key: "note", label: "Cancel reason", width: 300, accessor: (r) => r.note, wrap: true },
   ], []);
@@ -292,15 +311,43 @@ export function DpOrders() {
     <Page word="DP Orders" testId="dp-orders">
       {q.isError && !q.data ? loadError(q.refetch) : (
         <ListPageShell register>
-          <DataGrid rows={jobs} columns={columns} rowKey={(r) => r.key} storageKey="carres.delivery.dp-orders.v1" appearance="reference"
+          <DataGrid rows={jobs} columns={columns} rowKey={(r) => r.key} storageKey="carres.delivery.dp-orders.v2" appearance="reference"
             exportName="DP Orders" groupBanner={false} stickyIdentity isLoading={!q.isSuccess} sortDefault={{ key: "day", dir: "asc" }}
             searchPlaceholder="Search DO, SO or customer…" onRowClick={(r) => r.row && setCancelling(r.row)}
+            contextMenu={(r) => {
+              const row = r.row;
+              return row ? [
+                { label: "Schedule", onClick: () => setScheduling(row) },
+                { label: "Cancel", onClick: () => setCancelling(row) },
+              ] : [];
+            }}
             toolbarEnd={<Button variant="primary" icon="add" onClick={() => setCreating(true)}>New DP Order</Button>}
             emptyMessage="No delivery jobs yet." />
         </ListPageShell>
       )}
       {creating && q.data && <PlanForm feed={q.data} row="new" onClose={() => setCreating(false)} onSaved={() => void refresh()} />}
       {cancelling && <CancelJob row={cancelling} onClose={() => setCancelling(null)} onSaved={() => void refresh()} />}
+      {scheduling && q.data && <PlanForm feed={q.data} row={scheduling} onClose={() => setScheduling(null)} onSaved={() => void refresh()} />}
+    </Page>
+  );
+}
+
+/** Houzs Coverage & Fleet (DeliveryMaintenance.tsx): regions, residence rules and the lorries on one page. */
+export function CoverageFleet() {
+  const { q, refresh } = usePlan();
+  const [view, setView] = useState("regions");
+  return (
+    <Page word="Coverage & Fleet" testId="coverage-fleet">
+      <div className="px-4 pt-2">
+        <Tabs label="Coverage & Fleet" variant="segmented" value={view} onValueChange={setView}
+          tabs={[{ value: "regions", label: "Regions" }, { value: "rules", label: "Residence rules" }, { value: "fleet", label: "Fleet" }]} />
+      </div>
+      {view === "fleet" ? <FleetPage /> : q.isError && !q.data ? loadError(q.refetch) : (
+        <ListPageShell register>
+          {view === "regions" && <RegionsList regions={q.data?.regions ?? []} onSaved={() => void refresh()} />}
+          {view === "rules" && <ResidenceRules rules={q.data?.residenceRules ?? []} onSaved={() => void refresh()} />}
+        </ListPageShell>
+      )}
     </Page>
   );
 }

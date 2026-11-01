@@ -174,7 +174,10 @@ describe("DeliveryOrderPage", () => {
        scroll of kit Panels, no tab strip. */
     const titles = [...document.querySelectorAll('[data-kit="panel"] h2')].map((h) => h.textContent);
     expect(titles).toEqual([
-      "Delivery Order",
+      "Customer info",
+      "Delivery address",
+      "Delivery info",
+      "Line items",
       "Delivery history",
       "Warehouse handover",
       "Evidence",
