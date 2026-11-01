@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { CreditNoteRow } from "@carres/shared/schemas/finance-credit-note";
@@ -25,6 +25,7 @@ import { LoadFailed } from "./other-money-in/parts";
 export const CREDIT_NOTES_KEY = ["finance", "credit-notes"] as const;
 
 export default function FinanceCreditNotes() {
+  useEffect(() => { document.title = "Customer Credit Notes · Carres"; return () => { document.title = "Carres Portal"; }; }, []);
   const qc = useQueryClient();
   const list = useQuery({
     queryKey: CREDIT_NOTES_KEY,

@@ -244,7 +244,7 @@ export default function ManualJournalForm({ onBack, onRecorded }: {
     });
   };
 
-  const header = <SalesOrderTabs identity="New journal entry" backLabel="Journal" backTo="?"
+  const header = <SalesOrderTabs identity="New journal entry" backLabel="Journal Entries" backTo="?"
     docTitle="New journal entry · Carres"
     onBack={(event) => { event.preventDefault(); onBack(); }} />;
 
@@ -314,7 +314,7 @@ export default function ManualJournalForm({ onBack, onRecorded }: {
           <Button variant="primary" disabled={gap !== null} onClick={askFirst}>
             {gap ? `Record journal entry: ${gap}` : "Record journal entry"}
           </Button>
-          <Button variant="ghost" onClick={onBack}>Back to Journal</Button>
+          <Button variant="ghost" onClick={onBack}>Back to Journal Entries</Button>
         </div>
       </div>
     </div>
