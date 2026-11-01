@@ -1,3 +1,4 @@
+// design-standard: not-a-list-page: a view inside WarehouseStockRegister, which owns the page shell.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { StockRegisterUnit } from "@carres/shared";
