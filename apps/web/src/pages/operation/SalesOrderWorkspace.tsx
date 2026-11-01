@@ -98,7 +98,7 @@ import { serviceCodeWord } from "@/lib/service-code";
 import { apiFetch, ApiError } from "@/lib/api";
 import { useDeliveryDays, useDeliveryLeads, useOrderCollectionTiming } from "@/lib/deadline-queries";
 import { composeAddress } from "@/data/malaysia-postcodes";
-import { appTodayIso, fmtDate } from "@/lib/fmt-date";
+import { appTodayIso, fmtDate, fmtDateShort } from "@/lib/fmt-date";
 import { floorSurchargeRaw, stairCarryCount } from "@/lib/order-totals";
 import { displayCustomerName } from "@/lib/customer-name";
 import { renderSalesOrderPdf } from "@/lib/pdf/render";
@@ -147,7 +147,7 @@ import { RouteLoadingFrame, type RouteRetryOwner } from "./SalesOrderRoute";
 import { salesOrderRouteInputOf, type RouteOrderDetail } from "./sales-order-route-input";
 import MIcon from "@/components/carres/MIcon";
 import COrderLines, { type COrderLine } from "@/components/carres/COrderLines";
-import { atSalePaymentWord, viewSlip } from "@/lib/payment-display";
+import { atSalePaymentWord, payMethodWord, viewSlip } from "@/lib/payment-display";
 import { useShellTasks } from "./components/ShellTasks";
 import { AgreementForm } from "./customer-agreement";
 import { ChangeReview, WaitingAmendment, WithdrawForm } from "./so-detail/AmendmentPanels";
@@ -884,6 +884,42 @@ export { Block };
  * read-only value wore the same bordered box, so `SO Doc Date` looked exactly
  * as changeable as the phone number beside it (reviewer finding 16).
  */
+/** Houzs's Payments table: every live ledger row on this order. A voided row is
+ *  not money, so it is not listed; Payments keeps it. */
+function PaymentRows({ query }: { query: ReturnType<typeof useOrderPayments> }) {
+  if (query.isPending) return <p className="pt-2 text-[13px] text-c-secondary" role="status">Loading payments</p>;
+  if (query.isError) return <p className="pt-2 text-[13px] text-c-secondary" role="status">Payments could not be read</p>;
+  const rows = (query.data?.payments ?? []).filter((p) => !p.voided_at);
+  if (rows.length === 0) return <p className="pt-2 text-[13px] text-c-secondary" data-testid="so-payment-rows-empty">No payments recorded</p>;
+  const columns = "90px minmax(90px,1fr) minmax(90px,1fr) 100px 100px 60px";
+  return (
+    <div role="table" aria-label="Payments" className="mt-2 overflow-x-auto" data-testid="so-payment-rows">
+      <div className="min-w-[560px]">
+        <div role="row" className="grid h-8 items-center bg-c-band px-2 text-[12px] font-medium text-c-secondary" style={{ gridTemplateColumns: columns }}>
+          <span role="columnheader">Date</span>
+          <span role="columnheader">Method</span>
+          <span role="columnheader">Reference</span>
+          <span role="columnheader">Receipt</span>
+          <span role="columnheader" className="text-right">Amount</span>
+          <span role="columnheader" className="text-right">Slip</span>
+        </div>
+        {rows.map((p) => (
+          <div key={p.id} role="row" className="grid min-h-9 items-center border-t border-c-row-line px-2 text-[13px] text-c-ink" style={{ gridTemplateColumns: columns }}>
+            <span role="cell">{fmtDateShort(p.paid_on)}</span>
+            <span role="cell" className="min-w-0 break-words">{payMethodWord(p.method)}</span>
+            <span role="cell" className="min-w-0 break-words">{p.reference || NOT_RECORDED}</span>
+            <span role="cell" className="min-w-0 break-words">{p.receipt_no || NOT_RECORDED}</span>
+            <span role="cell" className="text-right tabular-nums">{fmtMoney(Number(p.amount))}</span>
+            <span role="cell" className="text-right">
+              {p.receipt_url ? <button type="button" className="font-semibold hover:underline" onClick={() => void viewSlip(p)}>View</button> : "None"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** A Placed order owing money takes a top-up here: the Payments desk records
  *  only against an invoice (SO-1374, 30 Oct 2026). The roles are the ones the
  *  payment API admits (order-payments.ts POST). */
@@ -2940,8 +2976,19 @@ function SalesOrderWorkspaceBody() {
           </button>
         ) : NOT_RECORDED}
       />
+      {mode !== "oldrev" && !amending && (
+        <PaymentRows query={orderPaymentsQ} />
+      )}
     </Card>
   );
+  /* Houzs's Customer Signature block: only when the order carries one, and never
+     on an old version (a signature belongs to the version the customer signed). */
+  const signatureCard = mode !== "oldrev" && base?.signature_url ? (
+    <Card label="Customer Signature" testId="so-card-signature">
+      <CardTitle>Customer Signature</CardTitle>
+      <img src={base.signature_url} alt="Customer signature" className="h-auto w-full max-w-[360px] rounded-lg border border-c-row-line" />
+    </Card>
+  ) : null;
 
   /* ── THE AMENDMENT BAR — sticky at the top of the tab while amending. ─── */
   const commercial = changeClass?.action === "submit";
@@ -3064,6 +3111,7 @@ function SalesOrderWorkspaceBody() {
         {deliveryCard}
       </div>
       {itemsCard}
+      {signatureCard}
       {mode !== "oldrev" && (correctionWorkQ.data?.work ?? []).length > 0 && (
         <Card label="What this change started elsewhere">
           <CardTitle>What this change started elsewhere</CardTitle>
@@ -3103,6 +3151,7 @@ function SalesOrderWorkspaceBody() {
     {
       heading: "OTHER",
       items: [
+        ...(order ? [{ label: "Copy as new", icon: "content_copy", onSelect: () => navigate(`/operation/orders/so/new?copyFrom=${encodeURIComponent(order.id)}`), testId: "workspace-copy-as-new" }] : []),
         ...(order ? [{ label: "Open in Payments", icon: "payments", onSelect: () => navigate(`/finance/payments?order=${order.so}`), testId: "workspace-open-payments" }] : []),
         ...(mode !== "oldrev" && order && canChangeSalesOwnership
           ? [{ label: "Change salesperson", icon: "person", onSelect: () => setAttributionSignal((n) => n + 1), testId: "attribution-open" }]

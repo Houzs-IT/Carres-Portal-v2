@@ -202,10 +202,26 @@ deliveryOrdersRouter.get("/", requireOperationOrPrincipal, async (c) => {
   const proof = await readProofRecords(sb, numbers);
   if (!proof.ok) return c.json({ error: proof.error, message: proof.message }, 500);
 
+  // Houzs `Transfer from` and return chips: the POs an order names (own `so` or
+  // `so_refs[]`, as orders.ts) and the Delivery Returns of each document.
+  const sos = [...new Set((rows ?? []).map((r) => (r.orders as unknown as { so: number | null } | null)?.so).filter((so): so is number => typeof so === "number"))];
+  const [pos, returns] = await Promise.all([
+    sos.length > 0
+      ? sb.from("purchase_orders").select("id, so, so_refs").or(`so.in.(${sos.join(",")}),so_refs.ov.{${sos.join(",")}}`)
+      : Promise.resolve({ data: [], error: null }),
+    ids.length > 0
+      ? sb.from("delivery_returns").select("delivery_order_id, return_no").in("delivery_order_id", ids)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (pos.error) return c.json({ error: "source_pos_read_failed", message: pos.error.message }, 500);
+  if (returns.error) return c.json({ error: "delivery_returns_read_failed", message: returns.error.message }, 500);
+
   return c.json({
     deliveryOrders: rows ?? [],
     attempts,
     handoverEvents,
+    sourcePos: pos.data ?? [],
+    deliveryReturns: returns.data ?? [],
     proofReviews: proof.proofReviews,
     attemptEvidence: proof.attemptEvidence,
   });

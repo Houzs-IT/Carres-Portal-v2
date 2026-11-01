@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => vi.fn(async (_p: string, _i?: RequestInit): Promise<unknown> => ({})));
@@ -9,7 +10,7 @@ vi.mock("@/pages/operation/components/ModuleHeader", () => ({ default: () => nul
 import { StockAdjustments, StockTakes, StockTransfers } from "./WarehouseStockMoves";
 
 const wrap = (ui: React.ReactNode) =>
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
+  render(<MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider></MemoryRouter>);
 const sites = { sites: [{ id: "s1", name: "Main" }, { id: "s2", name: "Shop" }] };
 const unit = (n: number) => ({ id: `u${n}`, unit_code: `U${n}`, sku: "SKU", status: "in_stock", reserved_ref: null, needs_repair: false });
 const posts = () => api.mock.calls.filter(([, i]) => i?.method === "POST");
@@ -48,6 +49,40 @@ describe("Stock Take", () => {
     expect(posts()).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Post Stock Take" }));
     await waitFor(() => expect(posts()).toHaveLength(1));
+  });
+
+  const sheetFile = async (rows: Record<string, unknown>[]) => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Units");
+    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+    return Object.assign(new File([], "count.xlsx"), { arrayBuffer: async () => bytes });
+  };
+
+  it("Upload counted sheet ticks the Units on screen and saves nothing", async () => {
+    await open(false);
+    await screen.findByRole("group", { name: "Units" });
+    fireEvent.change(screen.getByLabelText("Upload counted sheet"), { target: { files: [await sheetFile([
+      { "Unit ID": "U1", Counted: "Yes" }, { "Unit ID": "U2", Counted: "" }, { "Unit ID": "U9", Counted: "Yes" },
+    ])] } });
+    expect((await screen.findByRole("status")).textContent).toMatch(/1 Units counted.*left out: U9/);
+    expect(screen.getByText("1 Units counted")).toBeTruthy();
+    expect(posts()).toHaveLength(0);
+  });
+
+  it("Upload counted sheet refuses a file that counted nothing, so Post cannot write everything off", async () => {
+    await open(false);
+    await screen.findByRole("group", { name: "Units" });
+    fireEvent.change(screen.getByLabelText("Upload counted sheet"), { target: { files: [await sheetFile([{ "Unit ID": "U1", Counted: "" }])] } });
+    expect(await screen.findByText(/Nothing was changed/)).toBeTruthy();
+    expect(screen.getByText("0 Units counted")).toBeTruthy();
+  });
+
+  it("the sheet offers Print PDF and Export Excel, and shows its History", async () => {
+    await open(false);
+    expect(await screen.findByRole("button", { name: "Print PDF" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Export Excel" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "History" })).toBeTruthy();
   });
 
   it("the Units list is a labelled group", async () => {

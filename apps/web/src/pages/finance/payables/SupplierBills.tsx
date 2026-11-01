@@ -143,7 +143,7 @@ function BillRegister() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ModuleHeader destinationHeader testId="bills-destination-header" word="Bills" docTitle="Bills · Carres" />
+      <ModuleHeader destinationHeader testId="bills-destination-header" word="AP Invoices" docTitle="AP Invoices · Carres" />
       {query.isError ? <ReadFailed what="Bills" onRetry={() => void query.refetch()} /> : (
         <ListPageShell register>
           <DataGrid
@@ -215,7 +215,7 @@ function BillDetail() {
   if (query.isError) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <ModuleHeader destinationHeader testId="bills-destination-header" word="Bills" docTitle="Bills · Carres" />
+        <ModuleHeader destinationHeader testId="bills-destination-header" word="AP Invoices" docTitle="AP Invoices · Carres" />
         <ReadFailed what="This bill" onRetry={() => void query.refetch()} />
       </div>
     );
@@ -239,7 +239,7 @@ function BillDetail() {
         identity={b.bill_no ?? "Draft bill"}
         customer={b.supplier_name}
         backTo="/finance/bills"
-        backLabel="Bills"
+        backLabel="AP Invoices"
         docTitle={`${b.bill_no ?? "Draft bill"} · Carres`}
         status={<span data-testid="bill-status">{word(BILL_STATUS_WORD, b.status)}</span>}
         right={
@@ -820,7 +820,7 @@ function BillForm() {
         identity={id ? (existing.data?.bill.bill_no ?? "Draft bill") : "New Bill"}
         customer={supplier?.name ?? null}
         backTo={id ? `/finance/bills/${id}` : "/finance/bills"}
-        backLabel={id ? "Bill" : "Bills"}
+        backLabel={id ? "Bill" : "AP Invoices"}
         right={
           <span className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate(id ? `/finance/bills/${id}` : "/finance/bills")}>Cancel</Button>

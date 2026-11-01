@@ -332,6 +332,9 @@ export interface DoRegisterRow {
   queue: DoWorkQueue | null;
   /* Houzs' DO columns the order already holds. */
   invoiceNos: string[];
+  /** Set by the register page from the payload's document links. */
+  sourcePos?: string[];
+  returnNos?: string[];
   refNo: string | null;
   salesperson: string | null;
   driver: string | null;
@@ -609,6 +612,24 @@ function invoiceNosOf(r: DeliveryOrderRow): string[] {
 }
 
 export type DoDateBy = "do" | "delivery";
+
+/** Houzs `Transfer from` and return chips: PO numbers by SO, return numbers by document. */
+export function documentLinksOf(
+  sourcePos: readonly { id: string; so: number | null; so_refs: number[] | null }[] = [],
+  returns: readonly { delivery_order_id: string; return_no: string | null }[] = [],
+) {
+  const posBySo = new Map<number, string[]>();
+  for (const po of sourcePos) {
+    for (const so of new Set([...(po.so_refs ?? []), ...(po.so == null ? [] : [po.so])])) {
+      posBySo.set(so, [...(posBySo.get(so) ?? []), po.id]);
+    }
+  }
+  const returnsByDo = new Map<string, string[]>();
+  for (const r of returns) {
+    if (r.return_no) returnsByDo.set(r.delivery_order_id, [...(returnsByDo.get(r.delivery_order_id) ?? []), r.return_no]);
+  }
+  return { posBySo, returnsByDo };
+}
 
 /** Houzs DoDateFilter: a from/to window over the DO date or the delivery date.
  *  A row with no delivery date falls outside a delivery-date window. */

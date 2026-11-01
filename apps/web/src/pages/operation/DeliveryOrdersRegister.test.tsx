@@ -109,11 +109,11 @@ function mount(
   attempts: DeliveryOrderAttemptRow[] = [],
   handoverEvents: DeliveryHandoverKindRow[] = [],
   initialEntry = "/operation/delivery-orders",
-  { rail = true }: { rail?: boolean } = {},
+  { rail = true, links = {} }: { rail?: boolean; links?: { sourcePos?: { id: string; so: number | null; so_refs: number[] | null }[] } } = {},
 ) {
   if (rail) localStorage.setItem("carres.deliveryOrders.filterRail", "1");
   hookState = {
-    data: { deliveryOrders: rows, attempts, handoverEvents },
+    data: { deliveryOrders: rows, attempts, handoverEvents, ...links },
     isLoading: false,
     isError: false,
     error: null,
@@ -298,6 +298,19 @@ describe("DeliveryOrdersRegister", () => {
     /* Clear returns the normal toolbar. */
     fireEvent.click(screen.getByText("Clear"));
     expect(screen.queryByText("2 delivery orders selected")).toBeNull();
+  });
+
+  it("a row click opens the quick view with the source PO, and its button opens the full page", () => {
+    const row = doRow();
+    const so = (row.orders as unknown as { so: number }).so;
+    const { locations } = mount([row], [], [], undefined, { links: { sourcePos: [{ id: "PO-7", so, so_refs: null }] } });
+    expect(screen.queryByTestId("do-quick-view")).toBeNull();
+    fireEvent.click(screen.getByText(row.do_number).closest("tr")!.querySelector("td:last-child")!);
+    const view = screen.getByTestId("do-quick-view");
+    expect(within(view).getByText("PO-7")).toBeTruthy();
+    expect(within(view).getByText("No return")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open full page" }));
+    expect(locations.at(-1)).toBe(`/operation/delivery-orders/${row.do_number}`);
   });
 
   it("▸ expands to the document's goods lines, read-only", () => {

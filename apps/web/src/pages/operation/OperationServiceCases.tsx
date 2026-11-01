@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
@@ -18,8 +18,9 @@ import {
   type ServiceCase,
   type ServiceCaseListResponse,
 } from "@carres/shared";
+import { useAuth } from "@/lib/auth";
 import ServiceCaseDetail from "./components/ServiceCaseDetail";
-import { CasesBoard, CasesCalendar } from "./components/serviceCaseViews";
+import { CasesBoard, CasesCalendar, caseStageDescription, downloadCasesCsv } from "./components/serviceCaseViews";
 import ServiceCaseNumbersPanel from "./components/ServiceCaseNumbersPanel";
 import ServiceCaseWizard from "./components/ServiceCaseWizard";
 import CaseOrderLink from "./components/CaseOrderLink";
@@ -48,6 +49,12 @@ export default function OperationServiceCases() {
   const mine = searchParams.get("mine") === "1";
   const [hideCompleted, setHideCompleted] = useState(false);
   const [stageId, setStageId] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [assignNote, setAssignNote] = useState<string | null>(null);
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  // Houzs ?creditor_code. A Carres creditor is the case's supplier.
+  const creditorId = searchParams.get("creditor");
 
   const setParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams);
@@ -105,15 +112,44 @@ export default function OperationServiceCases() {
   // Picking the closed stage overrides Hide completed, or the list would look broken.
   const pickedClosedStage = stageShown && allRows.some((r) => (r.statusId ?? "") === stageId && r.statusIsClosed);
   const rows = allRows.filter((r) =>
-    (!stageShown || (r.statusId ?? "") === stageId) && (!hideCompleted || pickedClosedStage || !r.statusIsClosed));
+    (!creditorId || r.supplierId === creditorId) && (!stageShown || (r.statusId ?? "") === stageId) && (!hideCompleted || pickedClosedStage || !r.statusIsClosed));
 
   const openCount = allRows.filter((r) => !r.statusIsClosed).length;
   const lateCount = allRows.filter((r) => clockOf(r).state === "late").length;
 
   // An empty list under a filter is not an empty module: say which filter emptied it.
-  const filtered = mine || hideCompleted || stageShown;
-  const emptyFilteredSentence = `No ${hideCompleted ? "open " : ""}cases${mine ? " of yours" : ""}${stageShown ? " at this stage" : ""}.`;
-  const resetFilters = () => { setMine(false); setHideCompleted(false); setStageId(null); };
+  const filtered = mine || hideCompleted || stageShown || !!creditorId;
+  const emptyFilteredSentence = `No ${hideCompleted ? "open " : ""}cases${mine ? " of yours" : ""}${stageShown ? " at this stage" : ""}${creditorId ? " for this creditor" : ""}.`;
+  const resetFilters = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("mine");
+    params.delete("creditor");
+    setSearchParams(params, { replace: true });
+    setHideCompleted(false);
+    setStageId(null);
+  };
+  const creditors = [...new Map(allRows.flatMap((r) => (r.supplierId ? [[r.supplierId, r.supplierName ?? ""] as const] : []))).entries()]
+    .sort((a, z) => a[1].localeCompare(z[1]));
+
+  // Houzs bulk Assign to me, one PATCH per case: the server's Sales Order PIC
+  // check (0711) still decides each one, and a refused case is named, not hidden.
+  const assignToMe = async (cases: ServiceCase[]) => {
+    if (!user) return;
+    const refused: string[] = [];
+    for (const c of cases) {
+      try {
+        await apiFetch(`/api/ops/service-cases/${c.id}`, { method: "PATCH", body: JSON.stringify({ ownerUserId: user.id }) });
+      } catch {
+        refused.push(c.caseNo);
+      }
+    }
+    setPicked(new Set());
+    setAssignNote(refused.length
+      ? `${cases.length - refused.length} assigned to you. Not assigned: ${refused.join(", ")}. Only the sales order PIC can pick who owns a case.`
+      : `${cases.length} assigned to you.`);
+    void qc.invalidateQueries({ queryKey: ["ops", "service-cases"] });
+  };
+
 
   // Houzs ServiceCases.tsx:578-948 and serviceCaseStageColumns.tsx, same order
   // and words. Houzs's stage-date columns need a stage date Carres does not keep.
@@ -165,9 +201,16 @@ export default function OperationServiceCases() {
 
   const filters = (
     <CaseFilters view={caseView} onView={(v) => setParam("cases", v === "list" ? null : v)} mine={mine} onMine={setMine}
-      hideCompleted={hideCompleted} onHideCompleted={setHideCompleted} filtered={filtered} onReset={resetFilters} />
+      hideCompleted={hideCompleted} onHideCompleted={setHideCompleted} filtered={filtered} onReset={resetFilters}
+      creditors={creditors} creditorId={creditorId} onCreditor={(v) => setParam("creditor", v)} />
   );
-  const newCase = <Button variant="primary" icon="add" onClick={() => setShowCreate(true)}>New Case</Button>;
+  // Export All ignores the stage, search and creditor filters; the grid's own Export takes the current view.
+  const newCase = (
+    <>
+      <Button variant="neutral" disabled={allRows.length === 0} onClick={() => downloadCasesCsv(allRows, clockOf, ownerOf, todayIso)}>Export All</Button>
+      <Button variant="primary" icon="add" onClick={() => setShowCreate(true)}>New Case</Button>
+    </>
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="operation-service-cases">
@@ -209,12 +252,14 @@ export default function OperationServiceCases() {
                         {st.overdue > 0 && <span className="pill pill-overdue">{st.overdue} overdue</span>}
                       </span>
                       <span className="label mt-1 text-base-500">{st.label}</span>
+                      <span className="text-meta text-base-500">{st.id === null ? "Every case in this list" : caseStageDescription(st.label)}</span>
                     </button>
                   );
                 })}
               </div>
             </>
           )}
+          {assignNote && <p role="status" className="mb-3 text-body text-base-700">{assignNote}</p>}
           {listQ.isError && !listQ.data ? (
             /* A failure sentence is never the empty sentence (COPY-STANDARD 2026-08-28). */
             <div role="alert" className="flex flex-col items-center gap-3 rounded border border-base-200 bg-white p-12 text-center">
@@ -231,6 +276,12 @@ export default function OperationServiceCases() {
               groupBanner={false}
               isLoading={listQ.isLoading}
               onRowClick={(r) => setParam("case", r.id)}
+              selectable={{
+                selectedKeys: picked,
+                onToggle: (key) => setPicked((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; }),
+                onToggleAll: (keys, all) => setPicked(all ? new Set() : new Set(keys)),
+              }}
+              selectionActions={[{ label: () => "Assign to me", kind: "write", onClick: (selected) => void assignToMe(selected as unknown as ServiceCase[]) }]}
               searchPlaceholder="Search ASSR no, SO no, Ref no, customer, salesperson, phone…"
               exportName="Service Cases"
               emptyMessage={filtered ? emptyFilteredSentence : "No service cases"}
@@ -281,9 +332,10 @@ function SummaryCard({ label, value, note, alert = false }: { label: string; val
   );
 }
 
-function CaseFilters({ view, onView, mine, onMine, hideCompleted, onHideCompleted, filtered, onReset }: {
+function CaseFilters({ view, onView, mine, onMine, hideCompleted, onHideCompleted, filtered, onReset, creditors, creditorId, onCreditor }: {
   view: string; onView: (v: string) => void; mine: boolean; onMine: (v: boolean) => void;
   hideCompleted: boolean; onHideCompleted: (v: boolean) => void; filtered: boolean; onReset: () => void;
+  creditors: (readonly [string, string])[]; creditorId: string | null; onCreditor: (id: string | null) => void;
 }) {
   return (
     <>
@@ -297,6 +349,11 @@ function CaseFilters({ view, onView, mine, onMine, hideCompleted, onHideComplete
       </div>
       <Checkbox id="service-cases-mine" label="My cases" checked={mine} onCheckedChange={onMine} />
       <Checkbox id="service-cases-hide-completed" label="Hide completed" checked={hideCompleted} onCheckedChange={onHideCompleted} />
+      <select aria-label="Creditor" value={creditorId ?? ""} onChange={(e) => onCreditor(e.target.value || null)}
+        className="rounded border border-base-300 bg-white px-2 py-1.5 text-body">
+        <option value="">All creditors</option>
+        {creditors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+      </select>
       {filtered && <Button variant="neutral" onClick={onReset}>Reset filters</Button>}
     </>
   );
