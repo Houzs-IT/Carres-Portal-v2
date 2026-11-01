@@ -98,6 +98,8 @@ export interface InvoiceRegisterRow {
      *  attached server-side so the Monitor's `Customer promised to pay
      *  today` reads the same ledger the Work feed does. */
     latest_promise?: { promised_date: string; recorded_at: string } | null;
+    /** The POs this order names (own `so` or `so_refs[]`), attached server-side. */
+    source_pos?: string[];
     order_lines: Array<{ sku?: string; qty: number; unit_price: number | string | null }>;
     order_addons: Array<{ addon_key?: string | null; qty: number; unit_price: number | string | null }>;
     ops_order_control: Array<{
@@ -124,6 +126,7 @@ export interface InvoiceRegisterRow {
     }>;
     /** Delivery Orders per leg — the issued snapshot outranks everything. */
     ops_delivery_orders?: Array<{
+      do_number?: string | null;
       leg: number;
       delivery_date: string | null;
       time_slot: string | null;

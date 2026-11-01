@@ -6199,6 +6199,10 @@ Source: `apps/web/src/pages/finance/SalesInvoices.tsx`.
 | Payment Requests tabs | `All` · `Waiting for Finance` · `Processing` · `Paid` · `Returned / withdrawn` |
 | Suppliers tabs and columns | `All` · `Trade` · `Other` · `Missing TIN`; `Owed` · `Advance` · `Open bills` |
 | Page headings, the same words as the sidebar row | `AP Invoices` (`/finance/bills`) · `Merchant Recon` (`/finance/card-settlement`) · `Journal Entries` (`/finance/ledger`) · `AP · Payables` (`/finance/ap-outstanding`) |
+| Sales Invoices columns | `From DO` · `Source PO` (both read from the order) |
+| Not Yet Billed | `Over 12 months` · `Not billed` · `Partly billed` · `Oldest`; `All ages` · `Aged 31+` · `Over 90 days`; `Delivered value` · `Already billed`; `Every delivered order is billed.` |
+| Corrections | `Payment actions` · `Done by`; `Done` · `Done By` · `Sales order` · `Receipt` · `What` · `First recorded by` · `Reason`; `Allocation changed: {before} → {after}` · `Payment voided: {amount}`; `No payment was corrected or voided in this month.` |
+| Payment Vouchers batch | `{n} ticked` · `Prepare {n}` · `Check {n}` · `Approve {n}`; `{done} of {total} approved`; `These did not go through and stay ticked:` |
 | Customer Credit Notes columns | `Number` · `Date` · `Party` · `Reference` · `SO` · `Reason` · `Total` · `Status`; hidden until chosen: `Void reason`; `Print {n} credit notes` |
 
 ## New Sales Invoice words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22) · BUILT ON BRANCH `feat/office-new-sales-invoice` (0712 not applied)

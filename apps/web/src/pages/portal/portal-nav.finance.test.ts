@@ -11,7 +11,7 @@ import { PORTAL_MODULES, PORTAL_NAV, navBlocks, navItemHref, visibleItems } from
  *
  *     Dashboard
  *     Money in            Monitor · Payment Records · Sales Invoices · Other receipts · Other Debtors ·
- *                         Outstanding · Customer Credit Notes · Cancelled orders holding money
+ *                         Outstanding · Not Yet Billed · Customer Credit Notes · Cancelled orders holding money
  *     Money out           Payment Vouchers · AP Invoices · Payment Requests · Supplier Maintenance ·
  *                         Credit Notes · Debit Notes · Notes to follow up · AP · Payables
  *     Bank & cards        Daily Bank · Merchant Recon · Card money waiting · Money moves
@@ -38,11 +38,11 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
   it("draws the approved shape, in order", () => {
     expect(shape("finance")).toEqual([
       "Dashboard",
-      "Money in: Monitor · Payment Records · Sales Invoices · Other receipts · Other Debtors · Outstanding · Customer Credit Notes · Cancelled orders holding money",
+      "Money in: Monitor · Payment Records · Sales Invoices · Other receipts · Other Debtors · Outstanding · Not Yet Billed · Customer Credit Notes · Cancelled orders holding money",
       "Money out: Payment Vouchers · AP Invoices · Payment Requests · Supplier Maintenance · Credit Notes · Debit Notes · Notes to follow up · AP · Payables",
       "Bank & cards: Daily Bank · Merchant Recon · Card money waiting · Money moves",
       "Books: Journal Entries · General Ledger · Trial Balance · Self-check",
-      "Reports: P&L · Balance Sheet · Cash Flow · AR Aging · AP Aging · Collection · Merchant charges · Dealer commission · Stock value · Stock drops · Payment",
+      "Reports: P&L · Balance Sheet · Cash Flow · AR Aging · AP Aging · Collection · Merchant charges · Dealer commission · Stock value · Stock drops · Corrections · Payment",
       "Forecast P&L",
       "Opening Balance",
       "Rental Approver",
@@ -74,6 +74,8 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
     const hrefs = Object.fromEntries(FINANCE.items.map((it) => [it.key, navItemHref(FINANCE, it)]));
     expect(hrefs).toEqual({
       dashboard: "/finance/dashboard",
+      "not-yet-billed": "/finance/not-yet-billed",
+      corrections: "/finance/corrections",
       ap: "/finance/ap-outstanding",
       ar: "/finance/ar",
       bills: "/finance/bills",

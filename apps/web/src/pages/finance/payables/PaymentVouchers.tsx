@@ -152,6 +152,32 @@ function VoucherRegister() {
   const requests = usePaymentRequests(true);
   const waitingRequests = (requests.data ?? []).filter((r) => awaitsFinance(paymentRequestStage(r))).length;
   const rows = useMemo(() => (query.data ?? []).filter((r) => voucherInTab(r, tab)), [query.data, tab]);
+  const voucherAct = useVoucherAct();
+  const [batchAsk, setBatchAsk] = useState<BatchStep | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
+  const ticked = useMemo(() => (query.data ?? []).filter((r) => selectedKeys.has(r.id)), [query.data, selectedKeys]);
+  const targetsOf = (step: BatchStep) => ticked.filter((r) => r.status === BATCH[step].from);
+  /* Each voucher still walks its own door, so the database answers who may do
+   * what, and one refusal does not stop the rest. Voucher-date order, because a
+   * number is drawn as a voucher goes through (Houzs PaymentVouchers.tsx:238). */
+  const runBatch = async (step: BatchStep) => {
+    const targets = [...targetsOf(step)].sort((a, b) => a.voucher_date.localeCompare(b.voucher_date));
+    setBatchAsk(null);
+    setBatchRunning(true);
+    setBatchResult(null);
+    const failures: BatchResult["failures"] = [];
+    for (const r of targets) {
+      try {
+        await voucherAct.mutateAsync({ id: r.id, act: step });
+      } catch (e) {
+        failures.push({ id: r.id, name: r.voucher_no ?? `Draft for ${r.payee_name}`, why: refusal(e) });
+      }
+    }
+    setBatchRunning(false);
+    setSelectedKeys(new Set(failures.map((f) => f.id)));
+    setBatchResult({ step, total: targets.length, failures });
+  };
   const printMany = async (picked: PaymentVoucherRegisterRow[]) => {
     for (const r of picked) if (r.voucher_no) await printVoucherById(qc, r.id);
   };
@@ -205,6 +231,38 @@ function VoucherRegister() {
         <div className="shrink-0 px-4 pt-2">
           <Tabs label="Voucher status" value={tab} onValueChange={(v) => { setTab(v as VoucherTab); setSelectedKeys(new Set()); }} tabs={VOUCHER_TABS} />
         </div>
+        {ticked.length > 0 && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pt-2 text-body" data-testid="voucher-batch-bar">
+            <span>{ticked.length} ticked</span>
+            {(Object.keys(BATCH) as BatchStep[]).map((step) => {
+              const n = targetsOf(step).length;
+              return n > 0 && (
+                <Button key={step} size="sm" variant={step === "approve" ? "primary" : "neutral"} disabled={batchRunning}
+                  onClick={() => { if (step === "prepare") void runBatch(step); else setBatchAsk(step); }}>
+                  {BATCH[step].verb} {n}
+                </Button>
+              );
+            })}
+            {batchRunning && <span className="text-kit-slate-11">Working…</span>}
+          </div>
+        )}
+        {batchResult && (
+          <div role={batchResult.failures.length > 0 ? "alert" : "status"} data-testid="voucher-batch-result"
+            className="mx-4 mt-2 shrink-0 rounded-card border border-kit-slate-5 bg-white p-3 text-body">
+            <div className="flex items-center justify-between gap-2">
+              <strong>{batchResult.total - batchResult.failures.length} of {batchResult.total} {BATCH[batchResult.step].done}</strong>
+              <Button size="sm" variant="ghost" onClick={() => setBatchResult(null)}>Close</Button>
+            </div>
+            {batchResult.failures.length > 0 && (
+              <>
+                <p className="mt-1">These did not go through and stay ticked:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {batchResult.failures.map((f) => <li key={f.id}>{f.name}: {f.why}</li>)}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
         <ListPageShell register>
           <DataGrid
             rows={rows}
@@ -265,11 +323,33 @@ function VoucherRegister() {
         </ListPageShell>
       </>}
       <VoucherPreview id={peek} onClose={() => setPeek(null)} onView={(id) => navigate(`/finance/payment-vouchers/${id}`)} />
+      <Modal
+        open={batchAsk !== null}
+        onOpenChange={(o) => { if (!o) setBatchAsk(null); }}
+        title={batchAsk ? `${BATCH[batchAsk].verb} ${targetsOf(batchAsk).length} ${targetsOf(batchAsk).length === 1 ? "voucher" : "vouchers"}?` : "Payment vouchers"}
+        footer={
+          <span className="flex gap-2">
+            <Button variant="ghost" onClick={() => setBatchAsk(null)}>Cancel</Button>
+            <Button variant="primary" onClick={() => { if (batchAsk) void runBatch(batchAsk); }}>{batchAsk ? BATCH[batchAsk].verb : ""}</Button>
+          </span>
+        }
+      >
+        {batchAsk && <p className="text-body">{BATCH[batchAsk].ask} Together {money(cents(targetsOf(batchAsk).reduce((s, r) => s + (num(r.amount) ?? 0), 0)))}.</p>}
+      </Modal>
     </div>
   );
 }
 
 /** The advance the cell shows first; null for "No advance", which sorts last. */
+// Houzs's batch bar (PaymentVouchers.tsx:174-179,416-436). Prepare can be undone, so it asks nothing.
+const BATCH = {
+  prepare: { from: "draft", verb: "Prepare", done: "prepared", ask: "" },
+  check: { from: "prepared", verb: "Check", done: "checked", ask: "You confirm the bills, the amounts and the payee match the papers attached on each." },
+  approve: { from: "checked", verb: "Approve", done: "approved", ask: "Each one is entered in the ledger now." },
+} as const;
+type BatchStep = keyof typeof BATCH;
+type BatchResult = { step: BatchStep; total: number; failures: Array<{ id: string; name: string; why: string }> };
+
 // The Houzs chips (PaymentVouchers.tsx:42,61-64).
 const VOUCHER_TABS = [
   { value: "all", label: "All" }, { value: "draft", label: "Draft" }, { value: "prepared", label: "Prepared" },

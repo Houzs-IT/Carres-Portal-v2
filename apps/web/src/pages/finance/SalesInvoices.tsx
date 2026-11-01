@@ -43,6 +43,9 @@ const paidOf = (r: InvoiceRegisterRow) => Number(r.orders?.paid ?? 0);
 const refOf = (r: InvoiceRegisterRow) => [r.orders?.source_ref ?? []].flat().join(", ");
 const dateOf = (r: InvoiceRegisterRow) => (r.issued_at ? fmtDate(r.issued_at) : "");
 const soOf = (r: InvoiceRegisterRow) => `SO-${r.orders?.so}`;
+/* Order-level: an invoice carries no DO or PO link of its own. */
+const doOf = (r: InvoiceRegisterRow) => (r.orders?.ops_delivery_orders ?? []).filter((d) => !d.voided_at && d.do_number).map((d) => d.do_number).join(", ");
+const poOf = (r: InvoiceRegisterRow) => (r.orders?.source_pos ?? []).join(", ");
 const phoneOf = (r: InvoiceRegisterRow) => r.orders?.customer_phone ?? "";
 /** Money is held on the order, so a tile counts each order once. */
 const perOrder = (rows: InvoiceRegisterRow[], of: (r: InvoiceRegisterRow) => number) =>
@@ -122,6 +125,8 @@ export default function SalesInvoices() {
       { key: "date", label: "Date", width: 140, accessor: dateOf,
         dateValue: (r) => r.issued_at, filterType: "date", exportValue: dateOf },
       { key: "so", label: "SO No.", width: 110, accessor: soOf, searchValue: soOf },
+      { key: "from_do", label: "From DO", width: 170, wrap: true, accessor: doOf, searchValue: doOf, exportValue: doOf },
+      { key: "source_po", label: "Source PO", width: 170, wrap: true, accessor: poOf, searchValue: poOf, exportValue: poOf },
       { key: "customer", label: "Customer", width: 220, accessor: (r) => r.orders?.customer_name ?? "",
         searchValue: (r) => r.orders?.customer_name ?? "", filterValue: (r) => r.orders?.customer_name ?? "", filterType: "enum" },
       { key: "ref", label: "Ref No.", width: 140, accessor: refOf, searchValue: refOf },
@@ -159,7 +164,7 @@ export default function SalesInvoices() {
           </div>
           <ListPageShell register>
             <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id}
-              storageKey="carres.finance.sales-invoices.v1" appearance="reference" exportName="Sales Invoices"
+              storageKey="carres.finance.sales-invoices.v2" appearance="reference" exportName="Sales Invoices"
               groupBanner={false} stickyIdentity isLoading={!query.isSuccess} searchPlaceholder="Search SI, customer, phone, ref…"
               emptyMessage="No sales invoices yet." onRowClick={setSelected} onRowDoubleClick={(r) => navigate(invoiceHref(r))}
               toolbarEnd={<NewSalesInvoiceDialog />}
