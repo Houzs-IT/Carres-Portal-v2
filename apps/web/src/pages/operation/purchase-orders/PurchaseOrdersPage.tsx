@@ -90,6 +90,7 @@ import {
 } from "@/lib/queries";
 import { workspaceDutyActor } from "../workspace-duty-owner";
 import { useOfficeDays } from "@/lib/deadline-queries";
+import { FinanceKpi } from "@/components/FinanceKpi";
 import PurchasingTabs from "../PurchasingTabs";
 import { PoWaitingFlags, useWaitingPoChangeRequests } from "../OperationPoChangeRequests";
 import { CHANNEL_WORD, refreshPurchasingReads } from "../components/PoIssueEvidence";
@@ -842,22 +843,6 @@ export default function PurchaseOrdersPage() {
       exportValue: (row) => displayedIdentity(row),
     },
     {
-      key: "po_date",
-      chooserGroup: "Document",
-      label: "PO Doc Date",
-      /* The registry's number, not this page's: SO Batch measured a cross-year
-         date at 99px and landed on 120, which is the widest measurement of the
-         field, so the field is 120 here too (ui MASTER §6.8). */
-      width: 120,
-      sortable: true,
-      accessor: (row) => (row.poDate ? <span className="tabular-nums">{fmtDate(row.poDate)}</span> : <Absence />),
-      searchValue: (row) => (row.poDate ? fmtDate(row.poDate) : "Not recorded"),
-      exportValue: (row) => row.poDate ?? "Not recorded",
-      dateValue: (row) => row.poDate,
-      filterType: "date",
-      sortFn: (a, b) => (a.poDate ?? "").localeCompare(b.poDate ?? ""),
-    },
-    {
       key: "source",
       chooserGroup: "Document",
       label: "SO No / MPR No",
@@ -968,6 +953,22 @@ export default function PurchaseOrdersPage() {
       accessor: (row) => row.deliverTo === "Not recorded" ? <Absence /> : row.deliverTo,
       searchValue: (row) => row.deliverTo,
       filterValue: (row) => row.deliverTo,
+    },
+    {
+      key: "po_date",
+      chooserGroup: "Document",
+      label: "PO Doc Date",
+      /* The registry's number, not this page's: SO Batch measured a cross-year
+         date at 99px and landed on 120, which is the widest measurement of the
+         field, so the field is 120 here too (ui MASTER §6.8). */
+      width: 120,
+      sortable: true,
+      accessor: (row) => (row.poDate ? <span className="tabular-nums">{fmtDate(row.poDate)}</span> : <Absence />),
+      searchValue: (row) => (row.poDate ? fmtDate(row.poDate) : "Not recorded"),
+      exportValue: (row) => row.poDate ?? "Not recorded",
+      dateValue: (row) => row.poDate,
+      filterType: "date",
+      sortFn: (a, b) => (a.poDate ?? "").localeCompare(b.poDate ?? ""),
     },
     {
       key: "default_delivery",
@@ -1270,6 +1271,14 @@ export default function PurchaseOrdersPage() {
   return (
     <div ref={canvasRef} className={`${registerStyles.page} flex h-full min-h-0 flex-col`} data-testid="purchase-orders-register">
       <PurchasingTabs />
+      {/* Houzs's strip (PurchaseOrdersListV2.tsx:1514-1555) as counts: the register carries no money (Loo, 2026-08-04). */}
+      <div className="grid shrink-0 grid-cols-3 gap-3 px-4 py-3" data-testid="po-kpis">
+        <FinanceKpi testId="po-kpi-total" label="Total POs" value={posQ.data ? String(allRows.length) : null} />
+        <FinanceKpi testId="po-kpi-outstanding" label="Outstanding" tone="warn"
+          value={posQ.data ? String(allRows.filter((row) => PO_STATE_GROUPS.open.has(row.facts.group)).length) : null} />
+        <FinanceKpi testId="po-kpi-received" label="Received" tone="ok"
+          value={posQ.data ? String(allRows.filter((row) => PO_STATE_GROUPS.received.has(row.facts.group)).length) : null} />
+      </div>
       <NewPurchaseOrderModal
         open={newPoOpen}
         onOpenChange={setNewPoOpen}
@@ -1356,7 +1365,7 @@ export default function PurchaseOrdersPage() {
             <DataGrid<RegisterRow>
               appearance="reference"
               presentationTools
-              sessionKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v2"}
+              sessionKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v3"}
               labelledToolbar
               rowHeight={overview ? 54 : 32}
               presentationKey={display}
@@ -1392,7 +1401,7 @@ export default function PurchaseOrdersPage() {
               onFacetRowsChange={updateFacetCandidates}
               columns={overview ? overviewColumns : columns}
               /* v2 — the nine-column date-first register replaces v1's twelve. */
-              storageKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v2"}
+              storageKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v3"}
               rowKey={(row) => row.id}
               rowTestId={(row) => `grid-row-${row.id}`}
               exportName="Purchase Orders"
@@ -1403,7 +1412,7 @@ export default function PurchaseOrdersPage() {
               activeConditions={activeConditions}
               reserveConditionRow
               onClearConditions={() => setFilter(RAIL_CLEAR)}
-              pinnedPrefix={overview ? undefined : { columns: ["po", "po_date"], narrow: ["po"] }}
+              pinnedPrefix={overview ? undefined : { columns: ["po"], narrow: ["po"] }}
               personalLayouts={overview ? undefined : personalLayouts}
               groupBanner={false}
               fixedGroups={overview ? undefined : {

@@ -14,6 +14,8 @@ import Input from "@/components/kit/Input";
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
 import Loading from "@/components/kit/Loading";
+import Tabs from "@/components/kit/Tabs";
+import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import { apiFetch } from "@/lib/api";
 import { fmtDate } from "@/lib/fmt-date";
 
@@ -89,6 +91,20 @@ function rateWhy(r: ScorecardRate): string | null {
   return r.known ? null : SCORECARD_UNKNOWN_TEXT[r.reason];
 }
 
+/* Houzs Suppliers.tsx:168-232 where Carres holds the field. Code, Phone, State and Status have no column. */
+const SUPPLIER_COLUMNS: DataGridColumn<SupplierRow>[] = [
+  { key: "name", label: "Name", width: 200, wrap: true, accessor: (s) => s.name },
+  { key: "category", label: "Supply Category", width: 200, wrap: true, accessor: (s) => s.catCovered.join(" · ") },
+  { key: "contact", label: "Contact", width: 200, wrap: true, accessor: (s) => s.contactEmail ?? s.contact ?? "" },
+  { key: "terms", label: "Payment Terms", width: 130, defaultHidden: true, accessor: (s) => (s.termsDays == null ? "" : `${s.termsDays} days`) },
+  { key: "kind", label: "Pickup", width: 130, accessor: (s) => (s.kind === "own_logistics" ? "Own Logistics" : s.kind === "factory_pickup" ? "Factory Pickup" : "") },
+  { key: "open", label: "Open POs", width: 90, align: "right", accessor: (s) => String(s.openPos), numberValue: (s) => s.openPos },
+  { key: "received", label: "Received", width: 90, align: "right", accessor: (s) => String(s.receivedPos), numberValue: (s) => s.receivedPos },
+  { key: "on_time", label: "On time", width: 90, align: "right", accessor: (s) => rateText(s.scorecard.onTime) },
+  { key: "faulty", label: "Damaged or wrong", width: 130, align: "right", accessor: (s) => rateText(s.scorecard.faulty) },
+  { key: "record", label: "Delivery record", width: 260, wrap: true, accessor: (s) => scorecardHeadline(s.scorecard) },
+];
+
 export default function OperationSuppliers() {
   const { data, isLoading, isError, refetch } = useQuery<OverviewResponse>({
     queryKey: qk.operation.suppliersOverview(),
@@ -97,6 +113,8 @@ export default function OperationSuppliers() {
   const suppliers = data?.suppliers ?? [];
   const win = data?.scorecardWindow;
   const [open, setOpen] = useState<SupplierRow | null>(null);
+  const [category, setCategory] = useState("all");
+  const categories = [...new Set(suppliers.flatMap((s) => s.catCovered))].sort();
   // No ModuleHeader on this page, so it names the browser tab itself (same as ModuleHeader).
   useEffect(() => {
     document.title = "Suppliers · Carres";
@@ -145,96 +163,21 @@ export default function OperationSuppliers() {
         <div className="text-body text-base-500">No suppliers yet.</div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        {suppliers.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setOpen(s)}
-            className="text-left p-5 bg-white border border-base-200 rounded hover:border-base-400 transition-colors cursor-pointer"
-          >
-            <div className="flex justify-between items-start mb-2.5">
-              <div>
-                <div className="text-strong">{s.name}</div>
-                <div className="text-meta text-base-500 mt-[3px]">
-                  {s.contactEmail ?? s.contact ?? GOODS_ABSENCE_WORDS.notRecorded}
-                </div>
-              </div>
-              <KindChip kind={s.kind} />
-            </div>
-            {/* P1 (2026-07-28) — the `Lead time` stat is RETIRED. It printed
-                `suppliers.lead_time`, free text ("7-21 days") that no engine
-                could compute from and that 8 of 10 suppliers left empty. How
-                long a factory takes is now a number a human sets, per supplier
-                × category, on Purchasing → Settings — and two places claiming
-                to answer one question is how the sofa ended up with three
-                different production times. The column is untouched in the DB;
-                it simply stops being shown as an answer. */}
-            <div className="grid grid-cols-2 gap-2.5 mt-3.5">
-              <Stat label="Open POs" v={s.openPos} />
-              <Stat label="Received" v={s.receivedPos} />
-            </div>
-            <div className="mt-3 text-meta text-base-500">
-              Covers · {s.catCovered.length ? s.catCovered.join(" · ") : GOODS_ABSENCE_WORDS.notRecorded}
-            </div>
-            <CardScorecard sc={s.scorecard} />
-          </button>
-        ))}
-      </div>
+      {data && suppliers.length > 0 && (
+        <>
+          <div className="mb-2">
+            <Tabs label="Supply Category" value={category} onValueChange={setCategory}
+              tabs={[{ value: "all", label: "All supply categories" }, ...categories.map((c) => ({ value: c, label: c }))]} />
+          </div>
+          <DataGrid rows={suppliers.filter((s) => category === "all" || s.catCovered.includes(category))}
+            columns={SUPPLIER_COLUMNS} rowKey={(s) => s.id} rowTestId={(s) => `supplier-row-${s.id}`}
+            storageKey="carres.operation.suppliers.v1" appearance="reference" fillColumn="name" groupBanner={false}
+            exportName="Suppliers" searchPlaceholder="Search by name / contact…" emptyMessage="No suppliers match."
+            onRowClick={setOpen} />
+        </>
+      )}
 
       {open && <SupplierDrawer supplier={open} onClose={() => setOpen(null)} />}
-    </div>
-  );
-}
-
-function KindChip({ kind }: { kind: SupplierRow["kind"] }) {
-  if (!kind) return null;
-  const isOwn = kind === "own_logistics";
-  return (
-    <span
-      className={`text-label uppercase tracking-[0.06em] px-2.5 py-[2px] rounded-full ${
-        isOwn ? "bg-success-soft text-success" : "bg-base-100 text-base-700"
-      }`}
-    >
-      {isOwn ? "Own Logistics" : "Factory Pickup"}
-    </span>
-  );
-}
-
-function Stat({ label, v }: { label: string; v: number | string }) {
-  return (
-    <div>
-      <div className="text-meta text-kit-slate-11">
-        {label}
-      </div>
-      <div className="text-strong text-base-900 mt-0.5 tabular-nums">
-        {v}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The card's scorecard strip.
- *
- * When nothing can be scored yet it shows ONE sentence instead of a row of
- * dashes — ten identical rows of "—" teach nothing, and the sentence says both
- * why the figures are absent and what makes them appear.
- */
-function CardScorecard({ sc }: { sc: SupplierScorecard }) {
-  const anyKnown =
-    sc.onTime.known || sc.inFull.known || sc.faulty.known || sc.claimRate.known;
-
-  return (
-    <div className="mt-3.5 pt-3 border-t border-base-100">
-      {anyKnown && (
-        <div className="grid grid-cols-4 gap-2.5 mb-2">
-          <Stat label="On time" v={rateText(sc.onTime)} />
-          <Stat label="In full" v={rateText(sc.inFull)} />
-          <Stat label="Damaged or wrong" v={rateText(sc.faulty)} />
-          <Stat label="Needed a claim" v={rateText(sc.claimRate)} />
-        </div>
-      )}
-      <div className="text-meta text-base-600">{scorecardHeadline(sc)}</div>
     </div>
   );
 }

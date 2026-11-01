@@ -6223,3 +6223,16 @@ decision. These words are admitted for the Service Cases page, the case window a
 ### Report a problem to IT (side menu bottom)
 
 The row at the bottom of the side menu (above the person, beside `Settings`, on every module; the Layout Standard 1 top bar is unchanged) and its dialog send a request to the Houzs IT Hub (`/api/it-support/tickets`, Worker secrets `IT_HUB_URL` and `IT_HUB_API_KEY`). Words: **`Report a problem to IT`** · **`What went wrong?`** · **`Tell IT more`** · **`How urgent is it?`** (`Can wait` · `Soon` · `Blocking my work`) · **`Send to IT`** · **`Sent to IT. Your request number is {code}.`** · **`Done`**. This is IT's request, not a Service Case: do not mix it with the Unit and Service `Report a problem`.
+
+## Procurement lists, following Houzs · Weisiang, WhatsApp 1 Nov 2026
+
+| Where | Words |
+|---|---|
+| Procurement Overview | `PO raised` · `Received` · `Total outstanding` · `Breakdown` · `By category` · `By supplier` · `POs` · `Outstanding: how late` · `Late 5+ days` · `Late up to 4 days or due tomorrow` · `Due in 2–7 days` · `Due in 8+ days` · `Overdue` · `Arriving in the next 3 days` · `Still to come` · `Promised` · `Days late` · `Due in` |
+| Suppliers tabs and columns | `All supply categories`; `Name` · `Supply Category` · `Contact` · `Pickup` · `Open POs` · `Received` · `On time` · `Damaged or wrong` · `Delivery record`; hidden until chosen: `Payment Terms` |
+| Purchase Orders tiles | `Total POs` · `Outstanding` · `Received` |
+| PO Amendments tabs and date | `Requested` · `Approved` · `Rejected` · `All`; `Created` |
+| Cancellation Requests tabs and columns | `Open` · `All`; `Level 1` · `Level 2` · `Approval Remarks` |
+| Purchase Invoices | `PI No` · `Supplier Invoice No` · `PI Doc Date` · `Supplier` · `Total` · `Paid` · `Owed` · `Due Date` · `Status` · `PO No`; tabs `All` · `Draft` · `Confirmed` · `Partial` · `Paid` · `Cancelled`; tiles `Total PIs` · `Billed` · `Owed` · `Paid`; `New Purchase Invoice` · `From GRN` |
+| Purchase Returns tabs and tiles | `All` · `Confirmed` · `Completed` · `Cancelled`; `Total Returns` · `Pending` · `Settled` |
+| MRP search | `Code, description, SO no, customer…` |

@@ -55,6 +55,7 @@ import {
   purchaseReturnItemSpec,
   purchaseReturnItems,
   purchaseReturnMatches,
+  purchaseReturnPickupState,
   purchaseReturnNo,
   purchaseReturnPickupLocation,
   purchaseReturnPoNo,
@@ -67,7 +68,9 @@ import {
   type PurchaseReturnListRow,
 } from "@carres/shared";
 import { useOperationPurchaseReturns, useOperationSuppliers } from "@/lib/queries";
+import { FinanceKpi } from "@/components/FinanceKpi";
 import Select from "@/components/kit/Select";
+import Tabs from "@/components/kit/Tabs";
 import PurchaseReturnIssue from "./components/PurchaseReturnIssue";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
@@ -147,6 +150,16 @@ export interface PurchaseReturnsRegisterProps {
   onNew?: () => void;
 }
 
+/* Houzs's pills and tiles (PurchaseReturnsListV2.tsx:800-806, 841-844) as counts: Carres
+   issues a return on save, so it has no Draft, and a return carries no credit value. */
+const RETURN_VIEWS = [
+  { value: "all", label: "All" }, { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" },
+] as const;
+type ReturnView = (typeof RETURN_VIEWS)[number]["value"];
+export const returnViewOf = (row: PurchaseReturnListRow): Exclude<ReturnView, "all"> =>
+  row.cancelled_at ? "cancelled" : purchaseReturnPickupState(row) === "Fully picked up" ? "completed" : "confirmed";
+
 export function PurchaseReturnsRegister({
   returns,
   isLoading = false,
@@ -162,6 +175,8 @@ export function PurchaseReturnsRegister({
   const [supplier, setSupplier] = useState<string | null>(null);
   const [condition, setCondition] = useState<PurchaseReturnCondition | null>(null);
   const [railOpen, setRailVisible] = useState(true);
+  const [view, setView] = useState<ReturnView>("all");
+  const viewCount = (value: ReturnView) => (value === "all" ? returns.length : returns.filter((row) => returnViewOf(row) === value).length);
 
   /**
    * ⭐ CLICK AGAIN TO DESELECT — §9.6, and it is the rail's whole grammar.
@@ -177,8 +192,8 @@ export function PurchaseReturnsRegister({
     setCondition((previous) => (previous === value ? null : value));
 
   const rows = useMemo(
-    () => returns.filter((row) => purchaseReturnMatches(row, { supplier, condition })),
-    [returns, supplier, condition],
+    () => returns.filter((row) => purchaseReturnMatches(row, { supplier, condition }) && (consignment || view === "all" || returnViewOf(row) === view)),
+    [returns, supplier, condition, consignment, view],
   );
 
   /* Counts respect the OTHER active dimension, never their own (§9.6:
@@ -534,6 +549,15 @@ export function PurchaseReturnsRegister({
           </FilterRail>
         )}
         <div className="flex min-w-0 flex-1 flex-col p-2">
+          {!consignment && <div className="shrink-0 space-y-2 pb-2">
+            <div className="grid grid-cols-3 gap-3">
+              <FinanceKpi testId="pr-kpi-total" label="Total Returns" value={isLoading ? null : String(returns.length)} />
+              <FinanceKpi testId="pr-kpi-pending" label="Pending" tone="warn" value={isLoading ? null : String(viewCount("confirmed"))} />
+              <FinanceKpi testId="pr-kpi-settled" label="Settled" tone="ok" value={isLoading ? null : String(viewCount("completed"))} />
+            </div>
+            <Tabs label="Purchase Returns view" value={view} onValueChange={(v) => setView(v as ReturnView)}
+              tabs={RETURN_VIEWS.map((v) => ({ value: v.value, label: `${v.label} · ${viewCount(v.value)}` }))} />
+          </div>}
           <DataGrid
             rows={rows}
             columns={columns}
