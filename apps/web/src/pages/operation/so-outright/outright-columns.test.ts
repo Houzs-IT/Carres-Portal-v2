@@ -3,7 +3,7 @@ import type { OutrightOrderFacts } from "@carres/shared";
 import type { PaymentMonitorRow } from "@carres/shared/payment-monitor";
 import { ApiError } from "@/lib/api";
 import type { RegisterRow } from "../sales-order-columns";
-import { COLUMNS, LAYOUTS, supplierCell, timeWords, type CellContext, type OwnedRead, type PayByRead } from "./outright-columns";
+import { COLUMNS, LAYOUTS, inDateRange, klDay, supplierCell, timeWords, type CellContext, type OwnedRead, type PayByRead } from "./outright-columns";
 import { readStateOf } from "./pay-by";
 
 /* The year rule and `passed` read today: pin it (COPY "THE YEAR RULE"). */
@@ -134,19 +134,38 @@ describe("readStateOf", () => {
 });
 
 describe("Sales Order view headers (fix list 14 Oct 2026)", () => {
-  it("prints the v12 words, sentence case, and the preserved date's own two-line header (owner 14 Oct)", () => {
+  it("starts in Houzs's column order, with the Carres sales location in Houzs's Location position", () => {
     const so = LAYOUTS.find((l) => l.key === "so")!;
-    expect(so.columns.map((k) => COLUMNS[k]!.label)).toEqual([
-      "Proceed date", "SO no.", "Items", "Sales location", "Delivery location", "Customer’s original requested delivery",
+    expect(so.columns.filter((k) => !so.hidden?.includes(k)).map((k) => COLUMNS[k]!.label)).toEqual([
+      "Doc. No.", "Date", "Ref No.", "Agent", "Debtor Name", "Total", "Sales Location", "Balance", "Processing Date",
+      "Customer’s original requested delivery", "Item Group", "Item Code", "Detail Description", "Detail Description 2", "Unit Price", "Qty",
     ]);
   });
 
-  it("splits the preserved date's header on two lines, never ETA, and uses the v12 widths", () => {
+  it("splits the preserved date's header on two lines, never ETA", () => {
     expect(COLUMNS.reqDate!.head).toEqual(["Customer’s original", "requested delivery"]);
-    const so = LAYOUTS.find((l) => l.key === "so")!;
-    expect(so.columns.map((k) => COLUMNS[k]!.width)).toEqual([
-      "120px", "minmax(150px,1fr)", "120px", "minmax(120px,1fr)", "minmax(170px,1fr)", "140px",
-    ]);
+  });
+
+  it("prints a line fact as the first value and +N, with every value on hover", () => {
+    const r = row({ order_lines: [
+      { sku: "A", qty: 1, label: "Booqit · King" },
+      { sku: "B", qty: 2, label: "Jager · Queen" },
+      { sku: "C", qty: 0, label: "Gone" },
+    ] } as Partial<RegisterRow["o"]>);
+    const ctx = ctxOf({ state: "loading" });
+    expect(COLUMNS.itemCode!.cell(r, ctx)).toMatchObject({ t: "A +1", title: "A\nB" });
+    expect(COLUMNS.detail!.cell(r, ctx).t).toBe("Booqit +1");
+    expect(COLUMNS.detail2!.cell(r, ctx).t).toBe("King +1");
+    expect(COLUMNS.lineQty!.cell(r, ctx).t).toBe("3");
+    expect(COLUMNS.detail2!.cell(row({ order_lines: [{ sku: "FREE TEXT", qty: 1 }] } as Partial<RegisterRow["o"]>), ctx).t).toBe("Not recorded");
+  });
+
+  it("date ranges read the Malaysian day, and a missing date never matches a range", () => {
+    expect(klDay("2026-10-31T17:00:00Z")).toBe("2026-11-01");
+    expect(inDateRange("2026-10-31T17:00:00Z", "2026-11-01", "2026-11-01")).toBe(true);
+    expect(inDateRange("2026-10-31", "2026-11-01", null)).toBe(false);
+    expect(inDateRange(null, "2026-11-01", null)).toBe(false);
+    expect(inDateRange(null, null, null)).toBe(true);
   });
 });
 

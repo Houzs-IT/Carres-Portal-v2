@@ -136,6 +136,35 @@ describe("Outright empty population versus filtered empty", () => {
   });
 });
 
+describe("Outright in the Houzs shape", () => {
+  it("opens on Houzs's first columns, with its four cards and tab counts", () => {
+    mount("/operation/orders?cols=so");
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent).join(" ")).toMatch(/Doc\. No\..*Date.*Ref No\..*Agent.*Debtor Name.*Total.*Sales Location.*Balance/);
+    const stats = screen.getByTestId("outright-stats");
+    expect(stats).toHaveTextContent("Total Orders60");
+    expect(stats).toHaveTextContent("Paid");
+    expect(screen.getByRole("tab", {name:"All"})).toHaveTextContent("All60");
+  });
+  it("hides the cards while the read is loading or failed, never showing RM 0", () => {
+    testState.loading = true;
+    mount("/operation/orders?cols=so");
+    expect(screen.queryByTestId("outright-stats")).toBeNull();
+  });
+  it("the search box writes the same search the list already reads", async () => {
+    mount("/operation/orders?cols=so");
+    const box = screen.getByRole("searchbox", {name:"Search sales orders"});
+    fireEvent.change(box, {target:{value:"TEST-FIND"}});
+    fireEvent.submit(box.closest("form")!);
+    await waitFor(()=>expect(screen.getByTestId("register-location")).toHaveTextContent("search=TEST-FIND"));
+  });
+  it("a date range narrows the list, shows a chip, and Clear removes it", async () => {
+    mount("/operation/orders?cols=so&from.soDate=2026-10-01");
+    expect(screen.getByTestId("outright-stats")).toHaveTextContent("Total Orders0");
+    fireEvent.click(screen.getByRole("button", {name:/Order Date: /}));
+    await waitFor(()=>expect(screen.getByTestId("outright-stats")).toHaveTextContent("Total Orders60"));
+  });
+});
+
 describe("Outright record return context", () => {
   it("returns to the same sorted page, selected row and grid scroll with URL filters retained", async () => {
     mount();
