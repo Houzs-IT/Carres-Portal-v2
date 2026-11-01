@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { fieldCls } from "@/components/Field";
+import { controlClass } from "@/components/kit/field-recipe";
 import { FinanceKpi } from "@/components/FinanceKpi";
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
@@ -77,7 +77,7 @@ export default function CorrectionsPage() {
             searchPlaceholder="Search order, receipt, reason…"
             emptyMessage="No payment was corrected or voided in this month."
             toolbarStart={
-              <input type="month" aria-label="Month" className={fieldCls} value={month} max={appTodayIso().slice(0, 7)}
+              <input type="month" aria-label="Month" className={controlClass(false)} value={month} max={appTodayIso().slice(0, 7)}
                 onChange={(e) => setMonth(e.target.value)} />
             }
             statusSummary={(visible) => (
