@@ -6196,6 +6196,7 @@ Source: `apps/web/src/pages/finance/SalesInvoices.tsx`.
 | Payment Vouchers notice | `{n} payment requests are waiting for Finance` · `Print {n} vouchers` |
 | Payment Requests tabs | `All` · `Waiting for Finance` · `Processing` · `Paid` · `Returned / withdrawn` |
 | Suppliers tabs and columns | `All` · `Trade` · `Other` · `Missing TIN`; `Owed` · `Advance` · `Open bills` |
+| Page headings, the same words as the sidebar row | `AP Invoices` (`/finance/bills`) · `Merchant Recon` (`/finance/card-settlement`) · `Journal Entries` (`/finance/ledger`) · `AP · Payables` (`/finance/ap-outstanding`) |
 | Customer Credit Notes columns | `Number` · `Date` · `Party` · `Reference` · `SO` · `Reason` · `Total` · `Status`; hidden until chosen: `Void reason`; `Print {n} credit notes` |
 
 ## New Sales Invoice words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22) · BUILT ON BRANCH `feat/office-new-sales-invoice` (0712 not applied)
