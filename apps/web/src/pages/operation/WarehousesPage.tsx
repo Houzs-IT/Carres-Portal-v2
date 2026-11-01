@@ -38,6 +38,7 @@ import Select from "@/components/kit/Select";
 import Tabs from "@/components/kit/Tabs";
 import Loading from "@/components/kit/Loading";
 import ModuleHeader from "./components/ModuleHeader";
+import { KpiRow } from "./houzs-list-bits";
 import CouldNotLoad from "./components/CouldNotLoad";
 
 /** COPY-STANDARD "Warehouses — Houzs-way views (Weisiang 2026-10-22)". */
@@ -165,6 +166,15 @@ export default function WarehousesPage() {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col" data-testid="warehouses-page">
       <ModuleHeader testId="warehouses-destination-header" word={W.page} docTitle="Warehouses · Warehouse — Carres" destinationHeader />
+      {!sku && view === "inventory" && warehouses.isSuccess && (() => {
+        const stock = warehouses.data.byWarehouse[siteId] ?? [];
+        return <KpiRow items={[
+          { label: "Own Stock Qty", value: stock.reduce((n, e) => n + e.qty, 0), hint: "Units at this Site" },
+          { label: W.available, value: stock.reduce((n, e) => n + (e.available ?? 0), 0), hint: "Not reserved" },
+          { label: W.reserved, value: stock.reduce((n, e) => n + e.reserved, 0), hint: "Held for an order" },
+          { label: W.items, value: stock.filter((e) => e.qty > 0).length, hint: "Distinct items" },
+        ]} />;
+      })()}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
         {sku ? (
           <StockCard sku={sku} siteId={siteId} sites={sites} toolbar={<>
@@ -185,6 +195,7 @@ export default function WarehousesPage() {
             onRowClick={(s) => go({ view: "inventory", site: s.id })}
             columns={[
               { key: "name", label: W.site, accessor: (s) => s.name, searchValue: (s) => s.name, exportValue: (s) => s.name, sortable: true },
+              { key: "type", label: "Type", accessor: (s) => (s.owning_partner_id ? "Logistics partner" : "Own"), exportValue: (s) => (s.owning_partner_id ? "Logistics partner" : "Own"), filterType: "enum" },
               { key: "address", label: W.address, accessor: (s) => s.address ?? W.notRecorded, exportValue: (s) => s.address ?? "" },
               {
                 key: "items", label: W.items, align: "right", sortable: true,
@@ -238,20 +249,31 @@ function StockCard({ sku, siteId, sites, toolbar }: {
     queryKey: ["operation", "stock-card", sku, siteId],
     queryFn: () => apiFetch(`/api/ops/stock/stock-card?sku=${encodeURIComponent(sku)}${siteId ? `&site=${encodeURIComponent(siteId)}` : ""}`),
   });
+  const [type, setType] = useState("all");
+  const lines = q.data?.lines ?? [];
+  const shown = lines.filter((l) => type === "all" || (type === "in" ? l.qtyIn > 0 : l.qtyOut > 0));
   const siteName = new Map(sites.map((s) => [s.id, s.name]));
   const valueWord = (line: StockCardLine, v: string | null) =>
     v === null ? "" : line.event === "site_changed" ? siteName.get(v) ?? v : v;
   return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    {q.isSuccess && <KpiRow items={[
+      { label: "Current Qty", value: lines.at(-1)?.balance ?? 0, hint: "Balance after the last movement" },
+      { label: "Last Movement", value: lines.at(-1) ? fmtDate(lines.at(-1)!.eventAt) : W.notRecorded, hint: "Newest line below" },
+    ]} />}
     <DataGrid<StockCardLine>
       appearance="reference"
       storageKey="carres.warehouse.stock-card.v1"
-      rows={[...(q.data?.lines ?? [])].reverse()}
+      rows={[...shown].reverse()}
       rowKey={(l) => String(l.seq)}
       isLoading={q.isLoading}
       errorState={q.isError && !q.data ? <CouldNotLoad onRetry={() => void q.refetch()} /> : undefined}
       emptyMessage={W.noLines}
       exportName={`${W.stockCard} ${sku}`}
-      toolbarStart={<>{toolbar}<span className="text-body font-medium text-c-ink" data-testid="stock-card-item">{W.stockCard} · {sku}</span></>}
+      toolbarStart={<>{toolbar}<span className="text-body font-medium text-c-ink" data-testid="stock-card-item">{W.stockCard} · {sku}</span>
+        <Tabs variant="segmented" label="Type" value={type} onValueChange={setType} tabs={[
+          { value: "all", label: "All" }, { value: "in", label: "IN" }, { value: "out", label: "OUT" },
+        ]} /></>}
       columns={[
         { key: "when", label: W.when, accessor: (l) => fmtDate(l.eventAt), exportValue: (l) => l.eventAt, sortable: true },
         { key: "unit", label: W.unitId, accessor: (l) => l.unitCode ?? W.counted, searchValue: (l) => l.unitCode ?? "" },
@@ -264,6 +286,7 @@ function StockCard({ sku, siteId, sites, toolbar }: {
         { key: "balance", label: W.balance, align: "right", numberValue: (l) => l.balance, exportValue: (l) => l.balance, accessor: (l) => l.balance },
       ]}
     />
+    </div>
   );
 }
 
@@ -317,6 +340,17 @@ function RacksAndBins({ siteId, toolbar }: { siteId: string; toolbar: React.Reac
           </span>
         ))}
       </div>
+      {q.isSuccess && bins.length > 0 && (
+        <dl className="flex flex-wrap gap-4 text-body" data-testid="bin-stats">
+          {([
+            ["Total slots", bins.length],
+            ["Occupied", bins.filter((b) => binFill(b) !== "empty").length],
+            ["Empty", bins.filter((b) => binFill(b) === "empty").length],
+            ["Reserved", bins.filter((b) => binFill(b) === "reserved").length],
+            ["Occupancy", `${Math.round((bins.filter((b) => binFill(b) !== "empty").length / bins.length) * 100)}%`],
+          ] as const).map(([k, v]) => <div key={k}><dt className="text-meta text-c-secondary">{k}</dt><dd className="font-medium text-c-ink">{v}</dd></div>)}
+        </dl>
+      )}
       {q.isLoading ? <Loading variant="skeleton" label={W.bins} /> : q.isError && !q.data ? (
         <CouldNotLoad onRetry={() => void q.refetch()} />
       ) : racks.length === 0 ? (
@@ -348,10 +382,13 @@ function RacksAndBins({ siteId, toolbar }: { siteId: string; toolbar: React.Reac
 
 function LoadingList({ siteId, toolbar }: { siteId: string; toolbar: React.ReactNode }) {
   const q = useDeliveryWarehouseSchedule();
+  // Houzs LoadingList.tsx:47-51: To load · Loaded · All.
+  const [filter, setFilter] = useState("toLoad");
   const rows = useMemo(
-    () => loadingListRows(warehouseOutboundCards((q.data?.events ?? []) as DeliveryWarehouseScheduleEvent[]))
-      .filter((r) => !siteId || r.warehouseSiteId === null || r.warehouseSiteId === siteId),
-    [q.data, siteId],
+    () => loadingListRows(warehouseOutboundCards((q.data?.events ?? []) as DeliveryWarehouseScheduleEvent[]), { includeLoaded: true })
+      .filter((r) => !siteId || r.warehouseSiteId === null || r.warehouseSiteId === siteId)
+      .filter((r) => filter === "all" || (filter === "toLoad" ? r.toLoad > 0 : r.toLoad === 0)),
+    [q.data, siteId, filter],
   );
   return (
     <DataGrid<LoadingListRow>
@@ -363,7 +400,10 @@ function LoadingList({ siteId, toolbar }: { siteId: string; toolbar: React.React
       errorState={q.isError && !q.data ? <CouldNotLoad onRetry={() => void q.refetch()} /> : undefined}
       emptyMessage={W.nothingToLoad}
       exportName={W.loading}
-      toolbarStart={toolbar}
+      toolbarStart={<>{toolbar}
+        <Tabs variant="segmented" label={W.loading} value={filter} onValueChange={setFilter} tabs={[
+          { value: "toLoad", label: W.toLoad }, { value: "loaded", label: W.loaded }, { value: "all", label: "All" },
+        ]} /></>}
       initialGroupBy={["doNumber"]}
       columns={[
         { key: "eventDate", label: W.date, accessor: (r) => fmtDate(r.eventDate), exportValue: (r) => r.eventDate, sortable: true },
