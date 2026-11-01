@@ -121,7 +121,7 @@ function BillRegister() {
       searchValue: (r) => r.supplier_name, filterType: "enum" },
     { key: "kind", label: "Creditor Type", width: 140, defaultHidden: true, accessor: (r) => creditorKindWord(r.supplier_kind),
       filterValue: (r) => creditorKindWord(r.supplier_kind), filterType: "enum" },
-    { key: "invoice", label: "Supplier Invoice", width: 160, defaultHidden: true, accessor: (r) => r.supplier_invoice_no,
+    { key: "invoice", label: "Supplier Invoice", width: 160, accessor: (r) => r.supplier_invoice_no,
       searchValue: (r) => r.supplier_invoice_no },
     { key: "grn", label: "GRN", width: 160, defaultHidden: true, wrap: true, accessor: (r) => r.grn_nos ?? "Not from a GRN",
       searchValue: (r) => r.grn_nos ?? "" },
@@ -150,7 +150,7 @@ function BillRegister() {
             rows={rows}
             columns={columns}
             rowKey={(r) => r.id}
-            storageKey="carres.finance.bills.v3"
+            storageKey="carres.finance.bills.v4"
             appearance="reference"
             look="finance" personalLayouts={personalLayouts} fillColumn="supplier"
             exportName="Bills"

@@ -224,12 +224,12 @@ describe("Bills register", () => {
     show("/finance/bills");
     await screen.findByText("BILL-4XK2");
     expect(screen.getByText("Draft, no number yet")).toBeInTheDocument();
-    // Seven columns at first (Chew 2026-10-14): Price Check waits in Columns.
+    // Chew 2026-10-14's seven plus the supplier's invoice no, as Houzs's AP list shows its Ref (Weisiang 1 Nov 2026).
     const heads = () => [...document.querySelectorAll<HTMLElement>("thead th")].map((th) => th.title).filter(Boolean);
-    expect(heads()).toEqual(["Bill No", "Bill Date", "Supplier", "Due Date", "Status", "Total", "Unpaid"]);
+    expect(heads()).toEqual(["Bill No", "Bill Date", "Supplier", "Supplier Invoice", "Due Date", "Status", "Total", "Unpaid"]);
     expect(screen.queryByText("1 line differs from PO")).not.toBeInTheDocument();
     (fireEvent.click(screen.getByRole("button", { name: "Page tools" })), fireEvent.click(screen.getByRole("menuitem", { name: "Columns" })));
-    for (const held of ["Creditor Type", "Supplier Invoice", "GRN", "Files"]) {
+    for (const held of ["Creditor Type", "GRN", "Files"]) {
       expect(screen.getByRole("checkbox", { name: held })).not.toBeChecked();
     }
     fireEvent.click(screen.getByRole("checkbox", { name: "Price Check" }));
@@ -285,6 +285,21 @@ describe("Creditor codes in the pickers (0691)", () => {
 });
 
 describe("Payment vouchers register", () => {
+  it("the Houzs status tabs narrow the list", async () => {
+    api.routes[`${B}/vouchers`] = { rows: [{ id: PV, voucher_no: "PV-9M3Q", status: "approved", purpose: "SUPPLIER_BILLS",
+      supplier_id: SUP, supplier_name: "Lumen Sofa Works", payee_name: "Lumen Sofa Works", voucher_date: "2026-09-11",
+      amount: "1225.00", pay_method: "BANK_TRANSFER", pay_reference: null, pay_from_account_code: "1120",
+      pay_from_name: "Bank", bill_nos: "BILL-4XK2", line_count: 0, prepared_by_name: "Aina", checked_by_name: "Boon",
+      approved_by_name: "Dina", file_count: 0, created_at: "2026-09-11T01:00:00Z", advance_amount: "0.00",
+      advance_open: null }] };
+    show("/finance/payment-vouchers");
+    await screen.findByRole("link", { name: "PV-9M3Q" });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Cancelled" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Cancelled" }));
+    expect(await screen.findByTestId("vouchers-summary")).toHaveTextContent(/^0 vouchers/);
+    expect(screen.queryByRole("link", { name: "PV-9M3Q" })).not.toBeInTheDocument();
+  });
+
   it("the voucher number is a blue link, not plain text", async () => {
     api.routes[`${B}/vouchers`] = { rows: [{ id: PV, voucher_no: "PV-9M3Q", status: "approved", purpose: "SUPPLIER_BILLS",
       supplier_id: SUP, supplier_name: "Lumen Sofa Works", payee_name: "Lumen Sofa Works", voucher_date: "2026-09-11",
