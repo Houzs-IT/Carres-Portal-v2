@@ -1,3 +1,4 @@
+// design-standard: not-a-list-page — a modal; its table lists the POs being answered.
 import { useState } from "react";
 import { PO_DELAY_REASONS } from "@carres/shared";
 import KitModal from "@/components/kit/Modal";
