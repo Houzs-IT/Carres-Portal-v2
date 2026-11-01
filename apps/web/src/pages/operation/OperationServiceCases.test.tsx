@@ -4,6 +4,9 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import OperationServiceCases from "./OperationServiceCases";
 import type { ServiceCase } from "@carres/shared";
+import { caseAgeDays } from "./OperationServiceCases";
+import { caseTimeline, customerHistory } from "./components/ServiceCaseDetail";
+import { caseUrgency } from "./components/serviceCaseViews";
 
 /**
  * The Deadline column counts against TODAY IN MALAYSIA, not the browser's
@@ -149,8 +152,81 @@ describe("Service Cases — tabs", () => {
     vi.mocked(apiFetch).mockResolvedValue({ items: [row], total: 1 });
     mount();
     expect(screen.getByRole("tablist", { name: "Service Cases view" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Cases" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Numbers" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Service Cases" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Quality Overview" })).toBeInTheDocument();
     expect(await screen.findByText("SC-1")).toBeInTheDocument();
+  });
+});
+
+describe("Service Cases — the Houzs helpers", () => {
+  const clock = (over: object) => ({ state: "running", workingDaysLeft: 10, ...over }) as never;
+  it("buckets the board by the case deadline", () => {
+    expect(caseUrgency(clock({ state: "late", workingDaysLeft: -2 }))).toBe("overdue");
+    expect(caseUrgency(clock({ workingDaysLeft: 0 }))).toBe("today");
+    expect(caseUrgency(clock({ workingDaysLeft: 3 }))).toBe("soon");
+    expect(caseUrgency(clock({ workingDaysLeft: 4 }))).toBe("later");
+    expect(caseUrgency(clock({ state: "off", workingDaysLeft: null }))).toBe("none");
+  });
+  it("counts case age in calendar days", () => {
+    expect(caseAgeDays("2026-07-06", "2026-07-22")).toBe(16);
+  });
+  it("finds a customer's other cases by phone, else by name", () => {
+    const a = { ...row, id: "a", customerPhone: "012" };
+    const b = { ...row, id: "b", customerPhone: "012", customerName: "Other" };
+    const c = { ...row, id: "c", customerPhone: "099" };
+    expect(customerHistory(a, [a, b, c]).map((r) => r.id)).toEqual(["b"]);
+    const n = { ...row, id: "n", customerPhone: null };
+    expect(customerHistory(n, [n, { ...row, id: "m", customerPhone: "1" }, { ...row, id: "x", customerName: "Bob" }]).map((r) => r.id)).toEqual(["m"]);
+  });
+  it("lists what the case recorded, newest first", () => {
+    const rows = caseTimeline({ ...row, createdBy: "u1", evidence: [{ slot: "s", path: "p", kind: "photo", at: "2026-07-07T01:00:00Z", by: "u1", byRole: "operation" }] }, () => "Shasha");
+    expect(rows.map((r) => r.text)).toEqual(["Photo added", "Case opened"]);
+    expect(rows[0].who).toBe("Shasha");
+  });
+});
+
+describe("Service Cases — the case page and the views", () => {
+  const at = (url: string) => render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[url]}><OperationServiceCases /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const answer = (rows: object[]) => {
+    vi.mocked(apiFetch).mockReset();
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path.endsWith("/remedy")) return { requests: [], proposals: [], evidence: [], units: [], approver: null, canPropose: false, canDecide: false };
+      if (path.endsWith("/config")) return { types: [], statuses: [{ id: "s1", label: "Pending", isClosed: false }, { id: "s2", label: "Resolved", isClosed: true }] };
+      if (path.includes("/api/ops/service-cases/")) return rows[0];
+      return { items: rows, total: rows.length, staff: [] };
+    });
+  };
+
+  it("opens ?case= as a page with the Houzs sections and the stage workflow", async () => {
+    answer([{ ...row, statusId: "s1", statusLabel: "Pending" }]);
+    at("/operation?tab=service-notes&case=c1");
+    expect(await screen.findByTestId("service-case-detail")).toBeInTheDocument();
+    for (const name of ["Workflow", "Issue", "Product Info", "Resolution", "Customer", "Customer History", "Timeline"])
+      expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Close Case" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "1. Pending" })).toHaveAttribute("aria-current", "step");
+  });
+
+  it("hides closed cases on Hide completed, and shows them again when the closed stage is picked", async () => {
+    answer([
+      { ...row, id: "a", caseNo: "SC-A", statusId: "s1", statusLabel: "Pending" },
+      { ...row, id: "b", caseNo: "SC-B", statusId: "s2", statusLabel: "Resolved", statusIsClosed: true },
+    ]);
+    at("/operation?tab=service-notes");
+    expect(await screen.findByText("SC-B")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide completed" }));
+    await waitFor(() => expect(screen.queryByText("SC-B")).toBeNull());
+    fireEvent.click(screen.getByTestId("case-stage-card-s2"));
+    expect(await screen.findByText("SC-B")).toBeInTheDocument();
+  });
+
+  it("keeps the module's own tab when Quality Overview is opened", () => {
+    answer([]);
+    at("/operation?tab=service-notes&view=quality");
+    expect(screen.getByRole("tab", { name: "Quality Overview" })).toHaveAttribute("aria-selected", "true");
   });
 });
