@@ -307,7 +307,7 @@ describe("OperationApp — one header on Manual Purchase", () => {
     renderApp("/operation?tab=dashboard");
     expectOneHeader();
     // A page that does not name itself is named by its menu item.
-    expect(screen.getByTestId("shell-title")).toHaveTextContent("Dashboard");
+    expect(screen.getByTestId("shell-title")).toHaveTextContent("Overview");
   });
 });
 

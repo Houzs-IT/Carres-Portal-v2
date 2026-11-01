@@ -1088,10 +1088,12 @@ describe("OperationReceiving — one destination and the paged register", () => 
     // (`Receiving & Inbound`) is a separate page under DATA → Reports since
     // 2026-10-08 — a report, not a second receiving desk.
     const { PORTAL_NAV } = await import("../portal/portal-nav");
+    // The row's word is `Goods Receipt` since the 2026-11-01 Houzs tree, so the
+    // rail is searched by the tab it opens, not by its label.
     const receivingRows = PORTAL_NAV.flatMap((g) => g.items).filter((i) =>
-      i.label.toLowerCase().includes("receiving") && i.section !== "Reports",
+      ((i.tab ?? i.key) === "receiving" || i.label.toLowerCase().includes("receiving")) && i.section !== "Reports",
     );
-    expect(receivingRows.map((i) => i.label)).toEqual(["Receiving"]);
+    expect(receivingRows.map((i) => i.label)).toEqual(["Goods Receipt"]);
     const reportRows = PORTAL_NAV.flatMap((g) => g.items).filter((i) =>
       i.label.toLowerCase().includes("receiving") && i.section === "Reports",
     );
