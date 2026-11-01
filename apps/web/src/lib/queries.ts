@@ -2942,7 +2942,7 @@ export interface operationOrderListRow {
   receipt_documents?: { id: string; receipt_no: string | null }[];
   allocated_receipts?: { order_payments: { id: string; receipt_no: string | null } | null }[];
   /** Existing amendments have no governed document-number field. */
-  amendment_documents?: { id: string }[];
+  amendment_documents?: { id: string; status?: string }[];
 
   /** Blueprint card §7 (2026-08-16) — the two composed Work facts: an OPEN
    *  Finance exception (0355) and a loan still out (0209/0217). Optional so an
@@ -3144,6 +3144,13 @@ export interface operationOrdersListResponse {
 
 /** GET /api/operation/orders/:id — composed drawer payload (orders.ts §97). */
 export interface operationOrderDetailOrder {
+  customer_address_line1?: string | null;
+  customer_address_line2?: string | null;
+  customer_address_city?: string | null;
+  customer_address_postcode?: string | null;
+  customer_address_state?: string | null;
+  delivery_floor?: number | null;
+  delivery_has_lift?: boolean | null;
   id: string;
   so: number;
   /** Customer/source reference(s), e.g. ["DL0584"] — shown next to the SO. */

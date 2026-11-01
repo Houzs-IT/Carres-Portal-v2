@@ -93,7 +93,7 @@ describe("GET /api/operation/orders", () => {
     expect(fields).toContain("invoice_documents:invoices(id,invoice_no)");
     expect(fields).toContain("receipt_documents:order_payments(id,receipt_no)");
     expect(fields).toContain("allocated_receipts:payment_allocations(order_payments(id,receipt_no))");
-    expect(fields).toContain("amendment_documents:sales_order_amendments(id)");
+    expect(fields).toContain("amendment_documents:sales_order_amendments(id,status)");
   });
 
   it("searches linked identities before the register cap, retaining normal order scope", async () => {
