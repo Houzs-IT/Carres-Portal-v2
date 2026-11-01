@@ -3,9 +3,8 @@ import type { PortalNavItem } from "./portal-nav";
 /**
  * THE MENU TREE — one rule for every module (owner 12 Oct 2026; 01 §4 "Side
  * menu"). A module's pages hang on one tree line. A module may also name
- * groups for its pages (Purchasing: BUY · RECEIVE · PROBLEMS · SHOWROOM); a
- * group is a small caps word on the tree with its own chevron, never a
- * destination. It is all read from data: a page says which group it belongs to
+ * groups for its pages (Transportation: Maintenance, Houzs Sidebar.tsx:649); a
+ * group is a word on the tree with its own chevron, never a destination. It is all read from data: a page says which group it belongs to
  * with `pageGroup`, and the group words live in `PAGE_GROUPS`. Nothing here, and
  * nothing in the renderer, names a module.
  *
@@ -15,34 +14,19 @@ import type { PortalNavItem } from "./portal-nav";
  * drawn on top of them.
  */
 
-export type PageGroupKey =
-  | "purchasing-buy"
-  | "purchasing-receive"
-  | "purchasing-problems"
-  | "purchasing-showroom";
+export type PageGroupKey = "transportation-maintenance";
 
 export interface PageGroup {
   key: PageGroupKey;
-  /** The menu word. Uppercase because it is a LABEL rank, not a destination. */
+  /** The menu word. */
   label: string;
 }
 
-/**
- * Purchasing's four groups, in the approved order — the order a purchase
- * travels: you BUY, the goods are RECEIVED, something goes WRONG, and SHOWROOM
- * is the floor-display book that never mixes with any of it
- * (`docs/purchasing/MASTER.md` §4).
- */
-export const PURCHASING_PAGE_GROUPS: ReadonlyArray<PageGroup> = [
-  { key: "purchasing-buy", label: "BUY" },
-  { key: "purchasing-receive", label: "RECEIVE" },
-  { key: "purchasing-problems", label: "PROBLEMS" },
-  { key: "purchasing-showroom", label: "SHOWROOM" },
-];
-
 /** Every group any module may name. A new module adds its groups here and
  *  sets `pageGroup` on its pages; the menu needs no other change. */
-export const PAGE_GROUPS: ReadonlyArray<PageGroup> = [...PURCHASING_PAGE_GROUPS];
+export const PAGE_GROUPS: ReadonlyArray<PageGroup> = [
+  { key: "transportation-maintenance", label: "Maintenance" },
+];
 
 /**
  * PURCHASING'S LANDING PAGE, NAMED RATHER THAN DERIVED: `SO Batch Purchase`,

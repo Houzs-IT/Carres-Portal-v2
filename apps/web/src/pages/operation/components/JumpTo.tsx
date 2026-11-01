@@ -55,6 +55,7 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import {
   navItemHref,
   visibleGroups,
+  PORTAL_MODULES,
   visibleItems,
   type PortalNavGroup,
   type PortalNavItem,
@@ -95,13 +96,13 @@ export function permittedDestinations(
       // A `Coming soon` page is NOT A CONTROL anywhere — the rail renders it
       // as a span with no href, and Jump to may not offer a door the rail
       // itself refuses to open (corrections card, 2026-08-19).
-      if (item.soon) continue;
+      if (item.soon || item.shortcut) continue;
       out.push({
         id: `${group.area}:${item.key}`,
         label: item.label,
         area: group.label,
         href: navItemHref(group as PortalNavGroup, item as PortalNavItem),
-        ...(item.section ? { module: item.section } : {}),
+        ...(item.section ? { module: PORTAL_MODULES.find((m) => m.section === item.section)?.label ?? item.section } : {}),
       });
     }
   }
