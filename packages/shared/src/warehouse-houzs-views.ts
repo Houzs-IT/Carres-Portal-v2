@@ -120,12 +120,12 @@ export interface LoadingListRow {
  * Follows Houzs backend/src/scm/routes/loading-list.ts:1 (the warehouse loading
  * queue) per Weisiang's ruling (2026-10-22): clear Carres rules, implement Houzs.
  */
-export function loadingListRows(cards: readonly WarehouseOutboundCard[]): LoadingListRow[] {
+export function loadingListRows(cards: readonly WarehouseOutboundCard[], opts?: { includeLoaded?: boolean }): LoadingListRow[] {
   const rows: LoadingListRow[] = [];
   for (const c of cards) {
     for (const p of c.products) {
       const toLoad = Math.max(0, p.qty - p.loaded);
-      if (toLoad === 0) continue;
+      if (toLoad === 0 && !opts?.includeLoaded) continue;
       rows.push({
         key: `${c.doNumber}\u0000${c.warehouseSiteId ?? c.fromLocation}\u0000${p.sku ?? p.name ?? ""}`,
         doNumber: c.doNumber,

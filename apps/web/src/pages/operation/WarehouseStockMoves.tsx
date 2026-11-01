@@ -15,6 +15,9 @@ import ModuleHeader from "@/pages/operation/components/ModuleHeader";
 import { apiFetch } from "@/lib/api";
 import { fmtDate } from "@/lib/fmt-date";
 import { useCatalog } from "@/lib/queries";
+import DocumentTable from "@/components/kit/DocumentTable";
+import Tabs from "@/components/kit/Tabs";
+import { DetailSection, Facts, KpiRow } from "./houzs-list-bits";
 
 /**
  * Stock Adjustment · Stock Transfer · Stock Take (migration 0714).
@@ -131,10 +134,13 @@ function errorText(e: unknown) {
 
 // ── Stock Adjustment ──────────────────────────────────────────────────────────
 type AdjustmentRow = {
-  id: string; adjustment_no: string; warehouse_id: string; reason: string; created_at: string;
+  id: string; adjustment_no: string; warehouse_id: string; reason: string; created_at: string; performed_by: string | null;
   stock_counts: { count_no: string } | null;
   stock_adjustment_units: (UnitRef & { direction: "plus" | "minus" })[];
 };
+
+const netQty = (r: AdjustmentRow) => r.stock_adjustment_units.reduce((n, u) => n + (u.direction === "plus" ? 1 : -1), 0);
+const isRecent = (at: string) => Date.now() - new Date(at).getTime() <= 30 * 86_400_000;
 
 export function StockAdjustments() {
   const qc = useQueryClient();
@@ -146,6 +152,7 @@ export function StockAdjustments() {
   const [minus, setMinus] = useState<string[]>([]);
   const [plus, setPlus] = useState<PlusLine[]>([]);
   const [confirming, setConfirming] = useState(false);
+  const [viewing, setViewing] = useState<AdjustmentRow | null>(null);
   const save = useMutation({
     mutationFn: () => post("/adjustments", { siteId, reason, minusUnitIds: minus, plus: plusPayload(plus) }),
     onSuccess: () => {
@@ -153,14 +160,17 @@ export function StockAdjustments() {
       void qc.invalidateQueries({ queryKey: ["stock-moves"] });
     },
   });
-  const adjustHint = !siteId ? "Pick a Site."
+  const adjustHint = !siteId ? "Pick a Warehouse."
     : !reason.trim() ? "Write the reason."
     : minus.length === 0 && plusPayload(plus).length === 0 ? "Pick Units to write off, or add an item." : null;
   const columns = useMemo<DataGridColumn<AdjustmentRow>[]>(() => [
     { key: "no", label: "Adjustment No", width: 170, accessor: (r) => r.adjustment_no },
     { key: "date", label: "Date", width: 110, accessor: (r) => fmtDate(r.created_at), dateValue: (r) => r.created_at, filterType: "date" },
-    { key: "site", label: "Site", width: 180, accessor: (r) => siteName(sites.data?.sites, r.warehouse_id), filterType: "enum" },
+    { key: "site", label: "Warehouse", width: 180, accessor: (r) => siteName(sites.data?.sites, r.warehouse_id), filterType: "enum" },
+    { key: "items", label: "Items", width: 80, align: "right", numberValue: (r) => r.stock_adjustment_units.length, accessor: (r) => r.stock_adjustment_units.length },
+    { key: "net", label: "Net Qty", width: 90, align: "right", numberValue: netQty, accessor: netQty },
     { key: "reason", label: "Reason", width: 240, accessor: (r) => r.reason },
+    { key: "by", label: "Performed By", width: 160, accessor: (r) => r.performed_by ?? "" },
     { key: "minus", label: "Written off", width: 260, accessor: (r) => unitCodes(r.stock_adjustment_units.filter((u) => u.direction === "minus")) },
     { key: "plus", label: "Added", width: 260, accessor: (r) => unitCodes(r.stock_adjustment_units.filter((u) => u.direction === "plus")) },
     { key: "count", label: "Stock Take", width: 170, accessor: (r) => r.stock_counts?.count_no ?? "" },
@@ -168,11 +178,19 @@ export function StockAdjustments() {
 
   return (
     <Page word="Stock Adjustment" testId="stock-adjustments">
+      {list.isSuccess && (() => {
+        const recent = list.data.adjustments.filter((r) => isRecent(r.created_at));
+        return <KpiRow items={[
+          { label: "Adjustments · 30d", value: recent.length, hint: "Stock Adjustments in the last 30 days" },
+          { label: "Net qty delta", value: recent.reduce((n, r) => n + netQty(r), 0), hint: "Units added less Units written off, 30 days" },
+        ]} />;
+      })()}
       {list.isError ? <LoadError message="The stock adjustments could not be loaded." onRetry={() => void list.refetch()} /> : (
         <ListPageShell register>
           <DataGrid rows={list.data?.adjustments ?? []} columns={columns} rowKey={(r) => r.id}
             storageKey="carres.warehouse.stock-adjustments.v1" appearance="reference" exportName="Stock Adjustment"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search adjustment, reason or Unit ID…"
+            onRowClick={setViewing}
             toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Adjustment</Button>}
             emptyMessage="No stock adjustments yet." />
         </ListPageShell>
@@ -184,7 +202,7 @@ export function StockAdjustments() {
             onClick={() => (minus.length > 0 ? setConfirming(true) : save.mutate())}>Save</Button>
         </>}>
         <div className="flex flex-col gap-3">
-          <SiteSelect id="adj-site" label="Site" value={siteId} onChange={(v) => { setSiteId(v); setMinus([]); }} sites={sites.data?.sites ?? []} />
+          <SiteSelect id="adj-site" label="Warehouse" value={siteId} onChange={(v) => { setSiteId(v); setMinus([]); }} sites={sites.data?.sites ?? []} />
           <Textarea id="adj-reason" label="Reason" required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
           <p className="text-body font-semibold">Write off</p>
           <UnitPicker siteId={siteId} picked={minus} onChange={setMinus} allowReserved={false} />
@@ -193,6 +211,31 @@ export function StockAdjustments() {
           {adjustHint && <p className="text-body text-c-muted" role="status">Save is off: {adjustHint}</p>}
           {!confirming && save.isError && <FieldError>{errorText(save.error)}</FieldError>}
         </div>
+      </Modal>
+      <Modal open={viewing !== null} onOpenChange={(o) => !o && setViewing(null)} width="wide" title={viewing?.adjustment_no ?? "Stock Adjustment"}
+        footer={<Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>}>
+        {viewing && (
+          <div className="flex flex-col gap-4">
+            <DetailSection title="Adjustment">
+              <Facts facts={[
+                ["Warehouse", siteName(sites.data?.sites, viewing.warehouse_id)],
+                ["Date", fmtDate(viewing.created_at)],
+                ["Performed By", viewing.performed_by ?? ""],
+                ["Net Qty", netQty(viewing)],
+                ["Reason", viewing.reason],
+                ["Stock Take", viewing.stock_counts?.count_no ?? ""],
+              ]} />
+            </DetailSection>
+            <DetailSection title={`Items (${viewing.stock_adjustment_units.length})`}>
+              <DocumentTable label="Items"
+                columns={[{ key: "n", label: "#" }, { key: "sku", label: "SKU" }, { key: "unit", label: "Unit ID" }, { key: "qty", label: "Qty", numeric: true }]}
+                rows={viewing.stock_adjustment_units.map((u, i) => ({
+                  key: String(i),
+                  cells: { n: i + 1, sku: u.ops_stock_items?.sku ?? "", unit: u.ops_stock_items?.unit_code ?? "", qty: u.direction === "plus" ? 1 : -1 },
+                }))} />
+            </DetailSection>
+          </div>
+        )}
       </Modal>
       <ConfirmActionDialog open={confirming} title="Write off Units?"
         message={`${minus.length} ${minus.length === 1 ? "Unit" : "Units"} will be written off. This cannot be undone.`}
@@ -205,9 +248,11 @@ export function StockAdjustments() {
 // ── Stock Transfer ────────────────────────────────────────────────────────────
 type TransferRow = {
   id: string; transfer_no: string; from_site_id: string; to_site_id: string; note: string | null;
-  status: "posted" | "cancelled"; created_at: string; cancel_reason: string | null;
+  status: "posted" | "cancelled"; created_at: string; cancel_reason: string | null; performed_by: string | null;
   stock_transfer_units: UnitRef[];
 };
+
+const TRANSFER_WORD = { posted: "Confirmed", cancelled: "Cancelled" } as const;
 
 export function StockTransfers() {
   const qc = useQueryClient();
@@ -230,18 +275,21 @@ export function StockTransfers() {
     mutationFn: () => post(`/transfers/${cancelling?.id}/cancel`, { reason: cancelReason }),
     onSuccess: () => { setCancelling(null); setCancelReason(""); done(); },
   });
-  const transferHint = !from ? "Pick the Pickup Location."
-    : !to ? "Pick the Delivery Location."
-    : from === to ? "Pickup and Delivery Location must differ."
+  const [statusTab, setStatusTab] = useState("all");
+  const transferHint = !from ? "Pick the From Warehouse."
+    : !to ? "Pick the To Warehouse."
+    : from === to ? "From and To Warehouse must differ."
     : units.length === 0 ? "Pick at least one Unit." : null;
   const columns = useMemo<DataGridColumn<TransferRow>[]>(() => [
-    { key: "no", label: "Transfer No", width: 170, accessor: (r) => r.transfer_no },
+    { key: "no", label: "Transfer No.", width: 170, accessor: (r) => r.transfer_no },
     { key: "date", label: "Date", width: 110, accessor: (r) => fmtDate(r.created_at), dateValue: (r) => r.created_at, filterType: "date" },
-    { key: "from", label: "Pickup Location", width: 180, accessor: (r) => siteName(sites.data?.sites, r.from_site_id), filterType: "enum" },
-    { key: "to", label: "Delivery Location", width: 180, accessor: (r) => siteName(sites.data?.sites, r.to_site_id), filterType: "enum" },
+    { key: "from", label: "From", width: 180, accessor: (r) => siteName(sites.data?.sites, r.from_site_id), filterType: "enum" },
+    { key: "to", label: "To", width: 180, accessor: (r) => siteName(sites.data?.sites, r.to_site_id), filterType: "enum" },
     { key: "units", label: "Units", width: 280, accessor: (r) => unitCodes(r.stock_transfer_units) },
-    { key: "status", label: "Status", width: 120, accessor: (r) => (r.status === "posted" ? "Posted" : "Cancelled"), filterType: "enum" },
-    { key: "reason", label: "Reason", width: 220, accessor: (r) => r.cancel_reason ?? r.note ?? "" },
+    { key: "lines", label: "Lines", width: 80, align: "right", numberValue: (r) => r.stock_transfer_units.length, accessor: (r) => r.stock_transfer_units.length },
+    { key: "status", label: "Status", width: 120, accessor: (r) => TRANSFER_WORD[r.status], filterType: "enum" },
+    { key: "reason", label: "Notes", width: 220, accessor: (r) => r.cancel_reason ?? r.note ?? "" },
+    { key: "by", label: "Created By", width: 160, defaultHidden: true, accessor: (r) => r.performed_by ?? "" },
     { key: "act", label: "", width: 220, exportValue: () => "",
       accessor: (r) => (
         <span className="flex gap-2">
@@ -253,12 +301,22 @@ export function StockTransfers() {
 
   return (
     <Page word="Stock Transfer" testId="stock-transfers">
+      {list.isSuccess && <KpiRow items={[
+        { label: "Total Transfers", value: list.data.transfers.length, hint: "Stock Transfers on this list" },
+        { label: "Line count", value: list.data.transfers.reduce((n, r) => n + r.stock_transfer_units.length, 0), hint: "Units across those transfers" },
+        { label: "Posted", value: list.data.transfers.filter((r) => r.status === "posted").length, hint: "Not cancelled" },
+      ]} />}
       {list.isError ? <LoadError message="The stock transfers could not be loaded." onRetry={() => void list.refetch()} /> : (
         <ListPageShell register>
-          <DataGrid rows={list.data?.transfers ?? []} columns={columns} rowKey={(r) => r.id}
+          <DataGrid rows={(list.data?.transfers ?? []).filter((r) => statusTab === "all" || r.status === statusTab)} columns={columns} rowKey={(r) => r.id}
             storageKey="carres.warehouse.stock-transfers.v1" appearance="reference" exportName="Stock Transfer"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search transfer or Unit ID…"
             onRowClick={setViewing}
+            toolbarStart={<Tabs variant="segmented" label="Status" value={statusTab} onValueChange={setStatusTab} tabs={[
+              { value: "all", label: `All (${list.data?.transfers.length ?? 0})` },
+              { value: "posted", label: `Confirmed (${list.data?.transfers.filter((r) => r.status === "posted").length ?? 0})` },
+              { value: "cancelled", label: `Cancelled (${list.data?.transfers.filter((r) => r.status === "cancelled").length ?? 0})` },
+            ]} />}
             toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Transfer</Button>}
             emptyMessage="No stock transfers yet." />
         </ListPageShell>
@@ -270,27 +328,43 @@ export function StockTransfers() {
           <Button variant="primary" loading={save.isPending} disabled={!from || !to || from === to || units.length === 0} onClick={() => save.mutate()}>Save</Button>
         </>}>
         <div className="flex flex-col gap-3">
-          <SiteSelect id="tr-from" label="Pickup Location" value={from} onChange={(v) => { setFrom(v); setUnits([]); }} sites={sites.data?.sites ?? []} />
-          <SiteSelect id="tr-to" label="Delivery Location" value={to} onChange={setTo} sites={(sites.data?.sites ?? []).filter((s) => s.id !== from)} />
-          <Textarea id="tr-note" label="Reason" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+          <SiteSelect id="tr-from" label="From Warehouse" value={from} onChange={(v) => { setFrom(v); setUnits([]); }} sites={sites.data?.sites ?? []} />
+          <SiteSelect id="tr-to" label="To Warehouse" value={to} onChange={setTo} sites={(sites.data?.sites ?? []).filter((s) => s.id !== from)} />
+          <Textarea id="tr-note" label="Notes" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           <UnitPicker siteId={from} picked={units} onChange={setUnits} allowReserved />
           {transferHint && <p className="text-body text-c-muted" role="status">Save is off: {transferHint}</p>}
           {save.isError && <FieldError>{errorText(save.error)}</FieldError>}
         </div>
       </Modal>
-      <Modal open={viewing !== null} onOpenChange={(o) => !o && setViewing(null)} title={viewing?.transfer_no ?? "Stock Transfer"}
-        footer={<Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>}>
+      <Modal open={viewing !== null} onOpenChange={(o) => !o && setViewing(null)} width="wide" title={viewing?.transfer_no ?? "Stock Transfer"}
+        footer={<>
+          <Button variant="neutral" onClick={() => setViewing(null)}>Close</Button>
+          {viewing?.status === "posted" && <Button variant="neutral" onClick={() => { setCancelling(viewing); setViewing(null); }}>Cancel</Button>}
+        </>}>
         {viewing && (
-          <dl className="flex flex-col gap-2 text-body">
-            <div><dt className="text-c-muted">Pickup to Delivery Location</dt><dd>{siteName(sites.data?.sites, viewing.from_site_id)} → {siteName(sites.data?.sites, viewing.to_site_id)}</dd></div>
-            <div><dt className="text-c-muted">Status</dt><dd>{viewing.status === "posted" ? "Posted" : "Cancelled"}</dd></div>
-            <div><dt className="text-c-muted">Units</dt><dd>{unitCodes(viewing.stock_transfer_units) || "None"}</dd></div>
-            <div><dt className="text-c-muted">Reason</dt><dd>{viewing.cancel_reason ?? viewing.note ?? ""}</dd></div>
-          </dl>
+          <div className="flex flex-col gap-4">
+            <DetailSection title="Transfer">
+              <Facts facts={[
+                ["From Warehouse", siteName(sites.data?.sites, viewing.from_site_id)],
+                ["To Warehouse", siteName(sites.data?.sites, viewing.to_site_id)],
+                ["Transfer Date", fmtDate(viewing.created_at)],
+                ["Status", TRANSFER_WORD[viewing.status]],
+                ["Created By", viewing.performed_by ?? ""],
+                ["Notes", viewing.cancel_reason ?? viewing.note ?? ""],
+              ]} />
+            </DetailSection>
+            <DetailSection title="Items">
+              <DocumentTable label="Items"
+                columns={[{ key: "sku", label: "SKU" }, { key: "unit", label: "Unit ID" }, { key: "qty", label: "Qty", numeric: true }]}
+                rows={viewing.stock_transfer_units.map((u, i) => ({
+                  key: String(i), cells: { sku: u.ops_stock_items?.sku ?? "", unit: u.ops_stock_items?.unit_code ?? "", qty: 1 },
+                }))} />
+            </DetailSection>
+          </div>
         )}
       </Modal>
       <Modal open={cancelling !== null} onOpenChange={(o) => !o && setCancelling(null)} title={`Cancel ${cancelling?.transfer_no ?? ""}`}
-        description="The Units move back to the Pickup Location."
+        description="The Units move back to the From Warehouse."
         footer={<>
           <Button variant="neutral" onClick={() => setCancelling(null)}>Close</Button>
           <Button variant="primary" loading={cancel.isPending} disabled={!cancelReason.trim()} onClick={() => cancel.mutate()}>Cancel transfer</Button>
@@ -309,6 +383,9 @@ type CountRow = {
   id: string; count_no: string; warehouse_id: string; blind: boolean; note: string | null;
   status: "open" | "posted"; created_at: string; posted_at: string | null;
   stock_adjustments: { adjustment_no: string }[];
+  performed_by: string | null;
+  /** Null while a blind count is open: the counter must not learn how many Units to expect. */
+  lines: number | null; counted: number | null; variance: number | null;
 };
 type CountDetail = {
   count: { id: string; count_no: string; blind: boolean; status: "open" | "posted"; extras: { sku: string; qty: number }[] };
@@ -332,6 +409,9 @@ function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
   });
   const c = q.data?.count;
   const isOpen = c?.status === "open";
+  const [lineFilter, setLineFilter] = useState("");
+  const allCodes = (q.data?.units ?? []).flatMap((u) => (u.ops_stock_items ? [u.ops_stock_items.unit_code] : []));
+  const needle = lineFilter.trim().toLowerCase();
   // Units on the sheet that have not been counted: Post writes these off.
   const uncounted = (q.data?.units ?? []).filter((u) => u.ops_stock_items && !codes.includes(u.ops_stock_items.unit_code)).length;
   return (
@@ -345,12 +425,28 @@ function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
       {q.isError && <LoadError message="The Stock Take could not be loaded." onRetry={() => void q.refetch()} />}
       {c && (
         <div className="flex flex-col gap-3">
+          <DetailSection title="Variance Summary">
+            {c.blind && isOpen
+              ? <Facts facts={[["Counted", codes.length], ["Variance", "Hidden"]]} />
+              : <Facts facts={[
+                  ["Total lines", allCodes.length],
+                  ["Counted", allCodes.filter((x) => codes.includes(x)).length],
+                  ["Untouched", uncounted],
+                  ["Net", lines.reduce((n, l) => n + (Number(l.qty) || 0), 0) - uncounted],
+                ]} />}
+          </DetailSection>
+          {!c.blind && isOpen && (
+            <div className="flex flex-wrap items-end gap-2">
+              <Input id="count-filter" label="Filter by code / SKU" value={lineFilter} onChange={(e) => setLineFilter(e.target.value)} />
+              <Button variant="neutral" onClick={() => setFound(allCodes)}>Fill all to system</Button>
+            </div>
+          )}
           {c.blind && isOpen ? (
             <Textarea id="count-codes" label="Unit IDs counted" hint="One Unit ID per line, or scan them." rows={8}
               value={rawCodes ?? codes.join("\n")} onChange={(e) => setRawCodes(e.target.value)} />
           ) : (
             <div role="group" className="max-h-72 overflow-auto rounded-control border border-c-line p-2" aria-label="Units">
-              {(q.data?.units ?? []).map((u) => u.ops_stock_items && (
+              {(q.data?.units ?? []).filter((u) => !needle || `${u.ops_stock_items?.unit_code} ${u.ops_stock_items?.sku}`.toLowerCase().includes(needle)).map((u) => u.ops_stock_items && (
                 <Checkbox key={u.ops_stock_items.id} id={`count-${u.ops_stock_items.id}`} disabled={!isOpen}
                   label={`${u.ops_stock_items.unit_code} · ${u.ops_stock_items.sku}`}
                   checked={codes.includes(u.ops_stock_items.unit_code)}
@@ -369,7 +465,7 @@ function CountSheet({ id, onClose }: { id: string; onClose: () => void }) {
       )}
       <ConfirmActionDialog open={confirmingPost} title="Post this Stock Take?"
         message={c?.blind
-          ? `Every Unit at this Site that is not in your ${codes.length} counted will be written off. This cannot be undone.`
+          ? `Every Unit at this Warehouse that is not in your ${codes.length} counted will be written off. This cannot be undone.`
           : `${uncounted} ${uncounted === 1 ? "Unit" : "Units"} will be written off. This cannot be undone.`}
         confirmLabel="Post Stock Take" pending={record.isPending} error={record.isError ? errorText(record.error) : null}
         onConfirm={() => record.mutate(true)} onCancel={() => setConfirmingPost(false)} />
@@ -386,28 +482,43 @@ export function StockTakes() {
   const [blind, setBlind] = useState(false);
   const [note, setNote] = useState("");
   const [sheet, setSheet] = useState<string | null>(null);
+  const [statusTab, setStatusTab] = useState("all");
   const start = useMutation({
     mutationFn: () => post<{ id: string }>("/counts", { siteId, blind, note }),
     onSuccess: (r) => { setOpen(false); setNote(""); void qc.invalidateQueries({ queryKey: ["stock-moves"] }); setSheet(r.id); },
   });
   const columns = useMemo<DataGridColumn<CountRow>[]>(() => [
-    { key: "no", label: "Count No", width: 170, accessor: (r) => r.count_no },
+    { key: "no", label: "Take No.", width: 170, accessor: (r) => r.count_no },
     { key: "date", label: "Date", width: 110, accessor: (r) => fmtDate(r.created_at), dateValue: (r) => r.created_at, filterType: "date" },
-    { key: "site", label: "Site", width: 180, accessor: (r) => siteName(sites.data?.sites, r.warehouse_id), filterType: "enum" },
+    { key: "site", label: "Warehouse", width: 180, accessor: (r) => siteName(sites.data?.sites, r.warehouse_id), filterType: "enum" },
     { key: "blind", label: "Blind count", width: 110, accessor: (r) => (r.blind ? "Yes" : "No"), filterType: "enum" },
-    { key: "status", label: "Status", width: 110, accessor: (r) => (r.status === "open" ? "Open" : "Posted"), filterType: "enum" },
+    { key: "by", label: "Created By", width: 160, accessor: (r) => r.performed_by ?? "" },
+    { key: "lines", label: "Lines", width: 80, align: "right", accessor: (r) => r.lines ?? "Hidden" },
+    { key: "variance", label: "Variance", width: 90, align: "right", accessor: (r) => r.variance ?? "Hidden" },
+    { key: "status", label: "Status", width: 110, accessor: (r) => (r.status === "open" ? "Open" : "Confirmed"), filterType: "enum" },
     { key: "adj", label: "Stock Adjustment", width: 180, accessor: (r) => r.stock_adjustments.map((a) => a.adjustment_no).join(", ") },
     { key: "note", label: "Note", width: 220, accessor: (r) => r.note ?? "" },
   ], [sites.data]);
 
   return (
     <Page word="Stock Take" testId="stock-takes">
+      {list.isSuccess && <KpiRow items={[
+        { label: "Total Takes", value: list.data.counts.length, hint: "Stock Takes on this list" },
+        { label: "Open", value: list.data.counts.filter((r) => r.status === "open").length, hint: "Not posted yet" },
+        { label: "Lines counted", value: list.data.counts.reduce((n, r) => n + (r.counted ?? 0), 0), hint: "Units ticked as found; open blind counts left out" },
+        { label: "Net variance", value: list.data.counts.reduce((n, r) => n + (r.variance ?? 0), 0), hint: "Added less written off; open blind counts left out" },
+      ]} />}
       {list.isError ? <LoadError message="The stock takes could not be loaded." onRetry={() => void list.refetch()} /> : (
         <ListPageShell register>
-          <DataGrid rows={list.data?.counts ?? []} columns={columns} rowKey={(r) => r.id}
+          <DataGrid rows={(list.data?.counts ?? []).filter((r) => statusTab === "all" || r.status === statusTab)} columns={columns} rowKey={(r) => r.id}
             storageKey="carres.warehouse.stock-takes.v1" appearance="reference" exportName="Stock Take"
-            groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search count…"
+            groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search take, warehouse, notes…"
             onRowClick={(r) => setSheet(r.id)}
+            toolbarStart={<Tabs variant="segmented" label="Status" value={statusTab} onValueChange={setStatusTab} tabs={[
+              { value: "all", label: `All (${list.data?.counts.length ?? 0})` },
+              { value: "open", label: `Open (${list.data?.counts.filter((r) => r.status === "open").length ?? 0})` },
+              { value: "posted", label: `Confirmed (${list.data?.counts.filter((r) => r.status === "posted").length ?? 0})` },
+            ]} />}
             toolbarEnd={<Button variant="primary" icon="add" onClick={() => setOpen(true)}>New Stock Take</Button>}
             emptyMessage="No stock takes yet." />
         </ListPageShell>
@@ -418,7 +529,7 @@ export function StockTakes() {
           <Button variant="primary" loading={start.isPending} disabled={!siteId} onClick={() => start.mutate()}>Start</Button>
         </>}>
         <div className="flex flex-col gap-3">
-          <SiteSelect id="count-site" label="Site" value={siteId} onChange={setSiteId} sites={sites.data?.sites ?? []} />
+          <SiteSelect id="count-site" label="Warehouse" value={siteId} onChange={setSiteId} sites={sites.data?.sites ?? []} />
           <Checkbox id="count-blind" label="Blind count" checked={blind} onCheckedChange={setBlind} />
           <Textarea id="count-note" label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           {start.isError && <FieldError>{errorText(start.error)}</FieldError>}

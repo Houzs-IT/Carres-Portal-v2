@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireOperationOrPrincipal } from "../../lib/auth-guards";
 import { userClient } from "../../lib/supabase";
 import { parseBody } from "../../lib/route-helpers";
+import { resolveActorNames } from "../../lib/actor-names";
 import type { AppEnv } from "../../types";
 
 /**
@@ -61,16 +62,40 @@ router.get("/units", requireOperationOrPrincipal, async (c) => {
   return c.json({ units });
 });
 
+/** Puts the staff name beside each row; the created_by uuid stays server-side. */
+async function withPerformedBy<T extends { created_by: string | null }>(sb: Parameters<typeof resolveActorNames>[0], rows: T[]) {
+  const names = await resolveActorNames(sb, rows.map((r) => r.created_by));
+  return rows.map(({ created_by, ...r }) => ({ ...r, performed_by: (created_by && names.get(created_by)) ?? null }));
+}
+
+/**
+ * List figures for a Stock Take (Houzs StockTakesListV2.tsx:304-312). A blind
+ * count that is still open returns nulls: GET /counts/:id hides its Units from
+ * the counter, so the list must not give away how many to expect either.
+ */
+export function countFigures(row: {
+  blind: boolean; status: string; extras?: { qty: number }[] | null; stock_count_units: { found: boolean | null }[];
+}) {
+  if (row.blind && row.status === "open") return { lines: null, counted: null, variance: null };
+  const lines = row.stock_count_units;
+  const extra = (row.extras ?? []).reduce((n, e) => n + e.qty, 0);
+  return {
+    lines: lines.length,
+    counted: lines.filter((l) => l.found === true).length,
+    variance: extra - lines.filter((l) => l.found === false).length,
+  };
+}
+
 // ── Stock Adjustment ──────────────────────────────────────────────────────────
 router.get("/adjustments", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const rows = await read(
+  const rows = await read<Array<{ created_by: string | null }>>(
     sb.from("stock_adjustments")
-      .select("id, adjustment_no, warehouse_id, reason, created_at, stock_counts(count_no), stock_adjustment_units(direction, ops_stock_items(unit_code, sku))")
+      .select("id, adjustment_no, warehouse_id, reason, created_at, created_by, stock_counts(count_no), stock_adjustment_units(direction, ops_stock_items(unit_code, sku))")
       .order("created_at", { ascending: false })
       .limit(500),
   );
-  return c.json({ adjustments: rows });
+  return c.json({ adjustments: await withPerformedBy(sb, rows) });
 });
 
 router.post("/adjustments", requireOperationOrPrincipal, async (c) => {
@@ -88,13 +113,13 @@ router.post("/adjustments", requireOperationOrPrincipal, async (c) => {
 // ── Stock Transfer ────────────────────────────────────────────────────────────
 router.get("/transfers", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const rows = await read(
+  const rows = await read<Array<{ created_by: string | null }>>(
     sb.from("stock_transfers")
-      .select("id, transfer_no, from_site_id, to_site_id, note, status, created_at, cancelled_at, cancel_reason, stock_transfer_units(ops_stock_items(unit_code, sku))")
+      .select("id, transfer_no, from_site_id, to_site_id, note, status, created_at, created_by, cancelled_at, cancel_reason, stock_transfer_units(ops_stock_items(unit_code, sku))")
       .order("created_at", { ascending: false })
       .limit(500),
   );
-  return c.json({ transfers: rows });
+  return c.json({ transfers: await withPerformedBy(sb, rows) });
 });
 
 router.post("/transfers", requireOperationOrPrincipal, async (c) => {
@@ -114,13 +139,14 @@ router.post("/transfers/:id/cancel", requireOperationOrPrincipal, async (c) => {
 // ── Stock Take ────────────────────────────────────────────────────────────────
 router.get("/counts", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const rows = await read(
+  const rows = await read<Array<{ created_by: string | null } & Parameters<typeof countFigures>[0]>>(
     sb.from("stock_counts")
-      .select("id, count_no, warehouse_id, blind, note, status, created_at, posted_at, stock_adjustments(adjustment_no)")
+      .select("id, count_no, warehouse_id, blind, note, status, created_at, created_by, posted_at, extras, stock_adjustments(adjustment_no), stock_count_units(found)")
       .order("created_at", { ascending: false })
       .limit(500),
   );
-  return c.json({ counts: rows });
+  const named = await withPerformedBy(sb, rows);
+  return c.json({ counts: named.map(({ stock_count_units, extras, ...r }) => ({ ...r, ...countFigures({ ...r, extras, stock_count_units }) })) });
 });
 
 router.post("/counts", requireOperationOrPrincipal, async (c) => {
