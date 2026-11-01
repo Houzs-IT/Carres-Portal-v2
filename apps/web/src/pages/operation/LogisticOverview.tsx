@@ -10,9 +10,9 @@ import Panel from "@/components/kit/Panel";
 import CouldNotLoad from "./components/CouldNotLoad";
 import ModuleHeader from "./components/ModuleHeader";
 import OperationKpiTile from "./components/OperationKpiTile";
-import { buildDoRegisterRow, groupProofRecords } from "./delivery-orders-register";
+import { buildDoRegisterRow, groupProofRecords, type DoRegisterRow } from "./delivery-orders-register";
 import { NOT_ASSIGNED, planRows, type PlanFeed, type PlanRow } from "./delivery-planning";
-import { dueBuckets, dueOf, groupFigures, monthsOf, notClosed, openOrders, periodFigures, weeksOf } from "./logistic-overview";
+import { daysOf, dueBuckets, dueOf, groupFigures, monthsOf, notClosed, openOrders, periodFigures, weeksOf } from "./logistic-overview";
 
 /* Follows Houzs LogisticOverview.tsx:186-348, Weisiang's decision 2026-11-01. */
 // design-standard: not-a-list-page: a report of tiles and small summary tables, no register.
@@ -35,11 +35,15 @@ function Table({ head, children }: { head: string[]; children: ReactNode }) {
   );
 }
 
-function FigureRows({ rows }: { rows: Array<{ key: string; label?: string; issued: number; amount: number; delivered: number }> }) {
+type FigureRow = { key: string; label?: string; issued: number; amount: number; delivered: number; rows: DoRegisterRow[] };
+type Drill = { title: string; rows: DoRegisterRow[] };
+
+/** Houzs LogisticOverview.tsx:154-180: a figure opens the documents behind it. */
+function FigureRows({ rows, onPick }: { rows: FigureRow[]; onPick: (d: Drill) => void }) {
   return (
     <>
       {rows.map((r) => (
-        <tr key={r.key} className="border-b border-base-100">
+        <tr key={r.key} className="cursor-pointer border-b border-base-100 hover:bg-base-50" onClick={() => onPick({ title: r.label ?? r.key, rows: r.rows })}>
           <td className={`${TD} ${LEFT}`}>{r.label ?? r.key}</td>
           <td className={TD}>{r.issued}</td>
           <td className={TD}>{rm(r.amount)}</td>
@@ -48,6 +52,29 @@ function FigureRows({ rows }: { rows: Array<{ key: string; label?: string; issue
         </tr>
       ))}
     </>
+  );
+}
+
+function DocumentList({ drill, onClose }: { drill: Drill; onClose: () => void }) {
+  return (
+    <Panel title={`Documents · ${drill.title}`}>
+      <div className="max-h-[420px] overflow-y-auto" data-testid="logistic-overview-drill">
+        <Table head={["DO", "Date", "Customer", "Lorry or Logistics", "Amount"]}>
+          {drill.rows.map((r) => (
+            <tr key={r.id} className="border-b border-base-100">
+              <td className={`${TD} ${LEFT}`}>
+                <Link className="text-c-link underline" to={`/operation/delivery-orders/${encodeURIComponent(r.doNumber)}`}>{r.doNumber}</Link>
+              </td>
+              <td className={TD}>{fmtDate(r.issuedAt)}</td>
+              <td className={TD}>{r.customer}</td>
+              <td className={TD}>{r.vehicle ?? r.logisticsPartner ?? NOT_ASSIGNED}</td>
+              <td className={TD}>{rm(r.amount ?? 0)}</td>
+            </tr>
+          ))}
+        </Table>
+      </div>
+      <button type="button" className="mt-3 text-c-link underline" onClick={onClose}>Close</button>
+    </Panel>
   );
 }
 
@@ -80,6 +107,7 @@ export function LogisticOverview() {
   const setDate = (key: "from" | "to", value: string) =>
     value && setParams((prev) => { const next = new URLSearchParams(prev); next.set(key, value); return next; }, { replace: true });
   const [picked, setPicked] = useState<string | null>(null);
+  const [drill, setDrill] = useState<Drill | null>(null);
 
   /* shortcut: the register reads the newest 500 documents, so a period or month
      older than those reads low; move these figures to an API read if it matters. */
@@ -102,6 +130,7 @@ export function LogisticOverview() {
   const period = useMemo(() => periodFigures(dos, from, to), [dos, from, to]);
   const weeks = useMemo(() => weeksOf(dos, from, to, today), [dos, from, to, today]);
   const months = useMemo(() => monthsOf(dos), [dos]);
+  const days = useMemo(() => daysOf(dos, from, to), [dos, from, to]);
   const regionOf = useMemo(() => new Map(plan.map((r) => [r.orderId, r.region])), [plan]);
   const byRegion = groupFigures(period.rows, (r) => regionOf.get(r.orderId) ?? r.location);
   const byLorry = groupFigures(period.rows, (r) => r.vehicle ?? r.logisticsPartner ?? NOT_ASSIGNED);
@@ -145,12 +174,13 @@ export function LogisticOverview() {
 
             <div className="grid gap-3 lg:grid-cols-2">
               <Panel title="Delivered in the period, by region">
-                <Table head={head}><FigureRows rows={byRegion} /></Table>
+                <Table head={head}><FigureRows rows={byRegion} onPick={setDrill} /></Table>
               </Panel>
               <Panel title="Delivered in the period, by lorry or Logistics">
-                <Table head={head}><FigureRows rows={byLorry} /></Table>
+                <Table head={head}><FigureRows rows={byLorry} onPick={setDrill} /></Table>
               </Panel>
             </div>
+            {drill ? <DocumentList drill={drill} onClose={() => setDrill(null)} /> : null}
 
             <Panel title="Outstanding delivery, by when it is due">
               <div data-testid="logistic-overview-due">
@@ -178,14 +208,20 @@ export function LogisticOverview() {
 
             <Panel title="Weekly logistic report">
               <Table head={["Week", "DO", "Amount", "Average order", "Marked delivered"]}>
-                <FigureRows rows={weeks.map((w) => ({ ...w, label: `${w.label} (${fmtDate(w.from)} to ${fmtDate(w.to)})${w.current ? " · now" : ""}` }))} />
+                <FigureRows rows={weeks.map((w) => ({ ...w, label: `${w.label} (${fmtDate(w.from)} to ${fmtDate(w.to)})${w.current ? " · now" : ""}` }))} onPick={setDrill} />
+              </Table>
+            </Panel>
+
+            <Panel title="Daily logistic report">
+              <Table head={["Day", "DO", "Amount", "Average order", "Marked delivered"]}>
+                <FigureRows rows={days.map((d) => ({ ...d, label: fmtDate(d.day) }))} onPick={setDrill} />
               </Table>
             </Panel>
 
             <div className="grid gap-3 lg:grid-cols-2">
               <Panel title="Monthly delivery volume">
                 <Table head={["Month", "DO", "Amount", "Average order", "Marked delivered"]}>
-                  <FigureRows rows={months.map((m) => ({ ...m, key: m.month }))} />
+                  <FigureRows rows={months.map((m) => ({ ...m, key: m.month }))} onPick={setDrill} />
                 </Table>
                 <p className="mt-2 text-meta text-base-600">Reads the newest 500 delivery orders, so an older month can read low.</p>
               </Panel>

@@ -14,6 +14,7 @@
  *  4. A voided document queues nowhere; completed work leaves the queue but
  *     the document stays countable in DOCUMENT STATUS forever.
  */
+import { documentLinksOf } from "./delivery-orders-register";
 import { describe, it, expect } from "vitest";
 import type { DeliveryOrderAttemptRow, DeliveryOrderRow } from "@/lib/queries";
 import { resolveDeliveryLocality } from "@/lib/locality";
@@ -571,5 +572,18 @@ describe("a document minted before the booking", () => {
     const row = buildDoRegisterRow(doRow(), new Map(), new Map());
     expect(row.confirmedDelivery).toBe("2026-08-20");
     expect(row.logisticsPartner).toBe("NETS");
+  });
+});
+
+describe("documentLinksOf", () => {
+  it("files a PO under its own SO and every SO it refers to, once each", () => {
+    const { posBySo } = documentLinksOf([{ id: "PO-1", so: 7, so_refs: [7, 8] }, { id: "PO-2", so: null, so_refs: null }]);
+    expect(posBySo.get(7)).toEqual(["PO-1"]);
+    expect(posBySo.get(8)).toEqual(["PO-1"]);
+    expect(posBySo.size).toBe(2);
+  });
+  it("files returns by document and skips one with no number", () => {
+    const { returnsByDo } = documentLinksOf([], [{ delivery_order_id: "d1", return_no: "DR-1" }, { delivery_order_id: "d1", return_no: null }]);
+    expect(returnsByDo.get("d1")).toEqual(["DR-1"]);
   });
 });
