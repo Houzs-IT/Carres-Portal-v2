@@ -115,6 +115,7 @@ import financeCreditNotesRouter from "./routes/finance/credit-notes";
 import financeOpeningBalancesRouter from "./routes/finance/opening-balances";
 import financeMoneyMovesRouter from "./routes/finance/money-moves";
 import financeCancelledMoneyRouter from "./routes/finance/cancelled-money";
+import { financeCorrectionsRouter, financeNotYetBilledRouter } from "./routes/finance/billing-checks";
 import financeCardSettlementRouter from "./routes/finance/card-settlement";
 import supplierActivityRouter from "./routes/supplier/activity";
 import supplierMeRouter from "./routes/supplier/me";
@@ -355,6 +356,8 @@ api.route("/finance/opening-balances", financeOpeningBalancesRouter);
 // Bank transfers and card payouts (0529). Before the catch-all as well.
 api.route("/finance/money-moves", financeMoneyMovesRouter);
 api.route("/finance/cancelled-money", financeCancelledMoneyRouter);
+api.route("/finance/not-yet-billed", financeNotYetBilledRouter);
+api.route("/finance/corrections", financeCorrectionsRouter);
 // Card settlement files and their matching (0572). Before the catch-all as well.
 api.route("/finance/card-settlement", financeCardSettlementRouter);
 api.route("/finance", financeReconciliationRouter);

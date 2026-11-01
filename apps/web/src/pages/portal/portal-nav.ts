@@ -29,6 +29,7 @@ import {
   Settings,
   ShieldCheck,
   HandCoins,
+  History,
   UserCheck,
   SlidersHorizontal,
   Receipt,
@@ -539,6 +540,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "other-receipts", label: "Other receipts", icon: HandCoins, financePath: "/finance/other-receipts", section: "Receivables" },
       { key: "other-debtors", label: "Other Debtors", icon: Users, financePath: "/finance/other-debtors", section: "Receivables" },
       { key: "ar", label: "Outstanding", icon: ArrowDownLeft, financePath: "/finance/ar", section: "Receivables" },
+      { key: "not-yet-billed", label: "Not Yet Billed", icon: HandCoins, financePath: "/finance/not-yet-billed", section: "Receivables" },
       { key: "customer-credit-notes", label: "Customer Credit Notes", icon: ReceiptText, financePath: "/finance/customer-credit-notes", section: "Receivables" },
       { key: "cancelled-money", label: "Cancelled orders holding money", icon: Undo2, financePath: "/finance/cancelled-money", section: "Receivables" },
 
@@ -577,6 +579,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "dealer-commission", label: "Dealer commission", icon: Users, financePath: "/finance/reports/dealer-commission", section: "Reports" },
       { key: "stock-value", label: "Stock value", icon: Boxes, financePath: "/finance/reports/stock-value", section: "Reports" },
       { key: "stock-drops", label: "Stock drops", icon: Boxes, financePath: "/finance/reports/stock-drops", section: "Reports" },
+      { key: "corrections", label: "Corrections", icon: History, financePath: "/finance/corrections", section: "Reports" },
       { key: "payment-report", label: "Payment", icon: Wallet, financePath: "/finance/reports/payment", section: "Reports" },
 
       /* FORECASTING and SETUP: one Carres page each, so plain rows. */

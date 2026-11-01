@@ -31,6 +31,15 @@ describe("Sales Invoices list", () => {
     expect(screen.getByTestId("sales-invoices-summary")).toHaveTextContent("1 sales invoice");
   });
 
+  it("From DO lists the order's live DOs, and Source PO the POs it names", () => {
+    state.data = [invoice({ orders: { ...invoice({}).orders, source_pos: ["PO-7"],
+      ops_delivery_orders: [{ do_number: "DO-1", voided_at: null }, { do_number: "DO-VOID", voided_at: "2026-10-01" }] } })];
+    show();
+    expect(screen.getByText("DO-1")).toBeInTheDocument();
+    expect(screen.queryByText(/DO-VOID/)).toBeNull();
+    expect(screen.getByText("PO-7")).toBeInTheDocument();
+  });
+
   it("a row opens the quick view and the SI No opens the Monitor", () => {
     state.data = [invoice({})];
     show();

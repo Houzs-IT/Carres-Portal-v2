@@ -284,6 +284,47 @@ describe("Creditor codes in the pickers (0691)", () => {
   });
 });
 
+describe("Payment vouchers batch", () => {
+  const row = (id: string, voucher_no: string | null, status: string, voucher_date: string) => ({
+    id, voucher_no, status, purpose: "DIRECT", supplier_id: SUP, supplier_name: "Lumen Sofa Works", payee_name: `Payee ${id}`,
+    voucher_date, amount: "100.00", pay_method: "BANK_TRANSFER", pay_reference: null, pay_from_account_code: "1120",
+    pay_from_name: "Bank", bill_nos: null, line_count: 0, prepared_by_name: null, checked_by_name: null,
+    approved_by_name: null, file_count: 0, created_at: "2026-09-11T01:00:00Z", advance_amount: "0.00", advance_open: null,
+  });
+  const tickAll = async () => {
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all rows" }));
+    return screen.findByTestId("voucher-batch-bar");
+  };
+
+  it("approves oldest first, carries on past a refusal, and names the voucher that failed", async () => {
+    api.routes[`${B}/vouchers`] = { rows: [row("b", "PV-B", "checked", "2026-09-12"), row("a", "PV-A", "checked", "2026-09-10"), row("c", "PV-C", "checked", "2026-09-14")] };
+    api.fail.add(`${B}/vouchers/a/approve`);
+    show("/finance/payment-vouchers");
+    await screen.findByRole("link", { name: "PV-B" });
+    const bar = await tickAll();
+    fireEvent.click(within(bar).getByRole("button", { name: "Approve 3" }));
+    expect(writes()).toEqual([]);
+    expect(await screen.findByText(/Together/)).toHaveTextContent("Together RM 300.00");
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve" }).at(-1)!);
+    const result = await screen.findByTestId("voucher-batch-result");
+    expect(result).toHaveTextContent("2 of 3 approved");
+    expect(result).toHaveTextContent("PV-A: boom");
+    expect(writes().map((c) => c.url)).toEqual([`${B}/vouchers/a/approve`, `${B}/vouchers/b/approve`, `${B}/vouchers/c/approve`]);
+  });
+
+  it("each button counts only the vouchers at its own step, and Prepare asks nothing", async () => {
+    api.routes[`${B}/vouchers`] = { rows: [row("d", null, "draft", "2026-09-10"), row("p", null, "prepared", "2026-09-11"), row("x", "PV-X", "approved", "2026-09-12")] };
+    show("/finance/payment-vouchers");
+    await screen.findByRole("link", { name: "PV-X" });
+    const bar = await tickAll();
+    expect(within(bar).getByRole("button", { name: "Check 1" })).toBeInTheDocument();
+    expect(within(bar).queryByRole("button", { name: /^Approve/ })).toBeNull();
+    fireEvent.click(within(bar).getByRole("button", { name: "Prepare 1" }));
+    expect(await screen.findByTestId("voucher-batch-result")).toHaveTextContent("1 of 1 prepared");
+    expect(writes().map((c) => c.url)).toEqual([`${B}/vouchers/d/prepare`]);
+  });
+});
+
 describe("Payment vouchers register", () => {
   it("the Houzs status tabs narrow the list", async () => {
     api.routes[`${B}/vouchers`] = { rows: [{ id: PV, voucher_no: "PV-9M3Q", status: "approved", purpose: "SUPPLIER_BILLS",
