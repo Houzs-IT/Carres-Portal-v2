@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
-import type { CaseSlaClock, ServiceCase } from "@carres/shared";
+import { caseIssueLabel, caseProductCategoryLabel, type CaseSlaClock, type ServiceCase } from "@carres/shared";
 
 /**
  * The Service Cases Board and Calendar, after Houzs ServiceCases.tsx:1424 and
@@ -139,4 +139,46 @@ export function CasesCalendar({ rows, clockOf, ownerOf, onOpen }: ViewProps) {
       )}
     </div>
   );
+}
+
+/** The caption under each stage card. Carres stages are config rows, so a stage
+ *  someone adds later has no caption rather than a wrong one. */
+const STAGE_DESCRIPTIONS: Record<string, string> = {
+  pending: "New case, first review",
+  "in progress": "Inspect and fix the issue",
+  "follow-up": "Waiting on the customer or supplier",
+  resolved: "Closed",
+};
+export function caseStageDescription(label: string): string {
+  return STAGE_DESCRIPTIONS[label.trim().toLowerCase()] ?? "";
+}
+
+/** A leading =, +, - or @ would run as a formula when the file opens in Excel. */
+function csvCell(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/** Houzs Export All (assr.ts:1224), the columns Carres has data for. */
+export function casesCsv(rows: readonly ServiceCase[], clockOf: ViewProps["clockOf"], ownerOf: ViewProps["ownerOf"]): string {
+  const headers = ["ASSR No", "SO No", "Delivery Order", "Stage", "Priority", "Customer", "Phone", "Location", "Salesperson",
+    "Category", "Issue Category", "Resolution", "Item", "Issue", "Complained Date", "Deadline", "PO No", "Assigned To", "Creditor", "SLA Breached"];
+  const lines = rows.map((r) => {
+    const clock = clockOf(r);
+    return [r.caseNo, r.so == null ? "" : `SO-${r.so}`, (r.doNumbers ?? []).join(" "), r.statusLabel ?? "", r.priority ?? "", r.customerName,
+      r.customerPhone ?? "", r.customerAddress ?? "", r.salespersonName ?? "", r.productCategory ? caseProductCategoryLabel(r.productCategory) : "",
+      r.issueType ? caseIssueLabel(r.issueType) : "", r.carresAction ?? "", r.productSku ?? "", r.whatHappened ?? "", r.openedAt, clock.dueIso ?? "",
+      (r.poNumbers ?? []).join(" "), ownerOf(r), r.supplierName ?? "", clock.state === "late" ? "Yes" : "No"].map(csvCell).join(",");
+  });
+  return [headers.join(","), ...lines].join("\r\n");
+}
+
+export function downloadCasesCsv(rows: readonly ServiceCase[], clockOf: ViewProps["clockOf"], ownerOf: ViewProps["ownerOf"], todayIso: string) {
+  // The byte order mark tells Excel the file is UTF-8.
+  const url = URL.createObjectURL(new Blob([`\uFEFF${casesCsv(rows, clockOf, ownerOf)}`], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Service Cases ${todayIso}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

@@ -24,6 +24,7 @@ import BDApp from "@/pages/bd/BDApp";
 import HrApp from "@/pages/hr/HrApp";
 import PickupEventPrintPage from "@/pages/print/PickupEventPrintPage";
 import ServiceNotePrintPage from "@/pages/print/ServiceNotePrintPage";
+import ServiceCasePrintPage from "@/pages/print/ServiceCasePrintPage";
 import FleetRunSheetPrintPage from "@/pages/print/FleetRunSheetPrintPage";
 import { PayCancelled, PaySuccess } from "@/pages/pay/PayResult";
 
@@ -234,6 +235,14 @@ export default function App() {
           element={
             <RequireAuth>
               <FleetRunSheetPrintPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/print/service-case/:id"
+          element={
+            <RequireAuth>
+              <ServiceCasePrintPage />
             </RequireAuth>
           }
         />
