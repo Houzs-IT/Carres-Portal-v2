@@ -169,7 +169,7 @@ const WORD = { order: "Customer Consignment Order", note: "Consignment Note", re
 type OrderLine = UnitLink & { price: string | number; sold_at: string | null };
 type Payment = { id: string; paid_at: string; method: string; amount: string | number; reference: string | null; note: string | null };
 type OrderRow = {
-  id: string; order_no: string; customer_name: string; customer_phone: string | null; customer_address: string | null; note: string | null; created_at: string;
+  id: string; order_no: string; customer_name: string; customer_phone: string | null; customer_address: string | null; note: string | null; created_at: string; performed_by: string | null;
   customer_consignment_order_units: OrderLine[];
   customer_consignment_order_payments: Payment[];
   total: number; paid: number; balance: number;
@@ -349,8 +349,8 @@ export function CustomerConsignmentOrders() {
             ...returnsOfNotes(returns.data?.returns, notesOf(sending).map((n) => n.note_no)).map((r) => ({ kind: WORD.ret, no: r.return_no, tab: TAB.ret })),
           ]} />}
           {sending && <DocHistory events={[
-            { at: sending.created_at, word: "Created" },
-            ...notesOf(sending).map((n) => ({ at: n.created_at, word: `Consignment Note ${n.note_no} issued` })),
+            { at: sending.created_at, word: "Created", who: sending.performed_by },
+            ...notesOf(sending).map((n) => ({ at: n.created_at, word: `Consignment Note ${n.note_no} issued`, who: n.performed_by })),
             ...soldEvents(sending.customer_consignment_order_units),
             ...paymentEvents(sending.customer_consignment_order_payments),
           ]} />}
@@ -363,7 +363,7 @@ export function CustomerConsignmentOrders() {
 // ── Consignment Note ──────────────────────────────────────────────────────────
 type NoteRow = Money & {
   id: string; note_no: string; order_id: string | null; customer_name: string; customer_phone: string | null; customer_address: string | null; delivery_date: string;
-  note: string | null; created_at: string;
+  note: string | null; created_at: string; performed_by: string | null;
   customer_consignment_orders: { order_no: string } | null;
   consignment_note_units: OrderLine[];
   consignment_note_payments: Payment[];
@@ -505,10 +505,10 @@ export function ConsignmentNotes() {
             ...returnsOfNotes(returns.data?.returns, [selling.note_no]).map((r) => ({ kind: WORD.ret, no: r.return_no, tab: TAB.ret })),
           ]} />}
           {selling && <DocHistory events={[
-            { at: selling.created_at, word: "Issued" },
+            { at: selling.created_at, word: "Issued", who: selling.performed_by },
             ...soldEvents(selling.consignment_note_units),
             ...paymentEvents(selling.consignment_note_payments),
-            ...returnsOfNotes(returns.data?.returns, [selling.note_no]).map((r) => ({ at: r.created_at, word: `Returned on ${r.return_no}` })),
+            ...returnsOfNotes(returns.data?.returns, [selling.note_no]).map((r) => ({ at: r.created_at, word: `Returned on ${r.return_no}`, who: r.performed_by })),
           ]} />}
         </div>
       </Modal>
@@ -518,7 +518,7 @@ export function ConsignmentNotes() {
 
 // ── Customer Consignment Return ───────────────────────────────────────────────
 type ReturnRow = {
-  id: string; return_no: string; warehouse_id: string; note: string | null; created_at: string;
+  id: string; return_no: string; warehouse_id: string; note: string | null; created_at: string; performed_by: string | null;
   customer_consignment_return_units: { ops_stock_items: { unit_code: string; sku?: string } | null; consignment_notes: { note_no: string; customer_name: string } | null }[];
 };
 
@@ -622,7 +622,7 @@ export function CustomerConsignmentReturns() {
             </DetailSection>
             <RelationshipMap current={{ kind: WORD.ret, no: viewing.return_no }}
               links={[...new Set(lines(viewing).map((l) => l.consignment_notes?.note_no).filter((x): x is string => Boolean(x)))].map((no) => ({ kind: WORD.note, no, tab: TAB.note }))} />
-            <DocHistory events={[{ at: viewing.created_at, word: "Created" }]} />
+            <DocHistory events={[{ at: viewing.created_at, word: "Created", who: viewing.performed_by }]} />
           </div>
         )}
       </Modal>
