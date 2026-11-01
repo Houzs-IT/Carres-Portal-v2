@@ -15,6 +15,7 @@ import { NOT_ASSIGNED, planRows, type PlanFeed, type PlanRow } from "./delivery-
 import { dueBuckets, dueOf, groupFigures, monthsOf, notClosed, openOrders, periodFigures, weeksOf } from "./logistic-overview";
 
 /* Follows Houzs LogisticOverview.tsx:186-348, Weisiang's decision 2026-11-01. */
+// design-standard: not-a-list-page: a report of tiles and small summary tables, no register.
 
 const TH = "px-2 py-1 text-right text-meta font-medium text-base-600";
 const TD = "px-2 py-1 text-right text-body tabular-nums";
