@@ -32,6 +32,7 @@ describe("Customer Credit Notes states", () => {
   it("lists the notes in the register grid with the Houzs columns", async () => {
     vi.mocked(apiFetch).mockResolvedValue([NOTE]);
     show();
+    expect(document.title).toBe("Customer Credit Notes · Carres");
     await screen.findByText("CN-0001");
     const heads = screen.getAllByRole("columnheader").map((h) => h.textContent?.trim()).filter(Boolean);
     expect(heads.slice(0, 4)).toEqual(["Number", "Date", "Party", "Reference"]);

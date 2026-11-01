@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { CASE_COPIES } from "@/pages/print/ServiceCasePrintPage";
 import { apiFetch } from "@/lib/api";
-import { appTodayIso, fmtDate } from "@/lib/fmt-date";
+import { fmtDate } from "@/lib/fmt-date";
 import {
   CASE_REPORTERS,
   caseDelayReasonLabel,
@@ -65,62 +66,18 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
   const staff = staffQ.data?.staff;
   const nameOf = useMemo(() => new Map((staff ?? []).map((p) => [p.user_id, p.name ?? ""])), [staff]);
 
-  // ── form state ──────────────────────────────────────────────────────────────
-  const [refNo, setRefNo] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
-  const [caseTypeId, setCaseTypeId] = useState("");
-  const [whatHappened, setWhatHappened] = useState("");
-  const [carresAction, setCarresAction] = useState("");
-  const [whatAffected, setWhatAffected] = useState("");
-  const [incurredCharges, setIncurredCharges] = useState("");
-  const [openedAt, setOpenedAt] = useState(appTodayIso());
-  // 0711 — Weisiang's decision (Mr Lim, WhatsApp 2026-10-22), Houzs way: the
-  // Sales Order PIC picks the case owner; staff set the priority by hand.
-  const [ownerUserId, setOwnerUserId] = useState<string | null>(null);
-  const [priority, setPriority] = useState<string | null>(null);
-
+  // Houzs InlineEdit: each field saves itself, so there is no page-wide Save.
+  const save = async (patch: Record<string, unknown>) => {
+    await apiFetch(`/api/ops/service-cases/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+    await qc.invalidateQueries({ queryKey: ["ops", "service-cases"] });
+  };
+  // The selects have no field of their own to show a refusal in.
+  const [selectError, setSelectError] = useState<string | null>(null);
+  const saveSelect = (patch: Record<string, unknown>) => {
+    setSelectError(null);
+    save(patch).catch((e: Error) => setSelectError(e.message));
+  };
   const d = existingQ.data;
-  useEffect(() => {
-    if (!d) return;
-    setRefNo(d.refNo ?? "");
-    setCustomerName(d.customerName ?? "");
-    setCustomerPhone(d.customerPhone ?? "");
-    setCustomerAddress(d.customerAddress ?? "");
-    setCaseTypeId(d.caseTypeId ?? "");
-    setWhatHappened(d.whatHappened ?? "");
-    setCarresAction(d.carresAction ?? "");
-    setWhatAffected(d.whatAffected ?? "");
-    setIncurredCharges(d.incurredCharges ?? "");
-    setOpenedAt(d.openedAt ?? appTodayIso());
-    setOwnerUserId(d.ownerUserId ?? null);
-    setPriority(d.priority ?? null);
-  }, [d]);
-
-  const saveMut = useMutation({
-    mutationFn: () =>
-      apiFetch(`/api/ops/service-cases/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          refNo: refNo.trim() || undefined,
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim() || undefined,
-          customerAddress: customerAddress.trim() || undefined,
-          caseTypeId: caseTypeId || null,
-          whatHappened: whatHappened.trim() || undefined,
-          carresAction: carresAction.trim() || undefined,
-          whatAffected: whatAffected.trim() || undefined,
-          incurredCharges: incurredCharges.trim() || undefined,
-          openedAt,
-          // 0711 — sent only when changed, so a save by someone who is not the
-          // PIC never trips the owner check over a field they did not touch.
-          ...(ownerUserId !== (d?.ownerUserId ?? null) ? { ownerUserId } : {}),
-          ...(priority !== (d?.priority ?? null) ? { priority } : {}),
-        }),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ops", "service-cases"] }),
-  });
 
   // 0711 — staff move a case to any stage by hand, and Close Case sits on every
   // open case (Houzs ServiceCases.tsx), Weisiang's decision 2026-10-22.
@@ -130,16 +87,9 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ops", "service-cases"] }),
   });
 
-  const formDirty = !!d && (
-    refNo !== (d.refNo ?? "") || customerName !== (d.customerName ?? "") || customerPhone !== (d.customerPhone ?? "") ||
-    customerAddress !== (d.customerAddress ?? "") || caseTypeId !== (d.caseTypeId ?? "") ||
-    whatHappened !== (d.whatHappened ?? "") || carresAction !== (d.carresAction ?? "") || whatAffected !== (d.whatAffected ?? "") ||
-    incurredCharges !== (d.incurredCharges ?? "") || openedAt !== (d.openedAt ?? appTodayIso()) ||
-    ownerUserId !== (d.ownerUserId ?? null) || priority !== (d.priority ?? null));
-
   const requestBack = () => {
-    if (remedyBusy || saveMut.isPending) return;
-    if (formDirty || remedyDirty) setDiscardOpen(true); else onBack();
+    if (remedyBusy) return;
+    if (remedyDirty) setDiscardOpen(true); else onBack();
   };
 
   const back = (
@@ -166,8 +116,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
   const firstOpenStage = stages.find((st) => !st.isClosed);
   const currentIndex = stages.findIndex((st) => st.id === d.statusId);
   const nextStage = d.statusIsClosed ? undefined : stages.slice(currentIndex + 1).find((st) => !st.isClosed);
-  const stageBusy = stageMut.isPending || remedyBusy || formDirty;
-  const canSave = customerName.trim().length > 0 && !saveMut.isPending && !remedyBusy;
+  const stageBusy = stageMut.isPending || remedyBusy;
   const history = customerHistory(d, listQ.data?.items ?? []);
   const timeline = caseTimeline(d, (u) => nameOf.get(u) ?? "");
 
@@ -193,11 +142,21 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
             {!d.statusIsClosed && closedStage && (
               <Button onClick={() => stageMut.mutate(closedStage.id)} loading={stageMut.isPending} disabled={stageBusy}>Close Case</Button>
             )}
-            <Button variant="primary" onClick={() => saveMut.mutate()} disabled={!canSave} loading={saveMut.isPending}>Save</Button>
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded border border-base-300 bg-white px-3 py-1.5 text-body font-medium text-base-700 hover:bg-base-50">Print</summary>
+              <div role="menu" className="absolute right-0 z-30 mt-1 w-52 rounded border border-base-200 bg-white py-1">
+                {CASE_COPIES.map((copy) => (
+                  <a key={copy.key} role="menuitem" href={`/print/service-case/${id}?copy=${copy.key}`} target="_blank" rel="noreferrer" className="block px-3 py-2 hover:bg-base-50">
+                    <span className="block text-body text-base-900">{copy.label}</span>
+                    <span className="block text-meta text-base-500">{copy.hint}</span>
+                  </a>
+                ))}
+              </div>
+            </details>
           </div>
         </div>
 
-        {saveMut.isError && <p role="alert" className="text-meta text-error-700 break-words">Save failed: {(saveMut.error as Error)?.message ?? "unknown error"}</p>}
+        {selectError && <p role="alert" className="text-meta text-error-700 break-words">Save failed: {selectError}</p>}
         {stageMut.isError && <p role="alert" className="text-meta text-error-700 break-words">Stage change failed: {(stageMut.error as Error)?.message ?? "unknown error"}</p>}
 
         {/* Workflow — click a stage to move the case there. */}
@@ -218,28 +177,23 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
               <span className="ml-auto"><Button variant="neutral" onClick={() => stageMut.mutate(nextStage.id)} disabled={stageBusy}>Move to {nextStage.label}</Button></span>
             )}
           </div>
-          {formDirty && <p className="mt-2 text-meta text-base-500">Save your changes before moving the stage.</p>}
         </section>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.62fr_1fr]">
           <div className="min-w-0 space-y-3">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Panel title="Issue">
-                <Field label="Complaint" htmlFor="scm-happened">
-                  <textarea id="scm-happened" value={whatHappened} onChange={(e) => setWhatHappened(e.target.value)} rows={3} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-                </Field>
+                <InlineField id="scm-happened" label="Complaint" textarea value={d.whatHappened} onSave={(v) => save({ whatHappened: v })} />
                 <Field label="Case Type" htmlFor="scm-type">
-                  <select id="scm-type" value={caseTypeId} onChange={(e) => setCaseTypeId(e.target.value)} className="w-full rounded border border-base-300 bg-white px-2 py-1.5 text-body">
+                  <select id="scm-type" value={d.caseTypeId ?? ""} onChange={(e) => saveSelect({ caseTypeId: e.target.value || null })} className="w-full rounded border border-base-300 bg-white px-2 py-1.5 text-body">
                     <option value="">Case Type</option>
                     {configQ.data?.types.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 </Field>
-                <Select id="case-priority" label="Priority" value={priority ?? undefined} onValueChange={setPriority} placeholder="Priority"
+                <Select id="case-priority" label="Priority" value={d.priority ?? undefined} onValueChange={(v) => saveSelect({ priority: v })} placeholder="Priority"
                   options={[{ value: "high", label: "Urgent" }, { value: "normal", label: "Normal" }, { value: "low", label: "Low" }]} />
                 {d.priority && caseNeedsManager(d.priority) && <p className="text-meta text-base-600">tell manager</p>}
-                <Field label="Date" htmlFor="scm-opened">
-                  <input id="scm-opened" type="date" value={openedAt} onChange={(e) => setOpenedAt(e.target.value)} className="w-full rounded border border-base-300 px-2 py-1.5 text-body" />
-                </Field>
+                <InlineField id="scm-opened" label="Date" type="date" required value={d.openedAt} onSave={(v) => save({ openedAt: v })} />
               </Panel>
               <Panel title="Product Info">
                 {/* S1 — the guided intake's answers are asked once and only read here. */}
@@ -274,35 +228,21 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                 <Link className="text-kit-blue-11" to={`/operation?tab=arrival-source&kind=repair-return&case=${id}`}>Plan Repair</Link>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Resolution" htmlFor="scm-action">
-                  <textarea id="scm-action" value={carresAction} onChange={(e) => setCarresAction(e.target.value)} rows={3} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-                </Field>
-                <Field label="What was affected" htmlFor="scm-affected">
-                  <textarea id="scm-affected" value={whatAffected} onChange={(e) => setWhatAffected(e.target.value)} rows={3} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-                </Field>
-                <Field label="Incurred charges" htmlFor="scm-charges">
-                  <textarea id="scm-charges" value={incurredCharges} onChange={(e) => setIncurredCharges(e.target.value)} rows={2} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-                </Field>
+                <InlineField id="scm-action" label="Resolution" textarea value={d.carresAction} onSave={(v) => save({ carresAction: v })} />
+                <InlineField id="scm-affected" label="What was affected" textarea value={d.whatAffected} onSave={(v) => save({ whatAffected: v })} />
+                <InlineField id="scm-charges" label="Incurred charges" textarea value={d.incurredCharges} onSave={(v) => save({ incurredCharges: v })} />
               </div>
             </Panel>
 
-            <CaseRemedyApproval caseId={id} onDirtyChange={setRemedyDirty} onBusyChange={setRemedyBusy} disabled={formDirty} />
+            <CaseRemedyApproval caseId={id} onDirtyChange={setRemedyDirty} onBusyChange={setRemedyBusy} />
           </div>
 
           <div className="min-w-0 space-y-3">
             <Panel title="Customer">
-              <Field label="Customer Name *" htmlFor="scm-name">
-                <input id="scm-name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-              </Field>
-              <Field label="Phone" htmlFor="scm-phone">
-                <input id="scm-phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-              </Field>
-              <Field label="Address" htmlFor="scm-address">
-                <input id="scm-address" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} className="w-full rounded border border-base-300 px-2.5 py-1.5 text-body" />
-              </Field>
-              <Field label="Ref No." htmlFor="scm-ref">
-                <input id="scm-ref" value={refNo} onChange={(e) => setRefNo(e.target.value)} className="w-full rounded border border-base-300 px-2.5 py-1.5 font-mono text-body" />
-              </Field>
+              <InlineField id="scm-name" label="Customer Name *" required value={d.customerName} onSave={(v) => save({ customerName: v })} />
+              <InlineField id="scm-phone" label="Phone" value={d.customerPhone} onSave={(v) => save({ customerPhone: v })} />
+              <InlineField id="scm-address" label="Address" value={d.customerAddress} onSave={(v) => save({ customerAddress: v })} />
+              <InlineField id="scm-ref" label="Ref No." mono value={d.refNo} onSave={(v) => save({ refNo: v })} />
               <Field label="SO No"><CaseOrderLink orderId={d.orderId} so={d.so} /></Field>
               <dl><InfoRow label="Salesperson" value={d.salespersonName ?? null} /></dl>
             </Panel>
@@ -310,7 +250,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
             <Panel title="Assigned to">
               {/* 0711 — the Sales Order PIC picks the admin who owns the case. */}
               <Select id="case-owner" label="Assigned To" hint={d.ownerPickable ? undefined : "The sales order PIC picks the case owner"} disabled={!d.ownerPickable}
-                value={ownerUserId ?? undefined} onValueChange={setOwnerUserId} placeholder="No owner yet"
+                value={d.ownerUserId ?? undefined} onValueChange={(v) => saveSelect({ ownerUserId: v })} placeholder="No owner yet"
                 options={(staff ?? []).map((p) => ({ value: p.user_id, label: p.name ?? "" }))} />
             </Panel>
 
@@ -344,7 +284,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
         </div>
       </div>
       <ConfirmActionDialog open={discardOpen} title="Discard changes?"
-        message="What you changed on this case has not been saved."
+        message="What you typed in the remedy form has not been saved."
         confirmLabel="Discard" cancelLabel="Keep editing"
         onConfirm={() => { setDiscardOpen(false); onBack(); }} onCancel={() => setDiscardOpen(false)} />
     </>
@@ -371,6 +311,47 @@ export function caseTimeline(c: ServiceCase, nameOf: (userId: string) => string)
     ...(c.slaEvents ?? []).map((s) => ({ on: s.on, text: `Customer told: ${caseDelayReasonLabel(s.reason)}`, who: "" })),
   ];
   return rows.sort((a, z) => z.on.localeCompare(a.on));
+}
+
+/** One field that saves itself when you leave it (Houzs InlineEdit). */
+function InlineField({ id, label, value, onSave, textarea, type = "text", required, mono }: {
+  id: string; label: string; value: string | null | undefined; onSave: (value: string) => Promise<void>;
+  textarea?: boolean; type?: "text" | "date"; required?: boolean; mono?: boolean;
+}) {
+  const saved = value ?? "";
+  const [draft, setDraft] = useState(saved);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => setDraft(saved), [saved]);
+  const commit = async () => {
+    const next = draft.trim();
+    if (next === saved) { setProblem(null); return; }
+    if (required && !next) { setProblem(`${label.replace(" *", "")} cannot be empty.`); return; }
+    setStatus("saving");
+    setProblem(null);
+    try {
+      await onSave(next);
+      setStatus("saved");
+    } catch (e) {
+      setStatus("idle");
+      setProblem((e as Error).message);
+    }
+  };
+  const look = `w-full rounded border px-2.5 py-1.5 text-body ${problem ? "border-error-700" : "border-base-300"} ${mono ? "font-mono" : ""}`;
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-meta text-base-500 uppercase tracking-wider">{label}</label>
+        <span role="status" className="text-meta text-base-500">{status === "saving" ? "Saving…" : status === "saved" ? "Saved" : ""}</span>
+      </div>
+      <div className="mt-1">
+        {textarea
+          ? <textarea id={id} rows={3} value={draft} onChange={(e) => { setDraft(e.target.value); setStatus("idle"); }} onBlur={() => void commit()} className={look} />
+          : <input id={id} type={type} value={draft} onChange={(e) => { setDraft(e.target.value); setStatus("idle"); }} onBlur={() => void commit()} className={look} />}
+      </div>
+      {problem && <p role="alert" className="mt-1 text-meta text-error-700 break-words">{problem}</p>}
+    </div>
+  );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {

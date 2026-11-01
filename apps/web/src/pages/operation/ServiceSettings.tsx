@@ -6,7 +6,7 @@
  * pick lists staff choose from on a case. Everyone in the office reads; the
  * owner or a person named for Service in Settings editors changes it.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useCanEditSettings } from "@/lib/settings-queries";
@@ -22,6 +22,7 @@ type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[
 const KEY = ["ops", "service-cases", "settings"] as const;
 
 export default function ServiceSettings() {
+  useEffect(() => { document.title = "Service Maintenance · Carres"; return () => { document.title = "Carres Portal"; }; }, []);
   const qc = useQueryClient();
   const canEdit = useCanEditSettings("service");
   const q = useQuery<ServiceSettingsRead>({ queryKey: KEY, queryFn: () => apiFetch("/api/ops/service-cases/settings") });
