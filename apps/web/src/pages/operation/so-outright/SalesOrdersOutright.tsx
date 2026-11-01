@@ -33,7 +33,8 @@ import CSidePanel from "@/components/carres/CSidePanel";
 import { CChip, CIconButton, CShowPanelButton, CViewButton } from "@/components/carres/CToolbar";
 import Button from "@/components/kit/Button";
 import { useAuth } from "@/lib/auth";
-import { appTodayIso } from "@/lib/fmt-date";
+import { appTodayIso, fmtDateShort } from "@/lib/fmt-date";
+import { CDate, CInput } from "../so-detail/ui";
 import { useSalesOrderRegisterFacts, useSalesOrderRegisterOrders } from "@/lib/queries";
 import { buildRegisterRow, type RegisterRow } from "../sales-order-columns";
 import { isRental, lineName } from "../sales-order-facts";
@@ -47,7 +48,9 @@ import { TasksPill, useShellTasks } from "../components/ShellTasks";
 import {
   CATEGORY_CODE,
   COLUMNS,
+  DATE_FILTERS,
   LAYOUTS,
+  inDateRange,
   isDelivered,
   pcsOf,
   rm,
@@ -132,7 +135,16 @@ function sortValueOf(key: string, r: RegisterRow, ctx: CellContext): string | nu
     case "proceed":
       return r.proceeded ?? null;
     case "order":
+    case "docNo":
       return r.so;
+    case "soDate":
+      return r.ordered ?? null;
+    case "processing":
+      return r.o.proceed_date ?? null;
+    case "lineQty":
+      return pcsOf(r);
+    case "soTotal":
+      return r.total.kind === "amount" ? r.total.value : null;
     case "reqDate":
       return r.customerDelivery ?? null;
     case "items":
@@ -263,20 +275,26 @@ export default function SalesOrdersOutright() {
      register read, on version 1's preserved request. */
   const requestedParam = params.get("requested");
   const requested = useMemo(() => requestedNarrowingOf(requestedParam), [requestedParam]);
+  const dateRanges = useMemo(
+    () => DATE_FILTERS.map((d) => ({ ...d, from: params.get(`from.${d.key}`), to: params.get(`to.${d.key}`) })),
+    [params],
+  );
+  const rangeSignature = dateRanges.map((d) => `${d.from ?? ""}~${d.to ?? ""}`).join();
   const list = useMemo(
     () =>
       all.filter(
         (r) =>
           inTab(r) &&
+          dateRanges.every((d) => inDateRange(d.iso(r), d.from, d.to)) &&
           (!requested || inRequestedNarrowing(r.customerDelivery, requested, isDelivered(r))) &&
           Object.entries(filters).every(([k, v]) => v.includes(COLUMNS[k]!.cell(r, ctx).t)),
       ),
-    [all, inTab, requested, filters, ctx],
+    [all, inTab, requested, filters, ctx, dateRanges],
   );
 
   /* ── sort (the engine's header) · Group by (⋮) · paging ── */
   const group = (["delivery", "stock", "payment"] as const).find((g) => g === params.get("group")) ?? null;
-  const query = JSON.stringify([tab, layoutKey, Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)).map(([key, values]) => [key, [...values].sort()]), seededSearch, requestedParam, group]);
+  const query = JSON.stringify([tab, layoutKey, Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)).map(([key, values]) => [key, [...values].sort()]), seededSearch, requestedParam, group, rangeSignature]);
   const [listContext, setListContext] = useState(() => listContextFor(userId, query));
   /* A genuinely changed scope starts on page1. A remount after Back does not.
      Compare values, not new filter/sort object identities or mount effects. */
@@ -363,15 +381,18 @@ export default function SalesOrdersOutright() {
   /* ── export · save view · sync ── */
   const [moreOpen, setMoreOpen] = useState(false);
   const [viewsOpen, setViewsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  /* The file carries the view's starting columns; the Columns chooser stays the grid's. */
+  const visibleColumns = layout.columns.filter((k) => !layout.hidden?.includes(k));
   const exportTable = (rows: RegisterRow[]) => ({
-    headers: [COLUMNS.order!.label, ...layout.columns.filter((k) => k !== "order").map((k) => COLUMNS[k]!.label)],
-    rows: rows.map((r) => [
-      `SO-${r.so}`,
-      ...layout.columns.filter((k) => k !== "order").map((k) => {
+    headers: visibleColumns.map((k) => COLUMNS[k]!.label),
+    rows: rows.map((r) =>
+      visibleColumns.map((k) => {
+        if (k === "order") return `SO-${r.so}`;
         const c = COLUMNS[k]!.cell(r, ctx);
         return c.sub ? `${c.t} · ${c.sub}` : c.t;
       }),
-    ]),
+    ),
   });
   const downloadExcel = async (rows: RegisterRow[]) => {
     try {
@@ -413,13 +434,18 @@ export default function SalesOrdersOutright() {
     ...(seededSearch ? [{ key: "search", label: `Search: ${seededSearch}`, clear: () => setParam("search", null) }] : []),
     ...(requested ? [{ key: "requested", label: `Customer’s original requested delivery: ${requestedNarrowingWord(requested)}`, clear: () => setParam("requested", null) }] : []),
     ...Object.entries(filters).map(([k, v]) => ({ key: k, label: `${COLUMNS[k]!.label}: ${v.join(", ")}`, clear: () => setParam(`f.${k}`, null) })),
+    ...dateRanges.filter((d) => d.from || d.to).map((d) => ({
+      key: `date-${d.key}`,
+      label: `${d.label}: ${d.from ? fmtDateShort(d.from) : "Any"} to ${d.to ? fmtDateShort(d.to) : "Any"}`,
+      clear: () => updateParams((n) => { n.delete(`from.${d.key}`); n.delete(`to.${d.key}`); }),
+    })),
   ];
   const clearFilters = () =>
     updateParams((n) => {
-      [...n.keys()].filter((k) => k === "search" || k === "requested" || k.startsWith("f.")).forEach((k) => n.delete(k));
+      [...n.keys()].filter((k) => k === "search" || k === "requested" || k.startsWith("f.") || k.startsWith("from.") || k.startsWith("to.")).forEach((k) => n.delete(k));
     });
   const emptyMessage = populationEmpty ? "No sales orders yet" : "No sales orders match these filters";
-  const clearableEmpty = !populationEmpty && Boolean(seededSearch || requested || Object.keys(filters).length);
+  const clearableEmpty = !populationEmpty && chips.length > 0;
 
   /* No toolbar control is cut or overlaps (owner 14 Oct 2026); Summary may keep
      its icon only and the view button always keeps its name. On a short line the
@@ -528,6 +554,7 @@ export default function SalesOrdersOutright() {
           width: floor,
           minWidth: floor,
           ...(c.align === "end" ? { align: "right" as const } : {}),
+          ...(layout.hidden?.includes(k) ? { defaultHidden: true } : {}),
           accessor: (r: RegisterRow) => {
             /* A document number opens its own record (UI MASTER §6.0 rule 2):
                every PO (owner ruling 2026-10-06), Delivery Order and Receipt. */
@@ -590,6 +617,25 @@ export default function SalesOrdersOutright() {
     { key: "payment", label: "Group by: Payment Status" },
   ] as const;
 
+  const tabCounts: Record<Tab, number> = useMemo(() => {
+    const delivered = all.filter(isDelivered).length;
+    return { all: all.length, delivered, open: all.length - delivered };
+  }, [all]);
+  /* Houzs's four cards, over the orders the list is showing now. */
+  const stats = useMemo(() => {
+    let revenue = 0, outstanding = 0, paid = 0;
+    for (const r of list) {
+      if (r.total.kind === "amount") revenue += r.total.value;
+      if (r.balance.kind === "amount" && r.balance.value > 0) outstanding += r.balance.value;
+      if (r.paid.kind === "amount") paid += r.paid.value;
+    }
+    return [
+      { label: "Total Orders", value: String(list.length) },
+      { label: "Revenue", value: rm(revenue) },
+      { label: "Outstanding", value: rm(outstanding) },
+      { label: "Paid", value: rm(paid) },
+    ];
+  }, [list]);
   const selPcs = selectedRows.reduce((s, r) => s + pcsOf(r), 0);
   const selTotal = selectedRows.reduce((s, r) => s + (r.total.kind === "amount" ? r.total.value : 0), 0);
 
@@ -610,7 +656,7 @@ export default function SalesOrdersOutright() {
           failure={failedList ? <SalesOrderReadFailure error={listError} surface="sales-orders-register" onRetry={retryList} /> : undefined}
         />
       )}
-      <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5">
+      <main className={`grid min-h-0 min-w-0 flex-1 gap-2.5 ${loadingList || failedList ? "grid-rows-[auto_minmax(0,1fr)]" : "grid-rows-[auto_auto_minmax(0,1fr)]"}`}>
         {selectedRows.length > 0 ? (
           <div
             role="toolbar"
@@ -653,6 +699,7 @@ export default function SalesOrdersOutright() {
                   className={`${SEGMENT} ${tab === t.key ? SEGMENT_ON : SEGMENT_OFF}`}
                 >
                   {t.label}
+                  {!loadingList && !failedList && <span aria-hidden="true" className="ml-1 tabular-nums opacity-70">{tabCounts[t.key]}</span>}
                 </button>
               ))}
             </div>
@@ -668,6 +715,37 @@ export default function SalesOrdersOutright() {
               </span>
             )}
             <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              <form
+                role="search"
+                className={`${compact >= 1 ? "w-[150px]" : "w-[220px]"} max-md:w-full`}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const value = String(new FormData(e.currentTarget).get("search") ?? "").trim();
+                  setParam("search", value || null);
+                }}
+              >
+                <CInput key={seededSearch} name="search" type="search" label="Search sales orders" placeholder="Search doc no, customer, phone, ref…" defaultValue={seededSearch} />
+              </form>
+              <CPopover
+                label="More filters"
+                role="dialog"
+                width={300}
+                open={filtersOpen}
+                onOpenChange={setFiltersOpen}
+                trigger={<CViewButton icon="filter_list" name="More filters" open={filtersOpen} />}
+              >
+                <div className="flex flex-col gap-3 p-2.5" data-testid="outright-more-filters">
+                  {dateRanges.map((d) => (
+                    <div key={d.key} className="flex flex-col gap-1">
+                      <span className="text-[12px] text-c-secondary">{d.label}</span>
+                      <span className="grid grid-cols-2 gap-1.5">
+                        <CDate label={`${d.label} from`} value={d.from} onChange={(iso) => setParam(`from.${d.key}`, iso)} />
+                        <CDate label={`${d.label} to`} value={d.to} onChange={(iso) => setParam(`to.${d.key}`, iso)} />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CPopover>
               {/* OVERTURNED 2026-10-22 by Weisiang (Mr Lim): office staff may
                   create Sales Orders (Houzs way). Jess's 2026-09-27 ruling is
                   kept for history in docs/orders/MASTER.md. */}
@@ -714,11 +792,22 @@ export default function SalesOrdersOutright() {
           </div>
         )}
 
+        {!loadingList && !failedList && (
+          <div className="grid grid-cols-4 gap-2.5 max-md:grid-cols-2" data-testid="outright-stats">
+            {stats.map((s) => (
+              <div key={s.label} className="flex flex-col rounded-[10px] border border-c-card-border bg-c-card px-3.5 py-2">
+                <span className="text-[12px] text-c-secondary">{s.label}</span>
+                <span className="text-[16px] font-semibold tabular-nums text-c-ink">{s.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <section ref={gridBox} aria-label="Sales orders" className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]" data-carres-table="list">
           <DataGrid<RegisterRow>
             rows={shown}
             columns={gridColumns}
-            storageKey={`carres.outright.grid.${layoutKey}.v1`}
+            storageKey={`carres.outright.grid.${layoutKey}.${layoutKey === "so" ? "v2" : "v1"}`}
             sessionKey={`carres.outright.${userId}`}
             presentationKey={JSON.stringify([query, pageSize, page, sort])}
             rowKey={(r) => r.id}
@@ -733,7 +822,7 @@ export default function SalesOrdersOutright() {
             allowColumnGrouping={false}
             groupBanner={false}
             {...(fixedGroups ? { fixedGroups } : {})}
-            stickyIdentity={{ columnKey: "order" }}
+            stickyIdentity={{ columnKey: layout.columns[0]! }}
             serverColumns={{ values: filterValues, selected: filters, onChange: onColumnQuery }}
             onRowClick={(r, e) => open(r, e)}
             contextMenu={(r) =>

@@ -2473,9 +2473,7 @@ function SalesOrderWorkspaceBody() {
     </>
   );
   const FACT = "flex min-w-0 flex-col gap-0.5";
-  const salesCard = (
-    <Card label="Sales" testId="so-card-sales">
-      <CardTitle note={mode === "object" && editing ? "Set by Sales Portal" : undefined}>Sales</CardTitle>
+  const orderFacts = (
       <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-x-4 gap-y-2 border-t border-c-section-line pt-2">
         {/* SO info order — Orders MASTER (2026-09-21 · 2026-10-05 · 2026-10-06):
             SO Doc Date · Planned production start · Sales Location · Salesperson,
@@ -2497,15 +2495,12 @@ function SalesOrderWorkspaceBody() {
           </span>
         ) : (
           <span className={FACT} data-testid="so-fact-planned-production-start">
-            {salesFact("Planned production start", dateFact(draft.proceed_date))}
+            {salesFact("Processing Date", dateFact(draft.proceed_date))}
           </span>
         )}
-        <span className={FACT} data-testid="so-fact-sales-location" data-pos-field="outlet">{salesFact("Sales Location", factOf(sourceName(mode, viewedRevision, order, "outlet")))}</span>
-        <span className={FACT} data-testid="so-fact-salesperson" data-pos-field="salesperson">{salesFact("Salesperson", factOf(sourceName(mode, viewedRevision, order, "salesperson")))}</span>
         <span className={FACT} data-testid="so-fact-dealer">{salesFact("Dealer", factOf(sourceName(mode, viewedRevision, order, "dealer")))}</span>
         {customRowsAsFacts(tab("target").custom)}
       </div>
-    </Card>
   );
   function customRowsAsFacts(fields: CustomField[]) {
     return fields.map((f) => {
@@ -2544,11 +2539,12 @@ function SalesOrderWorkspaceBody() {
     </span>
   );
   const customerCard = (
-    <Card label="Customer and emergency contact" testId="so-card-customer" className="gap-[18px]">
+    <Card label="Customer" testId="so-card-customer">
       <section className="flex flex-col" data-pos-field="name">
         <CardTitle>Customer</CardTitle>
         {row("name", "Full name", factOf(draft.customer_name), ["customer_name"],
           <CInput id="so-name" label="Full name" value={draft.customer_name} onChange={(e) => setField("customer_name", e.target.value)} />, baseline.customer_name)}
+        {row("ref-no", "Ref No.", factOf((order?.source_ref ?? []).join(", ")), [], null)}
         <span data-pos-field="phone" className="contents">
           {row("phone", "Phone", factOf(draft.customer_phone), ["customer_phone"],
             <CInput id="so-phone" label="Phone" value={draft.customer_phone} onChange={(e) => setField("customer_phone", e.target.value)} />, baseline.customer_phone)}
@@ -2561,6 +2557,9 @@ function SalesOrderWorkspaceBody() {
         )}
         {customerBuiltins["customerType"]?.enabled !== false &&
           row("customer-type", "Customer type", { value: customerTypeValue, muted: customerTypeWord === "Not known yet" }, [], null)}
+        <span className="contents" data-testid="so-fact-salesperson" data-pos-field="salesperson">
+          {row("salesperson", "Salesperson", factOf(sourceName(mode, viewedRevision, order, "salesperson")), [], null)}
+        </span>
         {customerBuiltins["race"]?.enabled !== false && (
           <span data-pos-field="race" className="contents">
             {row("race", "Race", factOf(draft.customer_race), ["customer_race"],
@@ -2584,9 +2583,12 @@ function SalesOrderWorkspaceBody() {
         )}
         {customRows(tab("customer").custom)}
       </section>
-      {emergencyEnabled && (
+    </Card>
+  );
+  const emergencyCard = emergencyEnabled && (
+    <Card label="Emergency Contact" testId="so-card-emergency">
         <section className="flex flex-col" data-pos-field="emergency">
-          <CardTitle>Emergency contact</CardTitle>
+          <CardTitle>Emergency Contact</CardTitle>
           {row("emergency-name", "Contact name", factOf(draft.emergency_name), ["emergency_name"],
             <CInput id="so-emergency-name" label="Contact name" value={draft.emergency_name} onChange={(e) => setField("emergency_name", e.target.value)} />, baseline.emergency_name)}
           {row("emergency-relationship", "Relationship", factOf(draft.emergency_relationship), ["emergency_relationship"],
@@ -2601,16 +2603,13 @@ function SalesOrderWorkspaceBody() {
             <CInput id="so-emergency-phone" label="Emergency phone" value={draft.emergency_phone} onChange={(e) => setField("emergency_phone", e.target.value)} />, baseline.emergency_phone)}
           {customRows(tab("emergency").custom)}
         </section>
-      )}
     </Card>
   );
 
   /* ── DELIVERY + ADDRESS ───────────────────────────────────────────────── */
   const fullAddressFallback = addressIsBlank ? "" : !draft.customer_address_line1.trim() && !draft.customer_address_city ? draft.customer_address : "";
-  const deliveryCard = (
-    <Card label="Delivery and address" testId="so-card-delivery" className="gap-[18px]">
+  const deliveryRows = (
       <section className="flex flex-col" data-pos-field="deliveryDate">
-        <CardTitle>Delivery</CardTitle>
         {row("original-date", "Customer original delivery date", dateFact(originalDate), [], null)}
         {(postponed || draft.delivery_date_tbd || (mode === "object" && editing)) &&
           row(
@@ -2664,8 +2663,29 @@ function SalesOrderWorkspaceBody() {
           {row("stair-fee", "Stair carry fee", { value: <span data-testid="so-stair-working" className="tabular-nums">{fmtMoney(stairWorking?.fee ?? 0)}</span>, muted: false }, [], null)}
         </span>
       </section>
+  );
+  /* Houzs Order Info: building type, then the order's dates, then delivery. */
+  const orderInfoCard = (
+    <Card label="Order Info" testId="so-card-sales" className="gap-[18px]">
+      <section className="flex flex-col">
+        <CardTitle>Order Info</CardTitle>
+        {row("building-type", "Building type", factOf(draft.building_type), ["building_type"],
+          <span className="flex flex-col gap-0.5">
+            <CSelect id="so-building-type" label="Building type" value={draft.building_type} onChange={(v) => setField("building_type", v)}
+              options={BUILDING_TYPE_OPTIONS.map((b) => ({ value: b, label: b }))} />
+            {!draft.customer_address_unknown && !draft.building_type && (
+              <span className="text-[12px] text-c-warn-fg">Fill in the building type first. A condominium can only take a half-day delivery.</span>
+            )}
+          </span>, baseline.building_type)}
+      </section>
+      {orderFacts}
+      {deliveryRows}
+    </Card>
+  );
+  const deliveryCard = (
+    <Card label="Delivery Address" testId="so-card-delivery">
       <section className="flex flex-col" data-pos-field="address">
-        <CardTitle>Address</CardTitle>
+        <CardTitle>Delivery Address</CardTitle>
         {mode === "object" && editing && (addressIsBlank || draft.customer_address_unknown) &&
           row("address-unknown", "Address not given yet", { value: draft.customer_address_unknown ? "Yes" : "No", muted: false }, ["customer_address_unknown"],
             <CSelect id="so-address-unknown" label="Address not given yet" value={draft.customer_address_unknown ? "yes" : "no"}
@@ -2698,14 +2718,6 @@ function SalesOrderWorkspaceBody() {
             onChange={(v) => setField("customer_address_postcode", v)}
             options={keepCurrent(addressLists.postcodes(draft.customer_address_state || null, draft.customer_address_city || null), draft.customer_address_postcode).map((pc) => ({ value: pc, label: pc }))} />,
           baseline.customer_address_postcode)}
-        {row("building-type", "Building type", factOf(draft.building_type), ["building_type"],
-          <span className="flex flex-col gap-0.5">
-            <CSelect id="so-building-type" label="Building type" value={draft.building_type} onChange={(v) => setField("building_type", v)}
-              options={BUILDING_TYPE_OPTIONS.map((b) => ({ value: b, label: b }))} />
-            {!draft.customer_address_unknown && !draft.building_type && (
-              <span className="text-[12px] text-c-warn-fg">Fill in the building type first. A condominium can only take a half-day delivery.</span>
-            )}
-          </span>, baseline.building_type)}
         <span data-pos-field="billing" className="contents">
           {row("billing", "Billing address",
             draft.customer_billing_same ? { value: "Same as delivery", muted: false } : factOf(draft.customer_billing),
@@ -2719,6 +2731,9 @@ function SalesOrderWorkspaceBody() {
               )}
             </span>,
             baseline.customer_billing_same ? "Same as delivery" : baseline.customer_billing)}
+        </span>
+        <span className="contents" data-testid="so-fact-sales-location" data-pos-field="outlet">
+          {row("sales-location", "Sales Location", factOf(sourceName(mode, viewedRevision, order, "outlet")), [], null)}
         </span>
         {customRows(tab("address").custom)}
       </section>
@@ -2857,8 +2872,8 @@ function SalesOrderWorkspaceBody() {
   });
   const owes = money.known && money.outstanding > 0;
   const itemsCard = (
-    <Card label="Items and payment" testId="so-card-items">
-      <CardTitle note={amending ? undefined : undefined}>Items</CardTitle>
+    <Card label="Line Items and Payments" testId="so-card-items">
+      <CardTitle note={amending ? undefined : undefined}>{`Line Items (${goodsLines.length + serviceLines.length})`}</CardTitle>
       <div className="min-w-0" data-testid="edit-items">
         <COrderLines label="Items" data-testid="edit-goods" lines={[...goodsLines, ...serviceLines]}
           totals={[
@@ -2899,7 +2914,7 @@ function SalesOrderWorkspaceBody() {
         </div>
       )}
       <span className="flex items-end justify-between gap-2 pb-1 pt-3.5">
-        <span className="text-[13px] font-medium text-c-ink">Payment</span>
+        <span className="text-[13px] font-medium text-c-ink">Payments</span>
         {order && !amending && mode !== "oldrev" && canTopUpPayment(role, money) && (
           <CBtn kind="normal" icon="add" onClick={() => setAddingPayment(true)} data-testid="so-add-payment">
             Add payment
@@ -3042,9 +3057,10 @@ function SalesOrderWorkspaceBody() {
         />
       )}
       {amendmentBar}
-      {salesCard}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] items-stretch gap-3">
         {customerCard}
+        {orderInfoCard}
+        {emergencyCard}
         {deliveryCard}
       </div>
       {itemsCard}
