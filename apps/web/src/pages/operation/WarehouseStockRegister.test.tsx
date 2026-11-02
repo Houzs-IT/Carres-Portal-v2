@@ -352,3 +352,37 @@ describe("Showroom reads existing PJ stock", () => {
     expect(screen.queryByRole("link", { name: "Request Transfer" })).not.toBeInTheDocument();
   });
 });
+
+describe("Balances: one row per product", () => {
+  it("adds up the Units per product, keeps Incoming separate, and shows no money", async () => {
+    await renderLoaded();
+    expect(screen.queryByTestId("stock-balances")).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Balances" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    const view = await screen.findByTestId("stock-balances");
+    // CODY-K holds U1-000-084 only: U1-000-010 has ended.
+    const cody = within(view).getByRole("link", { name: "CODY-K" }).closest("tr")!;
+    expect(within(cody).getByText("Cody · King")).toBeInTheDocument();
+    const mattress = within(view).getByRole("link", { name: "B1201S-K" }).closest("tr")!;
+    expect(within(mattress).getByText("+1")).toBeInTheDocument();
+    expect(within(view).getByRole("link", { name: "MATTRESS-PROTECTOR-Q" })).toBeInTheDocument();
+    expect(within(view).queryByText(/Value|Unit Cost|RM /)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("rail-history")).not.toBeInTheDocument();
+  });
+
+  it("opens the per-warehouse balance from a row", async () => {
+    await renderLoaded();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Balances" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    const view = await screen.findByTestId("stock-balances");
+    fireEvent.click(within(view).getByText("Cody · King"));
+    const sites = await screen.findByTestId("balance-sites");
+    expect(within(sites).getByText("Carres Klang")).toBeInTheDocument();
+  });
+
+  it("leaves Showroom as a Unit list with no Balances", async () => {
+    renderRegister(undefined, true);
+    await screen.findByTestId("stock-register");
+    expect(screen.queryByRole("tab", { name: "Balances" })).not.toBeInTheDocument();
+  });
+});

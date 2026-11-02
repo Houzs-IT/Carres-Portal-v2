@@ -52,10 +52,12 @@ import ModuleHeader from "./components/ModuleHeader";
  */
 
 type PurchasingPage =
+  | "procurement-overview"
   | "purchase-demands"
   | "to-order"
   | "manual-purchase"
   | "forecast-purchase"
+  | "mrp"
   | "purchase-orders"
   | "po-amendments"
   | "po-cancellation-requests"
@@ -83,12 +85,14 @@ type PurchasingPage =
  *  retired their RAIL rows, not their pages: the routes remain reachable and a
  *  page that still renders may not lose the word it prints. */
 const PAGE_WORD: Record<PurchasingPage, string> = {
+  "procurement-overview": "Procurement Overview",
   /* Reachable by direct URL only since 2026-08-22 — no rail row, same word. */
   "purchase-demands": "SO Batch Purchase",
   "to-order": "SO Batch Purchase",
   "manual-purchase": "Manual Purchase Request",
   /* The weekly stock suggestion (owner 13 Oct 2026). The SIDEBAR's own word. */
   "forecast-purchase": "Forecast Purchase",
+  mrp: "MRP",
   "purchase-orders": "Purchase Orders",
   /* 0717 · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22; Jess was not
      part of this decision). The SIDEBAR's own words. */
@@ -117,12 +121,16 @@ export default function PurchasingTabs({ right }: { right?: ReactNode } = {}) {
   const tabParam = new URLSearchParams(location.search).get("tab");
   const active: PurchasingPage = onProcurement
     ? "purchase-orders"
+    : tabParam === "procurement-overview"
+      ? "procurement-overview"
     : tabParam === "purchase-demands"
       ? "purchase-demands"
       : tabParam === "manual-purchase"
       ? "manual-purchase"
       : tabParam === "forecast-purchase"
       ? "forecast-purchase"
+      : tabParam === "mrp"
+      ? "mrp"
       : tabParam === "po-amendments"
       ? "po-amendments"
       : tabParam === "po-cancellation-requests"

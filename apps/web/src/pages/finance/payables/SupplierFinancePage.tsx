@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
 import { supplierPayTo, type SupplierFinanceRow } from "@carres/shared/schemas/finance-ap";
 import Button from "@/components/kit/Button";
+import Tabs from "@/components/kit/Tabs";
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import ModuleHeader from "@/pages/operation/components/ModuleHeader";
 import { appDateIsoOf, fmtDate } from "@/lib/fmt-date";
-import { useSupplierFinance } from "@/lib/payables-queries";
+import { useApOutstanding, useSupplierFinance } from "@/lib/payables-queries";
 import { creditorKindWord } from "./payables-words";
 import { ReadFailed } from "./PayablesParts";
 import SupplierFinanceModal from "./SupplierFinanceModal";
-import { FINANCE_WIDTH } from "../finance-widths";
+import { amountCell, FINANCE_WIDTH } from "../finance-widths";
 import { useFinancePersonalLayouts } from "../finance-layouts";
 
 /**
@@ -23,13 +24,25 @@ import { useFinancePersonalLayouts } from "../finance-layouts";
  * row, because a changed account number is where a payment can go wrong.
  *
  * FINANCE LOOK (Chew 2026-10-13): the supplier and the account holder wrap
- * rather than being cut. No amount is listed here.
+ * rather than being cut. Owed, Advance and Open bills are read from the same
+ * outstanding list as AP (Houzs Supplier Maintenance, Weisiang 1 Nov 2026).
  */
+const CHIPS = [
+  { value: "all", label: "All" }, { value: "trade", label: "Trade" },
+  { value: "other", label: "Other" }, { value: "missing", label: "Missing TIN" },
+] as const;
+type Chip = (typeof CHIPS)[number]["value"];
+const inChip = (r: SupplierFinanceRow, chip: Chip) =>
+  chip === "all" || (chip === "missing" ? !r.tax_no : (r.kind === "other_creditor") === (chip === "other"));
+
 export default function SupplierFinancePage() {
   const personalLayouts = useFinancePersonalLayouts("finance_supplier_finance");
   const query = useSupplierFinance();
   const [editing, setEditing] = useState<SupplierFinanceRow | null>(null);
-  const rows = query.data ?? [];
+  const outstanding = useApOutstanding();
+  const [chip, setChip] = useState<Chip>("all");
+  const rows = useMemo(() => (query.data ?? []).filter((r) => inChip(r, chip)), [query.data, chip]);
+  const owedOf = useMemo(() => new Map((outstanding.data ?? []).map((o) => [o.supplier_id, o])), [outstanding.data]);
   // Where the money goes first, so it is whole on a 1440px screen with the
   // menu open; the tax facts after it. A detail nobody keyed is an empty cell
   // (UI MASTER §6.0: no glyph, no absence word for an optional fact).
@@ -52,13 +65,27 @@ export default function SupplierFinancePage() {
     { key: "registration", label: "Registration No", width: 140, defaultHidden: true, accessor: (r) => r.registration_no ?? "" },
     { key: "kind", label: "Creditor Type", width: 130, accessor: (r) => creditorKindWord(r.kind),
       filterValue: (r) => creditorKindWord(r.kind), filterType: "enum" },
-  ], []);
+    { key: "owed", label: "Owed", width: FINANCE_WIDTH.amount, align: "right",
+      accessor: (r) => { const o = owedOf.get(r.supplier_id); return o ? amountCell(o.net_owing) : ""; },
+      numberValue: (r) => { const o = owedOf.get(r.supplier_id); return o ? Number(o.net_owing) : null; },
+      exportValue: (r) => { const o = owedOf.get(r.supplier_id); return o ? Number(o.net_owing) : ""; } },
+    { key: "advance", label: "Advance", width: FINANCE_WIDTH.amount, align: "right",
+      accessor: (r) => { const o = owedOf.get(r.supplier_id); return o ? amountCell(o.advance_open) : ""; },
+      numberValue: (r) => { const o = owedOf.get(r.supplier_id); return o ? Number(o.advance_open) : null; },
+      exportValue: (r) => { const o = owedOf.get(r.supplier_id); return o ? Number(o.advance_open) : ""; } },
+    { key: "bills", label: "Open bills", width: 100, align: "right",
+      accessor: (r) => String(owedOf.get(r.supplier_id)?.open_bills ?? ""),
+      numberValue: (r) => owedOf.get(r.supplier_id)?.open_bills ?? null },
+  ], [owedOf]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ModuleHeader destinationHeader testId="supplier-finance-destination-header" word="Suppliers"
         docTitle="Suppliers · Carres" />
-      {query.isError ? <ReadFailed what="Supplier details" onRetry={() => void query.refetch()} /> : (
+      {query.isError ? <ReadFailed what="Supplier details" onRetry={() => void query.refetch()} /> : <>
+        <div className="shrink-0 px-4 pt-2">
+          <Tabs label="Supplier view" value={chip} onValueChange={(v) => setChip(v as Chip)} tabs={CHIPS} />
+        </div>
         <ListPageShell register>
           <DataGrid
             rows={rows}
@@ -103,7 +130,7 @@ export default function SupplierFinancePage() {
             }}
           />
         </ListPageShell>
-      )}
+      </>}
       {editing && <SupplierFinanceModal key={editing.supplier_id} supplier={editing} onClose={() => setEditing(null)} />}
     </div>
   );

@@ -136,14 +136,14 @@ describe("Journal", () => {
     expect(api.fetch).toHaveBeenCalledWith("/api/finance/ledger/entries/JE-202609-0003");
     // The register itself is not read to open one entry.
     expect(api.fetch.mock.calls.some(([u]) => String(u).startsWith("/api/finance/ledger/entries?"))).toBe(false);
-    fireEvent.click(screen.getByRole("link", { name: "Back to Journal" }));
+    fireEvent.click(screen.getByRole("link", { name: "Back to Journal Entries" }));
     expect(screen.getByTestId("where")).toHaveTextContent(/^\/finance\/ledger$/);
   });
 
   it("says plainly when nobody has that entry number", async () => {
     show("/finance/ledger?entry=JE-209901-0001");
     expect(await screen.findByText("No entry has that number. Check it and try again.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to Journal" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to Journal Entries" })).toBeInTheDocument();
   });
 
   it("narrows to one account over a period, and one control shows everything again", async () => {

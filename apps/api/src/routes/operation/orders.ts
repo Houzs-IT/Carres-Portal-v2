@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { bodyTouchesDeliveryDate, salesOrderWorkCompletion } from "../../lib/sales-order-work-completion";
-import { actorKindOf, actorRoleWord, resolveActorIdentities, resolveActorNames } from "../../lib/actor-names";
+import { actorKindOf, actorRoleWord, resolveActorIdentities, resolveActorNames, type ActorIdentity } from "../../lib/actor-names";
 import { restampStairCarry, touchesStairInputs } from "../../lib/stair-carry-restamp";
 import { HTTPException } from "hono/http-exception";
 import type { Context, MiddlewareHandler } from "hono";
@@ -38,6 +38,7 @@ import {
   type SalesOrderChangeSide,
   stockMatchKey,
   liveDeliveryOrderNumber,
+  phoneKeysMy,
 } from "@carres/shared";
 import { findSalesOrderDocuments } from "../../lib/sales-order-document-search";
 import { findOrdersByPhone, phoneSearchDigits } from "../../lib/sales-order-phone-search";
@@ -381,9 +382,13 @@ operationOrdersRouter.get("/", requireOperation, async (c) => {
       // `order_finance_exceptions(status)`: Monitor's `Payment` cell prints
       // `Finance hold · {reason}` under `Hold delivery` for Operation. One more
       // column on the SAME embed; internal readers only (0355's read policy).
-      "id, so, status, operation_stage, warehouse_id, customer_name, customer_phone, customer_address, customer_email, customer_billing, customer_billing_same, customer_emergency, customer_address_line1, customer_address_line2, customer_address_city, customer_address_state, customer_address_postcode, building_type:entry_data->fields->>building_type, customer_race, customer_gender, customer_birthday, delivery_floor, delivery_has_lift, delivery_stair_items, channel, placed_at, proceeded_at, delivery_date, delivery_date_tbd, proceed_date, source_system, source_ref, ops_assigned_logistic, delivery_partner_id, delivery_stops, request_for_delivery_at, partner_accepted_at, partner_rejected_at, partner_rejected_reason, do_number, do_file_path, do_uploaded_at, invoice_no, invoiced_at, payment_method, installment_months, dispatched_at, delivered_at, outlet_id, salesperson_id, dealer_id, paid, credited, original_request:sales_order_revisions(revision,snapshot), dealers(name), outlets(name), salespersons(name), delivery_partners!orders_delivery_partner_id_fkey(id, name), order_lines(id, sku, qty, unit_price, attrs, source_po), order_addons(addon_key, qty, unit_price), ops_delivery_orders(do_number,leg,delivery_date,time_slot,voided_at), ops_delivery_arrangements(leg,partner_id,confirmed_date,confirmed_time), invoice_documents:invoices(id,invoice_no), receipt_documents:order_payments(id,receipt_no), allocated_receipts:payment_allocations(order_payments(id,receipt_no)), amendment_documents:sales_order_amendments(id), order_supplier_threads(id, supplier_id, category, operation_stage, po_id, delivery_partner_id, delivery_partners(id, name), confirm_delivery_date, request_for_delivery_at, partner_accepted_at, partner_rejected_at, purchase_orders(placed_at)), order_finance_exceptions(status, reason), order_delivery_payment_approvals(status), ops_sofa_loans(status, item_id, loan_note_no, ops_stock_items(unit_code, identity_scope)), order_annotations(content, tag, created_at), ops_order_control(line_received, customer_request, action_for_logistic, carres_remark, warehouse_remark, logistic_eta, balance, payment_status, storage_from, storage_fee_override, storage_fee_msbf, storage_fee_sof, storage_paid, storage_collected_at, storage_waiver_status, called_customer, line_etas, line_stock_status, assigned_staff, booking_stage, confirmed_date, confirmed_time_slot, delivery_photos, booking_groups, delay_decision, delay_decision_eta, delay_decision_at, delay_detected_at, delay_detected_eta)",
+      "id, so, status, operation_stage, warehouse_id, customer_name, customer_phone, customer_address, customer_email, customer_billing, customer_billing_same, customer_emergency, customer_address_line1, customer_address_line2, customer_address_city, customer_address_state, customer_address_postcode, building_type:entry_data->fields->>building_type, customer_race, customer_gender, customer_birthday, delivery_floor, delivery_has_lift, delivery_stair_items, channel, placed_at, proceeded_at, delivery_date, delivery_date_tbd, proceed_date, source_system, source_ref, ops_assigned_logistic, delivery_partner_id, delivery_stops, request_for_delivery_at, partner_accepted_at, partner_rejected_at, partner_rejected_reason, do_number, do_file_path, do_uploaded_at, invoice_no, invoiced_at, payment_method, installment_months, dispatched_at, delivered_at, outlet_id, salesperson_id, dealer_id, paid, credited, original_request:sales_order_revisions(revision,snapshot), dealers(name), outlets(name), salespersons(name), delivery_partners!orders_delivery_partner_id_fkey(id, name), order_lines(id, sku, qty, unit_price, attrs, source_po), order_addons(addon_key, qty, unit_price), ops_delivery_orders(do_number,leg,delivery_date,time_slot,voided_at), ops_delivery_arrangements(leg,partner_id,confirmed_date,confirmed_time), invoice_documents:invoices(id,invoice_no), receipt_documents:order_payments(id,receipt_no), allocated_receipts:payment_allocations(order_payments(id,receipt_no)), amendment_documents:sales_order_amendments(id,status), order_supplier_threads(id, supplier_id, category, operation_stage, po_id, delivery_partner_id, delivery_partners(id, name), confirm_delivery_date, request_for_delivery_at, partner_accepted_at, partner_rejected_at, purchase_orders(placed_at)), order_finance_exceptions(status, reason), order_delivery_payment_approvals(status), ops_sofa_loans(status, item_id, loan_note_no, ops_stock_items(unit_code, identity_scope)), order_annotations(content, tag, created_at), first_history:order_history(by_user_id, occurred_at, metadata), ops_order_control(line_received, customer_request, action_for_logistic, carres_remark, warehouse_remark, logistic_eta, balance, payment_status, storage_from, storage_fee_override, storage_fee_msbf, storage_fee_sof, storage_paid, storage_collected_at, storage_waiver_status, called_customer, line_etas, line_stock_status, assigned_staff, booking_stage, confirmed_date, confirmed_time_slot, delivery_photos, booking_groups, delay_decision, delay_decision_eta, delay_decision_at, delay_detected_at, delay_detected_eta)",
     )
-    .eq("original_request.revision", 1);
+    .eq("original_request.revision", 1)
+    /* Created by is the actor on the order's first history row, stamped by
+       0387. Revision 1 is not used: not every order has one. Same request. */
+    .order("occurred_at", { ascending: true, referencedTable: "first_history" })
+    .limit(1, { referencedTable: "first_history" });
 
   /* The list's scope — stage, the one order, channel — applied by ONE
      function, so the phone read below asks exactly the population the rows
@@ -879,9 +884,20 @@ operationOrdersRouter.get("/", requireOperation, async (c) => {
     }
   }
 
+  type FirstHistory = { by_user_id: string | null; metadata: unknown };
+  type WithFirstHistory = { first_history?: FirstHistory[] };
+  /* A failed name read leaves Created by empty; it never takes the list down. */
+  const creatorById = await resolveActorIdentities(sb, orders.map((o: WithFirstHistory) => o.first_history?.[0]?.by_user_id))
+    .catch(() => new Map<string, ActorIdentity>());
+  const createdByNameOf = (first: FirstHistory | undefined) => {
+    const identity = first?.by_user_id ? (creatorById.get(first.by_user_id) ?? null) : null;
+    return actorKindOf(first?.by_user_id, identity, first?.metadata) === "human" ? (identity?.name ?? null) : null;
+  };
+
   return c.json({
-    orders: orders.map((o: { id?: string; so?: number | null }) => ({
+    orders: orders.map(({ first_history, ...o }: { id?: string; so?: number | null } & WithFirstHistory) => ({
       ...o,
+      created_by_name: createdByNameOf(first_history?.[0]),
       po_skus: [...(poSkusBySo.get(o.so ?? -1) ?? [])],
       po_numbers: [...(poNumbersBySo.get(o.so ?? -1) ?? [])],
       po_arrivals: poArrivalsBySo.get(o.so ?? -1) ?? [],
@@ -892,6 +908,38 @@ operationOrdersRouter.get("/", requireOperation, async (c) => {
     /* A full page may have more behind it; a short page is the last. */
     ...(paged ? { nextCursor: registerPageCursorAfter(orders as Array<{ id?: string; placed_at?: string | null }>) } : {}),
   });
+});
+
+// GET /customer-first-placed: the earliest placed_at for each phone, so the list
+// can call an order Existing when the same phone was placed earlier. The live
+// probe (/api/orders/customer-type) counts the order itself, and the register's
+// own rows are narrowed by search and leave out orders outside its population.
+// A cancelled order does not make a customer existing; a rental does.
+// shortcut: reads every order's phone, move to an RPC when this read gets slow.
+const FIRST_PLACED_PAGE = 1000;
+operationOrdersRouter.get("/customer-first-placed", requireOperation, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const firstPlaced: Record<string, string> = {};
+  for (let from = 0; ; from += FIRST_PLACED_PAGE) {
+    const { data, error } = await sb
+      .from("orders")
+      .select("customer_phone, placed_at")
+      .neq("status", "cancelled")
+      .not("customer_phone", "is", null)
+      .not("placed_at", "is", null)
+      .order("placed_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + FIRST_PLACED_PAGE - 1);
+    if (error) {
+      const m = mapPgError(error);
+      return c.json(m.body, m.status);
+    }
+    const rows = (data ?? []) as Array<{ customer_phone: string; placed_at: string }>;
+    for (const r of rows) {
+      for (const key of phoneKeysMy(r.customer_phone)) firstPlaced[key] ??= r.placed_at;
+    }
+    if (rows.length < FIRST_PLACED_PAGE) return c.json({ firstPlaced });
+  }
 });
 
 // ----- GET /by-number/:so — 【DELIVERY】 CARD 19 -----

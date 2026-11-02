@@ -250,6 +250,10 @@ export const serviceCaseSchema = z.object({
    *   - null      → the case genuinely has no linked order
    */
   so:                  z.number().int().nullable().optional(),
+  /** The linked order's Salesperson, live DO numbers and PO numbers. Optional like `so`. */
+  salespersonName:     z.string().nullable().optional(),
+  doNumbers:           z.array(z.string()).optional(),
+  poNumbers:           z.array(z.string()).optional(),
 
   /**
    * S1 — the guided intake (migration 0285). The wizard's five answers, stored

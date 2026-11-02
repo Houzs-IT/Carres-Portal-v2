@@ -1233,7 +1233,7 @@ warehouseReceiptsRouter.get("/:id", requireOperation, async (c) => {
     sb
       .from("purchase_orders")
       .select(
-        "id, supplier_id, warehouse_id, destination_id, is_consignment, suppliers(name), purchase_order_lines(id, sku, qty, received_qty, damaged_qty, wrong_item_qty)",
+        "id, supplier_id, warehouse_id, destination_id, is_consignment, suppliers(name, contact, contact_email, address), purchase_order_lines(id, sku, qty, received_qty, damaged_qty, wrong_item_qty)",
       )
       .eq("id", r.po_id as string)
       .maybeSingle(),

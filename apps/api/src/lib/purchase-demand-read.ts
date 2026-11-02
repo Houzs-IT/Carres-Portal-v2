@@ -172,6 +172,8 @@ export interface RegisterOrderFact {
   delivery: string | null;
   /** Version 1 request for display only; never replaces buying arithmetic. */
   originalRequestedDelivery?: string | null;
+  /** MRP's Warehouse column. Optional: only the MRP read uses it. */
+  warehouseId?: string | null;
   /** Who owns the customer conversation (`orders.salesperson_id`). */
   salespersonId: string | null;
   /** Card 02-B — `place` is not proceeded, and the order Register must know. */
@@ -212,6 +214,14 @@ export interface SoRegisterLineFact {
    * this line, per PO. They cover the line beside `stockTaken`.
    */
   poReserved?: Array<{ poId: string; qty: number }>;
+  /** MRP — the same reservation with PO lineage kept, so a line can name its PO. */
+  poHeld?: Array<{ poId: string; qty: number }>;
+  /** MRP — every unit netted out of this line before the open PO draw. Unlike
+   *  `stockTaken` and `poReserved` these keep units with PO lineage, so
+   *  `qty − heldInStock − heldOnPo` is the quantity the engine saw. */
+  heldInStock?: number;
+  heldOnPo?: number;
+  placedAt?: string;
   modelName: string | null;
   variant: string | null;
   category: string | null;
@@ -256,6 +266,11 @@ export type Loaded = {
    * To Order response is byte-identical with or without them.
    */
   registerFacts: RegisterFacts;
+  /** The open PO pool the engine drew from. Absent when no order is proceeded. */
+  openPoBySku?: Record<string, number>;
+  /** MRP — the same pool per PO, and each open PO's promised date. */
+  openPoRefs?: Record<string, { poId: string; qty: number }[]>;
+  openPoEta?: Record<string, string | null>;
   /**
    * 0600 — per `stockMatchKey`, the open POs whose incoming Unit IDs no order
    * holds (`purchasing_po_free_units`), merged per PO and sorted by PO No.
@@ -516,7 +531,7 @@ export async function loadToOrder(
       // `customer_address_city/state` are Card 02-B's Delivery Location facts,
       // read here because the row is already being fetched — the To Order
       // projection ignores them, so the workspace response is unchanged.
-      "id, so, customer_name, status, delivery_date, delivery_date_tbd, placed_at, created_at, proceed_date, proceeded_at, salesperson_id, customer_address_city, customer_address_state, original_request:sales_order_revisions(revision,snapshot)",
+      "id, so, customer_name, status, warehouse_id, delivery_date, delivery_date_tbd, placed_at, created_at, proceed_date, proceeded_at, salesperson_id, customer_address_city, customer_address_state, original_request:sales_order_revisions(revision,snapshot)",
     )
     /**
      * ⭐ THE PROCEEDED-ORDER BOUNDARY (Card 02-C, RESOLVED FROM AUTHORITY,
@@ -658,6 +673,7 @@ export async function loadToOrder(
     registerOrders.set(o.id as string, {
       so: o.so != null ? Number(o.so) : null,
       customer: (o.customer_name as string | null) ?? null,
+      warehouseId: (o.warehouse_id as string | null) ?? null,
       delivery: o.delivery_date_tbd
         ? null
         : (((o.delivery_date as string | null) ?? null)?.slice(0, 10) ?? null),
@@ -874,6 +890,7 @@ export async function loadToOrder(
    * refresh name a different purchase order for the same unit.
    */
   const openPoRefs: Record<string, { poId: string; qty: number }[]> = {};
+  const openPoEta: Record<string, string | null> = {};
   /**
    * ⭐ 0600 · GOODS RESERVED ON A PO (owner ruling 2026-09-28, §9.1). A Unit ID
    * still `incoming` that `Use this PO` bound to a Sales Order line is EXACT
@@ -934,7 +951,7 @@ export async function loadToOrder(
     // miss or repeat a row across two pages.
     const read = await readAllPages<Record<string, unknown>>((a, b) => sb
       .from("purchase_order_lines")
-      .select("id, po_id, sku, qty, received_qty, purchase_orders!inner(status)")
+      .select("id, po_id, sku, qty, received_qty, purchase_orders!inner(status, official_delivery_date, eta_date)")
       .eq("purchase_orders.status", "open")
       .order("id", { ascending: true })
       .range(a, b));
@@ -950,6 +967,8 @@ export async function loadToOrder(
       };
     }
     for (const r of read.rows) {
+      const po = r.purchase_orders as { official_delivery_date?: string | null; eta_date?: string | null } | null;
+      if (r.po_id) openPoEta[r.po_id as string] = po?.official_delivery_date ?? po?.eta_date ?? null;
       const remaining =
         Number(r.qty ?? 0) - Number(r.received_qty ?? 0) -
         (boundIncomingByPoLine.get(r.id as string) ?? 0);
@@ -1182,6 +1201,10 @@ export async function loadToOrder(
         qty: l.qty + (l.takenFromStock ?? 0) + poTake,
         stockTaken: Math.max(0, (l.takenFromStock ?? 0) - (linkedStockByLine.get(l.lineId) ?? 0)),
         ...(independentPoReserved.length > 0 ? { poReserved: independentPoReserved } : {}),
+        ...(poReserved.length > 0 ? { poHeld: poReserved } : {}),
+        heldInStock: l.takenFromStock ?? 0,
+        heldOnPo: poTake,
+        placedAt: l.placedAt,
         modelName: l.modelName,
         variant: l.variant,
         category: l.category,
@@ -1243,6 +1266,9 @@ export async function loadToOrder(
         (supRows ?? []).map((s) => [s.id as string, (s.name as string) ?? ""]),
       ),
       registerFacts: { lines: registerLines, ordersById: registerOrders, soLines },
+      openPoBySku,
+      openPoRefs,
+      openPoEta,
       poFreeByKey: await readPoFreeByKey(sb),
       lineageByLine: lineage?.totals,
     },

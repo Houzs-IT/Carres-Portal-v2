@@ -1,5 +1,9 @@
 # PURCHASING — MASTER
 
+## Current shared UI intake ·30Oct2026
+
+The owner commissioned kit/rule publication first, then separate frontend page work. Follow [UI MASTER current template](../ui/MASTER.md#current-shared-template--owner-adoption-30-oct-2026) and its30Oct reconciliation for Shell, table, surfaces, document-card composition and Send task presentation. These replace conflicting older visual measurements and blanket50:50 document-bearing record presentation below; historical build evidence is not current visual law. Lists stay lists; document-free objects do not acquire a PDF. Module business facts, saved document versions, permissions, writers, approvals and downstream ownership remain unchanged. No frontend migration, backend change or production verification is claimed by this intake. All modules consume the same Shell and shared components; no local kit or task engine.
+
 ## Latest Purchasing design intake · 21 Oct 2026
 
 Jess supplied `Sales Order (28).zip` for frontend specification handoff to IT. The package supersedes the19Oct PO/Receiving exports as design evidence. The one dimensions/states/screen inventory is [UI MASTER · Purchasing design handoff](../ui/MASTER.md#purchasing-design-handoff--21-oct-2026--it-entry). No backend changes, SQL approval, production rollout or blanket business-rule replacement is inferred. The resolved21Oct UI table supersedes earlier presentation instructions in this document for SO/Purchasing record split, table rows, button/dialog sizes and pager. Earlier full-width/no-preview design instructions are retired for document-bearing records; historical implementation evidence remains historical. Internal previews are not new official documents. IT builds full SO/PO/Receiving/Stock/DO flow first in TEST; detailed Settings and approval configuration follows before production use. This does not permit disabling production guards or changing accounting/Stock truth.
@@ -7,7 +11,7 @@ Jess supplied `Sales Order (28).zip` for frontend specification handoff to IT. T
 | Export PLANNER item | Reconciliation / implementation boundary |
 |---|---|
 |1 Claim tabs/grouping | Latest presentation target To do/Waiting/Closed/All plus grouping; existing persisted states determine each set, no new backend status from a tab |
-|2 Always50/50 record | Resolved latest design: document-bearing record50:50 at content820+, stacked below; internal requests use labelled internal previews; PDF generation/content authority unchanged |
+|2 Document-bearing record | Current composition follows UI MASTER30Oct; older50:50 presentation is superseded; internal requests use labelled internal previews; PDF generation/content authority unchanged |
 |3 Claim Reported first | Latest presentation target date-first; status retained in selectable columns, exact reported-event meaning remains module-owned |
 |4 Carres template papers | Use existing PDF/document authority and supplied Carres references; prototype papers are sketches, not a new generator |
 |5 GRN Received by person | Proposed visible person/company tooltip is presentation. Preserve actual confirmer vs count submitter/saver vs duty/company as separate stored facts; do not relabel a saver as physical receiver |
@@ -952,6 +956,7 @@ Purchasing ▾
 ├─ BUY ▾
 │  ├─ SO Batch Purchase
 │  ├─ Forecast Purchase        (§9.14, design handoff 13 Oct 2026)
+│  ├─ MRP                      (§5.1, read-only, YH 30 Oct 2026)
 │  ├─ Manual Purchase
 │  └─ Purchase Orders
 ├─ RECEIVE ▾
@@ -1029,6 +1034,8 @@ exists.
 KEEP §5.1's one source-line demand calculation. ADAPT a transparent readout within the existing SO Batch/approved reporting surfaces: exact source/configuration/destination, usable **allocated** stock, valid allocated PO coverage, remaining need and the date/calendar used. A warehouse's total stock is not automatically allocated stock for every SO; the same goods or shared PO quantity must not cover two demands. Combined and per-source results reconcile without double-counting. Missing source/quantity/date reads remain unknown and cannot make shortage zero or create buying authority. Replenishment still uses the approved Manual Purchase route (§5.2); accessory two-month advance planning does not delay customer fulfilment from real stock (§11).
 
 Recommended acceptance / PROPOSAL where extending the reader: open a shortage to its exact SO/MPR source and coverage contributors; show why a line cannot be bought; recheck demand, approved supplier/configuration and existing coverage at governed issue. Refreshing or regenerating a view completes no purchase, changes no allocation/custody and creates no duplicate PO. A changed source invalidates the old preview rather than issuing yesterday's shortage. Reference calculation, allocation and persistence remain unverified; do not introduce a new editable MRP ledger, independent demand page or warehouse-rebinding shortcut.
+
+**MRP page — YH decision 30 Oct 2026 · BUILT ON BRANCH, not deployed.** `Purchasing → Buy → MRP` is one read-only page of `Needed` · `In Stock` · `On PO` · `Shortage` per SKU, with the Sales Orders under each row. It is the readout above in its own tab rather than inside SO Batch, and it has no demand of its own: it reads `loadToOrder` and draws open POs through `computeNetRequirements`, so `Shortage` is what SO Batch Purchase still has to buy. `In Stock` is units held for these orders; `Free Stock` is shown beside it and never lowers `Shortage` until taken (Jess 2026-07-21). No migration, no stored run, no Regenerate, no PO from this page. Categories are the ones SO Batch buys, so accessories stay on the reorder route. The warehouse split, the Per SO view and the stored as-of run from Houzs are not adopted.
 
 **Forecast Purchase approval and issuance — OWNER-APPROVED, Jess 2026-10-14 (A) · BUILT · DEPLOYED
 14 Oct 2026 (`7e9d3d147`, §9.14; signed-in production walk 14 Oct 2026).** Jess approves Forecast Purchase; after her persisted approval, PO Duty
@@ -4064,7 +4071,7 @@ acts within groups. Search, column filters and export retain accurate source val
 **Columns — OWNER RULING (Jess, 2026-09-18) · APPROVED / NOT BUILT, exactly in this order:**
 
 ```text
-Status · Proceed Date · MPR No · Approval Status · Purpose · Requested By · PO Safety Days ·
+MPR No · Proceed Date · Status · Approval Status · Purpose · Requested By · PO Safety Days ·
 Customer Requested Delivery Date · Customer Delivery Location · Customer · Items · Supplier ·
 Supplier Deliver To · PO No · PO Delivery Date
 ```
@@ -4547,7 +4554,7 @@ PO Doc Date · PO Delivery Date · Status
 **Columns — APPROVED / LOCKED (Jess, 2026-09-18) · BUILT 2026-09-18, exactly in order:**
 
 ```text
-PO Date · PO No · SO No / MPR No · Supplier · Items · Supplier Deliver To ·
+PO No · PO Doc Date · SO No / MPR No · Supplier · Items · Supplier Deliver To ·
 PO Delivery Date · Supplier Confirmed Delivery Date · Goods Received Date · GRN No · PO Version
 ```
 
@@ -4829,7 +4836,7 @@ fields rather than this page's own. This page contributed three corrections back
 content), and the measured `SO No / MPR No` 176 · `Supplier Confirmed Delivery Date` 180 ·
 `Goods Received Date` 140 for the three columns it introduced. Nothing truncates at 1440: no cell,
 no two-line header, no document number. The eleven columns total 1869px (1901 with the goods-disclosure gutter, measured), so the sheet scrolls
-sideways under the pinned `PO Date · PO No` (`PO No` alone below 768px) rather than squeezing any
+sideways under the pinned `PO No · PO Doc Date` (`PO No` alone below 768px) rather than squeezing any
 column. **Owed:** the same measurement signed in on production, where JetBrains Mono renders
 document numbers wider than the fixture font.
 
@@ -5088,7 +5095,7 @@ icons and dimensions; no permanent bottom-rail Clear filters control. Full date 
 behaviour below remains authoritative; abbreviated sample data is not a new rule.
 
 **BUILT 2026-09-18 — what is implemented.** The register draws the approved sixteen-column,
-date-first listing with `GRN Date` and `GRN No` pinned at a canvas ≥768px (`leadingColumns`), the
+number-first listing with `GRN No` and `GRN Doc Date` pinned at a canvas ≥768px (`leadingColumns`), the
 six rail groups, and the read-only goods expansion through the shared `GoodsMiniTable`. The five
 retired words measured on this page — `Supplier Delivery Date`, `Goods received on`, `Deliver To`,
 `Product` and the `Status` column — are gone, `Supplier DO No` lost its full stop, and the merged
@@ -5101,7 +5108,7 @@ carries UI MASTER §6.8's parent-scope numbers plus the four Receiving fields it
 | **APPROVED** | Jess, 2026-09-18 — the Register composition and its read-only goods expansion. Not a replacement of the formal GRN object or the receiving engine. |
 | **BUILT 2026-09-18** | [PURCHASING — CARD 12](../cards/CARD-2026-09-18-purchasing-12-receiving-register-ui.md), merged as [#1467](https://github.com/wenwei4046/Carres-Portal-v2/pull/1467). CI `verify` green on the merged head; the same gate locally on the merged tree — 12,047 tests, typecheck, lint with no new design-standard violations, 541 migration filenames, build. |
 | **DEPLOYED 2026-09-19** | Merged to `main` as **`896a7b128b77dbb3dc0074005aaf81f9aa52cf1f`** and deployed by `deploy-production.yml` run 35415796625, which re-ran the whole gate on that exact SHA before shipping it. `pnpm ci:smoke` printed `Production converged to 896a7b12…` for all five canonical surfaces: `carres-portal.pages.dev` · `carres-pos.pages.dev` · `erp.carresofficial.com` · `pos.carresofficial.com` · `api.carresofficial.com/health`. **That is a SHA convergence proof, and nothing more.** No migration was involved; this listing added none. |
-| **RENDERED WALK — 2026-09-19, and it FOUND A DEFECT** | The register was driven in real Chromium at 1440 · 1180 · 820 · 767 · 390 and at 200% zoom, inside an emulated copy of `OperationApp`'s own container chain. **It caught a 🔴 that every unit test passed straight through:** `GRN Date` and `GRN No` did not pin at all. Scrolling right drove `GRN Date` to `left: −1022` — clean off the screen — while Purchase Orders held `PO Date` at 280 under the identical harness. The cause was not the engine: the register column beside the rail is a flex child, a flex item defaults to `min-width:auto`, and without `min-w-0` it refused to shrink below the sixteen columns' 2234px, so the grid's own scroller never engaged and sticky offsets were computed against a viewport that never moved. The same miss disabled the ≥768px canvas rule, because the grid measured 2234px even on a 390px phone. Every sibling rail+grid register already carried `min-w-0`; Receiving alone did not. **Fixed and re-measured:** `GRN Date` now holds at 288 under full scroll, and the pair pins on a canvas ≥768px while the number pins alone below it (measured 1176 · 916 → pair; 556 · 503 · 126 → identity). Also confirmed on the render: the sixteen columns in the approved order at their registry widths, no cell clipped, the six rail groups with no permanent `Clear filters`, a week's arrow toggling `aria-expanded` with the row count unchanged at 2, `Cancelled` under its GRN number, the expansion reading `Category · Supplier · Supplier Deliver To · PO No / Ref No · Items · Received Qty · Damaged Qty · Wrong Item Qty · Extra Qty` with the source number above its Unit ID and no checkbox, no `Ready Stock` and no reservation control, and a roving tabindex on the row. |
+| **RENDERED WALK — 2026-09-19, and it FOUND A DEFECT** | The register was driven in real Chromium at 1440 · 1180 · 820 · 767 · 390 and at 200% zoom, inside an emulated copy of `OperationApp`'s own container chain. **It caught a 🔴 that every unit test passed straight through:** `GRN No` and `GRN Doc Date` did not pin at all. Scrolling right drove `GRN Date` to `left: −1022` — clean off the screen — while Purchase Orders held `PO Date` at 280 under the identical harness. The cause was not the engine: the register column beside the rail is a flex child, a flex item defaults to `min-width:auto`, and without `min-w-0` it refused to shrink below the sixteen columns' 2234px, so the grid's own scroller never engaged and sticky offsets were computed against a viewport that never moved. The same miss disabled the ≥768px canvas rule, because the grid measured 2234px even on a 390px phone. Every sibling rail+grid register already carried `min-w-0`; Receiving alone did not. **Fixed and re-measured:** `GRN Date` now holds at 288 under full scroll, and the pair pins on a canvas ≥768px while the number pins alone below it (measured 1176 · 916 → pair; 556 · 503 · 126 → identity). Also confirmed on the render: the sixteen columns in the approved order at their registry widths, no cell clipped, the six rail groups with no permanent `Clear filters`, a week's arrow toggling `aria-expanded` with the row count unchanged at 2, `Cancelled` under its GRN number, the expansion reading `Category · Supplier · Supplier Deliver To · PO No / Ref No · Items · Received Qty · Damaged Qty · Wrong Item Qty · Extra Qty` with the source number above its Unit ID and no checkbox, no `Ready Stock` and no reservation control, and a roving tabindex on the row. |
 | **PRODUCTION-VERIFIED** | **NOT YET**, and a converged SHA is not it: that proves the bundle shipped, not what the register draws. **The earlier claim that no walk could be run here was wrong and is withdrawn** — Chromium does start in the build environment (the full binary hangs; `headless_shell` does not), and the rendered walk above is what found the pinning defect. What genuinely cannot be reached from here is PRODUCTION: the network policy refuses `erp.carresofficial.com` and `api.carresofficial.com` at the proxy (403 on CONNECT), so no authenticated session against real data is possible. **What therefore still owes, and only this:** the sixteen columns against REAL GRN rows rather than a fixture · the rail's six counts matching the footer total on a real dataset · a real cancelled GRN · the expansion on a real receipt carrying both an exact-unit line and a counted line, the second reading `Counted stock` · a real receipt with genuine SO and MPR references beside one with none · and the widths re-measured signed in, where JetBrains Mono renders document numbers wider than the fixture font. Layout, pinning, expansion order, rail behaviour and keyboard reach are now MEASURED, not owed. |
 **🟡 `CO No` HAS NO DOCUMENT TO NAME TODAY — measured 2026-09-18.** A consignment order is a FLAG
 on the purchase order (`purchase_orders.is_consignment`), not a separately numbered document, and
@@ -5186,7 +5193,7 @@ Invalid scope → preserve report and show blocker; no false GRN or Inventory po
 - **Register columns — OWNER RULING (Jess, 2026-09-18) · APPROVED / NOT BUILT, exactly in this order:**
 
   ```text
-  GRN Date · GRN No · SO No / MPR No / CO No / RO No · PO No · Supplier ·
+  GRN No · GRN Doc Date · SO No / MPR No / CO No / RO No · PO No · Supplier ·
   Supplier Deliver To · Goods arrived at · Supplier Confirmed Delivery Date · Goods Received Date ·
   Supplier DO No · Items · Received Qty · Damaged Qty · Wrong Item Qty · Extra Qty
   ```
@@ -5200,7 +5207,7 @@ Invalid scope → preserve report and show blocker; no false GRN or Inventory po
   or RO receipt with no PO, never invented). Repair returns are in this
   register: they come back through the one Receiving engine with a GRN (§9.5 matrix, §9.7, Stock
   §12.8 `Return from repair`), so `RO No` applies. The header wording is the owner's; the build
-  checks it against COPY before it reaches the screen. No word stands in for a missing number. Pin `GRN Date` and `GRN No` at canvas ≥768px, `GRN No` alone
+  checks it against COPY before it reaches the screen. No word stands in for a missing number. Pin `GRN No` and `GRN Doc Date` at canvas ≥768px, `GRN No` alone
   below 768px; no column hidden by width.
 - **The corrected location/date words (owner correction §3):** `Supplier Deliver To` = where the PO
   instructed the supplier to deliver · `Goods arrived at` = where the goods physically arrived ·
@@ -5855,7 +5862,7 @@ Claim status · PO No · GRN No` order completely; that order is deleted, not ke
 Never rearrange it with a general date-first or linked-documents-last heuristic.
 
 ```text
-☐ · ▸ · Claim status · Supplier Claim No · Claim Reported · Supplier ·
+☐ · ▸ · Supplier Claim No · Claim status · Claim Reported · Supplier ·
 PO No (Unit ID on line two) · GRN No · Items · Qty · Problem · Supplier Response
 ```
 
@@ -6629,7 +6636,7 @@ issue, pickup or supplier-receipt proof. No return, Unit or custody event was wr
 ownership chain (§7.4 and Stock MASTER §12.8). Issuing the document does not move stock.
 A claimless return holds nothing at issue, so its Unit can be sold before pickup. YH (2026-10-26) added `Cancel return` for that case: a claimless return with no Unit collected is cancelled with a reason (who, when, why kept); its Units are free for another return, it leaves Stock's pickup list and Work, and an unsettled credit note to follow up is closed (migration 0713, following Houzs `PATCH /purchase-returns/:id/cancel`).
 
-**Main columns, in order:** expand arrow → PR Doc Date → PR No → Supplier → Supplier Claim No
+**Main columns, in order:** expand arrow → PR No → PR Doc Date → Supplier → Supplier Claim No
 → Category → PO No / Unit ID → GRN No → Items → Qty → Pickup Location → Return To
 → Confirmed Pickup Date → Collected By → Collected Qty → Actual Pickup Date
 → Supplier Received Date. Category immediately precedes the combined PO No / Unit ID cell.
@@ -6943,7 +6950,7 @@ Purchase Returns, not §9.5 Supplier Claims, whose `☐` exists for its own Expo
 **Columns — exactly in this order:**
 
 ```text
-▸ · RO Doc Date · RO No · Supplier · Supplier Claim No · Category · PO No / Unit ID ·
+▸ · RO No · RO Doc Date · Supplier · Supplier Claim No · Category · PO No / Unit ID ·
 Items · Qty · Repair Requirement · Cost Responsibility · Supplier Pickup Location ·
 Actual Pickup Date · Supplier Return Location · Expected Return Date · Returned Qty ·
 Goods Received Date · GRN No
@@ -6951,7 +6958,7 @@ Goods Received Date · GRN No
 
 The order reads the record then the physical story: document identity → counterparty and source
 record → goods → what was commissioned and who bears it → OUT → BACK. Do not rearrange it with a
-general heuristic. `RO Doc Date · RO No` lead and pin per UI MASTER §6.7 rule 2; this page is not
+general heuristic. `RO No · RO Doc Date` lead and pin per UI MASTER §6.7 rule 2; this page is not
 the Supplier Claims exception.
 
 - `RO Doc Date` is the document date, never the pickup date. `RO No` is the only door into the

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   BUILDING_TYPE_OPTIONS,
   createOrderInputSchema,
   INSTALMENT_MONTHS,
+  parseEmergencyContact,
   resolvePaymentMethods,
   type CreateOrderInput,
 } from "@carres/shared";
@@ -16,7 +17,7 @@ import Checkbox from "@/components/kit/Checkbox";
 import Button from "@/components/kit/Button";
 import { FieldError } from "@/components/kit/FieldFrame";
 import { composeAddress, MY_STATES } from "@/data/malaysia-postcodes";
-import { useCatalog, useCreateOrder, useOutlets, useSalespersons } from "@/lib/queries";
+import { useCatalog, useCreateOrder, useOperationOrder, useOutlets, useSalespersons, type operationOrderDetailResponse } from "@/lib/queries";
 import { newWizardSessionId, uploadDataUrl } from "@/lib/storage";
 import SignaturePad from "../dealer/new-order/SignaturePad";
 
@@ -77,6 +78,44 @@ export function emptyOfficeForm(): OfficeForm {
     line1: "", city: "", postcode: "", state: "", buildingType: "", floor: "1", hasLift: "",
     deliveryDate: null, proceedDate: null, lines: [newLine()], paymentMethod: "", approvalCode: "", installmentMonths: "",
     followUps: {}, paid: "0", signature: null, termsAccepted: false,
+  };
+}
+
+/**
+ * Copy as new (Houzs `?copyFrom=`): who it is for and what they bought. Dates,
+ * payment, signature and terms start empty: they belong to the new order, and the
+ * customer signs again. This page keys plain SKU lines only, so a configured line,
+ * a SKU no longer on sale and an add-on are left out and named, never half-copied.
+ */
+export function copyOfficeForm(
+  source: Pick<operationOrderDetailResponse, "order" | "lines" | "addons">,
+  sellable: ReadonlySet<string>,
+): { form: OfficeForm; leftOut: string[] } {
+  const o = source.order;
+  const emergency = parseEmergencyContact(o.customer_emergency);
+  const plain = (l: { sku: string; attrs?: Record<string, unknown> | null }) =>
+    sellable.has(l.sku) && Object.keys(l.attrs ?? {}).length === 0;
+  const lines = source.lines.filter((l) => Number(l.qty) > 0);
+  const kept: Line[] = lines.filter(plain).map((l) => ({ ...newLine(), sku: l.sku, qty: String(l.qty), unitPrice: String(l.unit_price ?? "") }));
+  return {
+    form: {
+      ...emptyOfficeForm(),
+      outletId: o.outlet_id ?? "",
+      salespersonId: o.salesperson_id ?? "",
+      name: o.customer_name ?? "",
+      phone: o.customer_phone ?? "",
+      emergencyName: emergency.name,
+      emergencyPhone: emergency.phone,
+      line1: [o.customer_address_line1, o.customer_address_line2].filter(Boolean).join(", "),
+      city: o.customer_address_city ?? "",
+      postcode: o.customer_address_postcode ?? "",
+      state: o.customer_address_state ?? "",
+      buildingType: String((o.entry_data as { fields?: { building_type?: unknown } } | null)?.fields?.building_type ?? ""),
+      floor: o.delivery_floor == null ? "1" : String(o.delivery_floor),
+      hasLift: o.delivery_has_lift == null ? "" : o.delivery_has_lift ? "yes" : "no",
+      lines: kept.length ? kept : [newLine()],
+    },
+    leftOut: [...lines.filter((l) => !plain(l)).map((l) => l.sku), ...source.addons.map((a) => a.addon_key)],
   };
 }
 
@@ -161,6 +200,10 @@ function firstIssue(body: CreateOrderInput, f: OfficeForm): string | null {
 
 export default function OperationNewSalesOrder() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const copyFrom = params.get("copyFrom");
+  const copySource = useOperationOrder(copyFrom);
+  const [copied, setCopied] = useState<{ so: number; leftOut: string[] } | null>(null);
   const [initial] = useState<OfficeForm>(emptyOfficeForm);
   const [f, setF] = useState<OfficeForm>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +227,13 @@ export default function OperationNewSalesOrder() {
       .filter((s) => s.posActive !== false && !s.discontinuedAt)
       .map((s) => ({ value: s.sku, label: `${s.sku} · ${models.get(s.modelId) ?? ""} ${s.variant}`.trim(), price: s.price }));
   }, [catalogQ.data]);
+
+  useEffect(() => {
+    if (!copySource.data || !catalogQ.data || copied) return;
+    const { form, leftOut } = copyOfficeForm(copySource.data, new Set(skuOptions.map((s) => s.value)));
+    setF(form);
+    setCopied({ so: copySource.data.order.so, leftOut });
+  }, [copySource.data, catalogQ.data, skuOptions, copied]);
 
   // PageShell sets no tab title; same pattern as ModuleHeader.
   useEffect(() => {
@@ -236,6 +286,13 @@ export default function OperationNewSalesOrder() {
     >
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto" data-testid="new-sales-order-page">
         {error && <FieldError testId="new-sales-order-error">{error}</FieldError>}
+        {copyFrom && copySource.isError && <FieldError testId="new-sales-order-copy-error">The order to copy could not be read. This is a new, empty order.</FieldError>}
+        {copied && (
+          <p role="status" className="text-[13px] text-c-secondary" data-testid="new-sales-order-copied">
+            Copied from SO-{copied.so}. Dates, payment and signature start empty.
+            {copied.leftOut.length > 0 && ` Left out, add them on the order: ${copied.leftOut.join(", ")}.`}
+          </p>
+        )}
 
         <Panel title="Placed by">
           <div className="grid gap-3 min-[768px]:grid-cols-2">

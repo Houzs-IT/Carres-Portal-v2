@@ -227,6 +227,7 @@ import {
   type StoreChannel,
   // Purchase / Procurement MRP cockpit — GET /api/operation/purchase/today.
   type PurchaseTodayResponse,
+  type MrpResponse,
   // Q3 — Purchasing → Report (GET /api/operation/pos/report). Facts only; the
   // figures are computed by `buildPoReport`.
   type PoReportResponse,
@@ -617,6 +618,7 @@ export const qk = {
      *  (GET /api/operation/purchase/today). Nested under `operation` so a blunt
      *  invalidate on `["operation"]` after a PO mutation refreshes it too. */
     purchaseToday: () => ["operation", "purchase", "today"] as const,
+    mrp: () => ["operation", "purchase", "mrp"] as const,
     /** P1 (0303) — the purchasing numbers (GET /api/operation/purchasing/settings). */
     purchasingSettings: () => ["operation", "purchasing", "settings"] as const,
     /** To Order — the Planning Workspace projection, recomputed on every read
@@ -2655,6 +2657,8 @@ export interface SupplierRow {
   whatsapp_group_url: string | null;
   /** The mailto: door's address (0313 — the ONE email column). */
   contact_email?: string | null;
+  /** 0383. Optional so a browser on this build against an older Worker still parses. */
+  address?: string | null;
   po_send_channel?: string | null;
 }
 export interface SuppliersListResponse {
@@ -2940,7 +2944,7 @@ export interface operationOrderListRow {
   receipt_documents?: { id: string; receipt_no: string | null }[];
   allocated_receipts?: { order_payments: { id: string; receipt_no: string | null } | null }[];
   /** Existing amendments have no governed document-number field. */
-  amendment_documents?: { id: string }[];
+  amendment_documents?: { id: string; status?: string }[];
 
   /** Blueprint card §7 (2026-08-16) — the two composed Work facts: an OPEN
    *  Finance exception (0355) and a loan still out (0209/0217). Optional so an
@@ -2964,6 +2968,8 @@ export interface operationOrderListRow {
   /** Phase B (migration 0138) — latest annotation snippet for kanban card.
    *  PostgREST returns all annotations; card picks newest by created_at. */
   order_annotations: { content: string; tag: string | null; created_at: string }[];
+  /** The person on the order's first history row; null when none was recorded. */
+  created_by_name?: string | null;
   /** Jess 2026-06-24 — the 4 operator remark fields surfaced into the list (was
    *  drawer-only) so the Orders table's Remark column can show them. From
    *  ops_order_control (1:1 via order_id); PostgREST returns the embed as a
@@ -3142,6 +3148,13 @@ export interface operationOrdersListResponse {
 
 /** GET /api/operation/orders/:id — composed drawer payload (orders.ts §97). */
 export interface operationOrderDetailOrder {
+  customer_address_line1?: string | null;
+  customer_address_line2?: string | null;
+  customer_address_city?: string | null;
+  customer_address_postcode?: string | null;
+  customer_address_state?: string | null;
+  delivery_floor?: number | null;
+  delivery_has_lift?: boolean | null;
   id: string;
   so: number;
   /** Customer/source reference(s), e.g. ["DL0584"] — shown next to the SO. */
@@ -4646,6 +4659,8 @@ export interface ReceivingSessionDetail {
     id: string;
     supplier_id: string;
     warehouse_id: string;
+    is_consignment?: boolean;
+    suppliers?: { name: string | null; contact: string | null; contact_email: string | null; address: string | null } | null;
     purchase_order_lines: Array<{
       id: string;
       sku: string;
@@ -5091,6 +5106,16 @@ export function usePurchaseToday(
       apiFetch<PurchaseTodayResponse>("/api/operation/purchase/today"),
     staleTime: 30_000,
     refetchInterval: 60_000,
+    ...opts,
+  });
+}
+
+/** useMrp — GET /api/operation/purchase/mrp, the read-only MRP screen. */
+export function useMrp(opts?: Partial<UseQueryOptions<MrpResponse>>) {
+  return useQuery({
+    queryKey: qk.operation.mrp(),
+    queryFn: () => apiFetch<MrpResponse>("/api/operation/purchase/mrp"),
+    staleTime: 30_000,
     ...opts,
   });
 }
@@ -6096,6 +6121,15 @@ export function useSalesOrderRegisterOrders(filters: operationOrderFilters, enab
     /* Same reason as `useOperationOrders`: a new search keeps the last
        complete list on screen instead of unmounting the grid mid-keystroke. */
     placeholderData: keepPreviousData,
+  });
+}
+
+/** The earliest placed_at per phone key, for the list's Customer type. */
+export function useCustomerFirstPlaced() {
+  return useQuery<{ firstPlaced: Record<string, string> }>({
+    queryKey: [...qk.operation.orders({ stage: "proceeded" }), "customer-first-placed"],
+    queryFn: ({ signal }) => apiFetch("/api/operation/orders/customer-first-placed", { signal }),
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -7630,6 +7664,18 @@ export interface DeliveryOrderRow {
   orders: {
     id: string;
     so: number;
+    /* Houzs DO list hidden columns (MfgDeliveryOrdersListV2.tsx:1352-1565). */
+    source_ref?: string | null;
+    customer_phone?: string | null;
+    customer_email?: string | null;
+    customer_address_line1?: string | null;
+    customer_address_line2?: string | null;
+    customer_address_postcode?: string | null;
+    building_type?: string | null;
+    invoice_no?: string | null;
+    salespersons?: { name: string | null } | { name: string | null }[] | null;
+    invoice_documents?: Array<{ invoice_no: string | null; voided_at: string | null }> | null;
+    order_addons?: Array<{ qty: number; unit_price: number | string | null }> | null;
     customer_name: string | null;
     /** The written address, and the two structured columns beside it — read
      *  through the ONE shared interpretation (`resolveDeliveryLocality`), so
@@ -7656,6 +7702,8 @@ export interface DeliveryOrderRow {
       confirmed_date: string | null;
       confirmed_time: string | null;
       partner_id: string | null;
+      driver_name?: string | null;
+      vehicle?: string | null;
       delivery_partners?: { name: string } | { name: string }[] | null;
     }>;
     /** The order's goods lines — the register expansion derives THIS TRIP's
@@ -7664,6 +7712,7 @@ export interface DeliveryOrderRow {
       id?: string;
       sku: string;
       qty: number;
+      unit_price?: number | string | null;
       attrs?: Record<string, unknown> | null;
     }>;
     /** T6 (0280) — the delivery-photo ledger; PostgREST may embed the overlay
@@ -7699,6 +7748,9 @@ export interface DeliveryOrdersRegisterPayload {
   deliveryOrders: DeliveryOrderRow[];
   attempts: DeliveryOrderAttemptRow[];
   handoverEvents: DeliveryHandoverKindRow[];
+  /** Absent on an older Worker = none shown. */
+  sourcePos?: { id: string; so: number | null; so_refs: number[] | null }[];
+  deliveryReturns?: { delivery_order_id: string; return_no: string | null }[];
   /** §6.1 (0489) — Operation's reviews and the per-attempt evidence clocks.
    *  Absent on an older Worker = unknown, read as no review recorded. */
   proofReviews?: DeliveryProofReviewRow[];
@@ -8015,6 +8067,9 @@ export interface DeliveryOrderDetailPayload {
     order_id: string;
     orders: DeliveryOrderRow["orders"] & {
       customer_phone: string | null;
+      customer_email?: string | null;
+      source_ref?: string | null;
+      salespersons?: { name: string | null } | { name: string | null }[] | null;
       customer_emergency: string | null;
       customer_address: string | null;
       /** The signed DO on file (0087) — production's real proof columns; the

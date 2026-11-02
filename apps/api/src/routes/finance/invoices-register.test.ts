@@ -39,13 +39,14 @@ describe("GET /api/finance/invoices/register", () => {
     // invoices read ends in `.range()`; the latest-promise read (0486) ends in
     // `.order()` and is awaited — so the chain is a thenable answering empty.
     const chain = {
-      select: vi.fn(), order: vi.fn(), range: vi.fn(), eq: vi.fn(), in: vi.fn(),
+      select: vi.fn(), order: vi.fn(), range: vi.fn(), eq: vi.fn(), in: vi.fn(), or: vi.fn(),
       then: (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
     };
     chain.select.mockReturnValue(chain);
     chain.order.mockReturnValue(chain);
     chain.eq.mockReturnValue(chain);
     chain.in.mockReturnValue(chain);
+    chain.or.mockReturnValue(chain);
     chain.range.mockResolvedValue({ data: error ? null : rows, error, count: 1 });
     const sb = { from: vi.fn().mockReturnValue(chain) };
     vi.mocked(userClient).mockReturnValue(sb as never);
@@ -62,7 +63,7 @@ describe("GET /api/finance/invoices/register", () => {
     expect(res.status).toBe(200);
     expect(sb.from).toHaveBeenCalledWith("invoices");
     expect(await res.json()).toEqual({
-      rows: rows.map((r) => ({ ...r, orders: { ...r.orders, legacy_storage_owing: 0, latest_promise: null } })),
+      rows: rows.map((r) => ({ ...r, orders: { ...r.orders, legacy_storage_owing: 0, latest_promise: null, source_pos: [] } })),
       total: 1,
     });
   });
@@ -70,6 +71,19 @@ describe("GET /api/finance/invoices/register", () => {
     const res = await request(role);
     expect(res.status).toBe(403);
     expect(userClient).not.toHaveBeenCalled();
+  });
+  it("Source PO reads the POs the order names, as its own SO or in so_refs", async () => {
+    const { chain } = invoices();
+    chain.or.mockReturnValue(Promise.resolve({ data: [{ id: "PO-1", so: 1300, so_refs: null }, { id: "PO-2", so: null, so_refs: [1300, 7] }], error: null }));
+    const res = await request("finance");
+    expect(chain.or).toHaveBeenCalledWith("so.in.(1300),so_refs.ov.{1300}");
+    const body = (await res.json()) as { rows: Array<{ orders: { source_pos: string[] } }> };
+    expect(body.rows[0]!.orders.source_pos).toEqual(["PO-1", "PO-2"]);
+  });
+  it("a failed Source PO read refuses the register rather than showing none", async () => {
+    const { chain } = invoices();
+    chain.or.mockReturnValue(Promise.resolve({ data: null, error: { message: "boom" } }));
+    expect((await request("finance")).status).toBe(500);
   });
   it("does not turn a failed source read into an empty register", async () => {
     invoices({ message: "source unavailable", code: "08006" });

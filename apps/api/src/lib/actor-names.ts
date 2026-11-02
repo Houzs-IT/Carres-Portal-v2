@@ -123,3 +123,9 @@ export function actorRoleWord(identity: ActorIdentity | null | undefined): strin
   if (role === "hr") return "HR";
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
+
+/** Puts the staff name beside each row; the created_by uuid stays server-side. */
+export async function withPerformedBy<T extends { created_by: string | null }>(sb: Parameters<typeof resolveActorNames>[0], rows: T[]) {
+  const names = await resolveActorNames(sb, rows.map((r) => r.created_by));
+  return rows.map(({ created_by, ...r }) => ({ ...r, performed_by: (created_by && names.get(created_by)) ?? null }));
+}

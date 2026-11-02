@@ -90,12 +90,17 @@ import {
 } from "@/lib/queries";
 import { workspaceDutyActor } from "../workspace-duty-owner";
 import { useOfficeDays } from "@/lib/deadline-queries";
+import { FinanceKpi } from "@/components/FinanceKpi";
 import PurchasingTabs from "../PurchasingTabs";
 import { PoWaitingFlags, useWaitingPoChangeRequests } from "../OperationPoChangeRequests";
 import { CHANNEL_WORD, refreshPurchasingReads } from "../components/PoIssueEvidence";
 import { PoSupplierResultContent } from "../so-batch/PoSupplierResultPanel";
 import ChangeDeliverToForm from "./ChangeDeliverToForm";
 import NewPurchaseOrderModal from "./NewPurchaseOrderModal";
+import PoBulkSupplierDateModal from "./PoBulkSupplierDateModal";
+import type { BulkDateTarget } from "./po-bulk-supplier-date";
+import { poLineRowsOf, type PoLineRow } from "./po-line-rows";
+import Drawer from "@/components/kit/Drawer";
 import GoodsMiniTable, { goodsCategoryOf, type GoodsMiniLine } from "../components/GoodsMiniTable";
 import { lineConfigBits } from "../../dealer/new-order/special-addons-picker";
 import { personInitials } from "@/lib/staff-avatar";
@@ -147,7 +152,7 @@ const RAIL_ROWS: RailRow[] = RAIL_GROUPS.flatMap((group) => group.rows);
 
 /* The four governed groups, in display order: the two open headings first,
    then the collapsed history. Membership is the shared classifier's. */
-type PoDisplay = "overview" | "table" | "cards";
+type PoDisplay = "overview" | "lines" | "table" | "cards";
 type PoStateTab = "open" | "received" | "all";
 
 /**
@@ -255,6 +260,9 @@ type RegisterRow = {
   facts: PurchaseOrderRegisterFacts;
   work: ReturnType<typeof purchaseOrderWork>;
 };
+
+type RegisterLine = operationPoListRow["purchase_order_lines"][number];
+type RegisterLineRow = PoLineRow<RegisterRow, RegisterLine>;
 
 /**
  * `PO Date` (ui MASTER §6.7 rule 2): the document date the number itself
@@ -533,6 +541,10 @@ export default function PurchaseOrdersPage() {
      two doors into the SAME list, because they are two facts about one set of
      receipts — not two different collections. */
   const [receiptsFor, setReceiptsFor] = useState<RegisterRow | null>(null);
+  /* The PO open in the drawer: single click on a row, as Houzs does
+     (scm-v2/PurchaseOrdersListV2.tsx DetailDrawer). */
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
+  const [bulkDateTargets, setBulkDateTargets] = useState<BulkDateTarget[] | null>(null);
   const today = todayMYT();
   /* The stored Office calendar (Settings → Office) — Purchasing's week. */
   const officeDays = useOfficeDays();
@@ -541,9 +553,10 @@ export default function PurchaseOrdersPage() {
      §9.3). `Overview` is the first: the package's six columns, one flat list
      with the `Open` · `Received` · `All` tabs. `Table` is the eleven-column
      grouped register, unchanged, and `Cards` is unchanged. */
-  const display: PoDisplay = params.get("view") === "cards" ? "cards" : params.get("view") === "table" ? "table" : "overview";
+  const display: PoDisplay = params.get("view") === "cards" ? "cards" : params.get("view") === "table" ? "table" : params.get("view") === "lines" ? "lines" : "overview";
   const cards = display === "cards";
   const overview = display === "overview";
+  const linesDisplay = display === "lines";
   const stateTab: PoStateTab = params.get("state") === "received" ? "received" : params.get("state") === "all" ? "all" : "open";
   const overviewBox = useRef<HTMLDivElement>(null);
   const [overviewRoom, setOverviewRoom] = useState(0);
@@ -564,12 +577,12 @@ export default function PurchaseOrdersPage() {
   });
   const changePresentation = (value: string) => setParams((previous) => {
     const next = new URLSearchParams(previous);
-    if (value === "cards" || value === "table") next.set("view", value); else next.delete("view");
+    if (value === "cards" || value === "table" || value === "lines") next.set("view", value); else next.delete("view");
     return next;
   });
   const presentationTabs = <Tabs variant="segmented" label="Purchase Orders display" value={display}
     onValueChange={changePresentation}
-    tabs={[{ value: "overview", label: PO_OVERVIEW.view, icon: "order" }, { value: "table", label: "Table", icon: "table" }, { value: "cards", label: "Cards", icon: "cards" }]} />;
+    tabs={[{ value: "overview", label: PO_OVERVIEW.view, icon: "order" }, { value: "lines", label: "Lines", icon: "goods" }, { value: "table", label: "Table", icon: "table" }, { value: "cards", label: "Cards", icon: "cards" }]} />;
   const stateTabs = <Tabs variant="segmented" label="Purchase Orders shown" value={stateTab}
     onValueChange={(value) => setParams((previous) => {
       const next = new URLSearchParams(previous);
@@ -772,6 +785,7 @@ export default function PurchaseOrdersPage() {
     ...(filter.deliverTo ? [{ key: "deliverTo", label: `Supplier Deliver To: ${filter.deliverTo}`, onClear: () => setFilter((f) => ({ ...f, deliverTo: null })) }] : []),
   ];
   const openObject = (row: RegisterRow, view?: ObjectView) => {
+    setQuickViewId(null);
     listingReturnParams.current = params.toString();
     setParams((current) => {
       const next = new URLSearchParams(current);
@@ -814,22 +828,6 @@ export default function PurchaseOrdersPage() {
    * any of them, and no document number truncates.
    */
   const columns: Array<DataGridColumn<RegisterRow>> = [
-    {
-      key: "po_date",
-      chooserGroup: "Document",
-      label: "PO Doc Date",
-      /* The registry's number, not this page's: SO Batch measured a cross-year
-         date at 99px and landed on 120, which is the widest measurement of the
-         field, so the field is 120 here too (ui MASTER §6.8). */
-      width: 120,
-      sortable: true,
-      accessor: (row) => (row.poDate ? <span className="tabular-nums">{fmtDate(row.poDate)}</span> : <Absence />),
-      searchValue: (row) => (row.poDate ? fmtDate(row.poDate) : "Not recorded"),
-      exportValue: (row) => row.poDate ?? "Not recorded",
-      dateValue: (row) => row.poDate,
-      filterType: "date",
-      sortFn: (a, b) => (a.poDate ?? "").localeCompare(b.poDate ?? ""),
-    },
     {
       key: "po",
       chooserGroup: "Document",
@@ -968,6 +966,22 @@ export default function PurchaseOrdersPage() {
       accessor: (row) => row.deliverTo === "Not recorded" ? <Absence /> : row.deliverTo,
       searchValue: (row) => row.deliverTo,
       filterValue: (row) => row.deliverTo,
+    },
+    {
+      key: "po_date",
+      chooserGroup: "Document",
+      label: "PO Doc Date",
+      /* The registry's number, not this page's: SO Batch measured a cross-year
+         date at 99px and landed on 120, which is the widest measurement of the
+         field, so the field is 120 here too (ui MASTER §6.8). */
+      width: 120,
+      sortable: true,
+      accessor: (row) => (row.poDate ? <span className="tabular-nums">{fmtDate(row.poDate)}</span> : <Absence />),
+      searchValue: (row) => (row.poDate ? fmtDate(row.poDate) : "Not recorded"),
+      exportValue: (row) => row.poDate ?? "Not recorded",
+      dateValue: (row) => row.poDate,
+      filterType: "date",
+      sortFn: (a, b) => (a.poDate ?? "").localeCompare(b.poDate ?? ""),
     },
     {
       key: "default_delivery",
@@ -1227,10 +1241,74 @@ export default function PurchaseOrdersPage() {
   ];
   const overviewRows = visibleRows.filter((row) => PO_STATE_GROUPS[stateTab].has(row.facts.group));
 
+  /* ── The Lines display: one row per PO line, as Houzs lists POs
+     (scm-v2/po-list-line-columns.tsx). The per-PO displays stay as they are.
+     Counts only: the register carries no money (Loo, 2026-08-04). */
+  const lineRows: RegisterLineRow[] = linesDisplay ? poLineRowsOf<RegisterLine, RegisterRow>(overviewRows) : [];
+  const lineDeliverTo = ({ row, line }: RegisterLineRow) => line.destination_id
+    ? destinations.find((destination) => destination.id === line.destination_id)?.name ?? row.deliverTo
+    : row.deliverTo;
+  const lineItem = ({ line }: RegisterLineRow) => [line.model_name, line.size].filter(Boolean).join(" · ") || line.sku;
+  const lineDates = ({ supplierDates }: RegisterLineRow) => supplierDates.length ? supplierDates.map((date) => fmtDate(date)).join(" · ") : "Not confirmed";
+  const lineColumns: Array<DataGridColumn<RegisterLineRow>> = [
+    {
+      key: "po", label: "PO No", width: 180, minWidth: 180, sortable: true,
+      accessor: (entry) => (
+        <button type="button" className="font-mono font-semibold text-kit-blue-11 hover:underline"
+          onClick={(event) => { event.stopPropagation(); openObject(entry.row); }}>{displayedIdentity(entry.row)}</button>
+      ),
+      searchValue: (entry) => `${entry.row.id} ${displayedIdentity(entry.row)}`,
+      filterValue: (entry) => displayedIdentity(entry.row),
+      exportValue: (entry) => displayedIdentity(entry.row),
+    },
+    { key: "supplier", label: "Supplier", width: 140, sortable: true, overflowText: (entry) => entry.row.supplierName, accessor: (entry) => entry.row.supplierName, searchValue: (entry) => entry.row.supplierName, filterValue: (entry) => entry.row.supplierName },
+    { key: "sku", label: "SKU", width: 170, sortable: true, accessor: (entry) => <span className="font-mono">{entry.line.sku}</span>, searchValue: (entry) => entry.line.sku, filterValue: (entry) => entry.line.sku, exportValue: (entry) => entry.line.sku },
+    { key: "item", label: "Item", width: 220, sortable: true, overflowText: lineItem, accessor: lineItem, searchValue: lineItem, filterValue: lineItem },
+    { key: "deliver_to", label: "Supplier Deliver To", headerLines: ["Supplier", "Deliver To"], width: 150, sortable: true, accessor: lineDeliverTo, searchValue: lineDeliverTo, filterValue: lineDeliverTo },
+    { key: "order_qty", label: "Order Qty", width: 90, sortable: true, accessor: (entry) => <span className="tabular-nums">{entry.line.qty}</span>, exportValue: (entry) => String(entry.line.qty), sortFn: (a, b) => Number(a.line.qty) - Number(b.line.qty) },
+    { key: "received_qty", label: "Received Qty", width: 100, sortable: true, accessor: (entry) => <span className="tabular-nums">{entry.line.received_qty}</span>, exportValue: (entry) => String(entry.line.received_qty), sortFn: (a, b) => Number(a.line.received_qty) - Number(b.line.received_qty) },
+    { key: "pending_qty", label: "Pending Delivery Qty", headerLines: ["Pending", "Delivery Qty"], width: 110, sortable: true, accessor: (entry) => <span className="tabular-nums">{entry.pendingQty}</span>, exportValue: (entry) => String(entry.pendingQty), sortFn: (a, b) => a.pendingQty - b.pendingQty },
+    {
+      key: "default_delivery", label: "PO Delivery Date", headerLines: ["PO", "Delivery Date"], width: 150, sortable: true, filterType: "date",
+      accessor: (entry) => entry.row.po.official_delivery_date ? <span className="tabular-nums">{fmtDate(entry.row.po.official_delivery_date)}</span> : <Absence />,
+      searchValue: (entry) => entry.row.po.official_delivery_date ? fmtDate(entry.row.po.official_delivery_date) : "Not recorded",
+      exportValue: (entry) => entry.row.po.official_delivery_date ?? "Not recorded",
+      dateValue: (entry) => entry.row.po.official_delivery_date ?? null,
+      sortFn: (a, b) => (a.row.po.official_delivery_date ?? "9999").localeCompare(b.row.po.official_delivery_date ?? "9999"),
+    },
+    {
+      key: "supplier_delivery", label: "Supplier Confirmed Delivery Date", headerLines: ["Supplier Confirmed", "Delivery Date"], width: 180, sortable: true,
+      accessor: (entry) => entry.supplierDates.length ? <span className="tabular-nums">{lineDates(entry)}</span> : <Absence>Not confirmed</Absence>,
+      searchValue: lineDates, filterValue: lineDates, exportValue: lineDates,
+      sortFn: (a, b) => (a.supplierDates[0] ?? "9999").localeCompare(b.supplierDates[0] ?? "9999"),
+    },
+    { key: "status", label: "Status", width: 170, sortable: true, accessor: (entry) => entry.row.facts.documentState, searchValue: (entry) => entry.row.facts.documentState, filterValue: (entry) => entry.row.facts.documentState },
+  ];
+  const quickView = allRows.find((row) => row.id === quickViewId) ?? null;
+
+  /* The ticked POs still on screen, the same set Download PDFs takes. */
+  const selectedVisibleRows = () => {
+    const candidates = new Set(facetCandidates.map(row => row.id));
+    return visibleRows.filter(row => candidates.has(row.id) && selectedKeys.has(row.id));
+  };
+  /* `blocked` is the test that shows `Record supplier answer` on the PO. */
+  const openBulkDate = () => setBulkDateTargets(selectedVisibleRows().map((row) => ({
+    poId: row.id,
+    label: displayedIdentity(row),
+    version: row.facts.version,
+    officialDate: row.po.official_delivery_date ?? null,
+    openLineIds: (row.po.purchase_order_lines ?? [])
+      .filter((line) => Number(line.qty ?? 0) - Number(line.cancelled_qty ?? 0) - Number(line.received_qty ?? 0) > 0)
+      .map((line) => line.id),
+    blocked: row.facts.operationStatus === "Cancelled" ? "Cancelled"
+      : !row.facts.currentSend ? "Sending not confirmed"
+      : row.facts.quantities.open <= 0 ? "Nothing left to deliver"
+      : null,
+  })));
+
   async function downloadSelectedPdfs() {
     if (bundleBusy) return;
-    const candidates = new Set(facetCandidates.map(row => row.id));
-    const selection = visibleRows.filter(row => candidates.has(row.id) && selectedKeys.has(row.id));
+    const selection = selectedVisibleRows();
     if (!selection.length) return;
     setBundleBusy(true); setPdfProblem(null);
     let url: string | undefined;
@@ -1267,9 +1345,29 @@ export default function PurchaseOrdersPage() {
           },
     });
 
+  const registerToolbarStart = <>
+    {!railOpen && (
+      <ShowFiltersButton
+        onShow={() => setRailVisible(true)}
+        testId="purchase-orders-show-filters"
+      />
+    )}
+    <Button size="sm" icon="add" onClick={() => { setNewPoConsignment(false); setNewPoOpen(true); }} data-testid="po-new">New Purchase Order</Button>
+    <Button size="sm" icon="add" onClick={() => { setNewPoConsignment(true); setNewPoOpen(true); }} data-testid="po-new-consignment">New Consignment Order</Button>
+    {(overview || linesDisplay) && stateTabs}
+  </>;
+
   return (
     <div ref={canvasRef} className={`${registerStyles.page} flex h-full min-h-0 flex-col`} data-testid="purchase-orders-register">
       <PurchasingTabs />
+      {/* Houzs's strip (PurchaseOrdersListV2.tsx:1514-1555) as counts: the register carries no money (Loo, 2026-08-04). */}
+      <div className="grid shrink-0 grid-cols-3 gap-3 px-4 py-3" data-testid="po-kpis">
+        <FinanceKpi testId="po-kpi-total" label="Total POs" value={posQ.data ? String(allRows.length) : null} />
+        <FinanceKpi testId="po-kpi-outstanding" label="Outstanding" tone="warn"
+          value={posQ.data ? String(allRows.filter((row) => PO_STATE_GROUPS.open.has(row.facts.group)).length) : null} />
+        <FinanceKpi testId="po-kpi-received" label="Received" tone="ok"
+          value={posQ.data ? String(allRows.filter((row) => PO_STATE_GROUPS.received.has(row.facts.group)).length) : null} />
+      </div>
       <NewPurchaseOrderModal
         open={newPoOpen}
         onOpenChange={setNewPoOpen}
@@ -1353,15 +1451,46 @@ export default function PurchaseOrdersPage() {
               action="Try again. If it still fails, ask the system owner to check the PO document."
             />
           ) : null}
+            {linesDisplay ? (
+            <DataGrid<RegisterLineRow>
+              appearance="reference"
+              presentationTools
+              sessionKey="carres.purchaseOrders.lines.v1"
+              labelledToolbar
+              rowHeight={32}
+              presentationKey={display}
+              toolbarEnd={presentationTabs}
+              palette="slate"
+              searchPresentation="responsive"
+              rows={lineRows}
+              columns={lineColumns}
+              storageKey="carres.purchaseOrders.lines.v1"
+              rowKey={(entry) => entry.key}
+              rowTestId={(entry) => `grid-line-${entry.key}`}
+              exportName="Purchase Order Lines"
+              searchPlaceholder="Search purchase order lines…"
+              isLoading={posQ.isLoading}
+              emptyMessage="No purchase order lines match these filters"
+              noMatchMessage="No purchase order lines match these filters"
+              activeConditions={activeConditions}
+              reserveConditionRow
+              onClearConditions={() => setFilter(RAIL_CLEAR)}
+              groupBanner={false}
+              onRowClick={(entry) => setQuickViewId(entry.row.id)}
+              onRowDoubleClick={(entry) => openObject(entry.row)}
+              contextMenu={(entry) => contextMenu(entry.row)}
+              toolbarStart={registerToolbarStart}
+            />
+            ) : (
             <DataGrid<RegisterRow>
               appearance="reference"
               presentationTools
-              sessionKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v2"}
+              sessionKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v3"}
               labelledToolbar
               rowHeight={overview ? 54 : 32}
               presentationKey={display}
               toolbarEnd={presentationTabs}
-              selectionPrimary={<>{presentationTabs}<Button size="sm" loading={bundleBusy} disabled={bundleBusy} onClick={() => void downloadSelectedPdfs()}>Download PDFs</Button></>}
+              selectionPrimary={<>{presentationTabs}<Button size="sm" loading={bundleBusy} disabled={bundleBusy} onClick={() => void downloadSelectedPdfs()}>Download PDFs</Button><Button size="sm" onClick={openBulkDate} data-testid="po-bulk-date-open">Supplier date</Button></>}
               selectable={{ selectedKeys, onToggle: toggleRow,
                 onToggleAll: (keys, allSelected) => setSelectedKeys((previous) => {
                   const next = new Set(previous);
@@ -1392,7 +1521,7 @@ export default function PurchaseOrdersPage() {
               onFacetRowsChange={updateFacetCandidates}
               columns={overview ? overviewColumns : columns}
               /* v2 — the nine-column date-first register replaces v1's twelve. */
-              storageKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v2"}
+              storageKey={overview ? "carres.purchaseOrders.overview.v1" : "carres.purchaseOrders.register.v3"}
               rowKey={(row) => row.id}
               rowTestId={(row) => `grid-row-${row.id}`}
               exportName="Purchase Orders"
@@ -1403,7 +1532,7 @@ export default function PurchaseOrdersPage() {
               activeConditions={activeConditions}
               reserveConditionRow
               onClearConditions={() => setFilter(RAIL_CLEAR)}
-              leadingColumns={overview ? undefined : { date: "po_date", identity: "po" }}
+              pinnedPrefix={overview ? undefined : { columns: ["po"], narrow: ["po"] }}
               personalLayouts={overview ? undefined : personalLayouts}
               groupBanner={false}
               fixedGroups={overview ? undefined : {
@@ -1412,12 +1541,13 @@ export default function PurchaseOrdersPage() {
                 revealMatches: activeConditions.length > 0,
               }}
               chooserGroupOrder={["Document", "Supplier", "Goods", "Receiving"]}
+              onRowClick={(row) => setQuickViewId(row.id)}
               onRowDoubleClick={openObject}
               contextMenu={contextMenu}
               expandTitle="Show goods"
               expandable={{
                 flush: true,
-                alignToColumn: overview ? "po" : "po_date",
+                alignToColumn: "po",
                 /* The goods rows are wider than the Overview: they scroll
                    sideways inside themselves and never widen the list
                    (01 §6), so `Status` stays in view with a row open. */
@@ -1425,17 +1555,7 @@ export default function PurchaseOrdersPage() {
                 testId: (row) => `po-expand-${row.id}`,
                 renderExpansion: (row) => <OrderedGoods row={row} destinations={destinations} />,
               }}
-              toolbarStart={<>
-                {!railOpen && (
-                  <ShowFiltersButton
-                    onShow={() => setRailVisible(true)}
-                    testId="purchase-orders-show-filters"
-                  />
-                )}
-                <Button size="sm" icon="add" onClick={() => { setNewPoConsignment(false); setNewPoOpen(true); }} data-testid="po-new">New Purchase Order</Button>
-                <Button size="sm" icon="add" onClick={() => { setNewPoConsignment(true); setNewPoOpen(true); }} data-testid="po-new-consignment">New Consignment Order</Button>
-                {overview && stateTabs}
-              </>}
+              toolbarStart={registerToolbarStart}
               statusSummary={(filtered, selectedRows) => {
                 const scope = selectedRows.length ? selectedRows : filtered;
                 const quantities = new Map<string, number>();
@@ -1456,8 +1576,20 @@ export default function PurchaseOrdersPage() {
                 </span>;
               }}
             />
+            )}
         </div>}
       </div>
+      <PoQuickView row={quickView} destinations={destinations} onClose={() => setQuickViewId(null)} onOpenFull={openObject} />
+      {bulkDateTargets ? (
+        <PoBulkSupplierDateModal
+          targets={bulkDateTargets}
+          onChanged={() => { refreshPurchasingReads(); void posQ.refetch(); }}
+          onClose={(saved) => {
+            setBulkDateTargets(null);
+            setSelectedKeys((previous) => new Set([...previous].filter((key) => !saved.includes(key))));
+          }}
+        />
+      ) : null}
       {receiptsFor ? (
         <ReceiptsDialog
           row={receiptsFor}
@@ -1466,6 +1598,53 @@ export default function PurchaseOrdersPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+/** The PO beside the list: the facts and its lines, read only. Houzs
+ *  scm-v2/PurchaseOrdersListV2.tsx DetailDrawer; no money, as on this register. */
+function PoQuickView({ row, destinations, onClose, onOpenFull }: {
+  row: RegisterRow | null;
+  destinations: Array<{ id: string; name: string }>;
+  onClose: () => void;
+  onOpenFull: (row: RegisterRow) => void;
+}) {
+  const facts = row ? [
+    ["Supplier", row.supplierName],
+    ["Status", row.facts.documentState],
+    ["Supplier Deliver To", row.deliverTo],
+    ["PO Doc Date", row.poDate ? fmtDate(row.poDate) : "Not recorded"],
+    ["PO Delivery Date", row.po.official_delivery_date ? fmtDate(row.po.official_delivery_date) : "Not recorded"],
+    ["Sent", versionLine(row)],
+    ["Contact", row.supplier?.contact?.trim() || "Not recorded"],
+    ["SO No / MPR No", row.sources.map((source) => source.reference).join(" · ") || "Not recorded"],
+  ] : [];
+  return (
+    <Drawer open={row !== null} onOpenChange={(open) => { if (!open) onClose(); }} variant="quick-view"
+      title={row ? displayedIdentity(row) : ""}
+      footer={row ? <Button size="sm" onClick={() => onOpenFull(row)} data-testid="po-quick-open-full">Open full page</Button> : undefined}>
+      {row ? (
+        <div className="flex flex-col gap-4" data-testid="po-quick-view">
+          <dl className="grid grid-cols-2 gap-3 text-body">
+            {facts.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-meta text-kit-slate-11">{label}</dt><dd className="break-words">{value}</dd></div>)}
+          </dl>
+          <section>
+            <h3 className="mb-1 text-strong text-kit-slate-12">Goods</h3>
+            <ul className="divide-y divide-kit-slate-4 text-body">
+              {(row.po.purchase_order_lines ?? []).map((line) => (
+                <li key={line.id} className="py-2">
+                  <div>{[line.model_name, line.size].filter(Boolean).join(" · ") || line.sku}</div>
+                  <div className="text-meta text-kit-slate-11">
+                    <span className="font-mono">{line.sku}</span> · Order Qty {line.qty} · Received Qty {line.received_qty}
+                    {line.destination_id ? ` · ${destinations.find((destination) => destination.id === line.destination_id)?.name ?? row.deliverTo}` : ""}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      ) : null}
+    </Drawer>
   );
 }
 
@@ -1941,6 +2120,8 @@ function PurchaseOrderObject({
             owner={owner}
             onIssue={issueNeeded ? () => setMode("issue") : null}
             onSupplierDateSaved={onChanged}
+            recentActivity={auditQ.data?.history ?? []}
+            activityLoading={auditQ.isLoading}
             units={unitsQ.data?.units ?? []}
             receiving={receivingQ.data?.sessions ?? []}
             claims={claimsQ.data?.claims ?? []}
@@ -2103,11 +2284,19 @@ function WaitingForApproval({ poId }: { poId: string }) {
   return <div className="flex flex-wrap gap-3 rounded-control border border-kit-slate-5 px-3 py-2" data-testid="po-object-waiting"><PoWaitingFlags waiting={waiting} /></div>;
 }
 
-function DocumentView({ row, owner, onIssue, units, receiving, claims, destinations, unitLoading, receivingLoading, claimsLoading, unitError, receivingError, claimsError, onRetryUnits, onRetryReceiving, onRetryClaims, onSupplierDateSaved }: {
+/** One label and value in a side card, in the Houzs aside's order
+ *  (scm-v2/PurchaseOrderDetailV2.tsx:1452-1530). */
+function AsideRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex justify-between gap-3 py-1 text-body"><span className="text-kit-slate-11">{label}</span><span className="min-w-0 break-words text-right tabular-nums">{value}</span></div>;
+}
+
+function DocumentView({ row, owner, onIssue, recentActivity, activityLoading, units, receiving, claims, destinations, unitLoading, receivingLoading, claimsLoading, unitError, receivingError, claimsError, onRetryUnits, onRetryReceiving, onRetryClaims, onSupplierDateSaved }: {
   row: RegisterRow;
   owner: { userId: string; name: string | null } | null;
   /** The issue/send door when the current version is not marked sent. */
   onIssue: (() => void) | null;
+  recentActivity: Array<{ id: string; text: string; occurred_at: string }>;
+  activityLoading: boolean;
   units: Array<{ unit_code: string; sku: string; status: string; po_line_id?: string | null }>;
   receiving: Array<{ id: string; do_number: string | null; status: string; goods_received_at: string; return_reason: string | null }>;
   claims: Array<{ id: string; claim_no: string; status: string; requested_action: string | null }>;
@@ -2191,6 +2380,15 @@ function DocumentView({ row, owner, onIssue, units, receiving, claims, destinati
           onSaved={onSupplierDateSaved}
         />
       </Block>
+      {/* Houzs's Supplier section (scm-v2/PurchaseOrderDetailV2.tsx:1327). The
+          Carres `contact` is one field that holds the person and the phone. */}
+      <Block title="Supplier">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="po-object-supplier">
+          <PoFact label="Contact" value={row.supplier?.contact?.trim() || "Not recorded"} />
+          <PoFact label="Email" value={row.supplier?.contact_email?.trim() || "Not recorded"} />
+          <PoFact label="Address" value={row.supplier?.address?.trim() || "Not recorded"} />
+        </div>
+      </Block>
       <Block title="Goods lines">
         {/* Wider than the half pane: it scrolls inside the card and SAYS so
             (the Sales Order Items grammar — fade + one step button). */}
@@ -2253,6 +2451,31 @@ function DocumentView({ row, owner, onIssue, units, receiving, claims, destinati
           </table>
         </TableScroller>
       </Block>
+      {/* Houzs's aside cards (scm-v2/PurchaseOrderDetailV2.tsx:1452-1530). Here
+          the side pane is the PDF, so they sit in the facts pane. Its PO total
+          card is left out: this page carries no money (Loo, 2026-08-04). */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="po-object-aside">
+        <Block title="Key dates">
+          <AsideRow label="PO Doc Date" value={row.poDate ? fmtDate(row.poDate) : "Not recorded"} />
+          <AsideRow label="PO Delivery Date" value={po.official_delivery_date ? fmtDate(po.official_delivery_date) : "Not recorded"} />
+          <AsideRow label="Supplier Confirmed Delivery Date" value={row.answerSummary.date ? fmtDate(row.answerSummary.date) : row.answerSummary.distinctDates.length > 1 ? `${row.answerSummary.distinctDates.length} dates` : "Not confirmed"} />
+          {row.facts.currentSend ? <AsideRow label="Sent" value={fmtDate(row.facts.currentSend.sentAt)} /> : null}
+          {firstArrival(row) ? <AsideRow label="Goods Received Date" value={fmtDate(firstArrival(row)!)} /> : null}
+        </Block>
+        <Block title="People">
+          <AsideRow label="Supplier" value={row.supplierName} />
+          <AsideRow label="Supplier contact" value={row.supplier?.contact?.trim() || "Not recorded"} />
+          <AsideRow label="PO Duty" value={owner?.name?.trim() || "PO Duty not assigned"} />
+        </Block>
+        <Block title="Recent activity">
+          {activityLoading ? <Loading label="Loading Recent activity" /> : recentActivity.length ? recentActivity.slice(0, 3).map((event) => (
+            <div key={event.id} className="py-1">
+              <div className="break-words text-body text-kit-slate-12">{event.text}</div>
+              <div className="text-meta text-kit-slate-11">{fmtDate(event.occurred_at)}</div>
+            </div>
+          )) : <p className="text-meta text-kit-slate-11">No history is recorded yet.</p>}
+        </Block>
+      </div>
       {/* Two cards, each its own row across the pane (YH, 2026-09-04).
           Half-width cards left every receipt and claim wrapping. The Unit
           IDs card is gone: units live on their Goods line above. */}

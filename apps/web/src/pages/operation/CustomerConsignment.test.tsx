@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Payments } from "./CustomerConsignment";
+import { DocHistory } from "./houzs-list-bits";
 
 const apiFetch = vi.fn();
 vi.mock("@/lib/api", () => ({ apiFetch: (...a: unknown[]) => apiFetch(...a) }));
@@ -23,6 +24,14 @@ function show(balance = 500) {
     </QueryClientProvider>,
   );
 }
+
+describe("History", () => {
+  it("names who did it, and stays quiet when nobody is recorded", () => {
+    render(<DocHistory events={[{ at: "2026-10-20", word: "Created", who: "Aina" }, { at: "2026-10-21", word: "Sold", who: null }]} />);
+    expect(screen.getByText(/Created · Aina/)).toBeTruthy();
+    expect(screen.getByText(/Sold$/)).toBeTruthy();
+  });
+});
 
 describe("Payments", () => {
   it("does not delete on the first click of Remove", () => {

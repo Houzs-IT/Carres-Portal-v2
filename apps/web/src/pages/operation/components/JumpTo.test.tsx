@@ -115,20 +115,20 @@ describe("the empty query", () => {
     /* `operation:stock` is the Inventory Register — the 2026-09-01 Blueprint's
      * word for the Warehouse master list (CARD-2026-09-01-warehouse-01-sidebar);
      * same key, same route, the sidebar's own word. */
-    /* `operation:orders` is `Outright` since the 2026-10-08 menu (it was
-     * `Outright Sales` from 2026-09-23) — same key, same route, same recent
+    /* `operation:orders` is `Sales Orders` since the 2026-11-01 Houzs tree (it
+     * was `Outright` from 2026-10-08) — same key, same route, same recent
      * entry, the sidebar's own word. ⌘K composes from `visibleItems`, so the rail and the jump surface
      * can never drift into two words for one destination. */
     expect(labels.slice(0, 5)).toEqual([
       "WorkspaceOperations",
-      "OutrightOperations",
+      "Sales OrdersOperations",
       "InventoryOperations",
       // `operation:payments` is the Payments module's `Monitor` since the
       // 2026-09-12 ruling — same key, same recent, the sidebar's own word.
       // Three modules now own a `Monitor` (Delivery · Warehouse · Payments),
       // so a shared label carries its module word.
       "Payments · MonitorOperations",
-      "Delivery · MonitorOperations",
+      "Transportation · MonitorOperations",
     ]);
     expect(labels.filter((l) => l === "SuppliersOperations")).toHaveLength(1);
     expect(screen.getByText("Recent")).toBeInTheDocument();
@@ -148,29 +148,28 @@ describe("what typing searches", () => {
     // destination and added no door, because a drawer is presentation and Jump
     // To lists pages.
     //
-    // CARD-2026-08-22-purchasing-01: the final rail lists eleven pages, SIX of
-    // them live since §9.6's Purchase Returns shipped on 2026-09-19 — which is
-    // why it is offered here and `Repair Orders`, still `Coming soon`, is not.
-    // `Purchase Demands` and `Report` LEFT the rail, so Jump To may not offer
-    // them either — a demand is a hidden record, not a destination.
+    // CARD-2026-08-22-purchasing-01: `Purchase Demands` and `Report` LEFT the
+    // rail, so Jump To may not offer them either — a demand is a hidden record,
+    // not a destination.
     //
-    // Starts-with ranks first — `Purchase Orders` — then contains, in NAV
-    // order, which is the BUY drawer's own order: `SO Batch Purchase` then
-    // `Manual Purchase`.
+    // Starts-with ranks first, in NAV order — the two consignment pages sit
+    // before Procurement in the Houzs tree (2026-11-01) — then contains, in NAV
+    // order: `SO Batch Purchase` then `Manual Purchase Request`.
     expect(
       matchDestinations(permittedDestinations("operation"), "purch").map((d) => d.label),
     ).toEqual([
-      "Purchase Orders",
-      "Purchase Returns",
       /* Follows Houzs Sidebar.tsx:552 per Weisiang's ruling (2026-10-22):
-         the consignment receive page is a live destination. */
+         the consignment receive and return pages are live destinations. */
       "Purchase Consignment Receive",
+      "Purchase Consignment Return",
+      "Purchase Orders",
+      /* Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): the supplier bills,
+         beside Goods Receipt (YH, 2026-10-30). */
+      "Purchase Invoices",
+      "Purchase Returns",
       /* The Purchasing REPORT page under DATA → Reports (owner 2026-10-08) —
          a real page, so a real destination, named as a report. */
       "Purchasing report",
-      /* Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): the supplier bills,
-         read-only, under Suppliers. */
-      "Purchase Invoices",
       "SO Batch Purchase",
       "Forecast Purchase",
       "Manual Purchase Request",
@@ -191,6 +190,14 @@ describe("what typing searches", () => {
     ]) {
       expect(all, word).not.toContain(word);
     }
+  });
+
+  /* A `shortcut` row is a second door to a row that has its own place in the
+     tree (Sales Orders under Workspace), so Jump To offers the place, once. */
+  it("never offers a shortcut row: Sales Orders is offered once", () => {
+    const all = permittedDestinations("operation");
+    expect(all.map((d) => d.id)).not.toContain("operation:orders-shortcut");
+    expect(all.filter((d) => d.label === "Sales Orders").map((d) => d.id)).toEqual(["operation:orders"]);
   });
 
   it("a document result prints its number, its type and the identifying party", async () => {

@@ -36,7 +36,7 @@ import type { UploadedEvidence } from "@/lib/case-evidence-upload";
 /**
  * New Service Case — the guided intake (S1).
  *
- * REPLACES the free-form entry of ServiceCaseModal for CREATE only. The modal
+ * REPLACES the free-form entry of ServiceCaseDetail for CREATE only. The page
  * survives for EDIT, the list, the statuses and the printable Service Note are
  * untouched.
  *

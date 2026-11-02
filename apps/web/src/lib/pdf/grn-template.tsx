@@ -399,7 +399,7 @@ export function GrnTemplate(data: GrnTemplateData) {
             </Text>
             <Text
               style={styles.footerPage}
-              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+              render={({ subPageNumber, subPageTotalPages }) => `Page ${subPageNumber} of ${subPageTotalPages}`}
             />
           </View>
         </View>

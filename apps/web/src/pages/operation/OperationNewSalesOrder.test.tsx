@@ -18,7 +18,7 @@ vi.mock("@/lib/queries", async () => ({
   useCatalog: () => ({ data: undefined, isPending: false }),
   useCreateOrder: () => ({ mutateAsync: mutate, isPending: false }),
 }));
-import OperationNewSalesOrder, { buildOfficeOrder, emptyOfficeForm, type OfficeForm } from "./OperationNewSalesOrder";
+import OperationNewSalesOrder, { buildOfficeOrder, copyOfficeForm, emptyOfficeForm, type OfficeForm } from "./OperationNewSalesOrder";
 
 const DEALER = "00000000-0000-4000-8000-0000000000d1";
 const OUTLET = "00000000-0000-4000-8000-0000000000a1";
@@ -90,5 +90,36 @@ describe("OperationNewSalesOrder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create order" }));
     expect(screen.getByRole("alert")).toBeVisible();
     expect(mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("Copy as new", () => {
+  const source = {
+    order: {
+      so: 1375, outlet_id: "o1", salesperson_id: "s1", customer_name: "Tan", customer_phone: "0123",
+      customer_emergency: "Lim · 0456 · Wife", customer_address_line1: "1 Jalan", customer_address_line2: "Taman",
+      customer_address_city: "KL", customer_address_postcode: "50000", customer_address_state: "Selangor",
+      entry_data: { fields: { building_type: "Condo" } }, delivery_floor: 3, delivery_has_lift: true,
+      delivery_date: "2026-11-01", paid: 500, payment_method: "cash",
+    },
+    lines: [
+      { id: "1", sku: "PLAIN", qty: 2, unit_price: 100, attrs: null },
+      { id: "2", sku: "SOFA", qty: 1, unit_price: 900, attrs: { fabric: "F1" } },
+      { id: "3", sku: "GONE", qty: 1, unit_price: 50, attrs: null },
+    ],
+    addons: [{ addon_key: "stair_carry", qty: 1, unit_price: 20 }],
+  } as unknown as Parameters<typeof copyOfficeForm>[0];
+
+  it("copies the customer and plain lines, never the dates, money or signature", () => {
+    const { form } = copyOfficeForm(source, new Set(["PLAIN", "SOFA"]));
+    expect(form).toMatchObject({
+      outletId: "o1", name: "Tan", emergencyName: "Lim", emergencyPhone: "0456", line1: "1 Jalan, Taman",
+      buildingType: "Condo", floor: "3", hasLift: "yes",
+      deliveryDate: null, proceedDate: null, paymentMethod: "", paid: "0", signature: null, termsAccepted: false,
+    });
+    expect(form.lines.map((l) => [l.sku, l.qty, l.unitPrice])).toEqual([["PLAIN", "2", "100"]]);
+  });
+  it("names what it could not carry: a configured line, a SKU off sale, an add-on", () => {
+    expect(copyOfficeForm(source, new Set(["PLAIN", "SOFA"])).leftOut).toEqual(["SOFA", "GONE", "stair_carry"]);
   });
 });

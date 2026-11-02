@@ -87,7 +87,7 @@ const deliveryOrdersRouter = new Hono<AppEnv>();
  *  same canonical column the single-document read below already selects, on the
  *  same route and the same role — no new permission and no new table. */
 const ORDER_EMBED =
-  "orders!inner(id, so, customer_name, customer_address, customer_address_city, customer_address_state, delivery_date, delivery_date_tbd, do_number, do_file_path, do_uploaded_at, delivery_stops, order_lines(id, sku, qty, attrs), ops_order_control(delivery_photos), ops_delivery_arrangements(leg, confirmed_date, confirmed_time, partner_id, delivery_partners(name)))";
+  "orders!inner(id, so, source_ref, customer_name, customer_phone, customer_email, customer_address, customer_address_line1, customer_address_line2, customer_address_city, customer_address_state, customer_address_postcode, building_type:entry_data->fields->>building_type, invoice_no, salespersons(name), invoice_documents:invoices(invoice_no, voided_at), delivery_date, delivery_date_tbd, do_number, do_file_path, do_uploaded_at, delivery_stops, order_lines(id, sku, qty, unit_price, attrs), order_addons(qty, unit_price), ops_order_control(delivery_photos), ops_delivery_arrangements(leg, confirmed_date, confirmed_time, partner_id, driver_name, vehicle, delivery_partners(name)))";
 
 /**
  * §6.1 (0489) — the proof reviews and the attempt evidence of a set of
@@ -202,10 +202,26 @@ deliveryOrdersRouter.get("/", requireOperationOrPrincipal, async (c) => {
   const proof = await readProofRecords(sb, numbers);
   if (!proof.ok) return c.json({ error: proof.error, message: proof.message }, 500);
 
+  // Houzs `Transfer from` and return chips: the POs an order names (own `so` or
+  // `so_refs[]`, as orders.ts) and the Delivery Returns of each document.
+  const sos = [...new Set((rows ?? []).map((r) => (r.orders as unknown as { so: number | null } | null)?.so).filter((so): so is number => typeof so === "number"))];
+  const [pos, returns] = await Promise.all([
+    sos.length > 0
+      ? sb.from("purchase_orders").select("id, so, so_refs").or(`so.in.(${sos.join(",")}),so_refs.ov.{${sos.join(",")}}`)
+      : Promise.resolve({ data: [], error: null }),
+    ids.length > 0
+      ? sb.from("delivery_returns").select("delivery_order_id, return_no").in("delivery_order_id", ids)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (pos.error) return c.json({ error: "source_pos_read_failed", message: pos.error.message }, 500);
+  if (returns.error) return c.json({ error: "delivery_returns_read_failed", message: returns.error.message }, 500);
+
   return c.json({
     deliveryOrders: rows ?? [],
     attempts,
     handoverEvents,
+    sourcePos: pos.data ?? [],
+    deliveryReturns: returns.data ?? [],
     proofReviews: proof.proofReviews,
     attemptEvidence: proof.attemptEvidence,
   });
@@ -343,8 +359,9 @@ deliveryOrdersRouter.get("/:id", requireOperationOrPrincipal, async (c) => {
     .select(
       `id, order_id, do_number, leg, trip, issued_at, trip_groups, delivery_date, time_slot,
        logistics_partner, voided_at, void_reason,
-       orders!inner(id, so, customer_name, customer_phone, customer_emergency,
+       orders!inner(id, so, source_ref, customer_name, customer_phone, customer_email, customer_emergency,
          customer_address, customer_address_city, customer_address_state,
+         salespersons(name),
          do_file_path, do_uploaded_at,
          pod_signature_url, pod_signed_by, pod_signed_at,
          do_number, delivery_stops,

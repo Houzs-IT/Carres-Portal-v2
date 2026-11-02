@@ -1926,7 +1926,7 @@ export type { PwpCode } from "./domain";
 // the legacy digits-only `phoneKey` (promoted from delivery-fee-recompute). The
 // stripped DISCOVERY adapter (`pwpDiscoverFromRow`) + its camelCase domain type —
 // the ONLY pwp_codes-derived shape a non-owner client receives (no PII).
-export { phoneKey, phoneKeyMy, nameKey } from "./phone";
+export { phoneKey, phoneKeyMy, phoneKeysMy, nameKey } from "./phone";
 export { pwpDiscoverFromRow } from "./adapters";
 export type { PwpDiscover } from "./domain";
 
@@ -2337,6 +2337,21 @@ export {
   type BundleRequirement,
   type NetRequirementsResult,
 } from "./net-requirements";
+export {
+  MRP_WORDS,
+  buildMrpLines,
+  mrpCoverText,
+  mrpExportSheets,
+  mrpLineSchema,
+  mrpResponseSchema,
+  mrpRows,
+  type MrpDateBasis,
+  type MrpFilters,
+  type MrpLine,
+  type MrpResponse,
+  type MrpRow,
+  type MrpSourceLine,
+} from "./mrp";
 // To Order — the Planning Workspace projection (2026-07-30).
 export {
   TO_ORDER_WORDS,

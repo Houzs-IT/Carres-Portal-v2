@@ -2,7 +2,10 @@ import { Hono } from "hono";
 import {
   buildPurchaseTodayReport,
   buildPurchaseChaseReceive,
+  buildMrpLines,
+  mrpResponseSchema,
   officeWorkingDayOptions,
+  stockMatchKey,
   myHolidaySet,
   nextPoDayMYT,
   productionWorkingDaysFor,
@@ -10,6 +13,7 @@ import {
   PURCHASING_CATEGORIES,
   workWeekOffDaysFor,
   type DemandLine,
+  type MrpSourceLine,
   type ProductCategory,
   type PurchaseChase,
   type PurchaseLinkedOrder,
@@ -22,6 +26,7 @@ import {
   loadPurchasingNumbers,
   loadPurchasingSettings,
 } from "../../lib/purchasing-settings";
+import { loadToOrder, readFreeStock } from "../../lib/purchase-demand-read";
 import { fail } from "../../lib/route-helpers";
 import { userClient } from "../../lib/supabase";
 import { todayIsoMYT } from "../../lib/today";
@@ -489,6 +494,71 @@ purchaseRouter.get("/today", requireOperation, async (c) => {
   });
 
   return c.json(purchaseTodayResponseSchema.parse({ ...report, unrated }));
+});
+
+// MRP · GET /mrp — Needed, In Stock, On PO and Shortage per customer line, off
+// the same read SO Batch Purchase runs on. Read-only, stores nothing.
+purchaseRouter.get("/mrp", requireOperation, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const res = await loadToOrder(sb);
+  if (!res.ok) return c.json(res.body as never, res.status as never);
+  const { registerFacts, supplierNames, openPoBySku, openPoRefs, openPoEta, today } = res.data;
+
+  // `required`: a failed stock read refuses the page rather than print Free Stock 0.
+  let freeStock: Record<string, { qty: number }[]>;
+  try {
+    ({ freeStock } = await readFreeStock(sb, true));
+  } catch {
+    return c.json({ error: "stock_coverage_unavailable" }, 503);
+  }
+
+  // Names only: a failed read prints the Warehouse as Not recorded, the figures stand.
+  const warehouseNames = new Map<string, string>();
+  try {
+    const { data } = await sb.from("warehouses").select("id, name");
+    for (const w of data ?? []) warehouseNames.set(w.id as string, w.name as string);
+  } catch {
+    warehouseNames.clear();
+  }
+  // A timestamp to the MYT day it fell on, the api's own idiom.
+  const mytDay = (ts: string | null | undefined) => {
+    const ms = ts ? Date.parse(ts) : NaN;
+    return Number.isNaN(ms) ? null : new Date(ms + 8 * 3_600_000).toISOString().slice(0, 10);
+  };
+
+  const sources: MrpSourceLine[] = registerFacts.soLines.map((l) => {
+    const order = registerFacts.ordersById.get(l.orderId);
+    return {
+      lineId: l.lineId,
+      orderId: l.orderId,
+      so: order?.so ?? null,
+      customer: order?.customer ?? null,
+      sku: l.sku,
+      model: l.modelName,
+      variant: l.variant,
+      category: l.category as ProductCategory,
+      supplierName: l.supplierId ? (supplierNames.get(l.supplierId) ?? null) : null,
+      delivery: order?.delivery ?? null,
+      warehouse: order?.warehouseId ? (warehouseNames.get(order.warehouseId) ?? null) : null,
+      proceedDate: mytDay(order?.proceededAt),
+      soDate: mytDay(l.placedAt),
+      poHeld: l.poHeld,
+      placedAt: l.placedAt ?? today,
+      needed: l.qty,
+      heldInStock: l.heldInStock ?? 0,
+      heldOnPo: l.heldOnPo ?? 0,
+    };
+  });
+
+  const freeStockBySku: Record<string, number> = {};
+  for (const sku of new Set(sources.map((s) => s.sku))) {
+    freeStockBySku[sku] = (freeStock[stockMatchKey(sku)] ?? []).reduce((n, u) => n + u.qty, 0);
+  }
+
+  return c.json(mrpResponseSchema.parse({
+    lines: buildMrpLines(sources, openPoBySku ?? {}, today, { refs: openPoRefs, eta: openPoEta }),
+    freeStockBySku,
+  }));
 });
 
 // Purchase §6 · POST /line/skip · body: { lineIds: string[] }

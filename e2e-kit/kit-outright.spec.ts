@@ -1,30 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/**
- * SALES ORDER OUTRIGHT LIST — page 1 on the shared kit (fix list 14 Oct 2026,
- * UI MASTER one kit). Measured at the kit's three widths, with Summary and
- * Tasks open and closed, rows closed and one row opened by ▸:
- *
- *   page     the page never scrolls sideways
- *   pager    Rows and the pager stay inside the table card (the footer's
- *            quantity line never widens the list)
- *   toolbar  one 36px line, every button on it 32 high
- *   rows     every list row 54: each cell on one line, none past its column
- *   frozen   scrolled to its right end, the list still shows SO no.
- *   check    `carres-check.js`, as the repository ships it, answers PASS
- *   align    v12's fingerprint (fix list 14 Oct): toolbar 32, tabs 32, the view
- *            button with its name, ⋮ 32, header 40 grey 12/500, rows 54/54, sticky
- *            header, pager, no year. `carres-align.js` reads the toolbar and the
- *            dates; the list is the one listing engine (a real <table>), which the
- *            align script cannot read, so the same table facts are measured here.
- *            The one permitted difference is a business word: the preserved date
- *            keeps its two-line header `Customer’s original` / `requested
- *            delivery` (owner 14 Oct), where v12 says `ETA`
- *
- * This list may scroll sideways in its own box when its columns do not fit
- * (Layout Standard 14 Oct: "the whole table scrolls sideways and the identifier
- * stays fixed on the left"), unlike the SO Batch lists in kit-lists.spec.ts.
- */
+/** Sales Order list: current shared kit dimensions and source-owned Houzs column order. */
 const WIDTHS = [1025, 1164, 1440] as const;
 const PASS = ["PASS — all measured items match the current Standard"];
 const carresCheck = (page: Page) => page.evaluate(() => {
@@ -61,7 +37,7 @@ async function measure(page: Page) {
     const toolbar = document.querySelector('[data-testid="outright-toolbar"]') as HTMLElement | null;
     const edge = card.getBoundingClientRect();
     box.scrollLeft = box.scrollWidth;
-    const soNo = [...card.querySelectorAll("thead th")].find((h) => h.textContent?.trim() === "SO no.") as HTMLElement;
+    const soNo = [...card.querySelectorAll("thead th")].find((h) => h.textContent?.trim() === "Doc. No.") as HTMLElement;
     const soAt = soNo.getBoundingClientRect();
     const rows = [...card.querySelectorAll("tbody tr")].filter((r) => !r.hasAttribute("data-expansion-of") && r.getAttribute("aria-hidden") !== "true");
     const cells = rows.flatMap((r) => [...r.querySelectorAll(":scope > td")]);
@@ -107,7 +83,7 @@ for (const width of WIDTHS) {
           expect(m.buttonHeights, `${state}: every toolbar button is 32 high`).toEqual([32]);
           expect(m.rowHeights.every(h => h >= 44), `${state}: rows keep the44px minimum and grow for complete facts`).toBe(true);
           expect(m.cellsPastColumn, `${state}: no cell runs past its column`).toBe(0);
-          expect(m.soNoInView, `${state}: SO no. stays in view at the list's right end`).toBe(true);
+          expect(m.soNoInView, `${state}: Doc. No. stays in view at the list's right end`).toBe(true);
           expect(await carresCheck(page), `${state}: carres-check.js`).toEqual(PASS);
 
         }
@@ -116,13 +92,14 @@ for (const width of WIDTHS) {
   }
 }
 
-test("Sales Order Outright headers read the v12 words and the preserved date's two lines (owner 14 Oct)", async ({ page }) => {
+test("Sales Order Outright headers follow Houzs's order and keep the preserved date's two lines (Weisiang 1 Nov)", async ({ page }) => {
   await page.setViewportSize({ width: 1164, height: 900 });
   await page.goto(PAGE, { waitUntil: "networkidle" });
   await page.locator('[data-testid^="outright-row-"]').first().waitFor();
   const heads = await page.locator(`${TABLE} thead tr`).first().locator("th").allInnerTexts();
   expect(heads.map((h) => h.replace(/\n/g, " / ").toLowerCase()).filter(Boolean)).toEqual([
-    "proceed date", "so no.", "items", "sales location", "delivery location", "customer’s original / requested delivery",
+    "doc. no.", "date", "ref no.", "agent", "debtor name", "total", "sales location", "balance", "processing date", "customer’s original / requested delivery",
+    "item group", "item code", "detail description", "detail description 2", "unit price", "qty",
   ]);
 });
 
@@ -233,7 +210,13 @@ test("Sales Order Outright opened row: Qty and Supplier are reachable by keyboar
   expect(await inBox("Qty")).not.toBe("missing");
   expect(await inBox("Supplier"), "Supplier comes into view with the arrow keys").toBe("in view");
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), "the page itself never scrolls sideways").toBeLessThanOrEqual(0);
-  const scrollLeft = await page.locator("[data-list-scroll]").evaluate((box) => box.scrollLeft);
+  /* The last arrow key may still be scrolling: read once it has settled. */
+  let scrollLeft = -1;
+  await expect.poll(async () => {
+    const before = scrollLeft;
+    scrollLeft = await page.locator("[data-list-scroll]").evaluate((box) => box.scrollLeft);
+    return scrollLeft === before;
+  }).toBe(true);
   await setPanels(page, false, true);
   await expect(page.getByRole("dialog", { name: "Tasks", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");

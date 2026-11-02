@@ -34,6 +34,7 @@ import { REGISTER_FIELD_WIDTH } from "@/components/register/register-field-width
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
 import Modal from "@/components/kit/Modal";
+import Tabs from "@/components/kit/Tabs";
 import Textarea from "@/components/kit/Textarea";
 import { fmtDate } from "@/lib/fmt-date";
 import { useDecidePoChange, usePoChangeRequests, type PoChangeRequestRow } from "@/lib/queries";
@@ -47,6 +48,20 @@ export const PO_CHANGE_STATUS_WORD: Record<Kind, Record<PoChangeRequestRow["stat
 };
 const NOUN: Record<Kind, [string, string]> = { amendment: ["amendment", "amendments"], cancellation: ["request", "requests"] };
 const isOpen = (r: PoChangeRequestRow) => r.status === "requested" || r.status === "first_approved";
+/* Houzs's filter pills: amendments Requested / Approved / Rejected / All
+   (PoAmendments.tsx:49), cancellations Open / All (CancelRequests.tsx:54-57). */
+const VIEWS: Record<Kind, ReadonlyArray<{ value: string; label: string; has: (r: PoChangeRequestRow) => boolean }>> = {
+  amendment: [
+    { value: "requested", label: "Requested", has: isOpen },
+    { value: "approved", label: "Approved", has: (r) => r.status === "approved" },
+    { value: "rejected", label: "Rejected", has: (r) => r.status === "rejected" || r.status === "withdrawn" },
+    { value: "all", label: "All", has: () => true },
+  ],
+  cancellation: [
+    { value: "open", label: "Open", has: isOpen },
+    { value: "all", label: "All", has: () => true },
+  ],
+};
 export const WAITING_FOR_ANOTHER = "Waiting for another approver";
 const statusWord = (kind: Kind, r: PoChangeRequestRow) =>
   r.mine && isOpen(r) ? WAITING_FOR_ANOTHER : PO_CHANGE_STATUS_WORD[kind][r.status] ?? r.status;
@@ -92,14 +107,18 @@ export function PoWaitingFlags({ waiting }: { waiting: Array<{ kind: Kind; row: 
 export default function OperationPoChangeRequests({ kind }: { kind: Kind }) {
   const query = usePoChangeRequests(kind);
   const decide = useDecidePoChange();
-  const rows = query.data?.requests ?? [];
+  const allRows = query.data?.requests ?? [];
+  const views = VIEWS[kind];
+  const [viewValue, setViewValue] = useState(views[0].value);
+  const view = views.find((v) => v.value === viewValue) ?? views[0];
+  const rows = allRows.filter(view.has);
   /* `?request=<id>` — the PO pages' flag opens the request here. */
   const [params, setParams] = useSearchParams();
   const [chosenId, setChosenId] = useState<string | null>(() => params.get("request"));
-  const chosen = rows.find((r) => r.id === chosenId) ?? null;
+  const chosen = allRows.find((r) => r.id === chosenId) ?? null;
   const [note, setNote] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
-  const waiting = rows.filter(isOpen).length;
+  const waiting = allRows.filter(isOpen).length;
   const word = (r: PoChangeRequestRow) => statusWord(kind, r);
   const openRequest = (r: PoChangeRequestRow) => { setChosenId(r.id); setNote(""); setProblem(null); };
   const canDecide = (r: PoChangeRequestRow) => isOpen(r) && !r.mine;
@@ -108,31 +127,37 @@ export default function OperationPoChangeRequests({ kind }: { kind: Kind }) {
   const canWithdraw = (r: PoChangeRequestRow) => isOpen(r) && (kind === "cancellation" || r.status === "requested");
   const [one, many] = NOUN[kind];
 
+  /* Column order follows Houzs PoAmendments.tsx:63-142 and CancelRequests.tsx:108-193.
+     Change stands where Houzs prints the amendment number, which Carres does not have. */
   const columns = useMemo<DataGridColumn<PoChangeRequestRow>[]>(() => [
-    { key: "status", label: "Status", width: 220, accessor: word, filterValue: word, filterType: "enum", exportValue: word },
     { key: "po", label: "PO No", width: 150, accessor: (r) => r.po_id, searchValue: (r) => r.po_id },
-    { key: "supplier", label: "Supplier", width: 160, wrap: true, accessor: (r) => r.supplier_name ?? "",
-      filterValue: (r) => r.supplier_name ?? "", filterType: "enum" },
-    { key: "change", label: "Change", width: 240, wrap: true, accessor: (r) => r.summary },
-    { key: "reason", label: "Reason", width: 220, wrap: true, accessor: (r) => r.reason },
+    ...(kind === "amendment"
+      ? [{ key: "change", label: "Change", width: 240, wrap: true, accessor: (r: PoChangeRequestRow) => r.summary }]
+      : []),
     { key: "requested_by", label: "Requested by", width: 140, accessor: (r) => r.requested_by_name ?? "",
       filterValue: (r) => r.requested_by_name ?? "", filterType: "enum" },
-    { key: "requested_at", label: "Requested", width: REGISTER_FIELD_WIDTH.date, accessor: (r) => fmtDate(r.requested_at),
-      dateValue: (r) => r.requested_at, filterType: "date", exportValue: (r) => r.requested_at },
+    { key: "reason", label: "Reason", width: 220, wrap: true, accessor: (r) => r.reason },
+    { key: "status", label: "Status", width: 220, accessor: word, filterValue: word, filterType: "enum", exportValue: word },
     ...(kind === "cancellation"
-      ? [{ key: "first_approved_by", label: "First approval", width: 140, accessor: (r: PoChangeRequestRow) => r.first_approved_by_name ?? "" }]
+      ? [{ key: "first_approved_by", label: "Level 1", width: 140, accessor: (r: PoChangeRequestRow) => r.first_approved_by_name ?? "" },
+         { key: "decided_by", label: "Level 2", width: 140, accessor: (r: PoChangeRequestRow) => r.decided_by_name ?? "" },
+         { key: "decision_note", label: "Approval Remarks", width: 220, wrap: true, accessor: (r: PoChangeRequestRow) => r.decision_note ?? "" }]
       : []),
-    { key: "decided_by", label: "Decided by", width: 140, accessor: (r) => r.decided_by_name ?? "" },
-    { key: "decided_at", label: "Decided", width: REGISTER_FIELD_WIDTH.date, accessor: (r) => fmtDate(r.decided_at),
-      dateValue: (r) => r.decided_at ?? "", exportValue: (r) => r.decided_at ?? "" },
+    { key: "requested_at", label: kind === "amendment" ? "Created" : "Requested", width: REGISTER_FIELD_WIDTH.date, accessor: (r) => fmtDate(r.requested_at),
+      dateValue: (r) => r.requested_at, filterType: "date", exportValue: (r) => r.requested_at },
+    { key: "supplier", label: "Supplier", width: 160, wrap: true, accessor: (r) => r.supplier_name ?? "",
+      filterValue: (r) => r.supplier_name ?? "", filterType: "enum" },
     ...(kind === "cancellation"
-      ? (["reply", "fee", "shipped", "evidence"] as const).map((key) => ({
+      ? [{ key: "change", label: "Change", width: 240, wrap: true, accessor: (r: PoChangeRequestRow) => r.summary },
+         ...(["reply", "fee", "shipped", "evidence"] as const).map((key) => ({
           key: `supplier_${key}`, width: key === "reply" ? 180 : 120, wrap: true,
           label: { reply: "Supplier reply", fee: "Fee", shipped: "Shipped", evidence: "Evidence" }[key],
           accessor: (r: PoChangeRequestRow) => factsOf(r)?.[key] ?? "",
-        }))
-      : []),
-    { key: "decision_note", label: "Decision reason", width: 220, wrap: true, defaultHidden: true, accessor: (r) => r.decision_note ?? "" },
+        }))]
+      : [{ key: "decided_by", label: "Decided by", width: 140, accessor: (r: PoChangeRequestRow) => r.decided_by_name ?? "" },
+         { key: "decision_note", label: "Decision reason", width: 220, wrap: true, defaultHidden: true, accessor: (r: PoChangeRequestRow) => r.decision_note ?? "" }]),
+    { key: "decided_at", label: "Decided", width: REGISTER_FIELD_WIDTH.date, accessor: (r) => fmtDate(r.decided_at),
+      dateValue: (r) => r.decided_at ?? "", exportValue: (r) => r.decided_at ?? "" },
     { key: "actions", label: "Actions", width: 190, accessor: (r) => canDecide(r)
       ? <span className="flex gap-2" onClick={(event) => event.stopPropagation()}>
           <Button variant="primary" onClick={() => openRequest(r)}>Approve</Button>
@@ -163,11 +188,15 @@ export default function OperationPoChangeRequests({ kind }: { kind: Kind }) {
           <EmptyState title={`The ${many} could not be opened`} detail="Try again."
             action={<Button variant="neutral" onClick={() => void query.refetch()}>Try again</Button>} />
         </div>
-      ) : (
+      ) : <>
+        <div className="shrink-0 px-4 pt-2">
+          <Tabs label={`${many} view`} value={view.value} onValueChange={setViewValue}
+            tabs={views.map((v) => ({ value: v.value, label: `${v.label} · ${allRows.filter(v.has).length}` }))} />
+        </div>
         <ListPageShell register>
           <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id}
             rowTestId={(r) => `po-change-row-${r.id}`}
-            storageKey={`carres.operation.po-${kind}-requests.v1`} appearance="reference" fillColumn="change"
+            storageKey={`carres.operation.po-${kind}-requests.v2`} appearance="reference" fillColumn="reason"
             exportName={kind === "amendment" ? "PO Amendments" : "Cancellation Requests"}
             groupBanner={false} isLoading={query.isLoading}
             onRowClick={openRequest}
@@ -177,7 +206,7 @@ export default function OperationPoChangeRequests({ kind }: { kind: Kind }) {
               {visible.length} {visible.length === 1 ? one : many} · {waiting} waiting
             </span>} />
         </ListPageShell>
-      )}
+      </>}
       <Modal open={!!chosen} onOpenChange={(open) => { if (!open) close(); }} title={chosen?.po_id ?? ""}
         description={chosen ? word(chosen) : undefined}
         footer={<>

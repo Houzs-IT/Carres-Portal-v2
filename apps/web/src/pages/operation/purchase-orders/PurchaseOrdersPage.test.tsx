@@ -166,14 +166,14 @@ vi.mock("@/components/register/DataGrid", async () => {
   return { DataGrid: (props: any) => {
     lastGridProps = props;
     if (useRealRegisterGrid) return <RealDataGrid {...props} />;
-    const { rows, columns, onRowDoubleClick, statusSummary, fixedGroups, leadingColumns, personalLayouts, activeConditions, expandable, toolbarEnd, renderResults, selectable, selectionPrimary, onFacetRowsChange } = props;
+    const { rows, columns, onRowDoubleClick, statusSummary, fixedGroups, pinnedPrefix, personalLayouts, activeConditions, expandable, toolbarEnd, renderResults, selectable, selectionPrimary, onFacetRowsChange } = props;
     useEffect(() => { onFacetRowsChange?.([...rows]); });
     return (
     <div
       data-testid="register-grid"
       data-groups={fixedGroups?.groups.map((g: any) => g.key).join(",")}
       data-group-labels={fixedGroups?.groups.map((g: any) => g.label).join(" | ")}
-      data-leading={leadingColumns ? `${leadingColumns.date},${leadingColumns.identity}` : undefined}
+      data-leading={pinnedPrefix ? pinnedPrefix.columns.join(",") : undefined}
       data-personal-layouts={personalLayouts ? "1" : undefined}
     >
       {rows.some((row: any) => selectable?.selectedKeys.has(row.id)) ? selectionPrimary : toolbarEnd}
@@ -182,7 +182,7 @@ vi.mock("@/components/register/DataGrid", async () => {
       <div data-testid="register-columns">{columns.filter((c: any) => !c.defaultHidden).map((c: any) => c.label).join(" | ")}</div>
       <div data-testid="register-search-index">{rows.flatMap((row: any) => columns.map((column: any) => column.searchValue?.(row) ?? "")).join(" ")}</div>
       {rows.map((row: any) => (
-        <div key={row.id} data-testid={`grid-row-${row.id}`} data-group={fixedGroups?.groupOf(row)} onDoubleClick={() => onRowDoubleClick?.(row)}>
+        <div key={row.id ?? row.key} data-testid={`grid-row-${row.id ?? row.key}`} data-group={fixedGroups?.groupOf(row)} onDoubleClick={() => onRowDoubleClick?.(row)}>
           {columns.filter((c: any) => !c.defaultHidden).map((column: any) => (
             <div key={column.key}>{column.accessor?.(row)}</div>
           ))}
@@ -533,11 +533,11 @@ describe("Purchase Orders Register", () => {
     expect(screen.getByTestId("register-grid")).toBeInTheDocument();
   });
 
-  it("draws exactly the eleven approved columns, date first, and none of the retired ones", () => {
+  it("draws exactly the eleven approved columns, number first, and none of the retired ones", () => {
     renderPage();
     const grid = screen.getByTestId("register-grid");
     expect(screen.getByTestId("register-columns")).toHaveTextContent(
-      /^PO Doc Date \| PO No \| SO No \/ MPR No \| Supplier \| Items \| Supplier Deliver To \| PO Delivery Date \| Supplier Confirmed Delivery Date \| Goods Received Date \| GRN No \| PO Version$/,
+      /^PO No \| SO No \/ MPR No \| Supplier \| Items \| Supplier Deliver To \| PO Doc Date \| PO Delivery Date \| Supplier Confirmed Delivery Date \| Goods Received Date \| GRN No \| PO Version$/,
     );
     /* `Expected Delivery Date` is retired BY NAME: what we planned and what
        the factory promised are two facts, and one cell holding whichever it
@@ -545,7 +545,7 @@ describe("Purchase Orders Register", () => {
     for (const retired of ["PO Issued", "Expected Delivery Date", "Order Qty", "Received Qty", "Pending Delivery Qty", "Sent to Supplier", "Source"]) {
       expect(screen.getByTestId("register-columns")).not.toHaveTextContent(retired);
     }
-    expect(grid).toHaveAttribute("data-leading", "po_date,po");
+    expect(grid).toHaveAttribute("data-leading", "po");
     expect(screen.getByTestId("grid-row-PO-20260828-4827")).toHaveTextContent("Fri, 28 Aug");
     expect(screen.getByTestId("grid-row-PO-LEGACY")).toBeInTheDocument();
   });
@@ -1359,7 +1359,7 @@ describe("Purchase Orders Overview", () => {
   it("is the first display and draws the six columns in order, with no groups", () => {
     renderPage(OVERVIEW);
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
-    expect(within(screen.getByRole("tablist", { name: "Purchase Orders display" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Overview", "Table", "Cards"]);
+    expect(within(screen.getByRole("tablist", { name: "Purchase Orders display" })).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Overview", "Lines", "Table", "Cards"]);
     expect(screen.getByTestId("register-columns")).toHaveTextContent(
       /^PO No \| Items \| SO No \/ MPR No \| PO Doc Date \| PO Delivery Date \| Status$/,
     );
@@ -1383,6 +1383,24 @@ describe("Purchase Orders Overview", () => {
     expect(flag).toHaveAttribute("href", "/operation?tab=po-cancellation-requests&request=r9");
     fireEvent.click(screen.getByRole("button", { name: /^PO-260828-4827-V2$/ }));
     expect(within(screen.getByTestId("po-object-waiting")).getByTestId("po-waiting-flag-r9")).toBeInTheDocument();
+  });
+  it("one click on a row opens the drawer, which leads to the full page", async () => {
+    useRealRegisterGrid = true;
+    renderPage(OVERVIEW);
+    fireEvent.click(await screen.findByTestId("grid-row-PO-20260828-4827"));
+    expect(await screen.findByTestId("po-quick-view")).toHaveTextContent("Supplier Deliver To");
+    expect(screen.queryByTestId("purchase-order-object")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("po-quick-open-full"));
+    expect(await screen.findByTestId("purchase-order-object")).toBeInTheDocument();
+  });
+  it("Lines shows one row per PO line and the state tabs still apply", () => {
+    const open = renderPage(`${OVERVIEW}?view=lines`);
+    expect(screen.getByTestId("register-columns")).toHaveTextContent("Pending Delivery Qty");
+    for (const line of queryData.pos[0]!.purchase_order_lines) expect(screen.getByTestId(`grid-row-${line.id}`)).toBeInTheDocument();
+    open.unmount();
+    Object.assign(queryData.pos[0]!, { status: "cancelled" });
+    renderPage(`${OVERVIEW}?view=lines`);
+    for (const line of queryData.pos[0]!.purchase_order_lines) expect(screen.queryByTestId(`grid-row-${line.id}`)).not.toBeInTheDocument();
   });
   it("the PO number still opens the PO", () => {
     renderPage(OVERVIEW);
@@ -1410,7 +1428,7 @@ describe("Purchase Orders Overview", () => {
     overview.unmount();
     renderPage(`${OVERVIEW}?view=table`);
     expect(lastGridProps.expandable.fitExpansionToViewport).toBe(false);
-    expect(lastGridProps.expandable.alignToColumn).toBe("po_date");
+    expect(lastGridProps.expandable.alignToColumn).toBe("po");
   });
   it("Table keeps the eleven columns and the four groups", () => {
     renderPage(`${OVERVIEW}?view=table`);

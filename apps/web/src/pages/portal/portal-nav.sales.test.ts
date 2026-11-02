@@ -8,18 +8,18 @@ import {
 } from "./portal-nav";
 
 /**
- * ⭐ THE APPROVED SALES ORDERS TREE — Jess, owner ruling 2026-09-23
- * (`docs/orders/MASTER.md` "Portal navigation", `docs/ui/MASTER.md`, and the
- * COPY-STANDARD table "Sales Orders navigation").
+ * ⭐ THE SALES ORDER MODULE — the Houzs tree (Weisiang, WhatsApp 2026-11-01).
  *
- *     Sales Orders
- *     ├─ Outright        (was `Outright Sales`; owner 2026-10-08)
- *     ├─ Amendments      (Weisiang, 2026-10-22)
- *     └─ Subscription
+ *     Sales Order                  (inside the Supply Chain row)
+ *     ├─ Sales Orders
+ *     ├─ Subscription
+ *     ├─ Sales Order Amendment
+ *     ├─ Delivery Orders
+ *     ├─ Sales Invoices
+ *     └─ Delivery Returns
  *
- * `Amendments` joined between them on Weisiang's decision (Mr Lim, WhatsApp
- * 2026-10-22; Jess was not part of this decision): every Sales Order amendment
- * waits in an approver's queue, the Houzs way.
+ * Sales Orders also has a second door under Workspace (`orders-shortcut`, the
+ * same address); `Jump to` offers the place, not the door.
  *
  * This file guards the MODEL — the words, the addresses and the one-place rule
  * — so a later rail refactor cannot quietly re-open a settled ruling.
@@ -30,19 +30,26 @@ const OPERATIONS = PORTAL_NAV.find((g) => g.area === "operation")!;
 const ADMIN = PORTAL_NAV.find((g) => g.area === "principal")!;
 
 describe("the approved Sales Orders navigation", () => {
-  it("the module row is `Sales Orders`", () => {
+  it("the module row is `Sales Order`", () => {
     expect(PORTAL_MODULES.find((m) => m.section === "Sales")?.label).toBe(
-      "Sales Orders",
+      "Sales Order",
     );
   });
 
-  it("holds exactly three children, in the approved order", () => {
+  it("holds exactly six children, in the approved order", () => {
     const block = navBlocks(OPERATIONS, "operation").find(
       (b) => b.kind === "module" && b.module.section === "Sales",
     );
     expect(block?.kind).toBe("module");
     const pages = block!.kind === "module" ? block!.pages : [];
-    expect(pages.map((p) => p.label)).toEqual(["Outright", "Amendments", "Subscription"]);
+    expect(pages.map((p) => p.label)).toEqual([
+      "Sales Orders",
+      "Subscription",
+      "Sales Order Amendment",
+      "Delivery Orders",
+      "Sales Invoices",
+      "Delivery Returns",
+    ]);
   });
 
   /* NEITHER ADDRESS MOVED. "Menu removal does not delete orders, history,
@@ -58,7 +65,7 @@ describe("the approved Sales Orders navigation", () => {
 
   /* `Purchase` is rejected BY NAME in COPY-STANDARD for this entry — it reads
      as the Purchasing module, which stays separate. */
-  it("never calls the outright child `Purchase`", () => {
+  it("never calls a Sales Order child `Purchase`", () => {
     const sales = visibleItems(OPERATIONS, "operation").filter(
       (i) => i.section === "Sales",
     );
@@ -77,11 +84,17 @@ describe("the approved Sales Orders navigation", () => {
     expect(rental[0].label).toBe("Subscription");
   });
 
-  it("Customer Care keeps Service Cases and Guarantees", () => {
+  it("Service Cases carries its five pages, in order", () => {
     const care = visibleItems(OPERATIONS, "operation").filter(
       (i) => i.section === "Customer Care",
     );
-    expect(care.map((i) => i.label)).toEqual(["Service Cases", "Guarantees"]);
+    expect(care.map((i) => i.label)).toEqual([
+      "Quality Overview",
+      "Service Cases",
+      "Service Maintenance",
+      "My Cases",
+      "Guarantees",
+    ]);
   });
 
   /* THE MENU ROW IS REMOVED; THE PAGE IS NOT. `/operation/old-orders` stays
@@ -101,14 +114,13 @@ describe("the approved Sales Orders navigation", () => {
   it("the Admin jump to the same register says the same word", () => {
     const admin = ADMIN.items.find((i) => i.path === "/operation/orders");
     const ops = OPERATIONS.items.find((i) => i.path === "/operation/orders");
-    // The word is `Outright` since 2026-10-08; both rows must say it.
-    expect(ops?.label).toBe("Outright");
+    expect(ops?.label).toBe("Sales Orders");
     expect(admin?.label).toBe(ops?.label);
   });
 
-  /* The shared parent is NAVIGATION ONLY. Purchasing keeps its own module, and
-     nothing about it moves under Sales Orders. */
-  it("Purchasing stays a separate module", () => {
+  /* The shared parent is NAVIGATION ONLY. Procurement keeps its own module, and
+     nothing about it moves under Sales Order. */
+  it("Procurement stays a separate module", () => {
     expect(PORTAL_MODULES.some((m) => m.section === "Purchasing")).toBe(true);
     const sales = visibleItems(OPERATIONS, "operation").filter(
       (i) => i.section === "Sales",

@@ -121,7 +121,7 @@ function BillRegister() {
       searchValue: (r) => r.supplier_name, filterType: "enum" },
     { key: "kind", label: "Creditor Type", width: 140, defaultHidden: true, accessor: (r) => creditorKindWord(r.supplier_kind),
       filterValue: (r) => creditorKindWord(r.supplier_kind), filterType: "enum" },
-    { key: "invoice", label: "Supplier Invoice", width: 160, defaultHidden: true, accessor: (r) => r.supplier_invoice_no,
+    { key: "invoice", label: "Supplier Invoice", width: 160, accessor: (r) => r.supplier_invoice_no,
       searchValue: (r) => r.supplier_invoice_no },
     { key: "grn", label: "GRN", width: 160, defaultHidden: true, wrap: true, accessor: (r) => r.grn_nos ?? "Not from a GRN",
       searchValue: (r) => r.grn_nos ?? "" },
@@ -143,14 +143,14 @@ function BillRegister() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ModuleHeader destinationHeader testId="bills-destination-header" word="Bills" docTitle="Bills · Carres" />
+      <ModuleHeader destinationHeader testId="bills-destination-header" word="AP Invoices" docTitle="AP Invoices · Carres" />
       {query.isError ? <ReadFailed what="Bills" onRetry={() => void query.refetch()} /> : (
         <ListPageShell register>
           <DataGrid
             rows={rows}
             columns={columns}
             rowKey={(r) => r.id}
-            storageKey="carres.finance.bills.v3"
+            storageKey="carres.finance.bills.v4"
             appearance="reference"
             look="finance" personalLayouts={personalLayouts} fillColumn="supplier"
             exportName="Bills"
@@ -215,7 +215,7 @@ function BillDetail() {
   if (query.isError) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <ModuleHeader destinationHeader testId="bills-destination-header" word="Bills" docTitle="Bills · Carres" />
+        <ModuleHeader destinationHeader testId="bills-destination-header" word="AP Invoices" docTitle="AP Invoices · Carres" />
         <ReadFailed what="This bill" onRetry={() => void query.refetch()} />
       </div>
     );
@@ -239,7 +239,7 @@ function BillDetail() {
         identity={b.bill_no ?? "Draft bill"}
         customer={b.supplier_name}
         backTo="/finance/bills"
-        backLabel="Bills"
+        backLabel="AP Invoices"
         docTitle={`${b.bill_no ?? "Draft bill"} · Carres`}
         status={<span data-testid="bill-status">{word(BILL_STATUS_WORD, b.status)}</span>}
         right={
@@ -820,7 +820,7 @@ function BillForm() {
         identity={id ? (existing.data?.bill.bill_no ?? "Draft bill") : "New Bill"}
         customer={supplier?.name ?? null}
         backTo={id ? `/finance/bills/${id}` : "/finance/bills"}
-        backLabel={id ? "Bill" : "Bills"}
+        backLabel={id ? "Bill" : "AP Invoices"}
         right={
           <span className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => navigate(id ? `/finance/bills/${id}` : "/finance/bills")}>Cancel</Button>
@@ -1093,16 +1093,18 @@ function BillLineRow({ line, index, accounts, usualGoods, usualTransport, onChan
 /** The GRNs that still have goods to bill. Picking one fills the lines from
  *  the GRN — never re-keyed: open qty, the PO's price, account 5100. */
 /** 0721: also Purchasing's way to add goods received to a bill. */
-export function GrnPicker({ open, supplierId, poId, onClose, onPick }: {
+export function GrnPicker({ open, supplierId, poId, receiptId = null, onClose, onPick }: {
   open: boolean;
   supplierId: string | null;
   poId: string | null;
+  /** One GRN only: the GRN page's `Convert to PI`. */
+  receiptId?: string | null;
   onClose: () => void;
   onPick: (lines: LineDraft[], supplierId: string, poTermsDays: number | null) => void;
 }) {
   const candidates = useGrnCandidates(supplierId, open);
   const [busy, setBusy] = useState<string | null>(null);
-  const rows = (candidates.data ?? []).filter((r) => !poId || r.po_id === poId);
+  const rows = (candidates.data ?? []).filter((r) => (!poId || r.po_id === poId) && (!receiptId || r.receipt_id === receiptId));
   const pick = async (g: GrnCandidateRow) => {
     setBusy(g.receipt_id);
     try {

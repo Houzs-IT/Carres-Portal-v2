@@ -1814,9 +1814,9 @@ div:first-child > .columnsMenuGroup {
 .rootShrink .headerSub { font-size:inherit; font-weight:inherit; color:inherit; }
 
 .th .sortBtn { text-transform:inherit; }
-.rootShrink .thTwoLine { font-size:10px; }
+.rootShrink .thTwoLine { font-size:11px; }
 
 .rootShrink .sortBtn { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 
-.thTwoLine { font-size:10px; }
+.thTwoLine { font-size:11px; }
 .th .sortBtn { max-width:100%; white-space:normal; }

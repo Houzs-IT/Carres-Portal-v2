@@ -273,7 +273,7 @@
     "apps/web/src/pages/operation/components/ResumeFromWaitingDialog.tsx",
     "apps/web/src/pages/operation/components/RevertConfirmDialog.tsx",
     "apps/web/src/pages/operation/components/RouteJourneyBar.tsx",
-    "apps/web/src/pages/operation/components/ServiceCaseModal.tsx",
+    "apps/web/src/pages/operation/components/ServiceCaseDetail.tsx",
     "apps/web/src/pages/operation/components/ServiceCaseNumbersPanel.tsx",
     "apps/web/src/pages/operation/components/ServiceCaseWizard.tsx",
     "apps/web/src/pages/operation/components/ServiceNoteModal.tsx",

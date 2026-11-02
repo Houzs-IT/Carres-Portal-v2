@@ -56,8 +56,21 @@ export const DOR_COPY = {
   docTitle: "Delivery Orders · Carres",
   search: "Search delivery orders…",
   railWork: "Work to do",
-  railStatus: "Document status",
   allDocuments: "All",
+  /* Houzs Delivery Orders page words (MfgDeliveryOrdersListV2.tsx:1646-1693),
+     Weisiang's decision 2026-11-01: Carres follows Houzs. */
+  totalDos: "Total DOs",
+  revenue: "Revenue",
+  inTransit: "In transit",
+  delivered: "Delivered",
+  salesOrders: "Sales Orders",
+  deliveryPlanning: "Delivery Planning",
+  logisticOverview: "Logistic Overview",
+  dateBy: "Date by",
+  doDate: "DO date",
+  deliveryDate: "Delivery Date",
+  from: "From",
+  to: "To",
   recordResult: "Record delivery result",
   uploadPhoto: "Upload delivery photo",
   uploadSignedDo: "Upload signed Delivery Order",
@@ -317,6 +330,34 @@ export interface DoRegisterRow {
   goodsSummary: string;
   /** The ONE primary work queue this document sits in, or null. */
   queue: DoWorkQueue | null;
+  /* Houzs' DO columns the order already holds. */
+  invoiceNos: string[];
+  /** Set by the register page from the payload's document links. */
+  sourcePos?: string[];
+  returnNos?: string[];
+  refNo: string | null;
+  salesperson: string | null;
+  driver: string | null;
+  vehicle: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  postcode: string | null;
+  buildingType: string | null;
+  /** This trip's goods value. Null on a warehouse leg, so a Journey's order is
+   *  counted once, on the leg that reaches the customer. */
+  amount: number | null;
+}
+
+/** This trip's lines; add-ons are order-wide, so they ride an unsplit document only. */
+function tripAmountOf(r: DeliveryOrderRow, lines: DoRegisterRow["lines"]): number {
+  const money = (x: { qty: number; unit_price?: number | string | null }) =>
+    Number(x.unit_price ?? 0) * Number(x.qty);
+  const goods = (lines as Array<{ qty: number; unit_price?: number | string | null }>).reduce((n, l) => n + money(l), 0);
+  const whole = !r.trip_groups || r.trip_groups.length === 0;
+  return goods + (whole ? (r.orders.order_addons ?? []).reduce((n, a) => n + money(a), 0) : 0);
 }
 
 /**
@@ -533,6 +574,19 @@ export function buildDoRegisterRow(
     lines,
     goodsSummary: goodsSummaryOf(lines),
     queue: doWorkQueueOf(base),
+    invoiceNos: invoiceNosOf(r),
+    refNo: r.orders.source_ref ?? null,
+    salesperson: (Array.isArray(r.orders.salespersons) ? r.orders.salespersons[0]?.name : r.orders.salespersons?.name) ?? null,
+    driver: arrangement?.driver_name ?? null,
+    vehicle: arrangement?.vehicle ?? null,
+    phone: r.orders.customer_phone ?? null,
+    email: r.orders.customer_email ?? null,
+    address: r.orders.customer_address ?? null,
+    city: r.orders.customer_address_city ?? null,
+    state: r.orders.customer_address_state ?? null,
+    postcode: r.orders.customer_address_postcode ?? null,
+    buildingType: r.orders.building_type ?? null,
+    amount: intermediateLeg ? null : tripAmountOf(r, lines),
     ...base,
   };
 }
@@ -547,6 +601,58 @@ export function matchesDoFilters(row: DoRegisterRow, f: DoRegisterFilters): bool
     (f.queue === null || row.queue === f.queue) &&
     (f.status === null || row.status.kind === f.status)
   );
+}
+
+function invoiceNosOf(r: DeliveryOrderRow): string[] {
+  const live = (r.orders.invoice_documents ?? [])
+    .filter((i) => !i.voided_at && i.invoice_no)
+    .map((i) => i.invoice_no as string);
+  if (live.length > 0) return live;
+  return r.orders.invoice_no ? [r.orders.invoice_no] : [];
+}
+
+export type DoDateBy = "do" | "delivery";
+
+/** Houzs `Transfer from` and return chips: PO numbers by SO, return numbers by document. */
+export function documentLinksOf(
+  sourcePos: readonly { id: string; so: number | null; so_refs: number[] | null }[] = [],
+  returns: readonly { delivery_order_id: string; return_no: string | null }[] = [],
+) {
+  const posBySo = new Map<number, string[]>();
+  for (const po of sourcePos) {
+    for (const so of new Set([...(po.so_refs ?? []), ...(po.so == null ? [] : [po.so])])) {
+      posBySo.set(so, [...(posBySo.get(so) ?? []), po.id]);
+    }
+  }
+  const returnsByDo = new Map<string, string[]>();
+  for (const r of returns) {
+    if (r.return_no) returnsByDo.set(r.delivery_order_id, [...(returnsByDo.get(r.delivery_order_id) ?? []), r.return_no]);
+  }
+  return { posBySo, returnsByDo };
+}
+
+/** Houzs DoDateFilter: a from/to window over the DO date or the delivery date.
+ *  A row with no delivery date falls outside a delivery-date window. */
+export function matchesDoDates(
+  row: DoRegisterRow,
+  w: { from: string | null; to: string | null; by: DoDateBy },
+): boolean {
+  if (!w.from && !w.to) return true;
+  const day = (w.by === "do" ? row.issuedAt : row.confirmedDelivery)?.slice(0, 10);
+  if (!day) return false;
+  return (!w.from || day >= w.from) && (!w.to || day <= w.to);
+}
+
+/** Houzs' four tiles (MfgDeliveryOrdersListV2.tsx:1646-1684). A cancelled
+ *  document is neither a delivery nor revenue. */
+export function doRegisterTiles(rows: readonly DoRegisterRow[]) {
+  const live = rows.filter((r) => r.status.kind !== "cancelled");
+  return {
+    total: live.length,
+    revenue: live.reduce((n, r) => n + (r.amount ?? 0), 0),
+    inTransit: live.filter((r) => r.status.kind === "out_for_delivery").length,
+    delivered: live.filter((r) => r.status.kind === "delivered").length,
+  };
 }
 
 export interface DoRegisterRails {

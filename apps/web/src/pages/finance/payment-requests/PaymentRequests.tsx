@@ -74,6 +74,22 @@ const answerOf = (r: PaymentRequestRow) =>
 
 // ── register ────────────────────────────────────────────────────────────────
 
+// The Houzs stage tabs (PaymentRequests.tsx:66-69).
+const REQUEST_VIEWS = [
+  { value: "all", label: "All" },
+  { value: "waiting", label: "Waiting for Finance" },
+  { value: "processing", label: "Processing" },
+  { value: "paid", label: "Paid" },
+  { value: "returned", label: "Returned / withdrawn" },
+] as const;
+type RequestView = (typeof REQUEST_VIEWS)[number]["value"];
+const requestViewOf = (r: PaymentRequestRow): RequestView => {
+  const stage = paymentRequestStage(r);
+  if (awaitsFinance(stage)) return "waiting";
+  if (stage === "paid") return "paid";
+  return stage === "returned" || stage === "withdrawn" ? "returned" : "processing";
+};
+
 function RequestRegister() {
   const personalLayouts = useFinancePersonalLayouts("finance_payment_requests");
   const navigate = useNavigate();
@@ -81,17 +97,18 @@ function RequestRegister() {
   const me = useRequestMe();
   const finance = me.data?.finance === true;
   const query = usePaymentRequests(finance);
-  const view = finance && params.get("view") === "all" ? "all" : "waiting";
+  const asked = params.get("view");
+  const view: RequestView = finance && REQUEST_VIEWS.some((v) => v.value === asked) ? (asked as RequestView) : "waiting";
   const rows = useMemo(() => {
     const all = query.data ?? [];
-    return finance && view === "waiting" ? all.filter((r) => awaitsFinance(paymentRequestStage(r))) : all;
+    return finance && view !== "all" ? all.filter((r) => requestViewOf(r) === view) : all;
   }, [query.data, finance, view]);
 
   const columns = useMemo<DataGridColumn<PaymentRequestRow>[]>(() => [
     { key: "no", label: "Request No", width: FINANCE_WIDTH.documentNo,
       accessor: (r) => <Link className={link} to={`/finance/payment-requests/${r.id}`}>{r.request_no}</Link>,
       searchValue: (r) => r.request_no, exportValue: (r) => r.request_no },
-    { key: "date", label: "Date", width: W.date, defaultHidden: true, accessor: (r) => fmtDate(r.created_at), dateValue: (r) => r.created_at.slice(0, 10),
+    { key: "date", label: "Date", width: W.date, accessor: (r) => fmtDate(r.created_at), dateValue: (r) => r.created_at.slice(0, 10),
       filterType: "date", exportValue: (r) => r.created_at.slice(0, 10) },
     ...(finance ? [{ key: "who", label: "Requested by", width: 160, wrap: true, accessor: (r: PaymentRequestRow) => r.requested_by_name ?? "",
       filterValue: (r: PaymentRequestRow) => r.requested_by_name ?? "", filterType: "enum" as const }] : []),
@@ -102,7 +119,7 @@ function RequestRegister() {
     { key: "stage", label: "Stage", width: 240, accessor: stageOf, filterValue: stageOf, filterType: "enum" },
     { key: "payBy", label: "Pay by", width: W.date, accessor: (r) => (r.pay_by ? fmtDate(r.pay_by) : ""),
       dateValue: (r) => r.pay_by, filterType: "date" },
-    { key: "purpose", label: "What it is for", width: 260, defaultHidden: true, wrap: true, accessor: (r) => r.purpose, searchValue: (r) => r.purpose },
+    { key: "purpose", label: "What it is for", width: 260, wrap: true, accessor: (r) => r.purpose, searchValue: (r) => r.purpose },
     { key: "answer", label: "Paid by", width: W.documentNo, defaultHidden: true, accessor: answerOf, searchValue: answerOf },
     { key: "files", label: "Files", width: W.qty, align: "right", defaultHidden: true, accessor: (r) => String(r.file_count), numberValue: (r) => r.file_count },
   ], [finance]);
@@ -116,10 +133,10 @@ function RequestRegister() {
             <Tabs label="Payment requests view" value={view}
               onValueChange={(v) => setParams((before) => {
                 const next = new URLSearchParams(before);
-                if (v === "all") next.set("view", "all"); else next.delete("view");
+                if (v === "waiting") next.delete("view"); else next.set("view", v);
                 return next;
               })}
-              tabs={[{ value: "waiting", label: "Waiting for Finance" }, { value: "all", label: "All requests" }]} />
+              tabs={REQUEST_VIEWS} />
           </div>
         )}
         <ListPageShell register>
@@ -128,7 +145,7 @@ function RequestRegister() {
             columns={columns}
             rowKey={(r) => r.id}
             rowTestId={(r) => `payment-request-row-${r.request_no}`}
-            storageKey={`carres.finance.payment-requests.${finance ? view : "mine"}.v3`}
+            storageKey={`carres.finance.payment-requests.${finance ? view : "mine"}.v4`}
             appearance="reference"
             look="finance" personalLayouts={personalLayouts} fillColumn="payee"
             exportName="Payment requests"
@@ -143,6 +160,8 @@ function RequestRegister() {
             ) : undefined}
             emptyMessage={finance && view === "waiting"
               ? "No payment request is waiting for Finance."
+              : finance && view !== "all"
+              ? "No payment request here."
               : "No payment request yet. Ask Finance to pay a bill with New Payment Request."}
             onRowDoubleClick={(r) => navigate(`/finance/payment-requests/${r.id}`)}
             /* A request posts nothing to the ledger, so a double-click still

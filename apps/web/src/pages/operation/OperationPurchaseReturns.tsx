@@ -55,6 +55,7 @@ import {
   purchaseReturnItemSpec,
   purchaseReturnItems,
   purchaseReturnMatches,
+  purchaseReturnPickupState,
   purchaseReturnNo,
   purchaseReturnPickupLocation,
   purchaseReturnPoNo,
@@ -67,7 +68,9 @@ import {
   type PurchaseReturnListRow,
 } from "@carres/shared";
 import { useOperationPurchaseReturns, useOperationSuppliers } from "@/lib/queries";
+import { FinanceKpi } from "@/components/FinanceKpi";
 import Select from "@/components/kit/Select";
+import Tabs from "@/components/kit/Tabs";
 import PurchaseReturnIssue from "./components/PurchaseReturnIssue";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
@@ -147,6 +150,16 @@ export interface PurchaseReturnsRegisterProps {
   onNew?: () => void;
 }
 
+/* Houzs's pills and tiles (PurchaseReturnsListV2.tsx:800-806, 841-844) as counts: Carres
+   issues a return on save, so it has no Draft, and a return carries no credit value. */
+const RETURN_VIEWS = [
+  { value: "all", label: "All" }, { value: "confirmed", label: "Confirmed" },
+  { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" },
+] as const;
+type ReturnView = (typeof RETURN_VIEWS)[number]["value"];
+export const returnViewOf = (row: PurchaseReturnListRow): Exclude<ReturnView, "all"> =>
+  row.cancelled_at ? "cancelled" : purchaseReturnPickupState(row) === "Fully picked up" ? "completed" : "confirmed";
+
 export function PurchaseReturnsRegister({
   returns,
   isLoading = false,
@@ -162,6 +175,8 @@ export function PurchaseReturnsRegister({
   const [supplier, setSupplier] = useState<string | null>(null);
   const [condition, setCondition] = useState<PurchaseReturnCondition | null>(null);
   const [railOpen, setRailVisible] = useState(true);
+  const [view, setView] = useState<ReturnView>("all");
+  const viewCount = (value: ReturnView) => (value === "all" ? returns.length : returns.filter((row) => returnViewOf(row) === value).length);
 
   /**
    * ⭐ CLICK AGAIN TO DESELECT — §9.6, and it is the rail's whole grammar.
@@ -177,8 +192,8 @@ export function PurchaseReturnsRegister({
     setCondition((previous) => (previous === value ? null : value));
 
   const rows = useMemo(
-    () => returns.filter((row) => purchaseReturnMatches(row, { supplier, condition })),
-    [returns, supplier, condition],
+    () => returns.filter((row) => purchaseReturnMatches(row, { supplier, condition }) && (consignment || view === "all" || returnViewOf(row) === view)),
+    [returns, supplier, condition, consignment, view],
   );
 
   /* Counts respect the OTHER active dimension, never their own (§9.6:
@@ -233,15 +248,6 @@ export function PurchaseReturnsRegister({
   const columns = useMemo<DataGridColumn<PurchaseReturnListRow>[]>(
     () => [
       {
-        key: "pr_doc_date",
-        label: PURCHASE_RETURN_COLUMN_LABEL.pr_doc_date,
-        width: 144,
-        accessor: (row) => dateFact(row.pr_doc_date),
-        dateValue: (row) => row.pr_doc_date,
-        filterType: "date",
-        exportValue: (row) => (row.pr_doc_date ? fmtDate(row.pr_doc_date) : ""),
-      },
-      {
         key: "pr_no",
         label: PURCHASE_RETURN_COLUMN_LABEL.pr_no,
         width: 190,
@@ -263,6 +269,15 @@ export function PurchaseReturnsRegister({
         searchValue: (row) => `${purchaseReturnNo(row.pr_no)}${row.cancelled_at ? " Cancelled" : ""}`,
         exportValue: (row) => `${purchaseReturnNo(row.pr_no)}${row.cancelled_at ? " · Cancelled" : ""}`,
         filterType: "numbering",
+      },
+      {
+        key: "pr_doc_date",
+        label: PURCHASE_RETURN_COLUMN_LABEL.pr_doc_date,
+        width: 144,
+        accessor: (row) => dateFact(row.pr_doc_date),
+        dateValue: (row) => row.pr_doc_date,
+        filterType: "date",
+        exportValue: (row) => (row.pr_doc_date ? fmtDate(row.pr_doc_date) : ""),
       },
       {
         key: "supplier",
@@ -534,6 +549,15 @@ export function PurchaseReturnsRegister({
           </FilterRail>
         )}
         <div className="flex min-w-0 flex-1 flex-col p-2">
+          {!consignment && <div className="shrink-0 space-y-2 pb-2">
+            <div className="grid grid-cols-3 gap-3">
+              <FinanceKpi testId="pr-kpi-total" label="Total Returns" value={isLoading ? null : String(returns.length)} />
+              <FinanceKpi testId="pr-kpi-pending" label="Pending" tone="warn" value={isLoading ? null : String(viewCount("confirmed"))} />
+              <FinanceKpi testId="pr-kpi-settled" label="Settled" tone="ok" value={isLoading ? null : String(viewCount("completed"))} />
+            </div>
+            <Tabs label="Purchase Returns view" value={view} onValueChange={(v) => setView(v as ReturnView)}
+              tabs={RETURN_VIEWS.map((v) => ({ value: v.value, label: `${v.label} · ${viewCount(v.value)}` }))} />
+          </div>}
           <DataGrid
             rows={rows}
             columns={columns}
@@ -544,7 +568,7 @@ export function PurchaseReturnsRegister({
             groupBanner={false}
             /* §6.7 rule 2 — the record date and the identity lead and pin, and
                no saved layout may hide or reorder them away. */
-            leadingColumns={{ date: "pr_doc_date", identity: "pr_no" }}
+            pinnedPrefix={{ columns: ["pr_no", "pr_doc_date"], narrow: ["pr_no"] }}
             isLoading={isLoading}
             emptyMessage={
               anyFilter ? `No matching ${noun}.` : `No ${noun}.`
@@ -610,7 +634,8 @@ export default function OperationPurchaseReturns({ consignment = false }: { cons
   const query = useOperationPurchaseReturns(claim, undefined, consignment);
   const label = consignment ? "Consignment Returns" : "Purchase Returns";
   const status = (query.error as { status?: number } | null)?.status;
-  const [creating, setCreating] = useState(false);
+  /* `?new=1&supplier=`: the GRN page's Convert to PR opens the same form. */
+  const [creating, setCreating] = useState(!consignment && params.get("new") === "1");
 
   /* `?pr=` opens the full-width record (§9.6: full width after issue); the
      register's own link and every Work card land here. */
@@ -640,10 +665,20 @@ export default function OperationPurchaseReturns({ consignment = false }: { cons
   }
 
   if (creating) {
-    return <NewPurchaseReturn onClose={() => setCreating(false)} onIssued={(id) => {
+    return <NewPurchaseReturn initialSupplierId={params.get("supplier")} onClose={() => {
       setCreating(false);
       setParams((previous) => {
         const next = new URLSearchParams(previous);
+        next.delete("new");
+        next.delete("supplier");
+        return next;
+      });
+    }} onIssued={(id) => {
+      setCreating(false);
+      setParams((previous) => {
+        const next = new URLSearchParams(previous);
+        next.delete("new");
+        next.delete("supplier");
         next.set("pr", id);
         return next;
       });
@@ -679,9 +714,9 @@ export const NEW_PURCHASE_RETURN = "New Purchase Return";
  * form lists that supplier's Units in stock. Weisiang's decision (Mr Lim,
  * WhatsApp 2026-10-22); Jess was not part of it.
  */
-function NewPurchaseReturn({ onClose, onIssued }: { onClose: () => void; onIssued: (id: string) => void }) {
+function NewPurchaseReturn({ initialSupplierId, onClose, onIssued }: { initialSupplierId: string | null; onClose: () => void; onIssued: (id: string) => void }) {
   const suppliers = useOperationSuppliers();
-  const [supplierId, setSupplierId] = useState("");
+  const [supplierId, setSupplierId] = useState(initialSupplierId ?? "");
   if (supplierId) return <PurchaseReturnIssue supplierId={supplierId} onClose={onClose} onIssued={onIssued} />;
   return (
     <div className="flex max-w-md flex-col gap-3 p-4" data-testid="purchase-return-new">

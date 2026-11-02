@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { withPerformedBy } from "../../lib/actor-names";
 import { requireOperationOrPrincipal } from "../../lib/auth-guards";
 import { userClient } from "../../lib/supabase";
 import { parseBody } from "../../lib/route-helpers";
@@ -99,15 +100,15 @@ export function orderMoney(lines: OrderLine[], payments: OrderPayment[]) {
 
 router.get("/orders", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const rows = await read<Array<Record<string, unknown> & {
-    customer_consignment_order_units: OrderLine[]; customer_consignment_order_payments: OrderPayment[];
+  const rows = await read<Array<{
+    created_by: string | null; customer_consignment_order_units: OrderLine[]; customer_consignment_order_payments: OrderPayment[];
   }>>(
     sb.from("customer_consignment_orders")
-      .select("id, order_no, customer_name, customer_phone, customer_address, note, created_at, customer_consignment_order_units(price, sold_at, ops_stock_items(id, unit_code, sku, status, reserved_ref)), customer_consignment_order_payments(id, paid_at, method, amount, reference, note, created_at)")
+      .select("id, order_no, customer_name, customer_phone, customer_address, note, created_at, created_by, customer_consignment_order_units(price, sold_at, ops_stock_items(id, unit_code, sku, status, reserved_ref)), customer_consignment_order_payments(id, paid_at, method, amount, reference, note, created_at)")
       .order("created_at", { ascending: false })
       .limit(500),
   );
-  const orders = rows.map((o) => ({ ...o, ...orderMoney(o.customer_consignment_order_units, o.customer_consignment_order_payments) }));
+  const orders = (await withPerformedBy(sb, rows)).map((o) => ({ ...o, ...orderMoney(o.customer_consignment_order_units, o.customer_consignment_order_payments) }));
   return c.json({ orders });
 });
 
@@ -160,16 +161,16 @@ paymentRoutes("notes", "consignment_note_payment_add", "consignment_note_payment
 // ── Consignment Note ──────────────────────────────────────────────────────────
 router.get("/notes", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const rows = await read<Array<Record<string, unknown> & {
-    consignment_note_units: OrderLine[]; consignment_note_payments: OrderPayment[];
+  const rows = await read<Array<{
+    created_by: string | null; consignment_note_units: OrderLine[]; consignment_note_payments: OrderPayment[];
   }>>(
     sb.from("consignment_notes")
-      .select("id, note_no, order_id, customer_name, customer_phone, customer_address, delivery_date, note, created_at, customer_consignment_orders(order_no), consignment_note_units(price, sold_at, ops_stock_items(id, unit_code, sku, status, reserved_ref)), consignment_note_payments(id, paid_at, method, amount, reference, note, created_at)")
+      .select("id, note_no, order_id, customer_name, customer_phone, customer_address, delivery_date, note, created_at, created_by, customer_consignment_orders(order_no), consignment_note_units(price, sold_at, ops_stock_items(id, unit_code, sku, status, reserved_ref)), consignment_note_payments(id, paid_at, method, amount, reference, note, created_at)")
       .order("created_at", { ascending: false })
       .limit(500),
   );
   // Note money, like Houzs's Note lines and Note payments (consignment-notes.ts:445,465, 1074-1160).
-  const notes = rows.map((n) => ({ ...n, ...orderMoney(n.consignment_note_units, n.consignment_note_payments) }));
+  const notes = (await withPerformedBy(sb, rows)).map((n) => ({ ...n, ...orderMoney(n.consignment_note_units, n.consignment_note_payments) }));
   return c.json({ notes });
 });
 
@@ -203,13 +204,13 @@ router.post("/notes/sold", requireOperationOrPrincipal, async (c) => {
 // ── Customer Consignment Return ───────────────────────────────────────────────
 router.get("/returns", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const returns = await read(
+  const rows = await read<Array<{ created_by: string | null }>>(
     sb.from("customer_consignment_returns")
-      .select("id, return_no, warehouse_id, note, created_at, customer_consignment_return_units(ops_stock_items(unit_code, sku), consignment_notes(note_no, customer_name))")
+      .select("id, return_no, warehouse_id, note, created_at, created_by, customer_consignment_return_units(ops_stock_items(unit_code, sku), consignment_notes(note_no, customer_name))")
       .order("created_at", { ascending: false })
       .limit(500),
   );
-  return c.json({ returns });
+  return c.json({ returns: await withPerformedBy(sb, rows) });
 });
 
 router.post("/returns", requireOperationOrPrincipal, async (c) => {
