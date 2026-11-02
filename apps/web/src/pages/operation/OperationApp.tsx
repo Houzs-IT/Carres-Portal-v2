@@ -51,6 +51,7 @@ import OperationRental from "./OperationRental";
 import OperationToOrder from "./OperationToOrder";
 import OperationManualPurchase from "./OperationManualPurchase";
 import ForecastPurchasePage from "./forecast-purchase/ForecastPurchasePage";
+import OperationMrp from "./OperationMrp";
 import OperationWarehouse from "./OperationWarehouse";
 import OperationMovements from "./OperationMovements";
 import TabbedProcurementShell from "./procurement/TabbedProcurementShell";
@@ -70,6 +71,7 @@ import OperationPurchaseReturns from "./OperationPurchaseReturns";
 import OperationRepairOrders from "./OperationRepairOrders";
 import OperationPurchasingSettings from "./OperationPurchasingSettings";
 // Q3 (Loo, 2026-08-04) — Purchasing → Report: the "look at the numbers" layer.
+import OperationProcurementOverview from "./OperationProcurementOverview";
 import OperationPurchasingReport from "./OperationPurchasingReport";
 // 0226 — the operation-facing COSTING catalog (SKU Master / Modular / Fabric).
 import OperationCatalogPage from "@/pages/catalog/OperationCatalogPage";
@@ -82,6 +84,7 @@ import OperationSuppliers from "./OperationSuppliers";
 import OperationSupplierItems from "./OperationSupplierItems";
 import OperationPurchaseInvoices from "./OperationPurchaseInvoices";
 import OperationPurchaseInvoiceNew, { OperationPurchaseInvoiceEdit } from "./OperationPurchaseInvoiceNew";
+import OperationPurchaseInvoiceDetail from "./OperationPurchaseInvoiceDetail";
 // 2026-05-20 — Phase A · AutoCount integration tabs.
 import OperationImport from "./OperationImport";
 import OperationInbox from "./OperationInbox";
@@ -97,7 +100,8 @@ import WarehouseStockRegister from "./WarehouseStockRegister";
 import { DeliveryReturns, LoadScan } from "./DeliveryReturns";
 import { DeliveryReturnLinesReport } from "./DeliveryReturnLines";
 import { CustomerConsignmentOrders, ConsignmentNotes, CustomerConsignmentReturns } from "./CustomerConsignment";
-import { AutoSchedule, DeliveryPlanning, DpOrders, Trips } from "./DeliveryPlanning";
+import { AutoSchedule, CoverageFleet, DeliveryPlanning, DpOrders, Trips } from "./DeliveryPlanning";
+import { LogisticOverview } from "./LogisticOverview";
 import { StockAdjustments, StockTransfers, StockTakes } from "./WarehouseStockMoves";
 import WarehouseWorkspace from "./WarehouseWorkspace";
 import { LEGACY_SCHEDULE_TABS } from "./warehouse-schedule-view";
@@ -469,6 +473,7 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             <Route path="purchase-invoices/new" element={<OperationPurchaseInvoiceNew />} />
             <Route path="purchase-invoices/from-grn" element={<OperationPurchaseInvoiceNew fromGrn />} />
             <Route path="purchase-invoices/:id/edit" element={<OperationPurchaseInvoiceEdit />} />
+            <Route path="purchase-invoices/:id" element={<OperationPurchaseInvoiceDetail />} />
             <Route
               path="procurement/:slug"
               element={<TabbedProcurementShell />}
@@ -605,10 +610,14 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             {/* Q3 — Purchasing → Report. Read-only, stores nothing, computes
                 at read time; every figure is a door back to the purchase
                 orders it counted. */}
+            {tab === "procurement-overview" && <OperationProcurementOverview />}
             {tab === "purchasing-report" && <OperationPurchasingReport />}
             {/* T11 — Delivery: the 3-pane module (queues · calendar · detail).
                 Read-only by design; every write stays behind the order drawer. */}
             {tab === "delivery" && <OperationDelivery />}
+            {/* Houzs Logistic Overview and Coverage & Fleet, Weisiang's decision 2026-11-01. */}
+            {tab === "logistic-overview" && <LogisticOverview />}
+            {tab === "coverage-fleet" && <CoverageFleet />}
             {/* 0716 — Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): office staff
                 record Delivery Returns and mark DOs Delivered by load scan, the Houzs
                 way. Overturns Jess's Delivery MASTER §6.1/§7/§8; Jess was not part of
@@ -669,6 +678,7 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             {/* Forecast Purchase · Outright: the weekly stock suggestion
                 (owner 13 Oct 2026; Purchasing MASTER §9.14). */}
             {tab === "forecast-purchase" && <ForecastPurchasePage contextFlow={purchaseRequestContext} />}
+            {tab === "mrp" && <OperationMrp />}
             {tab === "catalog" &&
               (role === "principal" ? (
                 <Navigate

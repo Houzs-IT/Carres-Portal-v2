@@ -84,12 +84,23 @@ describe("Finance → Suppliers (0636)", () => {
     expect(screen.getByTestId("supplier-finance-summary")).toHaveTextContent("2 suppliers · 1 with a bank account");
   });
 
+  it("the Houzs chips narrow the list, and Owed reads the outstanding list", async () => {
+    api.routes["/api/finance/payables/outstanding"] = { rows: [{ supplier_id: SOFA, net_owing: 1234.5, advance_open: 0, open_bills: 3 }] };
+    show();
+    const sofa = await screen.findByTestId(`supplier-finance-row-${SOFA}`);
+    await waitFor(() => expect(sofa).toHaveTextContent("1,234.50"));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Other" }));
+    expect(screen.queryByTestId(`supplier-finance-row-${SOFA}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId(`supplier-finance-row-${LANDLORD}`)).toBeInTheDocument();
+    delete api.routes["/api/finance/payables/outstanding"];
+  });
+
   it("puts the code first (0691), then where the money goes, before the tax facts", async () => {
     show();
     await screen.findByText("Lumen Sofa Works");
     const heads = screen.getAllByRole("columnheader").map((h) => h.textContent?.trim()).filter(Boolean);
     // Chew 2026-10-14: Last changed, Tax No and Registration No wait in Columns.
-    expect(heads).toEqual(["Code", "Supplier", "Bank", "Account No", "Account holder", "Creditor Type"]);
+    expect(heads).toEqual(["Code", "Supplier", "Bank", "Account No", "Account holder", "Creditor Type", "Owed", "Advance", "Open bills"]);
     (fireEvent.click(screen.getByRole("button", { name: "Page tools" })), fireEvent.click(screen.getByRole("menuitem", { name: "Columns" })));
     for (const held of ["Last changed", "Tax No", "Registration No"]) {
       expect(screen.getByRole("checkbox", { name: held })).not.toBeChecked();

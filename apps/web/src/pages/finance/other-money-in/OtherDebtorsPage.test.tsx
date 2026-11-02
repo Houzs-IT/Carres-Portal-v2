@@ -209,10 +209,10 @@ describe("Other debtors — the party Register", () => {
     show("/finance/other-debtors?view=parties");
     await screen.findByText("Example Director");
     expect(screen.getByText("Example Sister Sdn Bhd")).toBeInTheDocument();
-    // SSM or IC number and Phone wait in Columns at first (Chew 2026-10-14).
+    // SSM or IC number waits in Columns at first (Chew 2026-10-14); Phone shows, as on Houzs's list.
     expect(screen.queryByText("No number on file")).not.toBeInTheDocument();
     (fireEvent.click(screen.getByRole("button", { name: "Page tools" })), fireEvent.click(screen.getByRole("menuitem", { name: "Columns" })));
-    expect(screen.getByRole("checkbox", { name: "Phone" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Phone" })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: "SSM or IC number" }));
     expect(screen.getByText("No number on file")).toBeInTheDocument();
     (fireEvent.click(screen.getByRole("button", { name: "Page tools" })), fireEvent.click(screen.getByRole("menuitem", { name: "Columns" })));

@@ -84,7 +84,7 @@ const INVOICE_REGISTER_SELECT =
   // `invoiceConfirmedDelivery` reads these for the Monitor AND the Work feed,
   // so the clock starts on the day Delivery actually agreed.
   "ops_delivery_arrangements(leg,confirmed_date,confirmed_time,partner_id,delivery_partners(name,kv_default))," +
-  "ops_delivery_orders(leg,delivery_date,time_slot,voided_at,issued_at)," +
+  "ops_delivery_orders(do_number,leg,delivery_date,time_slot,voided_at,issued_at)," +
   "ops_order_control(balance,confirmed_date,booking_stage,confirmed_time_slot,line_etas,line_stock_status," +
   // The 2026-09-08 correction: the Payment screens must see the LEGACY
   // C9 storage fee too, or they disagree with Work and the gate on a
@@ -161,8 +161,39 @@ financeInvoicesRouter.get("/register", async (c) => {
   const rows = data as unknown as Array<Record<string, unknown>>;
   await attachLegacyStorage(sb, rows);
   await attachLatestPromise(sb, rows);
+  await attachSourcePos(sb, rows);
   return c.json({ rows, total: count });
 });
+
+/**
+ * Source PO: the POs an order names, own `so` or `so_refs[]`, the same read as
+ * routes/operation/delivery-orders.ts. Order-level: a Carres invoice line does
+ * not carry the PO its goods came from. Batched so the URL stays short.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function attachSourcePos(sb: any, rows: Array<Record<string, unknown>>) {
+  const orderOf = (r: Record<string, unknown>) => r.orders as { so?: number | null; source_pos?: string[] } | null;
+  const sos = [...new Set(rows.map((r) => orderOf(r)?.so).filter((so): so is number => typeof so === "number"))];
+  const reads = [];
+  for (let i = 0; i < sos.length; i += 200) {
+    const batch = sos.slice(i, i + 200).join(",");
+    reads.push(sb.from("purchase_orders").select("id,so,so_refs").or(`so.in.(${batch}),so_refs.ov.{${batch}}`));
+  }
+  const answers = await Promise.all(reads);
+  const bySo = new Map<number, Set<string>>();
+  for (const { data, error } of answers) {
+    if (error) throw new HTTPException(500, { message: "Invoices could not be loaded. Try again." });
+    for (const po of (data ?? []) as Array<{ id: string; so: number | null; so_refs: number[] | null }>) {
+      for (const so of [po.so, ...(po.so_refs ?? [])]) {
+        if (typeof so === "number") bySo.set(so, (bySo.get(so) ?? new Set()).add(po.id));
+      }
+    }
+  }
+  for (const r of rows) {
+    const o = orderOf(r);
+    if (o) o.source_pos = [...(bySo.get(o.so ?? -1) ?? [])];
+  }
+}
 
 /**
  * The customer's latest standing promise (0446 `will_pay_on_date`), one per

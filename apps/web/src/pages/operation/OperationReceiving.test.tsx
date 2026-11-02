@@ -993,17 +993,15 @@ describe("OperationReceiving — the formal GRN Register", () => {
     expect(screen.queryByText(/Nothing received/i)).not.toBeInTheDocument();
   });
 
-  it("leads with GRN Doc Date then GRN No — the pinned pair the engine guarantees", () => {
+  it("leads with GRN No, Supplier DO No, GRN Doc Date, as Houzs does", () => {
     renderPage();
     const headerCells = within(screen.getByTestId("grid-header"))
       .getAllByRole("columnheader")
       .map((th) => (th.textContent ?? "").replace(/\s+/g, " ").trim());
-    /* The engine owns the pin (`leadingColumns`): the two lead in this order
-       whatever a saved layout says, neither can be hidden, and below a 768px
-       canvas the identity pins alone. The disclosure gutter comes first. */
     const named = headerCells.filter((t) => t.length > 0);
-    expect(named[0]).toContain("GRN Doc Date");
-    expect(named[1]).toContain("GRN No");
+    expect(named[0]).toContain("GRN No");
+    expect(named[1]).toContain("Supplier DO No");
+    expect(named[2]).toContain("GRN Doc Date");
   });
 
   it("keeps a long four-way reference whole — every number, none dropped", () => {
@@ -1090,10 +1088,12 @@ describe("OperationReceiving — one destination and the paged register", () => 
     // (`Receiving & Inbound`) is a separate page under DATA → Reports since
     // 2026-10-08 — a report, not a second receiving desk.
     const { PORTAL_NAV } = await import("../portal/portal-nav");
+    // The row's word is `Goods Receipt` since the 2026-11-01 Houzs tree, so the
+    // rail is searched by the tab it opens, not by its label.
     const receivingRows = PORTAL_NAV.flatMap((g) => g.items).filter((i) =>
-      i.label.toLowerCase().includes("receiving") && i.section !== "Reports",
+      ((i.tab ?? i.key) === "receiving" || i.label.toLowerCase().includes("receiving")) && i.section !== "Reports",
     );
-    expect(receivingRows.map((i) => i.label)).toEqual(["Receiving"]);
+    expect(receivingRows.map((i) => i.label)).toEqual(["Goods Receipt"]);
     const reportRows = PORTAL_NAV.flatMap((g) => g.items).filter((i) =>
       i.label.toLowerCase().includes("receiving") && i.section === "Reports",
     );

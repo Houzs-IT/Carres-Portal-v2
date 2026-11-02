@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import FinanceDashboard from "./FinanceDashboard";
 import FinanceAR from "./FinanceAR";
 import PaymentRecords from "./PaymentRecords";
+import SalesInvoices from "./SalesInvoices";
 import PaymentMonitor from "./PaymentMonitor";
 import LegacyPaymentRedirect from "./LegacyPaymentRedirect";
 import FinanceReports from "./FinanceReports";
@@ -18,6 +19,8 @@ import PrincipalDealers from "../principal/PrincipalDealers";
 import OtherReceiptsPage from "./other-money-in/OtherReceiptsPage";
 import MoneyMovesPage from "./money-moves/MoneyMovesPage";
 import CancelledMoneyPage from "./cancelled-money/CancelledMoneyPage";
+import NotYetBilledPage from "./billing-checks/NotYetBilledPage";
+import CorrectionsPage from "./billing-checks/CorrectionsPage";
 import CardSettlementPage from "./card-settlement/CardSettlementPage";
 import CardMoneyWaiting from "./card-settlement/CardMoneyWaiting";
 import DailyBankPage from "./daily-bank/DailyBankPage";
@@ -131,6 +134,7 @@ export default function FinanceApp() {
               present Payments as a Finance Portal. */}
           <Route path="monitor"   element={<PaymentMonitor />} />
           <Route path="payments"  element={<PaymentRecords />} />
+          <Route path="sales-invoices" element={<SalesInvoices />} />
           {/* RETIRED employee doors, kept as safe redirects (owner ruling
               2026-09-12): the standalone Invoices Register — an Invoice
               belongs to its Sales Order and the Monitor opens the exact one —
@@ -178,6 +182,9 @@ export default function FinanceApp() {
           <Route path="money-moves" element={financeOnly(<MoneyMovesPage />)} />
           {/* 0729 — cancelled orders whose customer money is still held. Read only. */}
           <Route path="cancelled-money" element={financeOnly(<CancelledMoneyPage />)} />
+          {/* Read only, following Houzs: delivered orders left unbilled; payment corrections and voids. */}
+          <Route path="not-yet-billed" element={financeOnly(<NotYetBilledPage />)} />
+          <Route path="corrections" element={financeOnly(<CorrectionsPage />)} />
           {/* 0572 — card settlement files matched to the recorded card payments. */}
           <Route path="card-settlement" element={financeOnly(<CardSettlementPage />)} />
           {/* 0641 — each card payment not in the bank yet (Chew 2026-10-03). */}

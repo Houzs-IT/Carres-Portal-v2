@@ -28,6 +28,7 @@ import { LoanNoteTemplate } from "./loan-note-template";
 import { OtherDebtorInvoiceTemplate } from "./other-debtor-invoice-template";
 import { PaymentVoucherTemplate } from "./payment-voucher-template";
 import { RegisterListTemplate, type RegisterListTemplateData } from "./register-list-template";
+import { BinLabelsTemplate, WarehouseDocumentTemplate, type BinLabel, type WarehouseDocData } from "./warehouse-document-template";
 import { registerNotoSansSC } from "./fonts/noto";
 import type {
   DoTemplateData,
@@ -140,6 +141,19 @@ export function renderGrnPdf(data: GrnTemplateData): Promise<Blob> {
   return toBlob(GrnTemplate(data));
 }
 
+/** Several GRNs in one PDF, each its own governed page: the same move as
+ *  `renderCombinedDoPdf`. */
+export function renderCombinedGrnPdf(list: GrnTemplateData[]): Promise<Blob> {
+  const pages = list.map((data, i) => {
+    const doc = GrnTemplate(data) as ReactElement<{ children: ReactElement }>;
+    return createElement(
+      doc.props.children.type,
+      { ...doc.props.children.props, key: `grn-${i}` },
+    );
+  });
+  return toBlob(createElement(Document, null, ...pages) as ReactElement);
+}
+
 /** Migration 0242 — ON LOAN delivery-note (the customer signs on hand-over of a
  *  loaner). Rendered on-demand from the ops_sofa_loans row + order. */
 export function renderLoanNotePdf(data: LoanNoteTemplateData): Promise<Blob> {
@@ -151,6 +165,14 @@ export function renderLoanNotePdf(data: LoanNoteTemplateData): Promise<Blob> {
  *  derived text the Excel export writes. */
 export function renderRegisterListPdf(data: RegisterListTemplateData): Promise<Blob> {
   return toBlob(RegisterListTemplate(data));
+}
+
+export function renderWarehouseDocumentPdf(data: WarehouseDocData): Promise<Blob> {
+  return toBlob(WarehouseDocumentTemplate(data));
+}
+
+export function renderBinLabelsPdf(labels: BinLabel[]): Promise<Blob> {
+  return toBlob(BinLabelsTemplate({ labels }));
 }
 
 export function renderPoPdf(data: PoTemplateData): Promise<Blob> {

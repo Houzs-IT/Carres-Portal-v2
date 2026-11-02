@@ -17,9 +17,11 @@ import { goodsCategoryWordOf, registerDeliveryConditionOf, type OutrightFactsFai
 import type { PaymentMonitorRow } from "@carres/shared/payment-monitor";
 import type { RegisterRow } from "../sales-order-columns";
 import { salesLocationOf } from "../sales-order-columns";
+import { lineName } from "../sales-order-facts";
 import type { CPillTone } from "@/components/carres/CPill";
 import type { CCell, CListColumn } from "@/components/carres/CCell";
 import { fmtDate, fmtDateShort } from "@/lib/fmt-date";
+import { atSalePaymentWord } from "@/lib/payment-display";
 
 export type CellTone = CPillTone | "none";
 
@@ -28,8 +30,16 @@ export type Cell = CCell;
 
 export type LayoutKey = "so" | "general" | "payment" | "stock" | "warehouse" | "delivery";
 
-export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: string[] }[] = [
-  { key: "so", label: "Sales Order", icon: "receipt_long", columns: ["proceed", "order", "items", "channel", "dloc", "reqDate"] },
+/* `so` follows Houzs's SO list order (MfgSalesOrdersListV2 SO_AUTOCOUNT_KEYS).
+   Branding, Curr. Code, UOM and Venue are not in the order: Carres records none
+   of them. `hidden` starts off and stays in the Columns chooser, as Houzs does. */
+export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: string[]; hidden?: string[] }[] = [
+  {
+    key: "so", label: "Sales Order", icon: "receipt_long",
+    columns: ["docNo", "soDate", "ref", "agent", "debtor", "soTotal", "salesLoc", "balance", "processing", "reqDate", "itemGroup", "itemCode", "detail", "detail2", "unitPrice", "lineQty",
+      "proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
+    hidden: ["proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
+  },
   { key: "general", label: "Overview", icon: "dashboard", columns: ["order", "proceed", "items", "stock", "delivery", "payment", "pic", "problems"] },
   { key: "payment", label: "Payment", icon: "account_balance_wallet", columns: ["order", "value", "paid", "balance", "rcpt", "payDue", "payment", "hold"] },
   { key: "stock", label: "Stock", icon: "inventory_2", columns: ["order", "items", "po", "eta", "sdo", "grnNo", "stock"] },
@@ -54,6 +64,25 @@ export function dayCell(iso: string | null | undefined, fw: 400 | 500 = 500): Ce
   return { t, sub: fmtDate(iso).split(",")[0], subTone: "muted", fw };
 }
 
+
+/** The order's day in Malaysia, so a late-evening timestamp stays on its own day. */
+export function klDay(iso: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date(iso));
+}
+
+/** More filters' date ranges: an order with no date never matches a range. */
+export const DATE_FILTERS: { key: string; label: string; iso: (r: RegisterRow) => string | null | undefined }[] = [
+  { key: "soDate", label: "Order Date", iso: (r) => r.ordered },
+  { key: "processing", label: "Processing Date", iso: (r) => r.o.proceed_date },
+  { key: "reqDate", label: "Delivery Date", iso: (r) => r.customerDelivery },
+];
+export function inDateRange(iso: string | null | undefined, from: string | null, to: string | null): boolean {
+  if (!from && !to) return true;
+  if (!iso) return false;
+  const day = klDay(iso);
+  return (!from || day >= from) && (!to || day <= to);
+}
 
 /** `RM 14,170` — v8 `rmF`, Inter tabular (never a mono face). */
 export function rm(n: number): string {
@@ -141,6 +170,7 @@ export type CellContext = {
   payment: (r: RegisterRow) => string;
   owned: (r: RegisterRow) => OwnedRead;
   payBy: (r: RegisterRow) => PayByRead;
+  customerType: (r: RegisterRow) => string;
 };
 
 /** Run `fn` on the order's owner facts, or print the honest read state. */
@@ -207,7 +237,48 @@ const docs = (list: (string | null | undefined)[]): Cell => {
   return { t: real[0] + (real.length > 1 ? ` +${real.length - 1}` : ""), fw: 500, fg: "ink" };
 };
 
+const textCell = (v: string | null | undefined): Cell => (v?.trim() ? { t: v.trim() } : NOT_RECORDED);
+
+type OrderLine = NonNullable<RegisterRow["o"]["order_lines"]>[number];
+/** A line fact on a one-row-per-order list, as Houzs prints it: the first value,
+ *  `+N` for the others, every value on hover. */
+function lineCell(r: RegisterRow, pick: (l: OrderLine) => string | null | undefined): Cell {
+  const all = [...new Set((r.o.order_lines ?? []).filter((l) => Number(l.qty) > 0).map((l) => pick(l)?.trim()).filter((v): v is string => Boolean(v)))];
+  if (all.length === 0) return NOT_RECORDED;
+  return { t: all[0]! + (all.length > 1 ? ` +${all.length - 1}` : ""), title: all.join("\n") };
+}
+
 export const COLUMNS: Record<string, Column> = {
+  docNo: { key: "docNo", label: "Doc. No.", width: "110px", cell: (r) => ({ t: `SO-${r.so}`, fw: 600, fg: "ink" }) },
+  soDate: { key: "soDate", label: "Date", width: "100px", cell: (r) => dayCell(r.ordered, 400) ?? NOT_RECORDED },
+  ref: { key: "ref", label: "Ref No.", width: "120px", cell: (r) => docs(r.o.source_ref ?? []) },
+  agent: { key: "agent", label: "Agent", width: "120px", filterable: true, cell: (r) => textCell(r.o.salespersons?.name) },
+  debtor: { key: "debtor", label: "Debtor Name", width: "minmax(170px,1fr)", cell: (r) => (r.customer ? { t: r.customer, title: r.customer } : NOT_RECORDED) },
+  soTotal: {
+    key: "soTotal", label: "Total", width: "110px", align: "end",
+    cell: (r) => (r.total.kind === "amount" ? { t: rm(r.total.value), align: "end" } : { ...NOT_RECORDED, align: "end" }),
+  },
+  /* Houzs's Location position. It holds the Carres fact, the outlet or dealer
+     the order was sold through; Houzs's own value is a warehouse. */
+  salesLoc: { key: "salesLoc", label: "Sales Location", width: "minmax(130px,1fr)", filterable: true, cell: (r) => textCell(salesLocationOf(r.o)) },
+  processing: { key: "processing", label: "Processing Date", width: "110px", cell: (r) => dayCell(r.o.proceed_date, 400) ?? NOT_RECORDED },
+  itemGroup: { key: "itemGroup", label: "Item Group", width: "110px", cell: (r) => lineCell(r, goodsCategoryWordOf) },
+  itemCode: { key: "itemCode", label: "Item Code", width: "130px", cell: (r) => lineCell(r, (l) => l.sku) },
+  detail: { key: "detail", label: "Detail Description", width: "170px", cell: (r) => lineCell(r, (l) => lineName(l).split(" · ")[0]) },
+  detail2: { key: "detail2", label: "Detail Description 2", width: "150px", cell: (r) => lineCell(r, (l) => lineName(l).split(" · ").slice(1).join(" · ")) },
+  unitPrice: { key: "unitPrice", label: "Unit Price", width: "110px", align: "end", cell: (r) => ({ ...lineCell(r, (l) => (l.unit_price == null ? null : rm(Number(l.unit_price)))), align: "end" }) },
+  lineQty: { key: "lineQty", label: "Qty", width: "60px", align: "end", cell: (r) => ({ t: String(pcsOf(r)), align: "end" }) },
+  phone: { key: "phone", label: "Phone", width: "120px", cell: (r) => textCell(r.o.customer_phone) },
+  email: { key: "email", label: "Email", width: "170px", cell: (r) => textCell(r.o.customer_email) },
+  addr1: { key: "addr1", label: "Address 1", width: "170px", cell: (r) => textCell(r.o.customer_address_line1) },
+  addr2: { key: "addr2", label: "Address 2", width: "150px", cell: (r) => textCell(r.o.customer_address_line2) },
+  city: { key: "city", label: "City", width: "110px", filterable: true, cell: (r) => textCell(r.o.customer_address_city) },
+  postcode: { key: "postcode", label: "Postcode", width: "80px", cell: (r) => textCell(r.o.customer_address_postcode) },
+  state: { key: "state", label: "State", width: "110px", filterable: true, cell: (r) => textCell(r.o.customer_address_state) },
+  payMethod: { key: "payMethod", label: "Payment Method", width: "130px", cell: (r) => textCell(atSalePaymentWord(r.o.payment_method, r.o.installment_months ?? null)) },
+  createdBy: { key: "createdBy", label: "Created by", width: "130px", filterable: true, cell: (r) => textCell(r.o.created_by_name) },
+  customerType: { key: "customerType", label: "Customer type", width: "110px", filterable: true, cell: (r, ctx) => textCell(ctx.customerType(r)) },
+  buildingType: { key: "buildingType", label: "Building Type", width: "110px", filterable: true, cell: (r) => textCell(r.o.building_type) },
   proceed: {
     key: "proceed", label: "Proceed date", width: "120px",
     cell: (r) => dayCell(r.proceeded) ?? NOT_RECORDED,

@@ -219,9 +219,9 @@ function fakeDb(table: Row[]) {
             case "eq": if (!col.includes(".")) filters.push((r) => test(r, col, "eq", String(a1))); break;
             case "is": filters.push((r) => (a1 === null ? r[col] == null : r[col] === a1)); break;
             case "ilike": filters.push((r) => test(r, col, "ilike", String(a1))); break;
-            case "order": sorts.push({ col, ascending: (a1 as { ascending?: boolean } | undefined)?.ascending !== false }); break;
+            case "order": if ((a1 as { referencedTable?: string } | undefined)?.referencedTable) break; sorts.push({ col, ascending: (a1 as { ascending?: boolean } | undefined)?.ascending !== false }); break;
             case "range": window = [Number(col), Number(a1)]; break;
-            case "limit": limit = Number(col); break;
+            case "limit": if (!(a1 as { referencedTable?: string } | undefined)?.referencedTable) limit = Number(col); break;
             default: throw new Error(`fake PostgREST: unsupported orders method ${prop}`);
           }
           return self;
@@ -356,8 +356,9 @@ describe("every other caller — exactly what it received before", () => {
     expect(Object.keys(body).sort()).toEqual(["orders", "salesOrderTotal"]);
     expect((body.orders as Row[])).toHaveLength(500);
     const list = reads.find((r) => r.table === "orders" && !r.head && r.cols.startsWith("id, so, status"))!;
-    expect(list.calls.filter((c) => c.method === "order")).toEqual([{ method: "order", args: ["placed_at", { ascending: false }] }]);
-    expect(list.calls.filter((c) => c.method === "limit")).toEqual([{ method: "limit", args: [500] }]);
+    const onParent = (c: { args: unknown[] }) => !(c.args[1] as { referencedTable?: string } | undefined)?.referencedTable;
+    expect(list.calls.filter((c) => c.method === "order" && onParent(c))).toEqual([{ method: "order", args: ["placed_at", { ascending: false }] }]);
+    expect(list.calls.filter((c) => c.method === "limit" && onParent(c))).toEqual([{ method: "limit", args: [500] }]);
     expect(list.calls.some((c) => c.method === "or" && String(c.args[0]).includes("placed_at"))).toBe(false);
   });
 

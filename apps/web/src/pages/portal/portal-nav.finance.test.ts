@@ -5,23 +5,24 @@ import { describe, it, expect } from "vitest";
 import { PORTAL_MODULES, PORTAL_NAV, navBlocks, navItemHref, visibleItems } from "./portal-nav";
 
 /**
- * ⭐ THE FINANCE MODULES — Chew, 2026-10-03 (`docs/finance/MASTER.md` §4 and the
- * COPY-STANDARD section "Finance (Chew)").
+ * ⭐ THE FINANCE MODULES — the Houzs tree (Weisiang, WhatsApp 2026-11-01;
+ * Sidebar.tsx:740-861), over Chew's modules of 2026-10-03
+ * (`docs/finance/MASTER.md` §4).
  *
  *     Dashboard
- *     Payments            Monitor · Payment Records          (unchanged)
- *     Payables            AP · Payables · Payment Vouchers · Bills · Payment Requests · Credit Notes ·
- *                         Debit Notes (0681) · Notes to follow up (0676) · Suppliers
- *     Receivables         AR · Receivables · Other debtors · Other receipts
- *     Bank & Cards        Daily Bank · Card settlement · Card money waiting · Money moves
- *     Ledger              Journal · Opening balances (0705) · General Ledger · Trial Balance · Self-check
+ *     Money in            Monitor · Payment Records · Sales Invoices · Other receipts · Other Debtors ·
+ *                         Outstanding · Not Yet Billed · Customer Credit Notes · Cancelled orders holding money
+ *     Money out           Payment Vouchers · AP Invoices · Payment Requests · Supplier Maintenance ·
+ *                         Credit Notes · Debit Notes · Notes to follow up · AP · Payables
+ *     Bank & cards        Daily Bank · Merchant Recon · Card money waiting · Money moves
+ *     Books               Journal Entries · General Ledger · Trial Balance · Self-check
  *     Reports             one row per report, Payment's own report last
- *     Forecast
+ *     Forecast P&L        (plain row)
+ *     Opening Balance     (plain row)
  *     Rental Approver · Subscriptions · Dealers               (unchanged)
  *
- * Payables sits above Receivables to keep the ruling of 2026-09-14
- * (`AP · Payables` above AR). Grouping is presentation only, so every page
- * keeps its address.
+ * Money in sits above Money out, as in Houzs. Grouping is presentation only,
+ * so every page keeps its address.
  */
 
 const FINANCE = PORTAL_NAV.find((g) => g.area === "finance")!;
@@ -37,13 +38,13 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
   it("draws the approved shape, in order", () => {
     expect(shape("finance")).toEqual([
       "Dashboard",
-      "Payments: Monitor · Payment Records",
-      "Payables: AP · Payables · Payment Vouchers · Bills · Payment Requests · Credit Notes · Debit Notes · Notes to follow up · Suppliers",
-      "Receivables: AR · Receivables · Customer Credit Notes · Cancelled orders holding money · Other debtors · Other receipts",
-      "Bank & Cards: Daily Bank · Card settlement · Card money waiting · Money moves",
-      "Ledger: Journal · Opening balances · General Ledger · Trial Balance · Self-check",
-      "Reports: Profit and Loss · Balance Sheet · Cash Flow · AP Aging · AR Aging · Collection · Card charges · Dealer commission · Stock value · Stock drops · Payment",
-      "Forecast",
+      "Money in: Monitor · Payment Records · Sales Invoices · Other receipts · Other Debtors · Outstanding · Not Yet Billed · Customer Credit Notes · Cancelled orders holding money",
+      "Money out: Payment Vouchers · AP Invoices · Payment Requests · Supplier Maintenance · Credit Notes · Debit Notes · Notes to follow up · AP · Payables",
+      "Bank & cards: Daily Bank · Merchant Recon · Card money waiting · Money moves",
+      "Books: Journal Entries · General Ledger · Trial Balance · Self-check",
+      "Reports: P&L · Balance Sheet · Cash Flow · AR Aging · AP Aging · Collection · Merchant charges · Dealer commission · Stock value · Stock drops · Corrections · Payment",
+      "Forecast P&L",
+      "Opening Balance",
       "Rental Approver",
       "Subscriptions",
       "Dealers",
@@ -56,16 +57,15 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
 
   it("uses the approved module words", () => {
     const label = (section: string) => PORTAL_MODULES.find((m) => m.section === section)?.label;
-    expect(["Payables", "Receivables", "Bank & Cards", "Ledger", "Reports"].map(label)).toEqual([
-      "Payables",
-      "Receivables",
-      "Bank & Cards",
-      "Ledger",
+    expect(["Receivables", "Payables", "Bank & Cards", "Ledger", "Reports"].map(label)).toEqual([
+      "Money in",
+      "Money out",
+      "Bank & cards",
+      "Books",
       "Reports",
     ]);
-    expect(PORTAL_MODULES.some((m) => /money (in|out)/i.test(m.label))).toBe(false);
-    // Forecast has one page, so it has no module row yet.
-    expect(PORTAL_MODULES.some((m) => m.section === "Forecast")).toBe(false);
+    // Forecast and Setup have one page each, so they have no module row.
+    expect(PORTAL_MODULES.some((m) => m.section === "Forecast" || m.section === "Setup")).toBe(false);
   });
 
   /* Grouping moved no address: every bookmark and in-page link still lands.
@@ -74,6 +74,8 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
     const hrefs = Object.fromEntries(FINANCE.items.map((it) => [it.key, navItemHref(FINANCE, it)]));
     expect(hrefs).toEqual({
       dashboard: "/finance/dashboard",
+      "not-yet-billed": "/finance/not-yet-billed",
+      corrections: "/finance/corrections",
       ap: "/finance/ap-outstanding",
       ar: "/finance/ar",
       bills: "/finance/bills",
@@ -85,6 +87,7 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
       "supplier-finance": "/finance/suppliers",
       payments: "/finance/monitor",
       "payment-records": "/finance/payments",
+      "sales-invoices": "/finance/sales-invoices",
       "rental-approver": "/finance/rental-approver",
       subscriptions: "/finance/subscriptions",
       "other-debtors": "/finance/other-debtors",
@@ -131,7 +134,7 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
     /* `Reports` left this set on 2026-10-08: the owner gave Operations its own
        Reports module under DATA (Layout Standard §2). The modules stay apart —
        it holds only the Operations report pages, none of them Finance's. */
-    const financeSections = new Set(["Payables", "Receivables", "Bank & Cards", "Ledger", "Forecast"]);
+    const financeSections = new Set(["Payables", "Receivables", "Bank & Cards", "Ledger", "Forecast", "Setup"]);
     const elsewhere = PORTAL_NAV.filter((g) => g.area !== "finance").flatMap((g) =>
       g.items.filter((it) => it.section && financeSections.has(it.section)).map((it) => `${g.area}:${it.key}`),
     );
@@ -167,11 +170,11 @@ describe("Payment Requests in the Operations rail", () => {
     expect(keys(new Set(["payment-requester"] as const))).toContain("payment-requests");
   });
 
-  it("opens the Finance page and sits under Payments", () => {
+  it("opens the Finance page and sits under Workspace", () => {
     const item = OPERATIONS.items.find((i) => i.key === "payment-requests")!;
     expect(navItemHref(OPERATIONS, item)).toBe("/finance/payment-requests");
-    // Moved from Workspace to the Payments module (owner 2026-10-08).
-    expect(item.section).toBe("Payments");
+    // Back under Workspace, as in Houzs (Weisiang, 2026-11-01).
+    expect(item.section).toBe("Workspace");
     expect(item.needs).toBe("payment-requester");
   });
 

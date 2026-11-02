@@ -1,6 +1,6 @@
 // design-standard: not-a-list-page — a document form (Finance's bill form shape); its lines table is the form's own.
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DepartmentType } from "@carres/shared";
 import { toast } from "sonner";
@@ -92,6 +92,9 @@ export default function OperationPurchaseInvoiceNew({ fromGrn = false, draft }: 
   const [narration, setNarration] = useState("");
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [grnOpen, setGrnOpen] = useState(fromGrn);
+  /* `?grn=`: the GRN page's Convert to PI lists that GRN first; later picks list them all. */
+  const [params] = useSearchParams();
+  const [onlyGrn, setOnlyGrn] = useState(params.get("grn"));
 
   useEffect(() => {
     if (!draft) return;
@@ -279,12 +282,14 @@ export default function OperationPurchaseInvoiceNew({ fromGrn = false, draft }: 
         open={grnOpen}
         supplierId={supplierId || null}
         poId={null}
-        onClose={() => setGrnOpen(false)}
+        receiptId={onlyGrn}
+        onClose={() => { setGrnOpen(false); setOnlyGrn(null); }}
         onPick={(picked, supplierOfGrn, poTerms) => {
           if (!supplierId) setSupplierId(supplierOfGrn);
           setPoTermsDays(poTerms);
           setLines((before) => [...before.filter((b) => !picked.some((p) => p.poLineId === b.poLineId && p.warehouseReceiptId === b.warehouseReceiptId)), ...picked]);
           setGrnOpen(false);
+          setOnlyGrn(null);
         }}
       />
     </div>

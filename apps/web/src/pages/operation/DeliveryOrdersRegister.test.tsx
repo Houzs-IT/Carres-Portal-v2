@@ -14,7 +14,7 @@
  *     what · why · who does what next
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import DeliveryOrdersRegister from "./DeliveryOrdersRegister";
@@ -67,6 +67,10 @@ vi.mock("@/lib/queries", async () => {
   };
 });
 
+/** The operator who opened the chooser: Houzs' defaults moved these facts there. */
+const showChooserColumns = () =>
+  localStorage.setItem("carres.deliveryOrders.register.v5", JSON.stringify({ order: [], hidden: ["goods"], arranged: true }));
+
 const doRow = (over: Partial<DeliveryOrderRow> = {}): DeliveryOrderRow => ({
   id: "00000000-0000-0000-0000-0000000d0001",
   do_number: "DO-180826-3035",
@@ -105,11 +109,11 @@ function mount(
   attempts: DeliveryOrderAttemptRow[] = [],
   handoverEvents: DeliveryHandoverKindRow[] = [],
   initialEntry = "/operation/delivery-orders",
-  { rail = true }: { rail?: boolean } = {},
+  { rail = true, links = {} }: { rail?: boolean; links?: { sourcePos?: { id: string; so: number | null; so_refs: number[] | null }[] } } = {},
 ) {
   if (rail) localStorage.setItem("carres.deliveryOrders.filterRail", "1");
   hookState = {
-    data: { deliveryOrders: rows, attempts, handoverEvents },
+    data: { deliveryOrders: rows, attempts, handoverEvents, ...links },
     isLoading: false,
     isError: false,
     error: null,
@@ -162,6 +166,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it.each([false, true])("an intermediate arrival owes no customer proof and preserves recorded photos (%s)", (hasPhoto) => {
+    showChooserColumns();
     const row = doRow({ leg: 1, orders: { ...doRow().orders,
       do_number: "DO-FINAL", do_file_path: "final-signed.pdf",
       delivery_stops: [{ leg: 1, from_loc: "Klang", to_loc: "JB transit", partner_id: "NETS", partner_name: "NETS", status: "handed_off" }, { leg: 2, from_loc: "JB transit", to_loc: "Customer", partner_id: "AL", partner_name: "AL", status: "delivered" }],
@@ -196,21 +201,17 @@ describe("DeliveryOrdersRegister", () => {
       "DO No",
       "DO date",
       "SO No",
+      "Invoice No",
       "Customer",
+      "Delivery Date",
+      "Driver",
+      "Ref No.",
       "Status",
-      "Requested Delivery Date",
-      "Scheduled delivery",
-      "Scheduled time",
-      "Logistics",
-      "Delivery Location",
-      "Driver submission",
     ];
     const headers = headerOrder();
     expect(ruled.every((label) => headers.some((h) => h.includes(label)))).toBe(true);
     const at = (label: string) => headers.findIndex((h) => h.includes(label));
     expect(ruled.map(at)).toEqual([...ruled.map(at)].sort((a, b) => a - b));
-    /* ADJACENT — nothing may be inserted between the request and the answer. */
-    expect(at("Scheduled delivery") - at("Requested Delivery Date")).toBe(1);
     /* `DO date` follows the number it dates, not the far end of the sheet. */
     expect(at("DO date") - at("DO No")).toBe(1);
     /* ONE status column: the separate default `Delivery Result` is retired,
@@ -231,6 +232,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it("`DO date` is never printed as the requested or the confirmed delivery date", () => {
+    showChooserColumns();
     /* Three different days, so nothing can pass by coincidence. */
     mount([
       doRow({
@@ -251,11 +253,12 @@ describe("DeliveryOrdersRegister", () => {
     const cellUnder = (label: string) =>
       cells[headers.findIndex((h) => h.includes(label))] ?? "";
     expect(cellUnder("Requested Delivery Date")).toContain("20 Aug");
-    expect(cellUnder("Scheduled delivery")).toContain("24 Aug");
+    expect(cellUnder("Delivery Date")).toContain("24 Aug");
     expect(cellUnder("DO date")).toContain("17 Aug");
   });
 
   it("a customer date still being settled reads `To be confirmed`, never `No delivery date`", () => {
+    showChooserColumns();
     mount([
       doRow({
         orders: {
@@ -297,6 +300,19 @@ describe("DeliveryOrdersRegister", () => {
     expect(screen.queryByText("2 delivery orders selected")).toBeNull();
   });
 
+  it("a row click opens the quick view with the source PO, and its button opens the full page", () => {
+    const row = doRow();
+    const so = (row.orders as unknown as { so: number }).so;
+    const { locations } = mount([row], [], [], undefined, { links: { sourcePos: [{ id: "PO-7", so, so_refs: null }] } });
+    expect(screen.queryByTestId("do-quick-view")).toBeNull();
+    fireEvent.click(screen.getByText(row.do_number).closest("tr")!.querySelector("td:last-child")!);
+    const view = screen.getByTestId("do-quick-view");
+    expect(within(view).getByText("PO-7")).toBeTruthy();
+    expect(within(view).getByText("No return")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Open full page" }));
+    expect(locations.at(-1)).toBe(`/operation/delivery-orders/${row.do_number}`);
+  });
+
   it("▸ expands to the document's goods lines, read-only", () => {
     mount([doRow()]);
     const chevron = screen.getAllByTitle("Show delivery order goods")[0]!;
@@ -321,7 +337,6 @@ describe("DeliveryOrdersRegister", () => {
     ]);
     const rail = screen.getByTestId("delivery-orders-rail");
     expect(within(rail).getByText("Work to do")).toBeTruthy();
-    expect(within(rail).getByText("Document status")).toBeTruthy();
     for (const queue of [
       "Record delivery result",
       "Upload delivery photo",
@@ -329,14 +344,12 @@ describe("DeliveryOrdersRegister", () => {
     ]) {
       expect(within(rail).getByText(queue)).toBeTruthy();
     }
-    /* ⭐ DOCUMENT STATUS is the kit's own dropdown (owner ruling
-       2026-09-11), offering `All` plus the ladder's five words - each with
-       its live count, because the number is why a row is picked. */
-    const status = within(rail).getByRole("combobox");
-    expect(status.textContent).toContain("All");
-    fireEvent.click(status);
-    for (const word of ["Created", "Out for delivery", "Delivered", "Delivery exception", "Cancelled"]) {
-      expect(screen.getAllByText(new RegExp(word)).length).toBeGreaterThan(0);
+    /* Houzs status pills above the sheet, each with its live count. */
+    const status = screen.getByTestId("delivery-orders-status");
+    expect(within(status).getByRole("button", { name: "All (2)" })).toBeTruthy();
+    expect(within(status).getByRole("button", { name: "Cancelled (1)" })).toBeTruthy();
+    for (const word of ["Created", "Out for delivery", "Delivered", "Delivery exception"]) {
+      expect(within(status).getByRole("button", { name: new RegExp(`^${word} \\(`) })).toBeTruthy();
     }
   });
 
@@ -350,8 +363,7 @@ describe("DeliveryOrdersRegister", () => {
         void_reason: "rescheduled",
       }),
     ]);
-    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
-    fireEvent.click(await screen.findByRole("option", { name: /Cancelled/ }));
+    fireEvent.click(screen.getByTestId("delivery-orders-status-cancelled"));
     expect(locations.at(-1)).toContain("status=cancelled");
     expect(screen.getByText("DO-170826-5050")).toBeTruthy();
     expect(screen.queryByText("DO-180826-3035")).toBeNull();
@@ -392,6 +404,28 @@ describe("DeliveryOrdersRegister", () => {
     fireEvent.click(screen.getByTestId("clear-filters"));
     expect(locations.at(-1)).not.toContain("status=");
     expect(screen.queryByTestId("active-conditions")).toBeNull();
+  });
+
+  it("the Houzs tiles count the window and leave a cancelled document out", () => {
+    mount([
+      doRow({ orders: { ...doRow().orders, order_lines: [{ id: "l-1", sku: "s", qty: 2, unit_price: 50 }], order_addons: [{ qty: 1, unit_price: 10 }] } }),
+      doRow({ id: "00000000-0000-0000-0000-0000000d0002", do_number: "DO-170826-5050", voided_at: "2026-08-19T02:00:00Z", void_reason: "rescheduled" }),
+    ]);
+    const tiles = screen.getByTestId("delivery-orders-tiles");
+    expect(tiles).toHaveTextContent(/Total DOs\s*1/);
+    expect(tiles).toHaveTextContent(/RM\s?110/);
+  });
+
+  it("a date window on the URL narrows by DO date, or by delivery date when asked", () => {
+    const rows = [
+      doRow(),
+      doRow({ id: "00000000-0000-0000-0000-0000000d0002", do_number: "DO-170826-5050", issued_at: "2026-07-01T01:00:00Z", delivery_date: "2026-08-20" }),
+    ];
+    mount(rows, [], [], "/operation/delivery-orders?from=2026-08-01&to=2026-08-31");
+    expect(screen.queryByText("DO-170826-5050")).toBeNull();
+    cleanup();
+    mount(rows, [], [], "/operation/delivery-orders?from=2026-08-01&to=2026-08-31&by=delivery");
+    expect(screen.getByText("DO-170826-5050")).toBeTruthy();
   });
 
   it("an unnarrowed register shows no condition strip at all", () => {
@@ -465,6 +499,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it("a delivered document with its photo saved but no signed DO queues under Upload signed Delivery Order", () => {
+    showChooserColumns();
     mount(
       [
         doRow({
@@ -511,6 +546,7 @@ describe("DeliveryOrdersRegister", () => {
    * both rows counted every file.
    */
   it("counts each document's own files - never the whole Sales Order's ledger", () => {
+    showChooserColumns();
     const ledger = {
       delivery_photos: [
         { path: "a.jpg", at: "t", by: null, doNumber: "DO-180826-3035", kind: "photo" as const },
@@ -541,6 +577,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it("a video is never automatically a shortage - no video, no button, no absence word", () => {
+    showChooserColumns();
     mount(
       [
         doRow({
@@ -580,6 +617,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it("...but a void never erases what a driver already sent", () => {
+    showChooserColumns();
     mount([
       doRow({
         voided_at: "2026-08-19T02:00:00Z",
@@ -651,6 +689,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it("prints the ruled facts: number, SO door, capitalised customer, the document dates, locality, partner", () => {
+    showChooserColumns();
     mount([doRow()]);
     expect(screen.getByText("DO-180826-3035")).toBeTruthy();
     expect(screen.getByText("SO-1322")).toBeTruthy();
@@ -747,6 +786,7 @@ describe("DeliveryOrdersRegister", () => {
   });
 
   it("absences read as words, never a dash", () => {
+    showChooserColumns();
     mount([
       doRow({
         delivery_date: null,

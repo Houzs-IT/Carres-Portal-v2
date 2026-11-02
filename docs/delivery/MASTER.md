@@ -763,7 +763,7 @@ Delivery Order     one formal DO, its evidence and history — a door on a numbe
 ```
 
 ~~The sidebar carries the Delivery module with exactly two children, in this order: **Monitor**
-and **Delivery Orders**.~~ **OVERTURNED 2026-10-22 by Weisiang (Mr Lim, WhatsApp; Jess was not part of this decision): the Delivery module's children are, in this order: Monitor · Delivery Orders · Delivery Returns · Load Scan (migration 0716) · Delivery Planning · DP Orders · Auto-schedule · Trips (Houzs `DeliveryPlanning.tsx`, `DpOrders.tsx`, `AutoSchedule.tsx`, `Trips.tsx`). Delivery Planning holds the editable Regions list (state → region, deliveries a day) and the Residence rules (one note per building type). BUILT on branch `feat/delivery-planning-houzs-way`, migration 0723 NOT APPLIED.** Monitor leads and is the collapsed icon's landing. **The Edit Delivery
+and **Delivery Orders**.~~ **OVERTURNED 2026-10-22 by Weisiang (Mr Lim, WhatsApp; Jess was not part of this decision): the Delivery module's children are, in this order (reordered by the job, YH 2026-10-30): Monitor · Delivery Planning · DP Orders · Delivery Orders · Load Scan (migration 0716) · Fleet Day · Live Map · Delivery Returns · Lorry Capacity · Crew Leave · Fleet · Fleet Health · Delivery Zones · Rate Cards; Auto-schedule and Trips left the rail and open by address only, as in Houzs (YH 2026-10-30) (Houzs `DeliveryPlanning.tsx`, `DpOrders.tsx`, `AutoSchedule.tsx`, `Trips.tsx`). Delivery Planning holds the editable Regions list (state → region, deliveries a day) and the Residence rules (one note per building type). BUILT on branch `feat/delivery-planning-houzs-way`, migration 0723 NOT APPLIED.** Monitor leads and is the collapsed icon's landing. **The Edit Delivery
 page is retired (owner ruling 2026-09-13):** every arrangement write lives inside the Monitor
 row's expanded panels (§8.6). There is no Delivery dashboard, ~~Fleet, Trips, Regions, Schedule,~~
 Exceptions, Partners or Report destination (**OVERTURNED 2026-10-22 by Weisiang (Mr Lim, WhatsApp; Jess was not part of this decision): Delivery Returns, Load Scan, Trips, Regions (inside Delivery Planning) and the schedule pages Delivery Planning, DP Orders and Auto-schedule are destinations; Fleet Day, Live Map, Lorry Capacity and Crew Leave (Carres' own lorries, §15.3, migration 0724) are destinations too, and (0725, the same decision) `Fleet`, `Fleet Health`, `Delivery Zones` and `Rate Cards` (§15.3).**); those capabilities live inside the
@@ -2993,3 +2993,15 @@ Only the final customer leg uses `Customer`; an intermediate warehouse leg must 
 receiving destination under the Journey model, never pretend it confirms a customer appointment.
 Shared composition and alignment come from the kit `CompactModuleCard` and its one contract,
 `docs/ui-reference/MODULE-CARD-TEMPLATE.md`; the /ui Delivery example is a UI example, not order data.
+
+## Delivery pages follow Houzs Transportation (2026-11-01)
+
+Weisiang's decision (WhatsApp, 1 Nov 2026): Carres takes Houzs' structure, wording, columns and page layouts; Carres keeps its colours and logo. This overturns the owner column rulings of 2026-08-18, 2026-09-09 and 2026-09-11 on the Delivery Orders register defaults and the 2026-09-11 status dropdown. Jess was not part of this decision.
+
+- **Delivery Orders** default columns: `DO No`, `DO date`, `SO No`, `Invoice No`, `Customer`, `Delivery Date`, `Driver`, `Ref No.`, `Status`. The earlier defaults stay in the chooser, next to `Amount`, `Salesperson`, `Vehicle`, `Phone`, `Email`, `Address`, `City`, `State`, `Postcode`, `Building Type`. `Delivery Date` is the register's heading for the scheduled day.
+- The page has tiles `Total DOs`, `Revenue`, `In transit`, `Delivered`, status pills with counts, and a date window by `DO date` or `Delivery Date`. `Work to do` stays: Houzs has no such queues, and the proof doors depend on them. A cancelled document is not revenue; a warehouse leg carries no amount, so a Journey's order counts once.
+- **Delivery Order page** sections: `Customer info`, `Delivery address`, `Delivery info`, `Line items`, then Carres' own history, handover, evidence and exception sections.
+- **Logistic Overview** (`?tab=logistic-overview`) is added beside Monitor, which stays because it records results. It reads the register and the planning feed and stores nothing. It reads the newest 500 documents.
+- **DP Orders** gain `Schedule` and `Cancel` on the row menu. **Coverage & Fleet** (`?tab=coverage-fleet`) holds Regions, Residence rules and Fleet.
+- **Lorry Capacity** takes a date range, a lorry pick and Houzs' eight tiles. **Lorry Live Map** shows last seen as an age and calls a position old after 15 minutes (was 30).
+- Page words: `Last Mile Delivery` (was Fleet Day), `Lorry Live Map` (was Live Map), `Carriers & Rates` (was Rate Cards).

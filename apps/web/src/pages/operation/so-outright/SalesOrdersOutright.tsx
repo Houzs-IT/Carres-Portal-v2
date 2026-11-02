@@ -7,12 +7,15 @@
  * engine's; this page keeps its own v12 toolbar row, selection bar, Summary
  * and footer words.
  *
+ * A row or card click opens the quick view, as on Houzs (Weisiang 1 Nov 2026);
+ * its Open full page and the row menu's View open the order.
+ *
  *   [Summary 240] [ Open Delivered All · Sales Order view  chips ····· ▥ ⋮ Tasks 5 ]
  *                 [ ┌ table card: sticky head · 54px rows · footer 44 ───────────┐ ]
  *
  * Data is the Sales Order register's real read (every proceeded order, the
  * catalogue names, the server's stock / payment / case facts). Nothing here
- * writes. A row click opens the order; Ctrl/⌘-click opens it in a new tab.
+ * writes. Ctrl/⌘-click opens the order in a new tab.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { REGISTER_DELIVERY_CONDITIONS, registerDeliveryConditionOf } from "@carres/shared";
@@ -33,8 +36,9 @@ import CSidePanel from "@/components/carres/CSidePanel";
 import { CChip, CIconButton, CShowPanelButton, CViewButton } from "@/components/carres/CToolbar";
 import Button from "@/components/kit/Button";
 import { useAuth } from "@/lib/auth";
-import { appTodayIso } from "@/lib/fmt-date";
-import { useSalesOrderRegisterFacts, useSalesOrderRegisterOrders } from "@/lib/queries";
+import { appTodayIso, fmtDateShort } from "@/lib/fmt-date";
+import { CDate, CInput, CSelect } from "../so-detail/ui";
+import { useCustomerFirstPlaced, useOperationWarehouse, useSalesOrderRegisterFacts, useSalesOrderRegisterOrders } from "@/lib/queries";
 import { buildRegisterRow, type RegisterRow } from "../sales-order-columns";
 import { isRental, lineName } from "../sales-order-facts";
 import { PAYMENT_STATUSES, STOCK_STATUSES, paymentStatusOf, skuKey, stockStatusOf, useCatalogNames } from "../sales-order-register-readings";
@@ -47,7 +51,9 @@ import { TasksPill, useShellTasks } from "../components/ShellTasks";
 import {
   CATEGORY_CODE,
   COLUMNS,
+  DATE_FILTERS,
   LAYOUTS,
+  inDateRange,
   isDelivered,
   pcsOf,
   rm,
@@ -56,6 +62,8 @@ import {
   type LayoutKey,
 } from "./outright-columns";
 import { readStateOf, usePayBy } from "./pay-by";
+import { CHOICE_FILTERS, customerTypeOf, DATE_PRESETS, FOOTER_CATS, RANGE_FILTERS, TEXT_FILTERS, footerCat, isMoreFilterParam, matchesMoreFilters, moreFilterChips, presetRange } from "./more-filters";
+import { OrderCards, OrderQuickView } from "./OrderQuickView";
 
 type Tab = "open" | "delivered" | "all";
 type ListSort = { key: string; dir: "asc" | "desc" } | null;
@@ -86,13 +94,6 @@ function summaryCat(line: Parameters<typeof goodsCategoryWordOf>[0]): (typeof SU
   if (word === "Mattress" || word === "Bedframe" || word === "Sofa" || word === "Pillow" || word === "Mattress protector") return word;
   return "Others";
 }
-/* The footer's goods words, in this fixed order (fix list 14 Oct, point 7). */
-const FOOTER_CATS = ["Mattress", "Pillow", "Bedframe", "Mattress protector", "Sofa", "Service", "Others"] as const;
-function footerCat(line: Parameters<typeof goodsCategoryWordOf>[0]): (typeof FOOTER_CATS)[number] {
-  const word = goodsCategoryWordOf(line);
-  return (FOOTER_CATS as readonly string[]).includes(word) ? (word as (typeof FOOTER_CATS)[number]) : "Others";
-}
-
 const monthKey = (iso: string) => {
   const d = new Date(iso);
   const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit" }).formatToParts(d);
@@ -132,7 +133,16 @@ function sortValueOf(key: string, r: RegisterRow, ctx: CellContext): string | nu
     case "proceed":
       return r.proceeded ?? null;
     case "order":
+    case "docNo":
       return r.so;
+    case "soDate":
+      return r.ordered ?? null;
+    case "processing":
+      return r.o.proceed_date ?? null;
+    case "lineQty":
+      return pcsOf(r);
+    case "soTotal":
+      return r.total.kind === "amount" ? r.total.value : null;
     case "reqDate":
       return r.customerDelivery ?? null;
     case "items":
@@ -199,6 +209,7 @@ export default function SalesOrdersOutright() {
   const factsState = readStateOf([factsQ]);
   const factsFailed = factsQ.data?.failed;
   const payBy = usePayBy();
+  const firstPlaced = useCustomerFirstPlaced().data?.firstPlaced;
   const ctx: CellContext = useMemo(
     () => ({
       payment: paymentStatusOf,
@@ -212,8 +223,9 @@ export default function SalesOrdersOutright() {
               failed: { ...(factsFailed ?? {}), cases: factsFailed?.cases ?? false },
             },
       payBy: (r) => payBy(r.id),
+      customerType: (r) => customerTypeOf(r.o.customer_phone, r.o.placed_at, firstPlaced),
     }),
-    [facts, factsFailed, factsState, payBy],
+    [facts, factsFailed, factsState, payBy, firstPlaced],
   );
 
   /* ── list state: tab · column view · header filters, in the URL ── */
@@ -263,20 +275,31 @@ export default function SalesOrdersOutright() {
      register read, on version 1's preserved request. */
   const requestedParam = params.get("requested");
   const requested = useMemo(() => requestedNarrowingOf(requestedParam), [requestedParam]);
+  const dateRanges = useMemo(
+    () => DATE_FILTERS.map((d) => ({ ...d, from: params.get(`from.${d.key}`), to: params.get(`to.${d.key}`) })),
+    [params],
+  );
+  const rangeSignature = dateRanges.map((d) => `${d.from ?? ""}~${d.to ?? ""}`).join();
+  const moreSignature = [...params.entries()].filter(([k]) => isMoreFilterParam(k)).map(([k, v]) => `${k}=${v}`).sort().join("&");
+  const moreParams = useMemo(() => new URLSearchParams(moreSignature), [moreSignature]);
+  const warehouseParam = params.get("wh");
   const list = useMemo(
     () =>
       all.filter(
         (r) =>
           inTab(r) &&
+          dateRanges.every((d) => inDateRange(d.iso(r), d.from, d.to)) &&
+          matchesMoreFilters(r, moreParams, appTodayIso(), customerTypeOf(r.o.customer_phone, r.o.placed_at, firstPlaced)) &&
+          (!warehouseParam || r.o.warehouse_id === warehouseParam) &&
           (!requested || inRequestedNarrowing(r.customerDelivery, requested, isDelivered(r))) &&
           Object.entries(filters).every(([k, v]) => v.includes(COLUMNS[k]!.cell(r, ctx).t)),
       ),
-    [all, inTab, requested, filters, ctx],
+    [all, inTab, requested, filters, ctx, dateRanges, moreParams, warehouseParam, firstPlaced],
   );
 
   /* ── sort (the engine's header) · Group by (⋮) · paging ── */
   const group = (["delivery", "stock", "payment"] as const).find((g) => g === params.get("group")) ?? null;
-  const query = JSON.stringify([tab, layoutKey, Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)).map(([key, values]) => [key, [...values].sort()]), seededSearch, requestedParam, group]);
+  const query = JSON.stringify([tab, layoutKey, Object.entries(filters).sort(([a], [b]) => a.localeCompare(b)).map(([key, values]) => [key, [...values].sort()]), seededSearch, requestedParam, group, rangeSignature, moreSignature, warehouseParam]);
   const [listContext, setListContext] = useState(() => listContextFor(userId, query));
   /* A genuinely changed scope starts on page1. A remount after Back does not.
      Compare values, not new filter/sort object identities or mount effects. */
@@ -359,19 +382,34 @@ export default function SalesOrdersOutright() {
     }
     navigate(path, { state: { salesOrderRegisterReturn: returnTo } });
   };
+  /* A plain click opens the quick view; held by id, so it reads the fresh row. */
+  const [quickId, setQuickId] = useState<string | null>(null);
+  const quickRow = quickId ? all.find((r) => r.id === quickId) ?? null : null;
+  const openQuick = (r: RegisterRow, e?: MouseEvent) => {
+    if (e?.metaKey || e?.ctrlKey || (window.getSelection?.()?.toString() ?? "").length > 1) return open(r, e);
+    setQuickId(r.id);
+  };
+  const copyAsNew = (r: RegisterRow) => navigate(`/operation/orders/so/new?copyFrom=${encodeURIComponent(r.id)}`);
+  const cardsView = params.get("view") === "cards";
 
   /* ── export · save view · sync ── */
   const [moreOpen, setMoreOpen] = useState(false);
   const [viewsOpen, setViewsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  /* Only asked for when someone is choosing or has chosen a warehouse. */
+  const warehousesQ = useOperationWarehouse({ enabled: filtersOpen || Boolean(warehouseParam) });
+  const warehouses = warehousesQ.data?.warehouses ?? [];
+  /* The file carries the view's starting columns; the Columns chooser stays the grid's. */
+  const visibleColumns = layout.columns.filter((k) => !layout.hidden?.includes(k));
   const exportTable = (rows: RegisterRow[]) => ({
-    headers: [COLUMNS.order!.label, ...layout.columns.filter((k) => k !== "order").map((k) => COLUMNS[k]!.label)],
-    rows: rows.map((r) => [
-      `SO-${r.so}`,
-      ...layout.columns.filter((k) => k !== "order").map((k) => {
+    headers: visibleColumns.map((k) => COLUMNS[k]!.label),
+    rows: rows.map((r) =>
+      visibleColumns.map((k) => {
+        if (k === "order") return `SO-${r.so}`;
         const c = COLUMNS[k]!.cell(r, ctx);
         return c.sub ? `${c.t} · ${c.sub}` : c.t;
       }),
-    ]),
+    ),
   });
   const downloadExcel = async (rows: RegisterRow[]) => {
     try {
@@ -413,13 +451,20 @@ export default function SalesOrdersOutright() {
     ...(seededSearch ? [{ key: "search", label: `Search: ${seededSearch}`, clear: () => setParam("search", null) }] : []),
     ...(requested ? [{ key: "requested", label: `Customer’s original requested delivery: ${requestedNarrowingWord(requested)}`, clear: () => setParam("requested", null) }] : []),
     ...Object.entries(filters).map(([k, v]) => ({ key: k, label: `${COLUMNS[k]!.label}: ${v.join(", ")}`, clear: () => setParam(`f.${k}`, null) })),
+    ...dateRanges.filter((d) => d.from || d.to).map((d) => ({
+      key: `date-${d.key}`,
+      label: `${d.label}: ${d.from ? fmtDateShort(d.from) : "Any"} to ${d.to ? fmtDateShort(d.to) : "Any"}`,
+      clear: () => updateParams((n) => { n.delete(`from.${d.key}`); n.delete(`to.${d.key}`); }),
+    })),
+    ...moreFilterChips(moreParams).map((c) => ({ key: c.key, label: c.label, clear: () => updateParams((n) => { c.params.forEach((p) => n.delete(p)); }) })),
+    ...(warehouseParam ? [{ key: "wh", label: `Warehouse: ${warehouses.find((w) => w.id === warehouseParam)?.name ?? "Loading"}`, clear: () => setParam("wh", null) }] : []),
   ];
   const clearFilters = () =>
     updateParams((n) => {
-      [...n.keys()].filter((k) => k === "search" || k === "requested" || k.startsWith("f.")).forEach((k) => n.delete(k));
+      [...n.keys()].filter((k) => k === "search" || k === "requested" || k === "wh" || isMoreFilterParam(k) || k.startsWith("f.") || k.startsWith("from.") || k.startsWith("to.")).forEach((k) => n.delete(k));
     });
   const emptyMessage = populationEmpty ? "No sales orders yet" : "No sales orders match these filters";
-  const clearableEmpty = !populationEmpty && Boolean(seededSearch || requested || Object.keys(filters).length);
+  const clearableEmpty = !populationEmpty && chips.length > 0;
 
   /* No toolbar control is cut or overlaps (owner 14 Oct 2026); Summary may keep
      its icon only and the view button always keeps its name. On a short line the
@@ -451,6 +496,22 @@ export default function SalesOrdersOutright() {
     need.current = [];
     setCompact(0);
   }, [chips.length, layoutKey]);
+
+  /* The search box gives up its toolbar room first: on a short line it moves
+     into More filters, so no control is cut. */
+  const searchForm = (
+    <form
+      role="search"
+      className="w-[220px] max-md:w-full"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const value = String(new FormData(e.currentTarget).get("search") ?? "").trim();
+        setParam("search", value || null);
+      }}
+    >
+      <CInput key={seededSearch} name="search" type="search" label="Search sales orders" placeholder="Search doc no, customer, phone, ref…" defaultValue={seededSearch} />
+    </form>
+  );
 
   /* Footer: `72 orders · Qty: Mattress 72 · Pillow 91 …` in the fixed order; the
      short forms (`MS 72 · BF 14 · M.P 4 · SOF 22 sets`) when two lines are not enough. */
@@ -527,6 +588,7 @@ export default function SalesOrdersOutright() {
           width: floor,
           minWidth: floor,
           ...(c.align === "end" ? { align: "right" as const } : {}),
+          ...(layout.hidden?.includes(k) ? { defaultHidden: true } : {}),
           accessor: (r: RegisterRow) => {
             /* A document number opens its own record (UI MASTER §6.0 rule 2):
                every PO (owner ruling 2026-10-06), Delivery Order and Receipt. */
@@ -589,6 +651,37 @@ export default function SalesOrdersOutright() {
     { key: "payment", label: "Group by: Payment Status" },
   ] as const;
 
+  const tabCounts: Record<Tab, number> = useMemo(() => {
+    const delivered = all.filter(isDelivered).length;
+    return { all: all.length, delivered, open: all.length - delivered };
+  }, [all]);
+  /* Houzs's four cards, over the orders the list is showing now. */
+  const stats = useMemo(() => {
+    let revenue = 0, outstanding = 0, paid = 0;
+    for (const r of list) {
+      if (r.total.kind === "amount") revenue += r.total.value;
+      if (r.balance.kind === "amount" && r.balance.value > 0) outstanding += r.balance.value;
+      if (r.paid.kind === "amount") paid += r.paid.value;
+    }
+    return [
+      { label: "Total Orders", value: String(list.length) },
+      { label: "Revenue", value: rm(revenue) },
+      { label: "Outstanding", value: rm(outstanding) },
+      { label: "Paid", value: rm(paid) },
+    ];
+  }, [list]);
+  const footer = (
+    <CListFooter
+      testId="outright-footer"
+      count={loadingList ? "Loading orders" : `${list.length} ${list.length === 1 ? "order" : "orders"}`}
+      {...(loadingList || totals.parts.length === 0 ? {} : { totals })}
+      pageSize={pageSize}
+      onPageSize={setPageSize}
+      page={Math.min(page, pages)}
+      pages={pages}
+      onPage={setPage}
+    />
+  );
   const selPcs = selectedRows.reduce((s, r) => s + pcsOf(r), 0);
   const selTotal = selectedRows.reduce((s, r) => s + (r.total.kind === "amount" ? r.total.value : 0), 0);
 
@@ -652,6 +745,7 @@ export default function SalesOrdersOutright() {
                   className={`${SEGMENT} ${tab === t.key ? SEGMENT_ON : SEGMENT_OFF}`}
                 >
                   {t.label}
+                  {!loadingList && !failedList && <span aria-hidden="true" className="ml-1 tabular-nums opacity-70">{tabCounts[t.key]}</span>}
                 </button>
               ))}
             </div>
@@ -666,7 +760,66 @@ export default function SalesOrdersOutright() {
                 )}
               </span>
             )}
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 max-md:ml-0 max-md:w-full max-md:flex-wrap">
+              {compact === 0 && searchForm}
+              <CPopover
+                label="More filters"
+                role="dialog"
+                width={300}
+                open={filtersOpen}
+                onOpenChange={setFiltersOpen}
+                trigger={<CIconButton icon="filter_list" label="More filters" pressed={filtersOpen} />}
+              >
+                <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto p-2.5" data-testid="outright-more-filters">
+                  {compact >= 1 && searchForm}
+                  {dateRanges.map((d) => (
+                    <div key={d.key} className="flex flex-col gap-1">
+                      <span className="text-[12px] text-c-secondary">{d.label}</span>
+                      <span className="grid grid-cols-2 gap-1.5">
+                        <CDate label={`${d.label} from`} value={d.from} onChange={(iso) => setParam(`from.${d.key}`, iso)} />
+                        <CDate label={`${d.label} to`} value={d.to} onChange={(iso) => setParam(`to.${d.key}`, iso)} />
+                      </span>
+                      <CSelect
+                        label={`${d.label} preset`}
+                        placeholder="Preset"
+                        value=""
+                        options={DATE_PRESETS}
+                        onChange={(preset) => {
+                          const range = presetRange(preset, appTodayIso());
+                          if (range) updateParams((n) => { n.set(`from.${d.key}`, range.from); n.set(`to.${d.key}`, range.to); });
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {RANGE_FILTERS.map((f) => (
+                    <div key={f.key} className="flex flex-col gap-1">
+                      <span className="text-[12px] text-c-secondary">{f.label}</span>
+                      <span className="grid grid-cols-2 gap-1.5">
+                        <CInput type="number" min={0} label={`${f.label} from`} placeholder="From" value={params.get(`min.${f.key}`) ?? ""} onChange={(e) => setParam(`min.${f.key}`, e.target.value || null)} />
+                        <CInput type="number" min={0} label={`${f.label} to`} placeholder="To" value={params.get(`max.${f.key}`) ?? ""} onChange={(e) => setParam(`max.${f.key}`, e.target.value || null)} />
+                      </span>
+                    </div>
+                  ))}
+                  {TEXT_FILTERS.map((f) => (
+                    <div key={f.key} className="flex flex-col gap-1">
+                      <span className="text-[12px] text-c-secondary">{f.label}</span>
+                      <CInput label={f.label} value={params.get(`has.${f.key}`) ?? ""} onChange={(e) => setParam(`has.${f.key}`, e.target.value || null)} />
+                    </div>
+                  ))}
+                  {CHOICE_FILTERS.map((f) => (
+                    <div key={f.key} className="flex flex-col gap-1">
+                      <span className="text-[12px] text-c-secondary">{f.label}</span>
+                      <CSelect label={f.label} placeholder="Any" value={params.get(`is.${f.key}`) ?? ""} options={[{ value: "any", label: "Any" }, ...f.choices]} onChange={(v) => setParam(`is.${f.key}`, v === "any" ? null : v)} />
+                    </div>
+                  ))}
+                  {warehouses.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[12px] text-c-secondary">Warehouse</span>
+                      <CSelect label="Warehouse" placeholder="Any" value={warehouseParam ?? ""} options={[{ value: "any", label: "Any" }, ...warehouses.map((w) => ({ value: w.id, label: w.name }))]} onChange={(v) => setParam("wh", v === "any" ? null : v)} />
+                    </div>
+                  )}
+                </div>
+              </CPopover>
               {/* OVERTURNED 2026-10-22 by Weisiang (Mr Lim): office staff may
                   create Sales Orders (Houzs way). Jess's 2026-09-27 ruling is
                   kept for history in docs/orders/MASTER.md. */}
@@ -681,6 +834,9 @@ export default function SalesOrdersOutright() {
                 onOpenChange={setViewsOpen}
                 trigger={<CViewButton icon={layout.icon} name={layout.label} open={viewsOpen} />}
               >
+                <div className="px-2.5 py-1.5 text-[12px] text-c-secondary">Show as</div>
+                <CMenuItem icon="table_rows" checked={!cardsView} strong={!cardsView} onSelect={() => { setParam("view", null); setViewsOpen(false); }}>Table</CMenuItem>
+                <CMenuItem icon="grid_view" checked={cardsView} strong={cardsView} onSelect={() => { setParam("view", "cards"); setViewsOpen(false); }}>Cards</CMenuItem>
                 <div className="px-2.5 py-1.5 text-[12px] text-c-secondary">Show columns for</div>
                 {LAYOUTS.map((l) => (
                   <CMenuItem key={l.key} icon={l.icon} checked={l.key === layoutKey} strong={l.key === layoutKey} onSelect={() => { chooseLayout(l.key); setViewsOpen(false); }}>
@@ -713,11 +869,27 @@ export default function SalesOrdersOutright() {
           </div>
         )}
 
-        <section ref={gridBox} aria-label="Sales orders" className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]" data-carres-table="list">
+        <section ref={gridBox} aria-label="Sales orders" className={`grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2.5 ${loadingList || failedList ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]"}`} data-carres-table="list">
+        {!loadingList && !failedList && (
+          <div className="grid grid-cols-4 gap-2.5 max-md:grid-cols-2" data-testid="outright-stats">
+            {stats.map((s) => (
+              <div key={s.label} className="flex flex-col rounded-[10px] border border-c-card-border bg-c-card px-3.5 py-2">
+                <span className="text-[12px] text-c-secondary">{s.label}</span>
+                <span className="text-[15px] font-medium tabular-nums text-c-ink">{s.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {cardsView && !loadingList && !failedList && list.length > 0 ? (
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[10px] border border-c-card-border bg-c-card">
+            <OrderCards rows={shown} onOpen={(r) => setQuickId(r.id)} />
+            {footer}
+          </div>
+        ) : (
           <DataGrid<RegisterRow>
             rows={shown}
             columns={gridColumns}
-            storageKey={`carres.outright.grid.${layoutKey}.v1`}
+            storageKey={`carres.outright.grid.${layoutKey}.${layoutKey === "so" ? "v2" : "v1"}`}
             sessionKey={`carres.outright.${userId}`}
             presentationKey={JSON.stringify([query, pageSize, page, sort])}
             rowKey={(r) => r.id}
@@ -732,14 +904,18 @@ export default function SalesOrdersOutright() {
             allowColumnGrouping={false}
             groupBanner={false}
             {...(fixedGroups ? { fixedGroups } : {})}
-            stickyIdentity={{ columnKey: "order" }}
+            stickyIdentity={{ columnKey: layout.columns[0]! }}
             serverColumns={{ values: filterValues, selected: filters, onChange: onColumnQuery }}
-            onRowClick={(r, e) => open(r, e)}
+            onRowClick={(r, e) => openQuick(r, e)}
             contextMenu={(r) =>
               documentRowMenu({
                 view: () => open(r),
                 print: () => void printSalesOrdersOrSay([r]),
-                more: [{ label: "Cancel SO", danger: true, onClick: () => setCancelTarget({ id: r.id, so: r.so }) }],
+                more: [
+                  { label: "Quick view", onClick: () => setQuickId(r.id) },
+                  { label: "Copy as new", onClick: () => copyAsNew(r) },
+                  { label: "Cancel SO", danger: true, onClick: () => setCancelTarget({ id: r.id, so: r.so }) },
+                ],
               })
             }
             selectable={{
@@ -760,20 +936,20 @@ export default function SalesOrdersOutright() {
             noMatchMessage={clearableEmpty ? emptyMessage : undefined}
             onClearConditions={clearFilters}
             clearConditionsInToolbar={selected.size === 0 && compact >= 3 && chips.length > 1}
-            statusSummary={() => (
-              <CListFooter
-                testId="outright-footer"
-                count={loadingList ? "Loading orders" : `${list.length} ${list.length === 1 ? "order" : "orders"}`}
-                {...(loadingList || totals.parts.length === 0 ? {} : { totals })}
-                pageSize={pageSize}
-                onPageSize={setPageSize}
-                page={Math.min(page, pages)}
-                pages={pages}
-                onPage={setPage}
-              />
-            )}
+            statusSummary={() => footer}
           />
+        )}
         </section>
+        <OrderQuickView
+          row={quickRow}
+          ctx={ctx}
+          catalogNames={catalogNames}
+          right={tasksOpen ? 344 : 12}
+          onClose={() => setQuickId(null)}
+          onOpenFull={(r) => open(r)}
+          onPrint={(r) => void printSalesOrdersOrSay([r])}
+          onCopy={copyAsNew}
+        />
         {cancelTarget && (
           <CancelSalesOrderDialog
             orderId={cancelTarget.id}

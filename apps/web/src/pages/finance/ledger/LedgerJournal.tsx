@@ -178,7 +178,7 @@ function JournalRegister({ scope, search, onOpen, onPickDept, onPickAccount, onS
   ].filter(Boolean).join(" · ");
 
   return <div className="flex h-full min-h-0 flex-col">
-    <ModuleHeader destinationHeader testId="journal-destination-header" word="Journal" docTitle="Journal · Carres" />
+    <ModuleHeader destinationHeader testId="journal-destination-header" word="Journal Entries" docTitle="Journal Entries · Carres" />
     {query.isError ? <div role="alert" className="p-6 text-body">
       <p>The Journal could not be loaded. Try again.</p>
       <button className="btn-secondary mt-3" onClick={() => void query.refetch()}>Try again</button>
@@ -264,7 +264,7 @@ function EntryPage({ entryRef, search, onClose }: {
   const notFound = (detail.error as { status?: number } | null)?.status === 404;
   const entry = detail.data?.entry;
   return <div className="flex h-full min-h-0 flex-col">
-    <SalesOrderTabs identity={entry?.entry_no ?? entryRef.toUpperCase()} backLabel="Journal" backTo="?"
+    <SalesOrderTabs identity={entry?.entry_no ?? entryRef.toUpperCase()} backLabel="Journal Entries" backTo="?"
       onBack={(event) => { event.preventDefault(); onClose(); }}
       status={entry ? <ReversalPill row={entry} /> : undefined}
       navigation={entry ? <span className="text-body">{ledgerSourceWord(entry.source_type)} · {ledgerDocWord(entry.source_doc_no)}</span> : undefined}
@@ -277,7 +277,7 @@ function EntryPage({ entryRef, search, onClose }: {
         : "Loading entry…"}</p>
       {detail.isError && !notFound
         ? <button className="btn-secondary mt-3" onClick={() => void detail.refetch()}>Try again</button>
-        : <button className="btn-secondary mt-3" onClick={onClose}>Back to Journal</button>}
+        : <button className="btn-secondary mt-3" onClick={onClose}>Back to Journal Entries</button>}
     </div>}
   </div>;
 }

@@ -150,7 +150,7 @@ describe("the New journal entry door", () => {
   it("goes back to the Journal without recording anything", async () => {
     show("/finance/ledger?entry=new");
     await screen.findByTestId("manual-journal-form");
-    fireEvent.click(screen.getByRole("button", { name: "Back to Journal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to Journal Entries" }));
     expect(screen.getByTestId("where")).toHaveTextContent(/^\/finance\/ledger$/);
   });
 });

@@ -1276,6 +1276,10 @@ admitted by this naming ruling. Chinese explanations may accompany names in owne
 | Blank Consignment Note money (Houzs consignment-notes.ts:445,465, 1074-1160) | field `Price (RM) · {unit}` on a blank note · columns `Total` · `Balance` (`On order` when the note comes from an order) · `Sold Units are sold at their price on this note. Record the customer's payment below.` |
 | Return dialog line | `Unsold Units come back into stock. No refund: nothing was paid for them.` |
 | Columns | `Order No` · `Consignment Note No` · `Return No` · `Date` · `Delivery Date` · `Customer` · `Phone` · `Dealer` · `Units` · `At customer` · `Delivery Location` · `Note` |
+| List and detail words, Houzs way (Weisiang, WhatsApp 2026-11-01: same as Houzs; Houzs ConsignmentOrders.tsx, ConsignmentNotes.tsx, ConsignmentReturns.tsx) | Columns `Doc. No.` · `Note No.` · `Return No.` · `Expected` · `Local Total` · `Address 1` · `Returned Value`; cards `Total Orders` · `Revenue` · `Outstanding` · `Paid` · `Total Notes` · `Total Returns`; tabs `All` · `Outstanding` · `At customer`; sections `Customer` · `Line Items ({n})` · `Return Info` · `Returned Items ({n})`; button `Create Consignment Return` |
+| Inventory per-product totals, Houzs way (Houzs Inventory.tsx Balances) | `Units` · `Balances` · `Product Code` · `Description` · `Stock` · `Consignment` · `Incoming` · `Reserved` · `Available` · `Cannot sell` · `Age` · `Own Stock Qty` · `Consignment Qty` · `Product Codes` · `All warehouses` · `ETA` · `no ETA` | Value and Unit Cost on this page |
+| Warehouse and consignment tools, Houzs way (Weisiang, WhatsApp 2026-10-22) | `Print PDF` · `Export Excel` · `Upload counted sheet` · `Table` · `Cards` · `History` · `Relationship Map` · `Reservations` · `Reserved for` · `Incoming` · `Per-Warehouse Balance` · `Floor plan` · `List` · `Print labels` · `Seed racks` · `Series` · `Racks` · `Levels per rack` · `Stock In/Out` · `Stock In` · `Stock Out` |
+| Warehouse list and detail words, Houzs way (Weisiang, WhatsApp 2026-11-01; Houzs StockAdjustments.tsx, StockTransfersListV2.tsx, StockTakesListV2.tsx) | Stock moves say `Warehouse`, not Site. Columns `Transfer No.` · `From` · `To` · `Lines` · `Notes` · `Created By` · `Take No.` · `Variance` · `Items` · `Net Qty` · `Performed By`; status `Confirmed` for a posted transfer or take; `Hidden` for Lines and Variance on an open blind count; cards `Adjustments · 30d` · `Net qty delta` · `Total Transfers` · `Line count` · `Posted` · `Total Takes` · `Open` · `Lines counted` · `Net variance` · `Own Stock Qty` · `Current Qty` · `Last Movement`; `Variance Summary` · `Fill all to system` · `Total slots` · `Occupied` · `Occupancy` |
 | Empty / refusal | `No customer consignment orders yet.` · `No consignment notes yet.` · `No customer consignment returns yet.` · `Every Unit on this order has gone out.` · `No Units are at the customer on this note.` · `No Units are at a customer.` · `{Unit ID} belongs to its supplier` · `{Unit ID} is not out on a Consignment Note` · `Choose the customer or dealer` |
 | Dealer picker | `No dealer` |
 
@@ -1375,7 +1379,7 @@ before marking; the Portal cannot observe WhatsApp sending without an API.
 production walk OWED.** Approval is not production proof; Purchasing MASTER §9.3 carries the three
 statuses apart.
 
-Columns, exactly: `PO Date · PO No · SO No / MPR No · Supplier · Items ·
+Columns, exactly: `PO No · PO Doc Date · SO No / MPR No · Supplier · Items ·
 Supplier Deliver To · PO Delivery Date · Supplier Confirmed Delivery Date · Goods Received Date · GRN No · PO Version`.
 
 | Fact | Exact copy |
@@ -2447,6 +2451,10 @@ the same name (Purchase Orders rail uses `Confirm tomorrow's supplier delivery`)
 Use `Listing` consistently for module list-view navigation. The page title identifies the module;
 do not repeat SO/PO in the tab. This is the shared navigation label.
 Other views retain their purpose-specific names, such as `Monthly demand`.
+
+### MRP page (YH, 30 Oct 2026; Purchasing MASTER §5.1)
+
+`MRP` is the team's own word for this page. Heads: `SKU` · `Item` · `Category` · `Supplier` · `Needed` · `In Stock` · `On PO` · `Shortage` · `Free Stock`; under a row `Sales Order` · `Customer` · `Delivery Date`. Rail: `Show` (`All` · `Shortages`), `Category`, `Delivery Date`. Button `Export`. Empty: `Nothing is needed for these filters.` Note under the table: `Shortage is Needed less In Stock less On PO. In Stock is held for these orders. Free Stock is held for no order and lowers Shortage only once it is taken on SO Batch Purchase. Each sofa module counts as its own item.`
 
 ### Forecast Purchase · Outright — design handoff 13 Oct 2026 · approval ruling 14 Oct 2026 (A) · BUILT · DEPLOYED 14 Oct 2026 (Purchasing MASTER §9.14)
 
@@ -4129,6 +4137,7 @@ pages say (`apps/web/src/pages/operation/fleet.ts`, `FL`).
 
 | Where | The words |
 |---|---|
+| Delivery page words (Weisiang, 2026-11-01, Delivery MASTER last section) | `Logistic Overview` · `Last Mile Delivery` · `Lorry Live Map` · `Carriers & Rates` · `Coverage & Fleet` · `Total DOs` · `Revenue` · `In transit` · `Delivered` · `Total Trips` · `Available Days` · `Orders/Delivery Trip` · `Delivery Revenue` · `Revenue/Order` |
 | Delivery sidebar children | `Fleet Day` · `Live Map` · `Lorry Capacity` · `Crew Leave` |
 | The own-fleet Logistics company | `Carres Lorries` (seeded by 0724; its Vehicles and Drivers live in Settings → Logistics) |
 | Settings → Logistics → Drivers and Vehicles | `Role` · `Driver` · `Helper` |
@@ -4732,11 +4741,11 @@ Warehouse operator-flow review, 2026-09-16: **Loading recorded. Awaiting driver 
 ### Date-first listing contract — APPROVED (Jess, 2026-09-17) · BUILT on Sales Orders, SO Batch, Manual Purchase and Purchase Orders 2026-09-17
 
 Exact leading columns: Sales Orders `Proceed Date · SO Doc Date · SO No` (2026-09-21); SO Batch `Proceed Date · SO No`;
-Manual Purchase `Proceed Date · MPR No` (Purchasing §9.2); Purchase Orders `PO Date · PO No`;
-Receiving `GRN Date · GRN No`; Delivery Orders `DO Date · DO No`;
+Manual Purchase `MPR No · Proceed Date` (Purchasing §9.2); Purchase Orders `PO No · PO Doc Date`;
+Receiving `GRN No · GRN Doc Date`; Delivery Orders `DO No · DO Doc Date`;
 Payment Records `Paid date · Receipt No`. Pin both at canvas ≥768px, identity alone below768px.
 **Supplier Claims is the owner-approved exception (2026-09-18):** its order is
-`Claim status · Supplier Claim No · Claim Reported`, it pins the leading controls plus
+`Supplier Claim No · Claim status · Claim Reported`, it pins the leading controls plus
 `Claim status` and `Supplier Claim No` at ≥768px and `Supplier Claim No` alone below it, and its
 date is never pinned (Purchasing §9.5). Do not "restore" the date-first pair there.
 Date-first adoption: Sales Orders small patch → Manual Purchase Round 2 → Purchase Orders.
@@ -5151,6 +5160,23 @@ matched payments to add up to the day's Sales total, and no matched payment may 
 
 The 2026-09-22 ruling's `Today` / `This week` / `This month` are the names of RANGE CHOICES in a select,
 which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`.
+
+## Sidebar words follow Houzs — Weisiang, WhatsApp 2026-11-01
+
+**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx`. Page and document words are not changed by this table.
+
+| Place | Exact words |
+|---|---|
+| Top | `Workspace` · `Operations` · `Supply Chain` (row, inside Operations) |
+| Supply Chain modules | `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
+| Sales Order | `Sales Orders` · `Sales Order Amendment` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
+| Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
+| Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
+| Transportation | `Logistic Overview` · `Delivery Planning` · `DP Orders` · `Last Mile Delivery` · `Lorry Live Map` · `Lorry Capacity` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
+| Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
+| Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
+| Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
+| Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
 ## Sales Orders navigation — owner approved 2026-09-23 · BUILT 2026-09-23
 
@@ -6150,6 +6176,35 @@ DEL-04 · DEL-05 · OFF-01/05, owner confirmed 9 Oct 2026). No dash is used as a
 | Work action, `Assign logistics` | line two `Choose the company that carries this delivery · due {date}` | the hard-coded `3 working days before · {date}` is retired |
 | Logistics card, first check | `{n} working days before · {date}` with `n` = the stored Contact lead (`Contact lead days`, DEL-05); at the default it reads the ruled `3 working days before`. `2 working days before` and `1 working day before` stay fixed (Workspace §5.9) | the contact day follows its one setting |
 
+## Sales Invoices list words · YH 30 Oct 2026, following Houzs
+
+Source: `apps/web/src/pages/finance/SalesInvoices.tsx`.
+
+| Where | Words |
+|---|---|
+| Side menu row and page title | `Sales Invoices` |
+| Columns, in order | `SI No.` · `Date` · `SO No.` · `Customer` · `Ref No.` · `Status` · `Outstanding on SO` · `Total`; hidden until chosen: `Paid on SO` · `Phone` |
+| Status | `Draft` · `Submitted` · `Partially paid` · `Paid` · `Cancelled` (Paid and Partially paid read the order's money) |
+| Tabs and tiles | `All` · `Sent` · `Partial` · `Paid` · `Cancelled`; `Total Invoices` · `Billed` · `Outstanding` · `Paid` |
+| Quick view | `Customer` · `Invoice info` · `Line items · {n}` · `Payments` · `Open on Monitor` |
+| A draft's Invoice No | `Draft, no number yet` |
+| Search, summary, empty, failed | `Search SI, customer, phone, ref…` · `{n} sales invoices` · `No sales invoices yet.` · `Sales Invoices could not be loaded. Try again.` |
+
+## Finance lists, following Houzs · Weisiang, WhatsApp 1 Nov 2026
+
+| Where | Words |
+|---|---|
+| Payment Vouchers tabs | `All` · `Draft` · `Prepared` · `Checked` · `Approved` · `Advance open` · `Cancelled` |
+| Payment Vouchers notice | `{n} payment requests are waiting for Finance` · `Print {n} vouchers` |
+| Payment Requests tabs | `All` · `Waiting for Finance` · `Processing` · `Paid` · `Returned / withdrawn` |
+| Suppliers tabs and columns | `All` · `Trade` · `Other` · `Missing TIN`; `Owed` · `Advance` · `Open bills` |
+| Page headings, the same words as the sidebar row | `AP Invoices` (`/finance/bills`) · `Merchant Recon` (`/finance/card-settlement`) · `Journal Entries` (`/finance/ledger`) · `AP · Payables` (`/finance/ap-outstanding`) |
+| Sales Invoices columns | `From DO` · `Source PO` (both read from the order) |
+| Not Yet Billed | `Over 12 months` · `Not billed` · `Partly billed` · `Oldest`; `All ages` · `Aged 31+` · `Over 90 days`; `Delivered value` · `Already billed`; `Every delivered order is billed.` |
+| Corrections | `Payment actions` · `Done by`; `Done` · `Done By` · `Sales order` · `Receipt` · `What` · `First recorded by` · `Reason`; `Allocation changed: {before} → {after}` · `Payment voided: {amount}`; `No payment was corrected or voided in this month.` |
+| Payment Vouchers batch | `{n} ticked` · `Prepare {n}` · `Check {n}` · `Approve {n}`; `{done} of {total} approved`; `These did not go through and stay ticked:` |
+| Customer Credit Notes columns | `Number` · `Date` · `Party` · `Reference` · `SO` · `Reason` · `Total` · `Status`; hidden until chosen: `Void reason`; `Print {n} credit notes` |
+
 ## New Sales Invoice words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22) · BUILT ON BRANCH `feat/office-new-sales-invoice` (0712 not applied)
 
 Office staff open a Sales Invoice by hand, part invoices allowed (Houzs way). Overturns Jess's
@@ -6192,3 +6247,26 @@ decision. These words are admitted for the Service Cases page, the case window a
 ### Report a problem to IT (side menu bottom)
 
 The row at the bottom of the side menu (above the person, beside `Settings`, on every module; the Layout Standard 1 top bar is unchanged) and its dialog send a request to the Houzs IT Hub (`/api/it-support/tickets`, Worker secrets `IT_HUB_URL` and `IT_HUB_API_KEY`). Words: **`Report a problem to IT`** · **`What went wrong?`** · **`Tell IT more`** · **`How urgent is it?`** (`Can wait` · `Soon` · `Blocking my work`) · **`Send to IT`** · **`Sent to IT. Your request number is {code}.`** · **`Done`**. This is IT's request, not a Service Case: do not mix it with the Unit and Service `Report a problem`.
+
+## Procurement lists, following Houzs · Weisiang, WhatsApp 1 Nov 2026
+
+| Where | Words |
+|---|---|
+| Procurement Overview | `PO raised` · `Received` · `Total outstanding` · `Breakdown` · `By category` · `By supplier` · `POs` · `Outstanding: how late` · `Late 5+ days` · `Late up to 4 days or due tomorrow` · `Due in 2–7 days` · `Due in 8+ days` · `Overdue` · `Arriving in the next 3 days` · `Still to come` · `Promised` · `Days late` · `Due in` |
+| Suppliers tabs and columns | `All supply categories`; `Name` · `Supply Category` · `Contact` · `Pickup` · `Open POs` · `Received` · `On time` · `Damaged or wrong` · `Delivery record`; hidden until chosen: `Payment Terms` |
+| Purchase Orders tiles | `Total POs` · `Outstanding` · `Received` |
+| Purchase Orders display and row drawer | `Lines`; `Open full page` · `Status` · `Goods`; line columns `SKU` · `Item` · `Order Qty` · `Received Qty` · `Pending Delivery Qty` |
+| Purchase Orders bulk date | `Supplier date` · `Set Supplier date` · `Applies to every line still to deliver. Each PO is saved on its own.` · `Apply to {n} POs` · `Can take a date` · `Yes` · `Result` · `Saved` · `{n} saved · {n} not saved` · `Nothing left to deliver` · `no PO here can take a date` · `This file type is not accepted.` · `This file is too large (max 10 MB).` |
+| PO detail Supplier and side cards | `Contact` · `Email` · `Address`; `Key dates` · `Sent`; `People` · `Supplier contact` · `PO Duty` · `PO Duty not assigned`; `Recent activity` · `No history is recorded yet.` |
+| PO Amendments tabs and date | `Requested` · `Approved` · `Rejected` · `All`; `Created` |
+| Cancellation Requests tabs and columns | `Open` · `All`; `Level 1` · `Level 2` · `Approval Remarks` |
+| Purchase Invoices | `PI No` · `Supplier Invoice No` · `PI Doc Date` · `Supplier` · `Total` · `Paid` · `Owed` · `Due Date` · `Status` · `PO No`; tabs `All` · `Draft` · `Confirmed` · `Partial` · `Paid` · `Cancelled`; tiles `Total PIs` · `Billed` · `Owed` · `Paid`; `New Purchase Invoice` · `From GRN` |
+| Purchase Invoice page and lines | `Bill` · `Supplier Invoice No` · `PI Doc Date` · `Due Date` · `Status` · `PO No` · `Supplier` · `Total` · `Paid` · `Owed`; `Lines` · `Item` · `SKU` · `GRN No` · `Qty` · `Unit Price` · `Amount`; `Show lines` · `Change` · `No lines on this bill.` · `This bill could not be opened` · `The lines could not be read.` |
+| GRN page and register | `Supplier` · `Contact` · `Email` · `Address` · `Not recorded`; Items `Items` · `SKU` · `Received Qty` · `Damaged Qty` · `Wrong Item Qty` · `Extra Qty`; `Convert to PR` · `Convert to PI`; `Print N GRNs` · `N GRNs selected` |
+| Purchase Returns tabs and tiles | `All` · `Confirmed` · `Completed` · `Cancelled`; `Total Returns` · `Pending` · `Settled` |
+| MRP search | `Code, description, SO no, customer…` |
+| MRP filters and columns | `Warehouse` · `Date` · `Delivery Date` · `Proceed Date` · `SO Date` · `From` · `To` · `PO and ETA`; sheets `Items` · `Lines` |
+| Procurement Overview, Lead time & stock | `Overview` · `Lead time & stock` · `Supplier billed`; `Lead time` · `Receipts` · `Supplier takes · average` · `Supplier takes · median` · `On time` · `Late by · average`; `Stock` · `On hand` · `For an order` · `For no order` · `For no order 90+ days`; drill columns `PO` · `Supplier` · `Item` · `Category` · `Ordered` · `Received` · `Still to come` · `Promised` · `PI No` · `Total` · `PI Doc Date` |
+| Procurement Overview empty and count words | `No goods received in this period.`, `{n} PIs` |
+| Supplier detail | `Open supplier` · `Back to Suppliers`; tabs `Details` · `Lead Times` · `Items` · `Purchase Orders`; `Production Days` · `Working days` · `Supplier work week` · `Change these on Purchasing Settings.` · `Set a number`; `Their code` · `Our code` · `Our name` |
+| New Supplier, Batch edit | `New Supplier` · `Name` · `Pickup` · `Own Logistics` · `Factory Pickup` · `Add Supplier`; `Batch edit` · `Payment Terms (days)` · `Channel` · `Leave as it is` · `Email` · `WhatsApp` · `Apply`; `{n} suppliers saved` · `{n} of {m} suppliers saved` |

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { isShowroom, type StoreChannel } from "@carres/shared";
 import { usePrincipalDealers } from "@/lib/queries";
@@ -78,6 +78,11 @@ export default function PrincipalDealers({
         empty: "No dealers",
         emptyHint: "Try another filter or invite a new dealer.",
       };
+  useEffect(() => {
+    if (!financeView) return; // PrincipalApp titles its own pages
+    document.title = `${t.title} · Carres`;
+    return () => { document.title = "Carres Portal"; };
+  }, [financeView, t.title]);
 
   // The hook's PrincipalDealerRow type is a structural superset of the row's
   // local DealerListItem (camelCase fields match), so the cast is safe and

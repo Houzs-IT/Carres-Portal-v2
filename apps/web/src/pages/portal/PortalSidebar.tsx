@@ -16,6 +16,7 @@ import {
   menuGroups,
   navItemHref,
   areaDefaultHref,
+  rowMatchesTab,
   type NavBlock,
   type PortalArea,
   type PortalNavGroup,
@@ -273,7 +274,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     // left it permanently unlit — a defect since the Warehouse rail shipped,
     // invisible while headings meant nothing had to be found. The accordion
     // reads this to decide which module opens, so it surfaced here.
-    return current === (item.tab ?? item.key);
+    return rowMatchesTab(group, item, current, location.search);
   }
 
   const homeHref = groups[0] ? areaDefaultHref(groups[0]) : "/";
@@ -306,6 +307,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
    * a chevron worked here, on this page, wins until the operator navigates. */
   const openSection: PortalSection | null =
     override?.at === here ? override.section || null : activeModuleSection;
+
+  /* A row holding modules (Supply Chain) opens when it holds the current page,
+   * as in Houzs (Sidebar.tsx:1137); a click here wins until the operator navigates. */
+  const [foldByHand, setFoldByHand] = useState<{ at: string; open: boolean } | null>(null);
 
   /* ── GROUPS INSIDE A MODULE (owner 12 Oct 2026) ─────────────────────────
    * Only the group holding the current page is open; the others show their
@@ -389,7 +394,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   const PAGE_REST = "font-normal text-c-body hover:bg-c-hover";
   const PAGE_ON = "bg-c-select-pill font-semibold text-c-select-fg";
   const SECTION_LABEL = "text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-c-secondary";
-  const GROUP_LABEL = "text-[11px] font-medium uppercase leading-[14px] tracking-[0.06em] text-c-secondary";
+  const GROUP_LABEL = "text-[13px] font-normal leading-[17px] text-c-body";
   /** A long name wraps to a second line; it is never cut. */
   const WRAP = "min-w-0 flex-1 break-words [text-wrap:pretty]";
 
@@ -562,7 +567,41 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     );
   }
 
-  /** The small caps section word — OVERVIEW · SALES LOCATIONS · … */
+  /** A row holding modules: icon + name + chevron, its modules beneath it. */
+  function renderFold(
+    group: PortalNavGroup,
+    row: NonNullable<ReturnType<typeof menuGroups>[number]["row"]>,
+    blocks: NavBlock[],
+  ) {
+    const holds = blocks.some((b) =>
+      b.kind === "plain" ? isItemActive(group, b.item) : b.pages.some((p) => isItemActive(group, p)),
+    );
+    const open = foldByHand?.at === here ? foldByHand.open : holds;
+    return (
+      <div key={row.key} className="flex flex-col gap-[3px]">
+        <button
+          type="button"
+          data-testid={`nav-fold-${row.key}`}
+          aria-expanded={open}
+          onClick={() => setFoldByHand({ at: here, open: !open })}
+          className={`${ROW} ${holds && !open ? ROW_ON : ROW_REST}`}
+        >
+          {rowIcon(row.mIcon, row.icon, holds && !open)}
+          <span className={WRAP}>{row.label}</span>
+          <MIcon name={open ? "expand_less" : "expand_more"} size={18} className="text-c-secondary" />
+        </button>
+        {open && (
+          <div data-testid={`nav-fold-children-${row.key}`} className="ml-2.5 flex flex-col gap-[3px]">
+            {blocks.map((block) =>
+              block.kind === "plain" ? renderPlain(group, block.item) : renderModule(group, block),
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /** The small caps section word — WORKSPACE · OPERATIONS. */
   const groupHead = (label: string, key: string) => (
     <span key={`head-${key}`} data-testid={`nav-group-head-${key}`} className={`px-2.5 pb-1 pt-4 ${SECTION_LABEL}`}>
       {label}
@@ -684,11 +723,13 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
                   )}
                   {open &&
                     menuGroups(group, role, caps).map((mg, i) => (
-                      <Fragment key={mg.label ?? `rest-${i}`}>
+                      <Fragment key={mg.label ?? mg.row?.key ?? `rest-${i}`}>
                         {mg.label && groupHead(mg.label, mg.label.toLowerCase().replace(/\s+/g, "-"))}
-                        {mg.blocks.map((block) =>
-                          block.kind === "plain" ? renderPlain(group, block.item) : renderModule(group, block),
-                        )}
+                        {mg.row
+                          ? renderFold(group, mg.row, mg.blocks)
+                          : mg.blocks.map((block) =>
+                              block.kind === "plain" ? renderPlain(group, block.item) : renderModule(group, block),
+                            )}
                       </Fragment>
                     ))}
                 </div>

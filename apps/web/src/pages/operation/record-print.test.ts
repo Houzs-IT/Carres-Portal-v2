@@ -10,12 +10,14 @@ const pdf = vi.hoisted(() => ({
   doc: vi.fn(async () => new Blob(["do"])),
   po: vi.fn(async () => new Blob(["po"])),
   grn: vi.fn(async () => new Blob(["grn"])),
+  grns: vi.fn(async (_list: unknown[]) => new Blob(["grns"])),
 }));
 vi.mock("@/lib/pdf/render", () => ({
   renderCombinedSalesOrderPdf: pdf.so,
   renderDoPdf: pdf.doc,
   renderPoPdf: pdf.po,
   renderGrnPdf: pdf.grn,
+  renderCombinedGrnPdf: pdf.grns,
 }));
 vi.mock("./components/grn-template-data", () => ({ grnTemplateDataOf: (d: unknown) => ({ from: d }) }));
 const toastError = vi.hoisted(() => vi.fn());
@@ -24,6 +26,7 @@ vi.mock("sonner", () => ({ toast: { error: toastError } }));
 import {
   printDeliveryOrder,
   printGrn,
+  printGrnsOrSay,
   printPurchaseOrder,
   printSalesOrdersOrSay,
   receivingHasGrn,
@@ -74,5 +77,26 @@ describe("record-print — one print flow per document", () => {
     expect(receivingHasGrn("voided")).toBe(true);
     expect(receivingHasGrn("submitted")).toBe(false);
     expect(receivingHasGrn(null)).toBe(false);
+  });
+});
+
+describe("printGrnsOrSay", () => {
+  it("puts every ticked GRN in one PDF and skips a row with no GRN yet", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    pdf.grns.mockClear();
+    const read = vi.fn(async (id: string) => ({ id }) as never);
+    await printGrnsOrSay([{ id: "a", status: "posted" }, { id: "b", status: "voided" }, { id: "c", status: "draft" }], read);
+    expect(read.mock.calls.map((c) => c[0])).toEqual(["a", "b"]);
+    expect(pdf.grns.mock.calls[0]![0]).toHaveLength(2);
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+  });
+
+  it("says so in words when a read fails", async () => {
+    toastError.mockClear();
+    await printGrnsOrSay([{ id: "a", status: "posted" }], async () => { throw new Error("no"); });
+    expect(toastError.mock.calls[0]![0]).toContain("Printing 1 GRN failed");
   });
 });
