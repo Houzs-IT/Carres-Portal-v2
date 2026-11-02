@@ -2115,6 +2115,14 @@ export {
 } from "./service-case-sla";
 // 0745 — days in the current stage against its target days (Houzs stage clock).
 export { caseStageDwell, type CaseStageDwell } from "./service-case-stage-clock";
+export {
+  CASE_ITEM_LOCATION_KEYS,
+  CASE_LEG_BY_KEYS,
+  CASE_PICKUP_PIC_MAX,
+  CASE_PICKUP_STATUS_KEYS,
+  caseLegLabel,
+  logisticsConfirmedText,
+} from "./service-case-legs";
 // S5 — the monthly numbers. NO migration and no new table: the day a case ended
 // is the `customer_confirmed` entry S3's own close gate already demands, so the
 // review layer reads the cases exactly as the card asked.

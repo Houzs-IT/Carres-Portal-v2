@@ -12,6 +12,7 @@ import {
 } from "../service-case-evidence";
 import { CASE_STEP_KEYS } from "../service-case-plan";
 import { CASE_DELAY_REASONS, CASE_SLA_NOTE_MAX } from "../service-case-sla";
+import { CASE_ITEM_LOCATION_KEYS, CASE_LEG_BY_KEYS, CASE_PICKUP_PIC_MAX, CASE_PICKUP_STATUS_KEYS } from "../service-case-legs";
 
 /**
  * Service Cases (migration 0210) — the case / 病历 parent layer above Service
@@ -216,6 +217,21 @@ export type RecordCaseSlaInput = z.infer<typeof recordCaseSlaInputSchema>;
 
 // ── The case record ──────────────────────────────────────────────────────────
 
+/** 0746 — the pickup leg and delivery-back leg (Houzs pickup tracking). */
+const caseLegDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date.").nullable().optional();
+const caseLegFields = {
+  pickupBy:            z.enum(CASE_LEG_BY_KEYS).nullable().optional(),
+  pickupRequestedAt:   caseLegDay,
+  pickupConfirmedAt:   caseLegDay,
+  actualPickupAt:      caseLegDay,
+  pickupStatus:        z.enum(CASE_PICKUP_STATUS_KEYS).nullable().optional(),
+  pickupPic:           z.string().trim().max(CASE_PICKUP_PIC_MAX).nullable().optional(),
+  itemLocation:        z.enum(CASE_ITEM_LOCATION_KEYS).nullable().optional(),
+  deliveryBy:          z.enum(CASE_LEG_BY_KEYS).nullable().optional(),
+  deliveryRequestedAt: caseLegDay,
+  deliveryConfirmedAt: caseLegDay,
+};
+
 export const serviceCaseSchema = z.object({
   id:                  z.string().uuid(),
   caseNo:              z.string(),
@@ -334,6 +350,8 @@ export const serviceCaseSchema = z.object({
     targetDays: z.number().nullable(),
     changedBy:  z.string().uuid().nullable(),
   })).optional(),
+
+  ...caseLegFields,
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -394,6 +412,7 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
   .extend({
     priority:    z.enum(["low", "normal", "high"]).nullable().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
+    ...caseLegFields,
   });
 export type UpdateServiceCaseInput = z.infer<typeof updateServiceCaseInputSchema>;
 
