@@ -35,10 +35,10 @@ function Card({ card, selected, onOpen }: { card: TaskCard; selected: boolean; o
     </span>
   );
   const shape = "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left";
-  if (!card.work) return <div className={`${shape} bg-c-ground`} data-testid={`task-card-${card.id}`}>{body}</div>;
+  if (!card.work) return <div className={`${shape} bg-c-card`} data-testid={`task-card-${card.id}`}>{body}</div>;
   return (
     <button type="button" onClick={() => onOpen(card)} aria-pressed={selected} data-testid={`task-card-${card.id}`} data-task-card
-      className={`${shape} outline-none focus-visible:[outline:var(--c-focus)] ${selected ? "bg-c-select-bg" : "bg-c-ground hover:bg-c-hover"}`}>
+      className={`${shape} outline-none focus-visible:[outline:var(--c-focus)] ${selected ? "bg-c-select-bg" : "bg-c-card hover:bg-c-hover"}`}>
       {body}
     </button>
   );

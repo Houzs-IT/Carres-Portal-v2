@@ -24,6 +24,7 @@ import Button from "./Button";
 import MIcon from "@/components/carres/MIcon";
 import Tabs from "./Tabs";
 import { avatarColor } from "@/lib/staff-avatar";
+import { waLink } from "@/lib/wa-link";
 import StepList, { Step } from "./StepList";
 export type { StepState } from "./StepList";
 
@@ -45,7 +46,7 @@ export function SendTaskChannelDoor({ channel, recipient }: { channel: string; r
   const number = value.replace(/[\s()+-]/g, "");
   const href = channel === "email" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) ? `mailto:${value}`
     : channel === "whatsapp" && /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+$/.test(value) ? value
-    : channel === "whatsapp" && /^\d{7,15}$/.test(number) ? `https://wa.me/${number}` : null;
+    : channel === "whatsapp" && /^\d{7,15}$/.test(number) ? waLink(value) : null;
   if (channel !== "whatsapp" && channel !== "email") return null;
   return <span><Button disabled={!href} onClick={() => { if (href) window.open(href, "_blank", "noopener,noreferrer"); }}>{channel === "email" ? "Open Email" : "Open WhatsApp"}</Button></span>;
 }
