@@ -180,7 +180,7 @@ const weekdayOf = (iso: string) => fmtDate(iso).split(",")[0] ?? "";
    1164 and 1440 (01 §5). Measured, not guessed: the status pill `Sending not
    confirmed` is 151 wide, the `PO Delivery Date` header needs 112, and the
    tick, the arrow and the content edge take 92. */
-const PO_OVERVIEW_FIXED = { items: 76, source: 102, poDate: 88, delivery: 112, status: 162 } as const;
+const PO_OVERVIEW_FIXED = { items: 76, source: 102, poDate: 96, delivery: 128, status: 162 } as const;
 const PO_OVERVIEW_FIXED_TOTAL = Object.values(PO_OVERVIEW_FIXED).reduce((sum, width) => sum + width, 0);
 const PO_OVERVIEW_LEAD = 92;
 const PO_OVERVIEW_PO_MIN = 180;

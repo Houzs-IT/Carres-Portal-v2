@@ -53,7 +53,7 @@ export default function Modal({
   /** Persistent trigger for a dialog opened by a menu item that unmounts. */
   returnFocusRef?: RefObject<HTMLElement>;
   /** Existing task-wide review: full surface; its owning form alone closes it. */
-  variant?: "task-review";
+  variant?: "task-review" | "document-viewer";
 }) {
   return (
     <DialogFrame

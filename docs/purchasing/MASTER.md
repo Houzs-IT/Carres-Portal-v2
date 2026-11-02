@@ -4476,6 +4476,8 @@ missing governed Catalog/supplier relationship, refused/withdrawn request.
 
 ### 9.3 Purchase Orders
 
+**Shared-kit fit correction · PR#2177 ·2Nov2026:** current11px uppercase two-line headers plus their existing filter controls need96px for `PO Doc Date` and128px for `PO Delivery Date` in Overview. The older88/112 references forced intrinsic table growth; hosted checks measured7px sideways overflow at1025/1164/1440. The existing flexible identity-column calculation absorbs the extra header room; no fact, column, font, filter or business action is removed. Local closed/expanded-row checks3/3 pass at those widths; the rendered scroller reports0 overflow. Final release/production evidence remains governed by the linked PR and deployment checks.
+
 **19 Oct 2026 bounded execution — IN PROGRESS / NOT RELEASED.** PO detail's exact receipt/claim doors, current-document version checking and reuse of the existing supplier-send journey are being repaired in `codex/po-continuous-build`; shared send history now retains already-recorded Failed/Unknown attempts. Local focused tests and Overview geometry checks are partial evidence only. Full reviewed acceptance, owner preview approval and production verification remain owed. PUR-16 screenshot enforcement is still missing from the actual send writer; contextual cancellation remains separately release-gated and Finance readiness is not connection. Existing handoff records the evidence and boundaries; no new business rule or SQL is admitted here.
 
 **STATUS — three different things, never one word (2026-09-18).**
