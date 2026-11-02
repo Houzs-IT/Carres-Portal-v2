@@ -6288,4 +6288,6 @@ Fairs, exhibitions and solo roadshows, following Houzs Projects. These words are
 | Detail panels and activity | `Details` · `Activity` · `Write a note` · `No activity yet.` · activity rows `Created` · `Stage` · `Status` · `Archived` · `Unarchived` · `Note` |
 | Archived project | `This project is archived. Unarchive it to change its status.` |
 | Empty and failure | `No projects yet. Use New project to add the first fair or exhibition.` · `This page could not be loaded. Try again.` · `Not saved. Try again.` · `This project could not be found.` |
-| Refusals | `Unarchive the project to change its status.` · `That code is already used. Change the venue or date and save again.` |
+| Refusals | `Unarchive the project to change its status.` · `That is already on the list.` |
+| Project Maintenance (0751) | `Project Maintenance` · lists `Brands` · `Venues` · `Organizers` · `Contractors` · `Contractor` · `Add` · `In use` · `Stop using` · `Use again` · `Nothing here yet. Add the first one above.` |
+| Project team (0751) | `Team` · `Role` · placeholder `For example onsite or sales` · `Add to team` · `Remove` · `No one on the team yet.` |

@@ -141,3 +141,45 @@ export interface ProjectActivity {
 export function projectDurationDays(startDate: string, endDate: string): number {
   return Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1;
 }
+
+/* ── Slice 2 (0751): Project Maintenance masters and the project team ──── */
+
+/** Houzs project_brands, project_venues, project_organizers, project_contractors,
+ *  kept as one Carres table with a kind. Event types stay the two fixed ones. */
+export const PROJECT_MASTER_KINDS = ["brand", "venue", "organizer", "contractor"] as const;
+export type ProjectMasterKind = (typeof PROJECT_MASTER_KINDS)[number];
+
+export const projectMasterInput = z.object({
+  kind: z.enum(PROJECT_MASTER_KINDS),
+  name: text(120),
+  state: optText(60),
+  address: optText(300),
+  notes: optText(500),
+});
+export const projectMasterPatch = z.object({
+  name: text(120).optional(),
+  state: optText(60).optional(),
+  address: optText(300).optional(),
+  notes: optText(500).optional(),
+  active: z.boolean().optional(),
+});
+
+export interface ProjectMaster {
+  id: string;
+  kind: ProjectMasterKind;
+  name: string;
+  state: string | null;
+  address: string | null;
+  notes: string | null;
+  active: boolean;
+}
+
+/** Houzs project_team.role is free text ('designer' | 'manager' | 'sales' | 'onsite' | ...). */
+export const projectTeamInput = z.object({ userId: z.string().uuid(), role: optText(40) });
+
+export interface ProjectTeamMember {
+  id: string;
+  userId: string;
+  name: string | null;
+  role: string | null;
+}
