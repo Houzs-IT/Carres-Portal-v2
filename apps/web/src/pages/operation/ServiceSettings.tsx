@@ -17,7 +17,7 @@ import PageShell from "@/components/kit/PageShell";
 import Select from "@/components/kit/Select";
 import { W } from "./settings-core/parts";
 
-type PickItem = { id: string; label: string; active: boolean; isClosed: boolean };
+type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null };
 type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[] };
 const KEY = ["ops", "service-cases", "settings"] as const;
 
@@ -61,7 +61,7 @@ export default function ServiceSettings() {
             />
           </div>
         </section>
-        <PickList list="statuses" title="Stages" help="The stages staff pick on a case. A stage that closes the case cannot be added here." items={q.data?.statuses ?? []} canEdit={canEdit} onChanged={refresh} />
+        <PickList list="statuses" title="Stages" help="The stages staff pick on a case. A stage that closes the case cannot be added here. Target days: how long a case should stay in the stage; a case past it shows red. A new target counts for cases that enter the stage after the change." items={q.data?.statuses ?? []} canEdit={canEdit} onChanged={refresh} />
         <PickList list="types" title="Case types" help="The case types staff pick on a case." items={q.data?.types ?? []} canEdit={canEdit} onChanged={refresh} />
       </div>
     </PageShell>
@@ -82,7 +82,7 @@ function PickList({ list, title, help, items, canEdit, onChanged }: {
     onSuccess: () => { setLabel(""); onChanged(); },
   });
   const edit = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { label?: string; active?: boolean } }) =>
+    mutationFn: ({ id, body }: { id: string; body: { label?: string; active?: boolean; targetDays?: number | null } }) =>
       apiFetch(`/api/ops/service-cases/settings/${list}/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: onChanged,
   });
@@ -111,6 +111,28 @@ function PickList({ list, title, help, items, canEdit, onChanged }: {
                   }}
                 />
               </div>
+              {/* 0745 — Houzs ServiceLeadTimePortal.tsx stage targets, one per stage. */}
+              {list === "statuses" && !it.isClosed && (
+                <div className="w-28">
+                  <Input
+                    id={`service-${list}-${it.id}-target`}
+                    aria-label={`Target days for ${it.label}`}
+                    placeholder="Target days"
+                    type="number"
+                    min={0.5}
+                    max={365}
+                    step={0.5}
+                    defaultValue={it.targetDays ?? ""}
+                    disabled={!canEdit}
+                    onBlur={(e) => {
+                      const raw = e.target.value.trim();
+                      const next = raw === "" ? null : Number(raw);
+                      if (next !== null && !(next > 0 && next <= 365)) return;
+                      if (next !== (it.targetDays ?? null)) edit.mutate({ id: it.id, body: { targetDays: next } });
+                    }}
+                  />
+                </div>
+              )}
               <Checkbox
                 id={`service-${list}-${it.id}-active`}
                 label="In use"

@@ -11,6 +11,7 @@ import {
   caseIssueLabel,
   caseNeedsManager,
   caseProductCategoryLabel,
+  caseStageDwell,
   caseUsableLabel,
   caseWantLabel,
   type ServiceCase,
@@ -118,7 +119,9 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
   const nextStage = d.statusIsClosed ? undefined : stages.slice(currentIndex + 1).find((st) => !st.isClosed);
   const stageBusy = stageMut.isPending || remedyBusy;
   const history = customerHistory(d, listQ.data?.items ?? []);
-  const timeline = caseTimeline(d, (u) => nameOf.get(u) ?? "");
+  const stageLabel = new Map(stages.map((st) => [st.id, st.label] as const));
+  const timeline = caseTimeline(d, (u) => nameOf.get(u) ?? "", (id) => stageLabel.get(id) ?? "");
+  const dwell = d.stageSince && !d.statusIsClosed ? caseStageDwell(d.stageSince, d.stageTargetDays, new Date()) : null;
 
   return (
     <>
@@ -131,6 +134,12 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
             <p className="mt-1 text-body text-base-600">
               Customer <b className="font-semibold text-base-900">{d.customerName}</b>
               {" · "}Stage <b className="font-semibold text-base-900">{d.statusLabel ?? "Unset"}</b>
+              {/* 0745 — Houzs LeadTimePill (ServiceCases.tsx:7133): days in the stage against its target. */}
+              {dwell && (
+                <>{" · "}<span className={dwell.overTarget ? "font-semibold text-error-700" : ""}>
+                  In stage {dwell.days} {d.stageTargetDays != null ? `of ${d.stageTargetDays} ` : ""}days
+                </span></>
+              )}
               {d.so != null && <>{" · "}<span className="font-mono">SO-{d.so}</span></>}
               {d.refNo && <>{" · "}Ref <span className="font-mono">{d.refNo}</span></>}
             </p>
@@ -298,9 +307,13 @@ export function customerHistory(c: ServiceCase, all: readonly ServiceCase[]): Se
   return all.filter((o) => o.id !== c.id && (phone ? o.customerPhone?.trim() === phone : o.customerName === c.customerName));
 }
 
-/** What the case already records, newest first. Carres keeps no stage-change
- *  history or notes on a case, so those Houzs Timeline rows cannot appear. */
-export function caseTimeline(c: ServiceCase, nameOf: (userId: string) => string): { on: string; text: string; who: string }[] {
+/** What the case already records, newest first. Stage moves come from the 0745
+ *  stage history (Houzs assr_activity stage_change rows); Carres keeps no notes. */
+export function caseTimeline(
+  c: ServiceCase,
+  nameOf: (userId: string) => string,
+  stageLabelOf: (statusId: string) => string = () => "",
+): { on: string; text: string; who: string }[] {
   const steps = new Map(
     caseFollowUpPlan({ customerWants: c.customerWants ?? [], customerName: c.customerName, supplierName: c.supplierName ?? null }).map((s) => [s.key as string, s.label]),
   );
@@ -309,6 +322,12 @@ export function caseTimeline(c: ServiceCase, nameOf: (userId: string) => string)
     ...(c.evidence ?? []).map((e) => ({ on: e.at, text: e.kind === "video" ? "Video added" : "Photo added", who: nameOf(e.by) })),
     ...(c.progress ?? []).map((p) => ({ on: p.on, text: `${steps.get(p.step) ?? p.step}${p.note ? `: ${p.note}` : ""}`, who: nameOf(p.by) })),
     ...(c.slaEvents ?? []).map((s) => ({ on: s.on, text: `Customer told: ${caseDelayReasonLabel(s.reason)}`, who: "" })),
+    // The row written when the case was filed repeats "Case opened", so it is left out.
+    ...(c.stageHistory ?? []).filter((h) => h.enteredAt !== c.createdAt).map((h) => ({
+      on: h.enteredAt,
+      text: `Moved to ${(h.statusId && stageLabelOf(h.statusId)) || "another stage"}`,
+      who: h.changedBy ? nameOf(h.changedBy) : "",
+    })),
   ];
   return rows.sort((a, z) => z.on.localeCompare(a.on));
 }
