@@ -1560,3 +1560,25 @@ export const skuSupplierOfferUpsertInput = z
   })
   .strict();
 export type SkuSupplierOfferUpsertInput = z.infer<typeof skuSupplierOfferUpsertInput>;
+
+/* Houzs Supplier Bindings CSV import: one supplier's price list in one write.
+ * A blank cell is ABSENT and leaves the stored value alone. */
+export const supplierOfferImportInput = z
+  .object({
+    supplierId: z.string().uuid(),
+    rows: z
+      .array(
+        z
+          .object({
+            sku: z.string().trim().min(1).max(80),
+            supplierCode: z.string().trim().max(60).optional(),
+            price: z.number().nonnegative().optional(),
+            pwpPrice: z.number().nonnegative().optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+  })
+  .strict();
+export type SupplierOfferImportInput = z.infer<typeof supplierOfferImportInput>;
