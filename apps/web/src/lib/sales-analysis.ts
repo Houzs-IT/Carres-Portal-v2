@@ -208,39 +208,6 @@ export function spendBySegment(
 
 // ── Products ────────────────────────────────────────────────────────────────
 
-export interface ProductRow {
-  model: string;
-  category: string;
-  units: number;
-  revenue: number;
-  /** null when any contributing line lacks a cost. */
-  marginPct: number | null;
-}
-
-export function productRollup(lines: AnalyticsLine[]): ProductRow[] {
-  const byModel = new Map<string, ProductRow & { cost: number; costKnown: boolean }>();
-  for (const l of lines) {
-    const row =
-      byModel.get(l.model) ??
-      ({ model: l.model, category: l.category, units: 0, revenue: 0, marginPct: null, cost: 0, costKnown: true } as ProductRow & {
-        cost: number;
-        costKnown: boolean;
-      });
-    row.units += l.qty;
-    row.revenue += l.revenue;
-    if (l.cost === null) row.costKnown = false;
-    else row.cost += l.cost;
-    byModel.set(l.model, row);
-  }
-  return [...byModel.values()]
-    .map(({ cost, costKnown, ...row }) => ({
-      ...row,
-      marginPct:
-        costKnown && row.revenue > 0 ? ((row.revenue - cost) / row.revenue) * 100 : null,
-    }))
-    .sort((a, b) => b.revenue - a.revenue);
-}
-
 /** Buyer demographics per category — one distribution trio per category. */
 export function buyerDemographics(
   lines: AnalyticsLine[],
@@ -264,4 +231,89 @@ export function buyerDemographics(
       return dist;
     })(),
   }));
+}
+
+/* ── Product Profit (Houzs Finance › Reports › Product Profit, owner 2026-10-05) ──
+ * One row per model. A price-0 line of a model the same order also sells is part
+ * of that product (its cost is the product's own); any other price-0 line is a
+ * GIFT, and an order's gifts are shared among the products it paid for by their
+ * sales, in whole sen. Whether gifts count is the screen's switch. */
+
+export type ProfitSort = "gp" | "units" | "sales" | "margin";
+
+export interface ProfitRow {
+  model: string;
+  category: string;
+  units: number;
+  orders: number;
+  sales: number;
+  /** The product's own cost; lines with no cost add nothing (see noCostLines). */
+  cost: number;
+  /** Its share of the gifts on the orders that bought it. */
+  gift: number;
+  gp: number;
+  marginPct: number | null;
+  /** Priced lines with no cost on the SKU — the margin reads high. */
+  noCostLines: number;
+}
+
+/** The month (YYYY-MM) of a placed_at instant, in Malaysia time. */
+export const myMonthOf = (iso: string): string =>
+  new Date(new Date(iso).getTime() + 8 * 3_600_000).toISOString().slice(0, 7);
+
+/** Share whole sen by weight, largest remainder first, so the shares add back exactly. */
+export function shareSen(totalSen: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, w) => a + Math.max(0, w), 0);
+  if (totalSen === 0 || sum <= 0) return weights.map(() => 0);
+  const raw = weights.map((w) => (totalSen * Math.max(0, w)) / sum);
+  const out = raw.map(Math.floor);
+  let left = totalSen - out.reduce((a, v) => a + v, 0);
+  const order = raw.map((r, i) => ({ f: r - Math.floor(r), i })).sort((a, b) => b.f - a.f || a.i - b.i);
+  for (let k = 0; left > 0 && k < order.length; k += 1, left -= 1) out[order[k].i] += 1;
+  return out;
+}
+
+export function productProfit(
+  lines: AnalyticsLine[],
+  opts: { month: string | null; categories: ReadonlySet<string>; gifts: boolean; sort: ProfitSort },
+): { rows: ProfitRow[]; unallocatedGift: number } {
+  const sen = (rm: number) => Math.round(rm * 100);
+  const byOrder = new Map<number, AnalyticsLine[]>();
+  for (const l of lines) {
+    if (opts.month && myMonthOf(l.placedAt) !== opts.month) continue;
+    byOrder.set(l.so, [...(byOrder.get(l.so) ?? []), l]);
+  }
+  const acc = new Map<string, ProfitRow & { so: Set<number> }>();
+  const rowOf = (l: AnalyticsLine) => {
+    const r = acc.get(l.model) ?? { model: l.model, category: l.category, units: 0, orders: 0, sales: 0, cost: 0, gift: 0, gp: 0, marginPct: null, noCostLines: 0, so: new Set<number>() };
+    acc.set(l.model, r);
+    return r;
+  };
+  let unallocated = 0;
+  for (const [so, ls] of byOrder) {
+    const sold = new Set(ls.filter((l) => l.revenue > 0).map((l) => l.model));
+    let giftSen = 0;
+    const paid = new Map<string, number>();
+    for (const l of ls) {
+      if (l.revenue <= 0 && !sold.has(l.model)) { giftSen += sen(l.cost ?? 0); continue; }
+      const r = rowOf(l);
+      r.so.add(so);
+      if (l.revenue > 0) { r.units += l.qty; paid.set(l.model, (paid.get(l.model) ?? 0) + sen(l.revenue)); }
+      r.sales += l.revenue;
+      if (l.cost === null) { if (l.revenue > 0) r.noCostLines += 1; } else r.cost += l.cost;
+    }
+    const models = [...paid.keys()];
+    if (models.length === 0) { unallocated += giftSen / 100; continue; }
+    shareSen(giftSen, models.map((m) => paid.get(m)!)).forEach((s, i) => { acc.get(models[i])!.gift += s / 100; });
+  }
+  const rows = [...acc.values()]
+    .filter((r) => opts.categories.size === 0 || opts.categories.has(r.category))
+    .map(({ so, ...r }) => {
+      const gp = r.sales - r.cost - (opts.gifts ? r.gift : 0);
+      return { ...r, orders: so.size, gp, marginPct: r.sales > 0 ? (gp / r.sales) * 100 : null };
+    });
+  const key: Record<ProfitSort, (r: ProfitRow) => number> = {
+    gp: (r) => r.gp, units: (r) => r.units, sales: (r) => r.sales, margin: (r) => r.marginPct ?? -Infinity,
+  };
+  return { rows: rows.sort((a, b) => key[opts.sort](b) - key[opts.sort](a) || a.model.localeCompare(b.model)), unallocatedGift: unallocated };
 }
