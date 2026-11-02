@@ -194,7 +194,6 @@ export const SPACE = {
 // never reads as a state. This palette is identity infrastructure, not a staff
 // roster; current membership comes only from the authoritative staff source.
 export const AVATAR_COLORS: { bg: string; fg: string }[] = [
-  // Shared staff identity palette — UI MASTER 30 Oct, white initials.
   { bg: "#6B7A8F", fg: "#FFFFFF" },
   { bg: "#7A6A58", fg: "#FFFFFF" },
   { bg: "#5E7D6E", fg: "#FFFFFF" },

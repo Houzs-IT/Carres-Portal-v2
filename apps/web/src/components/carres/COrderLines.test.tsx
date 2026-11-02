@@ -39,7 +39,7 @@ describe("COrderLines — the order-line table in a card (01 §5.1)", () => {
     expect(screen.getByText("TEST editor").closest("td")).toHaveAttribute("colspan", "5");
   });
 
-  it("keeps totals aligned and ordinary amounts neutral under the current template", () => {
+  it("closes with the totals on the same columns, amber only where something is owed", () => {
     render(
       <COrderLines label="Items" lines={lines}
         totals={[
@@ -48,8 +48,8 @@ describe("COrderLines — the order-line table in a card (01 §5.1)", () => {
         ]} />,
     );
     const owed = screen.getByText("RM 780.00");
-    expect(owed.className).toContain("text-c-ink");
-    expect(owed.className).not.toContain("bg-c-warn-bg");
+    expect(owed.className).toContain("text-c-warn-fg");
+    expect(owed.className).toContain("bg-c-warn-bg");
     expect(screen.getByText("RM 3,780.00", { selector: "td.font-medium" }).className).not.toContain("warn");
   });
 });

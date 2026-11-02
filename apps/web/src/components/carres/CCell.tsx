@@ -71,12 +71,12 @@ export function CListCell({ cell }: { cell: CCell }) {
           <CPill tone={cell.tone ?? "info"}>{cell.t}</CPill>
         )
       ) : (
-        <span className={`max-w-full truncate tabular-nums ${fw} ${fg}`} title={cell.title ?? cell.t}>
+        <span className={`whitespace-nowrap tabular-nums ${fw} ${fg}`} title={cell.title}>
           {cell.t}
         </span>
       )}
       {cell.sub && (
-        <span className={`${cell.subClip ? "max-w-full truncate" : "whitespace-nowrap"} text-[12px] ${subFg}`} title={cell.subTitle ?? cell.sub}>
+        <span className={`${cell.subClip ? "max-w-full truncate" : "whitespace-nowrap"} text-[12px] ${subFg}`} title={cell.subTitle}>
           {cell.sub}
         </span>
       )}

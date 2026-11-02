@@ -10,14 +10,12 @@
  *   Menu      white · radius 8 · shadow-menu · pad 6 · item pad 7 10 · 13/500
  */
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import KitDrawer from "@/components/kit/Drawer";
-import KitModal from "@/components/kit/Modal";
-import { BlockSurface, BLOCK_TITLE } from "@/components/kit/Block";
 import MIcon from "@/components/carres/MIcon";
 import KitSelect from "@/components/kit/Select";
 import KitButton from "@/components/kit/Button";
 import KitDatePicker from "@/components/kit/DatePicker";
 import { controlClass } from "@/components/kit/field-recipe";
+import { DialogContainerProvider } from "@/components/kit/dialog-container";
 import { SEGMENT, SEGMENT_OFF, SEGMENT_ON, SEGMENTED_TRACK } from "@/components/kit/Tabs";
 import { avatarColor, personInitials, personLabel } from "@/lib/staff-avatar";
 
@@ -38,9 +36,15 @@ export function Card({
   tone?: "card" | "warn";
 }) {
   return (
-    <BlockSurface label={label} testId={testId} tone={tone === "warn" ? "warn" : undefined} className={`flex flex-col ${className}`}>
+    <section
+      aria-label={label}
+      data-testid={testId}
+      className={`flex min-w-0 flex-col rounded-lg border px-4 py-3.5 ${
+        tone === "warn" ? "border-c-btn-border bg-c-warn-bg" : "border-c-card-border bg-c-card"
+      } ${className}`}
+    >
       {children}
-    </BlockSurface>
+    </section>
   );
 }
 
@@ -48,7 +52,7 @@ export function Card({
 export function CardTitle({ children, note, right }: { children: ReactNode; note?: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex items-center gap-2 pb-1.5">
-      <h2 className={`flex-1 leading-5 ${BLOCK_TITLE}`}>{children}</h2>
+      <h2 className="flex-1 text-[11px] font-bold uppercase tracking-[.08em] leading-4 text-c-body">{children}</h2>
       {note && <span className="text-[12px] text-c-secondary">{note}</span>}
       {right}
     </div>
@@ -139,7 +143,7 @@ export function CBtn({
     <button
       type="button"
       {...rest}
-      className={`inline-flex shrink-0 items-center justify-center gap-1.5 focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:2px] whitespace-nowrap rounded-[var(--control-radius)] text-[13px] leading-none disabled:cursor-not-allowed disabled:opacity-[.45] ${BTN[kind]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:2px] whitespace-nowrap rounded-md text-[13px] leading-none disabled:cursor-not-allowed disabled:opacity-[.45] ${BTN[kind]} ${className}`}
     >
       {icon && <MIcon name={icon} size={18} />}
       {children}
@@ -157,7 +161,7 @@ export function CIconBtn({
 }: {
   icon: string;
   label: string;
-  size?: 34 | 36;
+  size?: 32 | 34 | 36;
   className?: string;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
@@ -166,7 +170,7 @@ export function CIconBtn({
       aria-label={label}
       title={label}
       {...rest}
-      className={`grid shrink-0 place-items-center rounded-full text-c-body enabled:hover:bg-[var(--c-icon-hover)] enabled:active:bg-[var(--c-icon-press)] focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:2px] disabled:opacity-[.45] ${size === 34 ? "h-[34px] w-[34px]" : "h-9 w-9"} ${className}`}
+      className={`grid shrink-0 place-items-center rounded-full text-c-body enabled:hover:bg-[var(--c-icon-hover)] enabled:active:bg-[var(--c-icon-press)] focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:2px] disabled:opacity-[.45] ${size === 32 ? "h-8 w-8" : size === 34 ? "h-[34px] w-[34px]" : "h-9 w-9"} ${className}`}
     >
       <MIcon name={icon} size={20} />
     </button>
@@ -257,21 +261,110 @@ export function Avatar({ person, size = 24, ring = true }: { person: Person; siz
   );
 }
 
-/* Existing SO adapters: the kit owns every overlay surface and focus scope. */
-export function Drawer({ open, title, onClose, children, testId, actions }: {
-  open: boolean; title: string; onClose: () => void; children: ReactNode; testId?: string; actions?: ReactNode;
+/* ── Drawer (right) ─────────────────────────────────────────────────────── */
+export function Drawer({
+  open,
+  title,
+  onClose,
+  children,
+  width = 560,
+  testId,
+  actions,
+  right = 12,
+}: {
+  open: boolean;
+  title: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  width?: number;
+  testId?: string;
+  actions?: ReactNode;
+  /** Distance from the right edge — a drawer opens LEFT of the Tasks panel
+   *  and never covers it (Layout Standard §1). */
+  right?: number;
 }) {
-  return <KitDrawer open={open} title={title} onOpenChange={next => { if (!next) onClose(); }} headerActions={actions}>
-    <div data-testid={testId}>{children}</div>
-  </KitDrawer>;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-[70]" style={{ background: "var(--backdrop)" }} onClick={onClose} aria-hidden="true" />
+      <DialogContainerProvider>{(setContainer) => (
+      <aside ref={setContainer}
+        role="dialog"
+        aria-label={typeof title === "string" ? title : undefined}
+        data-testid={testId}
+        className="fixed bottom-3 top-3 z-[71] flex max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-lg border border-c-btn-border bg-c-card"
+        style={{ width, right, boxShadow: "var(--shadow-drawer)" }}
+      >
+        <div className="flex shrink-0 items-center gap-2 border-b border-c-section-line px-4 py-3.5">
+          <h2 className="min-w-0 flex-1 truncate text-[15px] font-medium text-c-ink">{title}</h2>
+          {actions}
+          <CIconBtn icon="close" label="Close" size={34} onClick={onClose} />
+        </div>
+        {/* A stable gutter: a document that grows a scrollbar must not change
+            its own width, or the paper is re-cut forever. */}
+        <div className="min-h-0 flex-1 overflow-y-scroll px-4 py-3.5 [scrollbar-gutter:stable]">{children}</div>
+      </aside>
+      )}</DialogContainerProvider>
+    </>
+  );
 }
 
-export function Dialog({ open, title, onClose, children, footer, width, testId }: {
-  open: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; width?: number; testId?: string;
+/* ── Dialog (centred) ───────────────────────────────────────────────────── */
+export function Dialog({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  width = 640,
+  testId,
+}: {
+  open: boolean;
+  title: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  width?: number;
+  testId?: string;
 }) {
-  return <KitModal open={open} title={title} onOpenChange={next => { if (!next) onClose(); }} footer={footer} width={width && width < 600 ? undefined : "wide"}>
-    <div data-testid={testId}>{children}</div>
-  </KitModal>;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center p-4" style={{ background: "var(--backdrop)" }}>
+      <DialogContainerProvider>{(setContainer) => (
+      <div ref={setContainer}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === "string" ? title : undefined}
+        data-testid={testId}
+        className="flex max-h-[calc(100vh-32px)] w-full flex-col overflow-hidden rounded-lg border border-c-btn-border bg-c-card"
+        style={{ maxWidth: width, boxShadow: "var(--shadow-drawer)" }}
+      >
+        <div className="flex shrink-0 items-center gap-2 border-b border-c-section-line px-4 py-3.5">
+          <h2 className="min-w-0 flex-1 text-[15px] font-medium text-c-ink">{title}</h2>
+          <CIconBtn icon="close" label="Close" size={34} onClick={onClose} />
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-3.5">{children}</div>
+        {footer && <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-c-section-line px-4 py-3">{footer}</div>}
+      </div>
+      )}</DialogContainerProvider>
+    </div>
+  );
 }
 
 /* ── Pop-up menu ────────────────────────────────────────────────────────── */

@@ -19,7 +19,7 @@ export default function ItemRows({ label, stepBack = 72, testId, children }: {
   children: ReactNode;
 }) {
   return (
-    <div role="table" aria-label={label} className="bg-white [&>[role=row]:has([role=columnheader])]:h-10 [&_[role=columnheader]]:text-[11px] [&_[role=columnheader]]:font-semibold [&_[role=columnheader]]:uppercase [&_[role=columnheader]]:tracking-[.04em] [&_[role=columnheader]]:text-c-heading" style={{ marginLeft: -stepBack }} data-carres-table="item-rows" data-testid={testId}>
+    <div role="table" aria-label={label} className="bg-white" style={{ marginLeft: -stepBack }} data-carres-table="item-rows" data-testid={testId}>
       {children}
     </div>
   );

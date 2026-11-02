@@ -137,10 +137,12 @@ describe("Outright empty population versus filtered empty", () => {
 });
 
 describe("Outright in the Houzs shape", () => {
-  it("opens on Houzs's first columns, with its four cards and tab counts", () => {
+  beforeEach(() => localStorage.setItem("carres.outright.summary", "1"));
+  it("keeps Houzs's columns and places current-list totals in the shared Summary", () => {
     mount("/operation/orders?cols=so");
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent).join(" ")).toMatch(/Doc\. No\..*Date.*Ref No\..*Agent.*Debtor Name.*Total.*Sales Location.*Balance/);
-    const stats = screen.getByTestId("outright-stats");
+    const stats = within(screen.getByTestId("outright-summary")).getByTestId("outright-stats");
+    expect(within(screen.getByRole("region", {name:"Sales orders"})).queryByTestId("outright-stats")).toBeNull();
     expect(stats).toHaveTextContent("Total Orders60");
     expect(stats).toHaveTextContent("Paid");
     expect(screen.getByRole("tab", {name:"All"})).toHaveTextContent("All60");
@@ -159,9 +161,11 @@ describe("Outright in the Houzs shape", () => {
   });
   it("a date range narrows the list, shows a chip, and Clear removes it", async () => {
     mount("/operation/orders?cols=so&from.soDate=2026-10-01");
+    const monthly = screen.getByTestId("outright-monthly-totals").textContent;
     expect(screen.getByTestId("outright-stats")).toHaveTextContent("Total Orders0");
     fireEvent.click(screen.getByRole("button", {name:/Order Date: /}));
     await waitFor(()=>expect(screen.getByTestId("outright-stats")).toHaveTextContent("Total Orders60"));
+    expect(screen.getByTestId("outright-monthly-totals").textContent).toBe(monthly);
   });
 });
 
@@ -251,5 +255,22 @@ describe("Outright quick view and cards (Houzs, Weisiang 1 Nov)", () => {
     mount("/operation/orders?max.so=1&is.amendment=yes");
     expect(screen.getByRole("button", {name:/Sales order no\.: Any to 1/})).toBeVisible();
     expect(screen.queryAllByTestId(/^outright-row-/)).toHaveLength(0);
+  });
+});
+
+
+describe("current default view and retained explicit choices", () => {
+  it.each([
+    [null, "/operation/orders", "Overview"],
+    [{cols:"so",tab:"open"}, "/operation/orders", "Overview"],
+    [{cols:"so",tab:"open",layoutVersion:2}, "/operation/orders", "Sales Order"],
+    [{cols:"payment",tab:"open"}, "/operation/orders", "Payment"],
+    [{cols:"so",tab:"open"}, "/operation/orders?cols=so", "Sales Order"],
+  ] as const)("resolves saved %j and URL %s to %s without removing stored layouts", (saved, url, label) => {
+    const key = `carres.outright.view.${testState.user}`;
+    if(saved) localStorage.setItem(key,JSON.stringify(saved));
+    mount(url);
+    expect(screen.getByRole("button",{name:`View: ${label}`})).toBeInTheDocument();
+    expect(localStorage.getItem(key)).toBe(saved ? JSON.stringify(saved) : null);
   });
 });

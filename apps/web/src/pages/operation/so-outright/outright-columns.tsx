@@ -33,14 +33,14 @@ export type LayoutKey = "so" | "general" | "payment" | "stock" | "warehouse" | "
 /* `so` follows Houzs's SO list order (MfgSalesOrdersListV2 SO_AUTOCOUNT_KEYS).
    Branding, Curr. Code, UOM and Venue are not in the order: Carres records none
    of them. `hidden` starts off and stays in the Columns chooser, as Houzs does. */
-export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: string[]; hidden?: string[] }[] = [
+export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: string[]; hidden?: string[]; widths?: Record<string, number> }[] = [
   {
     key: "so", label: "Sales Order", icon: "receipt_long",
     columns: ["docNo", "soDate", "ref", "agent", "debtor", "soTotal", "salesLoc", "balance", "processing", "reqDate", "itemGroup", "itemCode", "detail", "detail2", "unitPrice", "lineQty",
       "proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
     hidden: ["proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
   },
-  { key: "general", label: "Overview", icon: "dashboard", columns: ["order", "proceed", "items", "stock", "delivery", "payment", "pic", "problems"] },
+  { key: "general", label: "Overview", icon: "dashboard", columns: ["order", "soDate", "items", "stock", "delivery", "payment", "pic", "problems", "proceed"], hidden: ["proceed"], widths: { order: 128, soDate: 100, items: 112, stock: 104, delivery: 150, payment: 104, pic: 96, problems: 88 } },
   { key: "payment", label: "Payment", icon: "account_balance_wallet", columns: ["order", "value", "paid", "balance", "rcpt", "payDue", "payment", "hold"] },
   { key: "stock", label: "Stock", icon: "inventory_2", columns: ["order", "items", "po", "eta", "sdo", "grnNo", "stock"] },
   { key: "warehouse", label: "Warehouse", icon: "warehouse", columns: ["order", "items", "grnNo", "loc", "load", "delivery"] },
@@ -251,7 +251,7 @@ function lineCell(r: RegisterRow, pick: (l: OrderLine) => string | null | undefi
 export const COLUMNS: Record<string, Column> = {
   docNo: { key: "docNo", label: "Doc. No.", width: "110px", cell: (r) => ({ t: `SO-${r.so}`, fw: 600, fg: "ink" }) },
   soDate: { key: "soDate", label: "Date", width: "100px", cell: (r) => dayCell(r.ordered, 400) ?? NOT_RECORDED },
-  ref: { key: "ref", label: "Ref No.", width: "120px", cell: (r) => docs(r.o.source_ref ?? []) },
+  ref: { key: "ref", label: "Ref No.", width: "120px", cell: (r) => r.o.source_ref?.some(Boolean) ? docs(r.o.source_ref) : NOT_RECORDED },
   agent: { key: "agent", label: "Agent", width: "120px", filterable: true, cell: (r) => textCell(r.o.salespersons?.name) },
   debtor: { key: "debtor", label: "Debtor Name", width: "minmax(170px,1fr)", cell: (r) => (r.customer ? { t: r.customer, title: r.customer } : NOT_RECORDED) },
   soTotal: {
@@ -295,22 +295,22 @@ export const COLUMNS: Record<string, Column> = {
   },
   channel: {
     key: "channel", label: "Sales location", width: "minmax(120px,1fr)",
-    cell: (r) => ({ t: salesLocationOf(r.o) || "", sub: r.o.salespersons?.name?.trim() || "" }),
+    cell: (r) => ({ t: salesLocationOf(r.o) || "Not recorded", sub: r.o.salespersons?.name?.trim() || "Not recorded" }),
   },
   dloc: {
     key: "dloc", label: "Delivery location", width: "minmax(170px,1fr)",
     cell: (r) => {
       const city = r.o.customer_address_city?.trim();
       const state = r.o.customer_address_state?.trim();
-      return city || state ? { t: city || "", sub: state || "" } : NOT_RECORDED;
+      return city || state ? { t: city || "Not recorded", sub: state || "Not recorded" } : NOT_RECORDED;
     },
   },
   reqDate: {
     /* Version 1's preserved request (COPY "SO table and filters" / "SO requested-date
        header"): two header lines, never `ETA` (Logistics ETA is a separate fact;
        owner 14 Oct 2026). The day and its weekday; `Delivered` once delivered. */
-    key: "reqDate", label: "Customer Original Delivery Date", width: "210px",
-    head: ["Customer Original", "Delivery Date"],
+    key: "reqDate", label: "Customer’s original requested delivery", width: "140px",
+    head: ["Customer’s original", "requested delivery"],
     cell: (r) => {
       const c = dayCell(r.customerDelivery);
       if (!c) return NOT_RECORDED;
@@ -325,7 +325,7 @@ export const COLUMNS: Record<string, Column> = {
       const eta = supplierEta(r);
       return {
         t: `${inn}/${total} in`, pill: true, tone: inn === total ? "ok" : "warn",
-        sub: inn === total ? undefined : eta ? `ETA ${shortDay(eta)}` : undefined,
+        sub: inn === total ? undefined : eta ? `ETA ${shortDay(eta)}` : "ETA Not recorded",
         subTone: "muted",
       };
     },

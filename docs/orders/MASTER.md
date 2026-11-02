@@ -1,56 +1,21 @@
 # ORDERS — MASTER
 
+
+## Whole Sales Order UI integration ·2Nov2026 · branch verification
+
+**BUILT ON FRONTEND BRANCH / NOT YET MERGED OR DEPLOYED.** This integrates the reviewed Tasks correction against main `7058c36e5`; main's264px Summary/four current-list KPIs, table roles,2:1 real-PDF record and shared Modal fullscreen/Escape/focus return remain. The wide inline SO PDF card now follows the current340px reference with internal document scroll; narrow stacking and fullscreen sizing remain separate. The Summary month control and shared toolbar controls use the admitted6px control family. Quick reference reuses the shared quick-view Drawer with its560px dark identity header and focus/Escape handling. Source-owned Route party cards have one recommended Now without suppressing parallel actions; staff identity uses the shared Shell palette.
+
+The existing Overview is the default fit-capable view: order number then SO record date, Items, Stock, Delivery, Payment, PIC and Problems. Proceed date remains optional. Measured starting widths for this view use the existing grid’s70%/52px fit bounds. The shared grid reserves a stable scrollbar gutter and applies the same computed tracks to flat-table colgroups, preventing intrinsic cell content from silently widening the table. The PDF scrolling surfaces likewise reserve their gutter before async page replacement, preserving100% paper fit without capping enlarged pages. The full16-column Sales Order view remains selectable; its facts, filters, exports and per-view layouts/widths are retained. Explicit `cols` links win. A legacy unversioned saved `so` pointer no longer forces the old wide default; its stored data is not deleted. New explicit `Save as my view` records carry `layoutVersion:2`, so a deliberately saved wide view still reopens. This is an implementation of the current default-fit contract, not a new business ruling or a changed read population.
+
+Tasks list/opened content and PO's admitted embedded sender reuse the current shared kit. PO batch/bundle, Repair Order and Purchase Return's existing send surfaces share Download / WhatsApp or Email / Record the result while retaining their own writers, permissions, version checks, partial results, proof and retries. No Return/Repair Work admission is invented. Source/error/empty/loading states, Route/Timeline, quick card, exact PDF, draft-tab retention and desktop/narrow layouts are checked locally with TEST fixtures. Public CI, controller integration/deployment and authenticated production acceptance remain separate release evidence; local previews do not prove real sends or production completion.
+
+## Current Summary placement · owner2Nov2026
+
+**RULING / frontend delivery commissioned:** the four current-list facts `Total Orders`, `Revenue`, `Outstanding`, `Paid` belong at the top of the existing shared Summary, using its plain label/value rows. Remove their separate cards above the table. This applies the existing accepted-template law that money totals live in Summary; it does not change their arithmetic. Their scope is the current `Open` / `Delivered` / `All` list and its filters, identified separately from the existing month picker. The month picker continues to govern only the proceeded-month, category, delivery and problem facts below it; it must not silently change list totals. Summary's existing collapse/overlay, scroll and keyboard behaviour stays. No new component, backend writer or permission is introduced. Implementation/release evidence remains attached to PR#2177; re-measure its current checks, merge and production state before quoting completion.
+
 ## Current shared UI intake ·30Oct2026
 
 The owner commissioned kit/rule publication first, then separate frontend page work. Follow [UI MASTER current template](../ui/MASTER.md#current-shared-template--owner-adoption-30-oct-2026) and its30Oct reconciliation for Shell, table, surfaces, document-card composition and Send task presentation. These replace conflicting older visual measurements and blanket50:50 document-bearing record presentation below; historical build evidence is not current visual law. Lists stay lists; document-free objects do not acquire a PDF. Module business facts, saved document versions, permissions, writers, approvals and downstream ownership remain unchanged. No frontend migration, backend change or production verification is claimed by this intake. All modules consume the same Shell and shared components; no local kit or task engine.
-
-## 30Oct frontend correction · review branch ·2Nov2026
-
-**BUILT ON REVIEW BRANCH / NOT OWNER-ACCEPTED / NOT MERGED OR DEPLOYED.**
-`codex/sales-order-30oct-frontend`, isolated checkout
-`/Users/chaichiewlim/carres-worktrees/sales-order-30oct-frontend`, based on fetched
-`origin/main` `e4b518a27`. Desktop uncommitted work is untouched. A subsequent fetch
-encountered DNS timeout; this record does not claim a newer remote authority was verified.
-
-- Reused the shared Operations Shell/PortalSidebar, DataGrid, Button/field recipe,
-  Block surface, DialogFrame-backed Drawer/Modal, Tasks and PdfPreview. Changed
-  shared measurements once: Summary264, Tasks340, surface8/control6, CAPS11 headers40,
-  current title/colour/avatar roles. `/ui` reads the SO column configuration directly.
-- Default SO columns fit their actual desktop canvas proportionally, with the70%/52px
-  floor; explicit personal widths retain contained scroll. Goods expansion keeps Item,
-  specification, separate Qty and owning supplier facts. Stored document identities,
-  list permissions, selection, filtering, sorting and return context are preserved.
-- Record content uses2:1 with the actual PDF, stacking below820px available content.
-  Shared PDF zoom/expand uses the same file, app-window DialogFrame, Escape/close,
-  scroll/zoom retention and focus return. Issued historical files still win; preview
-  generation never changes saved business state or the Print/Download data source.
-- Route Overview now groups the existing source nodes into Purchasing/Supplier,
-  Warehouse, Logistics and Payment, with Loan only when its nodes exist. The same
-  per-line goods facts remain inside the relevant party card and the existing detailed
-  route; one visual Now focuses existing open/problem work without serialising gates.
-  Timeline remains read-only. This is presentation, not a new route/state engine.
-
-**Local frontend evidence:** `output/sales-order-30oct-review/` holds full-page/viewport
-PNG evidence and measured results, using existing TEST fixtures (not production proof).
-At1440/1164/1025 the default table matches its722/1074/935px canvas, headers40; at390
-both list and record have zero page-level sideways overflow, with table-contained scroll.
-The measured record columns are658.656/329.344px on1000px available content. PDF expand,
-zoom retention, Escape, focus return, route/timeline and distinct failed/denied/empty reads
-were walked locally. Targeted component/behaviour checks pass; release/owner acceptance
-and authenticated real-data verification remain owed. No fixture transaction proves a
-backend capability or a successful external send.
-
-**IT handoff — existing upstream/downstream boundary, still owed:** supply the governed
-Journey slot facts/admission (UI MASTER's missing Ops§4 source remains unresolved), exact
-source-backed Map/Documents adapters and production PDF/version/permission integration.
-The frontend must not infer `PO sent`, customer confirmation, early-offer applicability,
-DO issue, delivery proof/completion or Work closure from node position, date or prototype
-booleans. The existing detailed Steps/Details doors remain until those facts and exact
-adapters are available; this branch does not claim the entire Route target complete.
-Existing amendment/approval, money, allocation, Delivery and owner-resolution gaps remain
-with their named modules/IT. No API, database, migration, business rule or production data
-was changed in this frontend correction. Required owner/design review precedes merge and
-release; shared-kit authority remains the planner's ONE UI MASTER.
 
 ## Current Order Route presentation — owner24Oct2026
 
@@ -60,6 +25,8 @@ One Now is the recommended current focus; parallel procurement, booking, collect
 
 Historical group-band dimensions/status evidence below describes the old presentation, not a second current design. Detailed business truths/readers remain binding. Missing values now show nothing; failure and required-field messages remain explicit. Document separator shape follows current COPY; allocator policy and stored identities are not changed by the template. No application implementation, production verification or Receiving#2111 work is commissioned by this reconciliation.
 
+
+**Scoped frontend implementation · [PR#2177](https://github.com/wenwei4046/Carres-Portal-v2/pull/2177).** The commissioned30Oct frontend is reconciled to the current UI MASTER, the2Nov Summary ruling above and IT main482a960e9. It uses the shared dimensions and palette, party-oriented Order Route,2:1 facts/real-PDF record, zoom and app-window document viewer; Escape returns the document, original drawer when used, and opener focus. Existing order entry, amendments, permissions, quantities, money, numbering, issued historical PDFs and owning backend writers remain authoritative. No prototype engine or sample data is ported. Local2Nov evidence: frontend typecheck;125 kit/record-contract checks;22 Summary/list unit checks;18 list browser checks with1 existing skip;5 follow-up Summary264 checks with1 existing skip;3 PO header-fit checks;4 PDF browser checks. Linux source baselines are generated by Actions41388896885 from e93b2844684cfbcd6105dc5bfb224ebcf550f7e7. The linked PR holds exact-head CI/Preview, merge and production-release evidence; the production marker at `https://erp.carresofficial.com/__carres_deploy.json` must agree with the deployed commit. Local evidence never substitutes for those checks. Owner explicitly authorized this public source/test/MASTER publication and merge/deploy; no ZIP, raw sample attachment or credential is published.
 
 **Design handoff21Oct2026:** Purchasing export28 includes the SO Outright v12 and DO Unit-reader examples. Shared measurements, states and the resolved21Oct baseline are maintained only in [UI MASTER](../ui/MASTER.md#purchasing-design-handoff--21-oct-2026--it-entry); this is not an independent claim that the whole Sales Order design was newly reviewed. IT owns backend implementation.
 

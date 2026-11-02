@@ -48,12 +48,12 @@ export default function Modal({
    * measurement that produced it. A fourth width is a decision for §8's width
    * table, not for a caller.
    */
-  width?: "wide" | "viewer" | "document";
+  width?: "wide" | "viewer";
   children: ReactNode;
   /** Persistent trigger for a dialog opened by a menu item that unmounts. */
   returnFocusRef?: RefObject<HTMLElement>;
   /** Existing task-wide review: full surface; its owning form alone closes it. */
-  variant?: "task-review";
+  variant?: "task-review" | "document-viewer";
 }) {
   return (
     <DialogFrame

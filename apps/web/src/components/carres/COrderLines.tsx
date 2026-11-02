@@ -54,7 +54,7 @@ export interface COrderTotal {
 }
 
 /* The header label's own width is the column's floor (01 §5.1). */
-const HEAD = "h-10 whitespace-nowrap border-b border-c-head-line bg-c-band px-[5px] align-middle text-[11px] font-semibold uppercase tracking-[.04em] text-c-heading";
+const HEAD = "h-10 whitespace-nowrap border-b border-c-head-line bg-c-band px-[5px] align-middle text-[12px] font-medium text-c-secondary";
 const CELL = "whitespace-nowrap px-[5px] pb-[4px] pt-[5px] align-top";
 const FIRST = "pl-[14px]";
 const LAST = "pr-[14px]";
@@ -123,14 +123,14 @@ export default function COrderLines({
         {totals.length > 0 && (
           <tbody>
             {totals.map((t) => {
-              const cell = "whitespace-nowrap border-b border-c-footer-line px-[5px] align-middle";
+              const cell = `whitespace-nowrap border-b border-c-footer-line px-[5px] align-middle ${t.warn ? "bg-c-warn-bg" : ""}`;
               return (
                 <tr key={t.key} role="row" style={{ height: 44 }}>
                   <td className={`${cell} ${FIRST}`} />
                   <td className={`${cell} text-c-secondary ${t.strong ? "font-medium" : ""}`}>{t.label}</td>
                   <td className={`${cell} text-right text-c-ink`}>{t.qty}</td>
                   <td className={cell} />
-                  <td className={`${cell} ${LAST} text-right ${t.strong ? "font-medium" : ""} text-c-ink`}>{t.amount}</td>
+                  <td className={`${cell} ${LAST} text-right ${t.strong ? "font-medium" : ""} ${t.warn ? "text-c-warn-fg" : "text-c-ink"}`}>{t.amount}</td>
                 </tr>
               );
             })}

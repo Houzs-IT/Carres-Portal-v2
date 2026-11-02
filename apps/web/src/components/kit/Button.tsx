@@ -22,7 +22,7 @@ const VARIANT: Record<Variant, string> = {
  *  36px from 768px, 44px below, where a finger presses it. */
 const SIZE: Record<Size, string> = {
   md: "h-11 px-3 gap-2 min-[768px]:h-8",
-  sm: "h-11 px-2 gap-1 min-[768px]:h-8",
+  sm: "h-11 px-2 gap-1 min-[768px]:h-7",
   touch: "h-11 px-3 gap-1.5 min-[768px]:h-9",
 };
 
@@ -77,7 +77,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       aria-busy={loading || undefined}
       data-kit="button"
       className={
-        `inline-flex items-center justify-center whitespace-nowrap ${iconOnly || shape === "pill" ? "rounded-full" : "rounded-[var(--control-radius)]"} text-body ${variant === "primary" ? "font-semibold" : "font-medium"} ` +
+        `inline-flex items-center justify-center whitespace-nowrap ${iconOnly || shape === "pill" ? "rounded-full" : "rounded-md"} text-body ${variant === "primary" ? "font-semibold" : "font-medium"} ` +
         "transition-[filter,background-color] " +
         "focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:2px] " +
         "disabled:opacity-[0.45] disabled:cursor-not-allowed " +

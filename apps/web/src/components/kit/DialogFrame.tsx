@@ -94,7 +94,6 @@ const CENTRE_WIDTH = {
   /** 2026-09-11 — a PICTURE. 880px, measured against the height cap; see the
    *  config. A viewer is not a question and not a list. */
   viewer: "max-w-modal-viewer",
-  document: "!inset-0 !left-0 !top-0 !max-h-none !max-w-none !translate-x-0 !translate-y-0",
 } as const;
 
 export type DialogWidth = keyof typeof CENTRE_WIDTH;
@@ -120,7 +119,7 @@ export default function DialogFrame({
   title: string;
   description?: string;
   headerActions?: ReactNode;
-  variant?: "quick-view" | "compact-card" | "task-review" | "summary-panel" | "tasks-panel";
+  variant?: "quick-view" | "compact-card" | "task-review" | "document-viewer" | "summary-panel" | "tasks-panel";
   /** The actions. One `primary` — §3.4 bans two blue actions in one block. */
   footer?: ReactNode;
   /** The `data-kit` value, so a test can tell a modal from a drawer. */
@@ -130,7 +129,7 @@ export default function DialogFrame({
    * picture. Its ABSENCE is the 512px default. There is no default value and
    * no way to express a number.
    */
-  width?: "wide" | "viewer" | "document";
+  width?: "wide" | "viewer";
   children: ReactNode;
   /** Persistent trigger for a dialog opened by a menu item that unmounts. */
   returnFocusRef?: RefObject<HTMLElement>;
@@ -140,7 +139,7 @@ export default function DialogFrame({
    * in the kit at all — §10.1's rule, kept even though a class is not a word. */
   const widthClass =
     place === "centre"
-      ? CENTRE_WIDTH[width === "wide" || width === "viewer" || width === "document" ? width : "standard"]
+      ? CENTRE_WIDTH[width === "wide" || width === "viewer" ? width : "standard"]
       : SIDE_WIDTH[variant === "summary-panel" ? "summary" : variant === "tasks-panel" ? "tasks" : variant === "compact-card" ? "card" : "standard"];
 
   /* WHO HAD FOCUS WHEN THIS OPENED. Captured on the OPEN transition, because
@@ -149,6 +148,8 @@ export default function DialogFrame({
   /* 03 §8 already requires this full surface. The module retains its existing
      Save/Cancel and submission guards; Escape/outside must not discard work. */
   const taskReview = variant === "task-review";
+  const documentViewer = variant === "document-viewer";
+  const fullSurface = taskReview || documentViewer;
   const contextualPanel = variant === "summary-panel" || variant === "tasks-panel";
   const holdPanel = usePanelDialogPresence();
   useLayoutEffect(() => {
@@ -177,7 +178,7 @@ export default function DialogFrame({
           /* Radix warns when Content carries no Description. Passing undefined
            * explicitly is its documented way of saying "there is none". */
           aria-describedby={description ? undefined : undefined}
-          className={`${taskReview ? "fixed inset-0 flex flex-col bg-white text-c-ink" : `${SURFACE} ${PLACE[place]} ${widthClass}`} ${Z_DIALOG} focus:outline-none`}
+          className={`${fullSurface ? "fixed inset-0 flex flex-col bg-white text-c-ink" : `${SURFACE} ${PLACE[place]} ${widthClass}`} ${Z_DIALOG} focus:outline-none`}
           onEscapeKeyDown={taskReview ? (event) => event.preventDefault() : undefined}
           onPointerDownOutside={taskReview ? (event) => event.preventDefault() : undefined}
           onOpenAutoFocus={(event) => {
@@ -197,6 +198,12 @@ export default function DialogFrame({
                all (`composeEventHandlers` checks `defaultPrevented`), so the
                null-trigger path that dropped focus on `<body>` never fires. */
             event.preventDefault();
+            // A document moves back from this surface before its trigger
+            // remounts. Resolve the explicit return ref after that commit.
+            if (documentViewer && returnFocusRef) {
+              requestAnimationFrame(() => returnFocusRef.current?.focus());
+              return;
+            }
             // A responsive panel may have moved its focused input into the
             // inline canvas. Keep that valid focus instead of the old opener.
             const active = document.activeElement;
@@ -218,14 +225,14 @@ export default function DialogFrame({
             }
           }}
         >
-          <header className={variant === "compact-card" || contextualPanel || taskReview ? "sr-only" : "flex items-start justify-between gap-4 rounded-t-lg border-b border-c-section-line [padding:var(--card-pad)]"}>
+          <header className={variant === "compact-card" || contextualPanel || taskReview ? "sr-only" : variant === "quick-view" ? "flex h-14 shrink-0 items-center justify-between gap-4 bg-c-body pl-5 pr-4" : "flex items-start justify-between gap-4 rounded-t-lg border-b border-c-section-line [padding:var(--card-pad)]"}>
             <div className={`flex flex-col gap-1 ${variant === "quick-view" ? "min-w-0 flex-1" : ""}`}>
               <Dialog.Title
-                className={`text-strong text-c-ink ${variant === "quick-view" ? "truncate" : ""}`}
+                className={variant === "quick-view" ? "truncate text-body font-medium text-white" : "text-strong text-c-ink"}
                 title={variant === "quick-view" && typeof title === "string" ? title : undefined}
               >{title}</Dialog.Title>
               {description && (
-                <Dialog.Description className="text-meta text-c-secondary">
+                <Dialog.Description className={variant === "quick-view" ? "text-meta text-white/75" : "text-meta text-c-secondary"}>
                   {description}
                 </Dialog.Description>
               )}
@@ -235,7 +242,7 @@ export default function DialogFrame({
               aria-label="Close"
               title="Close"
               data-kit="dialog-close"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-c-secondary hover:bg-c-hover focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:-2px] md:h-8 md:w-8"
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:-2px] md:h-8 md:w-8 ${variant === "quick-view" ? "text-white hover:bg-white/10" : "text-c-secondary hover:bg-c-hover"}`}
             >
               <Icon name="close" size={16} />
             </Dialog.Close></div>}
@@ -244,7 +251,7 @@ export default function DialogFrame({
           {/* The compact card's own identity band reaches the corners, so its
               scroller clips to the 8px corner. Never the whole surface: a list
               portaled into this dialog must not be cut off. */}
-          <div className={taskReview ? "flex min-h-0 flex-1 flex-col" : contextualPanel ? "flex min-h-0 flex-1 flex-col" : variant === "compact-card" ? "flex-1 overflow-y-auto rounded-lg" : "flex-1 overflow-y-auto p-4"}>{children}</div>
+          <div className={fullSurface ? "flex min-h-0 flex-1 flex-col" : contextualPanel ? "flex min-h-0 flex-1 flex-col" : variant === "compact-card" ? "flex-1 overflow-y-auto rounded-lg" : "flex-1 overflow-y-auto p-4"}>{children}</div>
 
           {footer && (
             <footer className="flex items-center justify-end gap-2 rounded-b-lg border-t border-c-section-line [padding:var(--card-pad)]">

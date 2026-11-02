@@ -47,10 +47,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./purchase-orders/purchase-order-detail.css";
 import { DialogContainerProvider } from "@/components/kit/dialog-container";
 import "./sales-order-detail-theme.css";
+import "./sales-order-record.css";
+import PdfPreview from "@/components/kit/PdfPreview";
+import KitModal from "@/components/kit/Modal";
+import KitButton from "@/components/kit/Button";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import PdfPreview from "@/components/kit/PdfPreview";
-import Button from "@/components/kit/Button";
+import * as pdfjs from "pdfjs-dist";
+import { paintPdfPages } from "@/lib/pdf/paint";
 import { toast } from "sonner";
 import {
   BUILDING_TYPE_OPTIONS,
@@ -95,7 +99,7 @@ import { addonSizeOptions, disposalUnitSizes } from "../dealer/new-order/draft";
 import { offerableAddons } from "../dealer/pos/AddonsPanel";
 import Loading from "@/components/kit/Loading";
 import { serviceCodeWord } from "@/lib/service-code";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { useDeliveryDays, useDeliveryLeads, useOrderCollectionTiming } from "@/lib/deadline-queries";
 import { composeAddress } from "@/data/malaysia-postcodes";
 import { appTodayIso, fmtDate, fmtDateShort } from "@/lib/fmt-date";
@@ -148,6 +152,7 @@ import { salesOrderRouteInputOf, type RouteOrderDetail } from "./sales-order-rou
 import MIcon from "@/components/carres/MIcon";
 import COrderLines, { type COrderLine } from "@/components/carres/COrderLines";
 import { atSalePaymentWord, payMethodWord, viewSlip } from "@/lib/payment-display";
+import { useShellTasks } from "./components/ShellTasks";
 import { AgreementForm } from "./customer-agreement";
 import { ChangeReview, WaitingAmendment, WithdrawForm } from "./so-detail/AmendmentPanels";
 import SoHeader from "./so-detail/SoHeader";
@@ -159,7 +164,11 @@ import {
 } from "./so-detail/ui";
 import { lineName } from "./sales-order-facts";
 
-
+/* pdf.js worker ships inside the package — nothing fetched from a CDN. */
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * The draft — ONE shape for the OBJECT form and CREATE (the same slots).
@@ -326,23 +335,110 @@ export function contentWidthOf(node: HTMLElement): number {
   return Math.max(0, Math.round(node.clientWidth - pad));
 }
 
-/** Source adapter only: the shared PdfPreview owns painting, zoom and expand. */
-function useSalesOrderPreview(data: SalesOrderTemplateData | null) {
-  const [result, setResult] = useState<{ data: SalesOrderTemplateData; url: string } | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [attempt, retry] = useState(0);
+/** A sales order below this is unreadable; it scrolls in the pane instead. */
+
+
+function usePdfCanvases(data: SalesOrderTemplateData | null, zoom = 1, onPaint?: () => void) {
+  const painted = useRef(onPaint);
+  painted.current = onPaint;
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfAttempt, setPdfAttempt] = useState(0);
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  /* The pane unmounts whenever the object opens Revisions / History / Order
+     Route. Coming back, `data` has not changed — so without this the operator
+     returned to an empty sheet of paper. */
+  const [paneEpoch, setPaneEpoch] = useState(0);
+  /* ⭐ THE PAPER IS RE-CUT WHEN THE PANE CHANGES WIDTH (2026-09-11).
+     The canvases were sized ONCE, from `pane.clientWidth` at render time, and
+     the effect depended only on `[data, paneEpoch]`. So every later width
+     change left the old bitmap in place: drag the window narrower, or open a
+     side panel beside the document, and a page rendered for a wider pane hung
+     over its container and was CLIPPED. Nothing redrew it, because nothing was
+     watching. A `ResizeObserver` is what was missing — the width joins the
+     effect's dependencies, so the paper is re-cut exactly when the paper's
+     container changes and at no other time. */
+  const [paneWidth, setPaneWidth] = useState(0);
+  const roRef = useRef<(() => void) | null>(null);
+  const setPane = useCallback((node: HTMLDivElement | null) => {
+    paneRef.current = node;
+    roRef.current?.();
+    roRef.current = null;
+    if (!node) return;
+    setPaneEpoch((n) => n + 1);
+    setPaneWidth(contentWidthOf(node));
+    /* Coalesced on a TIMER, deliberately not `requestAnimationFrame`. A drag
+       fires this dozens of times a second and a PDF render per frame would
+       make the drag itself the slow thing — but rAF does not run in a hidden
+       or background tab, so a width change that happened while the tab was
+       away would never be applied, and the operator would come back to a page
+       cut for the old width. That is the original bug returning through a
+       different door. A timeout fires either way. (Measured: in a hidden tab
+       `requestAnimationFrame` never ran and `ResizeObserver` never delivered —
+       so the redraw must not depend on the frame loop to be CORRECT, only to
+       be smooth.) */
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    /* A renderer without `ResizeObserver` (jsdom, or any non-DOM host) still
+       gets a correctly sized first cut from the measurement above; it simply
+       does not get the re-cut. Degrade, never abort — a missing observer must
+       not take the document down with it. */
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setPaneWidth(contentWidthOf(node)), 120);
+    });
+    ro.observe(node);
+    roRef.current = () => {
+      clearTimeout(timer);
+      ro.disconnect();
+    };
+  }, []);
+  useEffect(() => () => roRef.current?.(), []);
   useEffect(() => {
     let cancelled = false;
-    let url: string | undefined;
-    setFailed(false);
-    if (data) void renderSalesOrderPdf(data).then((blob) => {
-      if (cancelled) return;
-      url = URL.createObjectURL(blob);
-      setResult({ data, url });
-    }).catch(() => { if (!cancelled) setFailed(true); });
-    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
-  }, [data, attempt]);
-  return { url: result?.data === data ? result?.url : null, failed, retry: () => retry(n => n + 1) };
+    let loading: pdfjs.PDFDocumentLoadingTask | undefined;
+    let renderTask: pdfjs.RenderTask | undefined;
+    if (!data) {
+      paneRef.current?.replaceChildren();
+      return;
+    }
+    setPdfBusy(true);
+    (async () => {
+      try {
+        const blob = await renderSalesOrderPdf(data);
+        if (cancelled) return;
+        setPdfError(null);
+        const bytes = await blob.arrayBuffer();
+        if (cancelled) return;
+        loading = pdfjs.getDocument({ data: bytes });
+        const doc = await loading.promise;
+        if (cancelled) return;
+        const pane = paneRef.current;
+        if (!pane) return;
+        pane.replaceChildren();
+        /* The CONTENT box, not the padding box. `clientWidth` includes the
+           pane's own horizontal padding, so scaling to it drew every page
+           wider than the space it had to sit in — the original clipping, and
+           it was there at every width, not only narrow ones. */
+        const width = Math.max(contentWidthOf(pane), 1) * zoom;
+        await paintPdfPages(doc, pane, width, () => cancelled, (task) => { renderTask = task; });
+        if (!cancelled) painted.current?.();
+      } catch (e) {
+        if (!cancelled) setPdfError(e instanceof ApiError ? e.message : String(e));
+      } finally {
+        if (!cancelled) setPdfBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+      void loading?.destroy().catch(() => {});
+    };
+  }, [data, paneEpoch, paneWidth, zoom, pdfAttempt]);
+  /* No blob URL is minted here any more. The PANE paints bytes; PRINT owns its
+     own blob, built from the SAVED data — one template, one call path, two
+     purposes that must not share a handle. */
+  return { pdfError, pdfBusy, setPane, retryPdf: () => setPdfAttempt(n => n + 1) };
 }
 
 /** 300ms debounce for the LIVE draft preview (the card's own number). */
@@ -1438,7 +1534,19 @@ function SalesOrderWorkspaceBody() {
     return debouncedDraftData;
   }, [mode, viewedRevision, base, debouncedDraftData, addonNameByKey]);
 
-  const preview = useSalesOrderPreview(templateData);
+  const [pdfZoom, setPdfZoom] = useState(1);
+  const [pdfExpanded, setPdfExpanded] = useState(false);
+  const pdfExpandButton = useRef<HTMLButtonElement>(null);
+  const pdfReturnDrawer = useRef(false);
+  const pdfScroller = useRef<HTMLDivElement>(null);
+  const pdfReturnScroll = useRef<number | null>(null);
+  const restorePdfScroll = () => {
+    if (!pdfExpanded && pdfReturnScroll.current !== null && pdfScroller.current) {
+      pdfScroller.current.scrollTop = pdfReturnScroll.current;
+      pdfReturnScroll.current = null;
+    }
+  };
+  const { setPane, pdfError, pdfBusy, retryPdf } = usePdfCanvases(objectView === "Sales Order" || pdfOpen || pdfExpanded ? templateData : null, pdfZoom, restorePdfScroll);
 
   /* ⭐ PRINT IS THE SAVED TRUTH — owner ruling 2026-08-15.
      Preview-equals-Print is asserted in the SAVED state only. While the form is
@@ -2590,12 +2698,12 @@ function SalesOrderWorkspaceBody() {
             <CInput id="so-floor" label={`Floor (Max is ${MAX_DELIVERY_FLOOR}rd Floor)`} type="number" min={1} max={MAX_DELIVERY_FLOOR}
               value={draft.delivery_floor == null ? "" : String(draft.delivery_floor)}
               onChange={(e) => setField("delivery_floor", e.target.value === "" ? null : Math.min(MAX_DELIVERY_FLOOR, Math.max(1, Number(e.target.value) || 1)))} />,
-            baseline.delivery_floor == null ? "Not recorded" : String(baseline.delivery_floor))}
+            baseline.delivery_floor == null ? "" : String(baseline.delivery_floor))}
           {row("lift", "Lift", factOf(draft.delivery_has_lift == null ? "" : draft.delivery_has_lift ? "Has lift" : "No lift"), ["delivery_has_lift"],
             <CSelect id="so-lift" label="Lift available?" value={draft.delivery_has_lift == null ? "" : draft.delivery_has_lift ? "Has lift" : "No lift"}
               onChange={(v) => setField("delivery_has_lift", v === "Has lift")}
               options={LIFT_OPTIONS.map((o) => ({ value: o, label: o }))} />,
-            baseline.delivery_has_lift == null ? "Not recorded" : baseline.delivery_has_lift ? "Has lift" : "No lift")}
+            baseline.delivery_has_lift == null ? "" : baseline.delivery_has_lift ? "Has lift" : "No lift")}
           {mode === "object" && editing &&
             row("stair-items", "Items needing stair carry",
               factOf(draft.delivery_stair_items == null ? "" : String(draft.delivery_stair_items)), ["delivery_stair_items"],
@@ -2912,7 +3020,7 @@ function SalesOrderWorkspaceBody() {
     <div className="sticky top-0 z-[6] flex flex-col gap-2 rounded-lg border border-c-btn-border bg-c-card px-3 py-2.5" style={{ boxShadow: "var(--shadow-menu)" }} data-testid="amendment-bar">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="flex items-center gap-1.5 text-[13px] font-semibold text-c-ink" data-testid="change-count">
-          <MIcon name="edit_note" size={18} />
+          <MIcon name="edit_note" size={20} />
           Amendment · {changeCount} {changeCount === 1 ? "change" : "changes"}
         </span>
         <span className="inline-flex items-center gap-1 text-[12px] text-c-secondary">
@@ -2922,7 +3030,7 @@ function SalesOrderWorkspaceBody() {
         <span className="relative flex">
           <CBtn kind="normal" onClick={() => { setWhyOpen((v) => !v); setProofOpen(false); }} aria-expanded={whyOpen} data-testid="amendment-why">
             {changeReason.trim() ? "Why: written" : "Why?"}
-            <MIcon name="expand_more" size={18} className="text-c-muted" />
+            <MIcon name="expand_more" size={16} className="text-c-muted" />
           </CBtn>
           {whyOpen && (
             <DialogContainerProvider>{(setContainer) => (
@@ -3002,14 +3110,6 @@ function SalesOrderWorkspaceBody() {
       )}
     </div>
   );
-
-  const documentPreview = <div className="relative flex h-[340px] min-h-0 flex-col" data-testid="so-document-card">
-    {storedDocumentUrl || preview.url ? <PdfPreview src={storedDocumentUrl || preview.url!} title="Sales Order document" data-testid="pdf-pane" /> :
-      <div role="status" className="flex items-center gap-2 text-body text-c-secondary">
-        {preview.failed ? <><span>Could not load the preview.</span><Button size="sm" onClick={preview.retry}>Try again</Button></> : "Rendering preview…"}
-      </div>}
-    {dirty && <div aria-hidden="true" data-testid="unsaved-watermark" className="pointer-events-none absolute inset-0 grid select-none place-items-center overflow-hidden"><span className="rotate-[-24deg] text-[20px] tracking-[.3em] text-c-ink/10">UNSAVED</span></div>}
-  </div>;
 
   const salesOrderTab = (
     <div className="flex flex-col gap-3" data-testid="sales-order-workspace" id="sales-order-workspace">
@@ -3093,14 +3193,53 @@ function SalesOrderWorkspaceBody() {
     },
   ];
 
+  /* Drawers open to the LEFT of an open Tasks panel (320px + the 12px gap). */
+  const tasksOpen = useShellTasks((s) => s.open);
+  const drawerRight = tasksOpen ? 364 : 12;
 
   const backTo =
     typeof location.state?.salesOrderRegisterReturn === "string" && /^\/operation\/orders(?:\?|$)/.test(location.state.salesOrderRegisterReturn)
       ? location.state.salesOrderRegisterReturn
       : "/operation/orders";
 
+  const pdfDocument = (
+    <section className="so-document-card" data-expanded={pdfExpanded || undefined} aria-label="Sales Order PDF">
+      <div className="flex min-h-10 flex-wrap items-center gap-1 border-b border-c-section-line px-2 py-1">
+        <span className="mr-auto text-[11px] font-semibold uppercase tracking-[.04em]">Sales Order PDF</span>
+        <CIconBtn icon="remove" label="Zoom out" size={32} disabled={pdfZoom <= 0.5} onClick={() => setPdfZoom(n => Math.max(0.5, n - 0.25))} />
+        <button type="button" className="rounded-md px-1 text-meta" aria-label="Fit width" onClick={() => setPdfZoom(1)}>{Math.round(pdfZoom * 100)}%</button>
+        <CIconBtn icon="add" label="Zoom in" size={32} disabled={pdfZoom >= 3} onClick={() => setPdfZoom(n => Math.min(3, n + 0.25))} />
+        {!pdfExpanded && <KitButton ref={pdfExpandButton} size="sm" icon="fullscreen" iconOnly aria-label="Full screen" onClick={() => { pdfReturnScroll.current = pdfScroller.current?.scrollTop ?? 0; pdfReturnDrawer.current = pdfOpen; setPdfOpen(false); setPdfExpanded(true); }} />}
+      </div>
+      <div ref={pdfScroller} className="min-h-0 min-w-0 flex-1 overflow-auto p-2 [scrollbar-gutter:stable]">
+        {liveAmendment && !liveAmendment.stale && (
+          <div className="mb-3 rounded-lg bg-c-warn-bg px-3 py-2 text-[13px] font-medium text-c-warn-fg" data-testid="pending-amendment-banner">
+            Amendment pending approval{pendingDeliveryDate ? `: delivery date → ${fmtDate(pendingDeliveryDate)}` : ""}. The document shows the order as it is now.
+          </div>
+        )}
+        <div className="relative" aria-label="Sales Order document">
+          {storedDocumentUrl ? (
+            <PdfPreview src={storedDocumentUrl} zoom={pdfZoom} controls={false} onReady={(ready) => { if (ready) restorePdfScroll(); }} title={`The document (${viewedRevision?.revision ?? ""}) was issued as`} data-testid="issued-document-pane" />
+          ) : (
+            <>
+              {pdfBusy && <Loading label="Rendering preview" />}
+              {pdfError && <div role="alert" className="pb-2 text-[13px] text-c-warn-fg" data-testid="pdf-error"><p>The document could not be drawn. {pdfError}</p><CBtn onClick={retryPdf}>Try again</CBtn></div>}
+              <div ref={setPane} data-testid="pdf-pane" />
+            </>
+          )}
+          {dirty && (
+            <div aria-hidden="true" data-testid="unsaved-watermark" className="pointer-events-none absolute inset-0 grid select-none place-items-center overflow-hidden">
+              <span className="rotate-[-24deg] scale-[2.4] text-[20px] tracking-[0.3em] text-c-ink/10">UNSAVED</span>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </section>
+  );
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3" data-so-theme="carres" data-testid="so-detail">
+    <div className="so-record-root flex min-h-0 min-w-0 flex-1 flex-col gap-3" data-so-theme="carres" data-testid="so-detail">
       <SoHeader
         identity={soWord}
         /* Capitalize up — owner ruling 2026-08-15. Display only. */
@@ -3239,17 +3378,15 @@ function SalesOrderWorkspaceBody() {
             <SalesOrderReadFailure error={detailQ.error} surface="sales-order" onRetry={() => void detailQ.refetch()} />
           </Card>
         ) : order ? (
-          <div className="so-record-canvas" data-testid="so-record-canvas">
-            <div className="so-record-document-layout" data-testid="so-record-document-layout">
-              {salesOrderTab}
-              <Card label="Sales Order document">{documentPreview}</Card>
-            </div>
+          <div className="so-record-layout" data-testid="so-record-layout">
+            <div className="min-w-0">{salesOrderTab}</div>
+            {!menuPdf && <div className="min-w-0">{!pdfExpanded && pdfDocument}</div>}
           </div>
         ) : null}
       </div>
 
       {/* ── Revision history: newest first, each a door to the full version. ── */}
-      <Drawer open={revOpen} title="Revision history" onClose={() => setRevOpen(false)} testId="revision-drawer">
+      <Drawer open={revOpen} title="Revision history" onClose={() => setRevOpen(false)} testId="revision-drawer" right={drawerRight}>
         <SalesOrderLedger
           orderReference={order ? `SO-${order.so}` : ""}
           revisions={revisions}
@@ -3299,7 +3436,8 @@ function SalesOrderWorkspaceBody() {
         open={menuPdf}
         title={mode === "oldrev" && viewedRevision ? `${soWord} · Rev ${viewedRevision.revision}` : `${soWord} · Sales Order`}
         onClose={() => setMenuPdf(false)}
-
+        width={560}
+        right={drawerRight}
         testId="pdf-drawer"
         actions={
           <>
@@ -3308,13 +3446,12 @@ function SalesOrderWorkspaceBody() {
           </>
         }
       >
-        {liveAmendment && !liveAmendment.stale && (
-          <div className="mb-3 rounded-lg bg-c-warn-bg px-3 py-2 text-[13px] font-medium text-c-warn-fg" data-testid="pending-amendment-banner">
-            Amendment pending approval{pendingDeliveryDate ? `: delivery date → ${fmtDate(pendingDeliveryDate)}` : ""}. The document shows the order as it is now.
-          </div>
-        )}
-        {menuPdf && documentPreview}
+        {!pdfExpanded && pdfDocument}
       </Drawer>
+
+      <KitModal open={pdfExpanded} onOpenChange={(open) => { setPdfExpanded(open); if (!open && pdfReturnDrawer.current) { pdfReturnDrawer.current = false; setPdfOpen(true); } }} title="Sales Order PDF" variant="document-viewer" returnFocusRef={pdfExpandButton}>
+        {pdfExpanded && pdfDocument}
+      </KitModal>
 
       {/* ── The confirmation before the commit — Before / After and what it starts. ── */}
       <Dialog

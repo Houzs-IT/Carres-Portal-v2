@@ -106,7 +106,7 @@ function WhoMark({ who }: { who: Who }) {
     );
   return (
     <span
-      title="Staff identity not recorded"
+      title="Not recorded"
       className="grid h-[26px] w-[26px] place-items-center rounded-full border border-dashed border-c-input-border text-[12px] text-c-muted"
     >
       ?

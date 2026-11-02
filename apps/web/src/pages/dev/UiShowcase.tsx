@@ -34,7 +34,6 @@ import Input from "@/components/kit/Input";
 import Loading from "@/components/kit/Loading";
 import Modal from "@/components/kit/Modal";
 import PdfPreview from "@/components/kit/PdfPreview";
-import { COLUMNS as SO_COLUMNS, LAYOUTS } from "@/pages/operation/so-outright/outright-columns";
 import SavedEvidenceViewer from "@/components/kit/SavedEvidenceViewer";
 import SearchInput from "@/components/kit/SearchInput";
 import Select from "@/components/kit/Select";
@@ -100,8 +99,14 @@ function Section({ id, title, note, children }: { id: string; title: string; not
 }
 
 /* ── the one listing engine in the v12 look, with the Sales Order view's columns and TEST rows ── */
-const COLUMNS: CListColumn[] = LAYOUTS.find(view => view.key === "so")!.columns.map(key => SO_COLUMNS[key]!);
-
+const COLUMNS: CListColumn[] = [
+  { key: "proceed", label: "Proceed date", width: "120px" },
+  { key: "order", label: "SO no.", width: "minmax(150px,1fr)" },
+  { key: "items", label: "Items", width: "120px" },
+  { key: "channel", label: "Sales location", width: "minmax(120px,1fr)" },
+  { key: "dloc", label: "Delivery location", width: "minmax(170px,1fr)" },
+  { key: "reqDate", label: "Customer’s original requested delivery", head: ["Customer’s original", "requested delivery"], width: "140px" },
+];
 type Row = { id: string; cells: Record<string, CCell> };
 const ROWS: Row[] = [
   {
@@ -123,7 +128,7 @@ const ROWS: Row[] = [
       items: { t: "2 pcs + 1 set", sub: "MS, SOF", subTitle: "Mattress, Sofa" },
       channel: { t: "TEST Showroom B", sub: "TEST · Staff B" },
       dloc: { t: "Kuala Lumpur", sub: "Kuala Lumpur" },
-      reqDate: { t: "", fg: "muted" },
+      reqDate: { t: "Not recorded", fg: "muted" },
     },
   },
   {
@@ -177,7 +182,7 @@ function TableExample({ narrow }: { narrow: boolean }) {
         columns={GRID_COLUMNS}
         storageKey={`carres.ui.table.${narrow ? "narrow" : "wide"}.v1`}
         rowKey={(r) => r.id}
-        rowHeight={54}
+        rowHeight={44}
         appearance="reference"
         palette="slate"
         hideToolbar
@@ -258,7 +263,7 @@ function OrderLinesExample({ narrow }: { narrow: boolean }) {
 const CELLS: Array<[string, CCell]> = [
   ["Identifier", { t: "SO-TEST-01", sub: "TEST · Customer A", fw: 600, fg: "ink" }],
   ["Date", { t: "11 Oct", sub: "Sun", subTone: "muted", fw: 500 }],
-  ["Read, nothing there", { t: "", fg: "muted" }],
+  ["Read, nothing there", { t: "Not recorded", fg: "muted" }],
   ["Read failed", { t: "Could not read", fg: "warn", title: "Could not read Payments for this order. This does not mean there is no receipt." }],
   ["No access", { t: "No access", fg: "muted", title: "You may not see this record." }],
   ["Done", { t: "6 Oct", sub: "Tue · Delivered", subTone: "ok", fw: 500 }],
@@ -289,6 +294,7 @@ function Panel2({ children }: { children: ReactNode }) {
 
 function PdfPreviewSample() {
   const [src, setSrc] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   useEffect(() => () => { if (src) URL.revokeObjectURL(src); }, [src]);
   async function openSample(broken: boolean) {
@@ -309,8 +315,12 @@ function PdfPreviewSample() {
     <div className="flex flex-wrap gap-2">
       <Button loading={loading} onClick={() => void openSample(false)}>Show preview</Button>
       <Button disabled={loading} onClick={() => void openSample(true)}>Show failed preview</Button>
+      <Button disabled={!src} onClick={() => setExpanded(true)}>Full screen</Button>
     </div>
-    {src && <div className="flex h-[70vh] min-w-0 bg-c-ground p-4"><PdfPreview src={src} title="TEST document" /></div>}
+    {src && !expanded && <div className="flex h-[70vh] min-w-0 bg-c-ground p-4"><PdfPreview src={src} title="TEST document" /></div>}
+    <Modal open={expanded} onOpenChange={setExpanded} title="TEST document" variant="document-viewer">
+      {src && <div className="flex min-h-0 flex-1 bg-c-ground p-4"><PdfPreview src={src} title="TEST document" /></div>}
+    </Modal>
   </div>;
 }
 
@@ -559,7 +569,7 @@ export default function UiShowcase() {
 
       <Section id="typography" title="Typography" note="Inter. The page heading above shows the 20/600 title once. Samples below use the running shared classes; the UI/UX MASTER owns the permitted roles. Table numbers use tabular figures.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[["15 / 500 · Card title", "text-strong", "Customer"], ["14 / 400 · Breadcrumb", "text-control", "Sales Orders"], ["13 / 400 · Body", "text-body", "TEST · Order details"], ["13 / 500 · Selected or field value", "text-body font-medium", "TEST · Selected value"], ["13 / 600 · Identifier or main action", "text-body font-semibold", "SO-TEST-01"], ["12 / 400 · Label or second line", "text-meta", "TEST · Customer A"], ["12 / 500 · Header or pill", "text-meta font-medium", "Proceed date"], ["11 / 500 · Caps label", "text-label uppercase tracking-[0.06em]", "Summary"], ["11 / 700 · Count badge", "text-label font-bold", "12"]].map(([label, className, sample]) => (
+          {[["11 / 700 · Card title", "text-label font-bold uppercase tracking-[.08em]", "Customer"], ["14 / 400 · Breadcrumb", "text-control", "Sales Orders"], ["13 / 400 · Body", "text-body", "TEST · Order details"], ["13 / 500 · Selected or field value", "text-body font-medium", "TEST · Selected value"], ["13 / 600 · Identifier or main action", "text-body font-semibold", "SO-TEST-01"], ["12 / 400 · Label or second line", "text-meta", "TEST · Customer A"], ["11 / 600 · Table header", "text-label font-semibold uppercase tracking-[.04em]", "Proceed date"], ["11 / 500 · Caps label", "text-label uppercase tracking-[0.06em]", "Summary"], ["11 / 700 · Count badge", "text-label font-bold", "12"]].map(([label, className, sample]) => (
             <div key={label} className="flex min-w-0 flex-col gap-2 rounded-lg border border-c-card-border bg-c-card p-3">
               <span className="text-meta text-c-secondary">{label}</span>
               <span className={`${className} text-c-ink`} data-type-sample={label}>{sample}</span>
@@ -595,12 +605,12 @@ export default function UiShowcase() {
         </div>
       </Section>
 
-      <Section id="table" title="Shared table · DataGrid" note="Sticky grey 40 header · 54 rows, every cell on one line · ▸ and tick 24 · gap 10 · default desktop columns fit proportionally to their reference widths, with the 70% / 52px floor · ▸, tick and the identifier stay while the list scrolls in its own box · ▸ opens the items on the row's own columns · the footer takes two lines at most, short forms when the full words need a third, and never widens the list.">
+      <Section id="table" title="Shared table · DataGrid" note="Uppercase 40 header · minimum44 rows, growing for complete facts · ▸ and tick 24 · gap 10 · a column is as wide as its longest value · ▸, tick and the identifier stay while the list scrolls in its own box · ▸ opens the items on the row's own columns · the footer takes two lines at most, short forms when the full words need a third, and never widens the list.">
         <TableExample narrow={false} />
         <TableExample narrow />
       </Section>
 
-      <Section id="cells" title="Table cells" note="Main words, then the grey second line, each on one line. Full values stay available on hover and through column resize. Personal widened views scroll inside the table. A date has no year in this year. Three states are never merged: read and empty, read failed, no access.">
+      <Section id="cells" title="Table cells" note="Main words, then the grey second line, each on one line. A long value widens its column and the list scrolls sideways in its own box; only a customer's name ends with … when its column is short, the full name on hover. A date has no year in this year. Three states are never merged: read and empty, read failed, no access.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {CELLS.map(([name, cell]) => (
             <div key={name} className="flex flex-col gap-1.5 rounded-lg border border-c-card-border bg-c-card p-3">
@@ -657,7 +667,7 @@ export default function UiShowcase() {
         </div>
       </Section>
 
-      <Section id="side-panel" title="Side panel" note="The Summary frame: 36px title row; body starts at 36 + 10. In the module Shell below1100, the same content opens in the shared264px Drawer; Tasks uses320px. Inputs and scroll survive resizing.">
+      <Section id="side-panel" title="Side panel" note="The Summary frame: 36px title row; body starts at 36 + 10. In the module Shell below1100, the same content opens in the shared264px Drawer; Tasks uses340px. Inputs and scroll survive resizing.">
         <div className="flex gap-3" style={{ height: 360 }}>
           {summary ? (
             <CSidePanel label="Summary" title="Summary" onHide={() => setSummary(false)}>

@@ -21,7 +21,7 @@ export function CShowPanelButton({ label, onShow, compact = false }: { label: st
       onClick={(event) => { if (label === "Summary" || label === "Tasks") rememberPanelOpener(label, event.currentTarget); onShow(); }}
       aria-label={compact ? label : undefined}
       title={compact ? label : undefined}
-      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--control-radius)] border border-c-btn-border bg-white text-[13px] font-medium text-c-ink hover:bg-c-hover ${compact ? "w-8 justify-center" : "px-3"}`}
+      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-control border border-c-btn-border bg-white text-[13px] font-medium text-c-ink hover:bg-c-hover ${compact ? "w-8 justify-center" : "px-3"}`}
     >
       <MIcon name="left_panel_open" size={18} />
       {compact ? null : label}
@@ -68,7 +68,7 @@ export const CViewButton = forwardRef<
       aria-label={label}
       title={label}
       {...rest}
-      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--control-radius)] border border-c-btn-border pl-2.5 pr-2 text-[13px] font-medium text-c-ink hover:bg-c-btn-hover ${open ? "bg-c-btn-hover" : "bg-white"} ${className ?? ""}`}
+      className={`flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-control border border-c-btn-border pl-2.5 pr-2 text-[13px] font-medium text-c-ink hover:bg-c-btn-hover ${open ? "bg-c-btn-hover" : "bg-white"} ${className ?? ""}`}
     >
       <MIcon name={icon} size={18} className="text-c-secondary" />
       {name}
@@ -90,7 +90,7 @@ export function CChip({ children, onClear, compact = false, title }: { children:
       onClick={onClear}
       aria-label={children}
       title={title ?? children}
-      className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--control-radius)] border border-c-input-border bg-c-search-bg text-c-body hover:bg-c-hover"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-control border border-c-input-border bg-c-search-bg text-c-body hover:bg-c-hover"
     >
       <MIcon name="filter_alt_off" size={18} />
     </button>
@@ -98,7 +98,7 @@ export function CChip({ children, onClear, compact = false, title }: { children:
     <button
       type="button"
       onClick={onClear}
-      className="shrink-0 whitespace-nowrap rounded-[var(--control-radius)] border border-c-input-border bg-c-search-bg px-2.5 py-1 text-[13px] font-medium text-c-body hover:bg-c-hover"
+      className="shrink-0 whitespace-nowrap rounded-control border border-c-input-border bg-c-search-bg px-2.5 py-1 text-[13px] font-medium text-c-body hover:bg-c-hover"
     >
       {children} ×
     </button>

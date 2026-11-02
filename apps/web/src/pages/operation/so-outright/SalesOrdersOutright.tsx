@@ -231,13 +231,16 @@ export default function SalesOrdersOutright() {
   /* ── list state: tab · column view · header filters, in the URL ── */
   const saved = useMemo(() => {
     try {
-      return JSON.parse(readStore(VIEW_KEY(userId)) ?? "null") as { tab?: Tab; cols?: LayoutKey } | null;
+      return JSON.parse(readStore(VIEW_KEY(userId)) ?? "null") as { tab?: Tab; cols?: LayoutKey; layoutVersion?: number } | null;
     } catch {
       return null;
     }
   }, [userId]);
   const tab: Tab = (["open", "delivered", "all"] as const).find((t) => t === params.get("tab")) ?? saved?.tab ?? "open";
-  const layoutKey: LayoutKey = LAYOUTS.find((l) => l.key === params.get("cols"))?.key ?? saved?.cols ?? "so";
+  // Legacy unversioned SO pointers used the old wide default. Retain their
+  // stored layout/widths; explicit links and newly saved choices still win.
+  const savedLayout = saved?.cols === "so" && saved.layoutVersion !== 2 ? undefined : LAYOUTS.find(l => l.key === saved?.cols)?.key;
+  const layoutKey: LayoutKey = LAYOUTS.find((l) => l.key === params.get("cols"))?.key ?? savedLayout ?? "general";
   const layout = LAYOUTS.find((l) => l.key === layoutKey)!;
   /* Header filters ride the URL (`f.{column}`, repeated for each value), so a
      chip, a link and the engine's filter menu read one answer. */
@@ -576,8 +579,9 @@ export default function SalesOrdersOutright() {
     () =>
       layout.columns.map((k) => {
         const c = COLUMNS[k]!;
-        /* Whole reference track: shared DataGrid owns the in-cell padding. */
-        const floor = trackFloor(c.width);
+        /* The track is the words' room; the engine's cell keeps 5 each side
+           inside it (10 between columns), so the column is the track plus 10. */
+        const floor = layout.widths?.[k] ?? trackFloor(c.width) + 10;
         const textOf = (r: RegisterRow) => c.cell(r, ctx).t;
         return {
           key: c.key,
@@ -690,6 +694,8 @@ export default function SalesOrdersOutright() {
       <ModuleHeader testId="sales-orders-destination-header" word="Sales Order" page="Outright" docTitle="Sales Orders · Carres" />
       {summaryOpen && (
         <SummaryPanel
+          stats={stats}
+          scope={tab === "open" ? "Open" : tab === "delivered" ? "Delivered" : "All"}
           rows={all}
           facts={facts}
           casesState={factsState === "ok" && factsFailed?.cases ? "failed" : factsState}
@@ -702,7 +708,7 @@ export default function SalesOrdersOutright() {
           failure={failedList ? <SalesOrderReadFailure error={listError} surface="sales-orders-register" onRetry={retryList} /> : undefined}
         />
       )}
-      <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5">
+      <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5">
         {selectedRows.length > 0 ? (
           <div
             role="toolbar"
@@ -716,13 +722,13 @@ export default function SalesOrdersOutright() {
               · {selPcs} {selPcs === 1 ? "pc" : "pcs"} · Total {rm(selTotal)}
             </span>
             <span className="ml-auto flex items-center gap-1.5">
-              <button type="button" onClick={() => void downloadExcel(selectedRows)} className="flex h-8 items-center gap-1 rounded-lg border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
+              <button type="button" onClick={() => void downloadExcel(selectedRows)} className="flex h-8 items-center gap-1 rounded-control border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
                 <MIcon name="download" size={16} />Export
               </button>
-              <button type="button" onClick={() => void printSalesOrdersOrSay(selectedRows)} className="flex h-8 items-center gap-1 rounded-lg border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
+              <button type="button" onClick={() => void printSalesOrdersOrSay(selectedRows)} className="flex h-8 items-center gap-1 rounded-control border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
                 <MIcon name="print" size={16} />Print SO
               </button>
-              <button type="button" onClick={() => setSelected(new Set())} className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-medium text-c-select-fg hover:bg-white/60">
+              <button type="button" onClick={() => setSelected(new Set())} className="flex h-8 items-center gap-1 rounded-control px-2.5 text-[13px] font-medium text-c-select-fg hover:bg-white/60">
                 Clear<MIcon name="close" size={16} />
               </button>
             </span>
@@ -860,7 +866,7 @@ export default function SalesOrdersOutright() {
                 {GROUPS.map((g) => (
                   <CMenuItem key={g.label} checked={group === g.key} onSelect={() => { setMoreOpen(false); setParam("group", g.key); }}>{g.label}</CMenuItem>
                 ))}
-                <CMenuItem icon="bookmark_add" onSelect={() => { setMoreOpen(false); writeStore(VIEW_KEY(userId), JSON.stringify({ tab, cols: layoutKey })); toast.success(`Saved as your view: ${TABS.find((t) => t.key === tab)!.label} · ${layout.label}`); }}>Save as my view…</CMenuItem>
+                <CMenuItem icon="bookmark_add" onSelect={() => { setMoreOpen(false); writeStore(VIEW_KEY(userId), JSON.stringify({ tab, cols: layoutKey, layoutVersion: 2 })); toast.success(`Saved as your view: ${TABS.find((t) => t.key === tab)!.label} · ${layout.label}`); }}>Save as my view…</CMenuItem>
                 <CMenuGroup>DATA</CMenuGroup>
                 <CMenuItem icon="sync" note={dataUpdatedAt ? `Last ${time12(dataUpdatedAt)}` : undefined} onSelect={() => { setMoreOpen(false); void refetch(); }}>Sync from Sales Portal now</CMenuItem>
               </CPopover>
@@ -869,19 +875,9 @@ export default function SalesOrdersOutright() {
           </div>
         )}
 
-        <section ref={gridBox} aria-label="Sales orders" className={`grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2.5 ${loadingList || failedList ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]"}`} data-carres-table="list">
-        {!loadingList && !failedList && (
-          <div className="grid grid-cols-4 gap-2.5 max-md:grid-cols-2" data-testid="outright-stats">
-            {stats.map((s) => (
-              <div key={s.label} className="flex flex-col rounded-[10px] border border-c-card-border bg-c-card px-3.5 py-2">
-                <span className="text-[12px] text-c-secondary">{s.label}</span>
-                <span className="text-[15px] font-medium tabular-nums text-c-ink">{s.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <section ref={gridBox} aria-label="Sales orders" className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-2.5" data-carres-table="list">
         {cardsView && !loadingList && !failedList && list.length > 0 ? (
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[10px] border border-c-card-border bg-c-card">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-c-card-border bg-c-card">
             <OrderCards rows={shown} onOpen={(r) => setQuickId(r.id)} />
             {footer}
           </div>
@@ -894,13 +890,13 @@ export default function SalesOrdersOutright() {
             presentationKey={JSON.stringify([query, pageSize, page, sort])}
             rowKey={(r) => r.id}
             rowTestId={(r) => `outright-row-${r.so}`}
-            rowHeight={54}
+            rowHeight={44}
             appearance="reference"
             palette="slate"
             hideToolbar
             openColumns={columnsDoor}
             searchPresentation="none"
-            fitContent
+            shrinkToFit
             allowColumnGrouping={false}
             groupBanner={false}
             {...(fixedGroups ? { fixedGroups } : {})}
@@ -959,7 +955,7 @@ export default function SalesOrdersOutright() {
             onCancelled={() => void refetch()}
           />
         )}
-      </div>
+      </main>
     </div>
   );
 }
@@ -1038,6 +1034,8 @@ function OrderItems({
 
 /* ── the Summary panel — v8 `sum` in the kit side panel frame ── */
 function SummaryPanel({
+  stats,
+  scope,
   rows,
   facts,
   casesState,
@@ -1049,6 +1047,8 @@ function SummaryPanel({
   loading,
   failure,
 }: {
+  stats: { label: string; value: string }[];
+  scope: string;
   rows: RegisterRow[];
   facts: Record<string, { cases?: string | null }> | null;
   /** Service's read state — a failed read is never "0 problems". */
@@ -1088,20 +1088,20 @@ function SummaryPanel({
   );
   return (
     <CSidePanel label="Summary" title="Summary" onHide={onHide} testId="outright-summary">
-      <div className="flex h-9 shrink-0 items-center justify-between rounded-[10px] border border-c-card-border px-1">
-        <button type="button" onClick={onPrev} aria-label="Previous month" className="flex text-c-body">
-          <MIcon name="chevron_left" size={20} />
-        </button>
+      {!loading && <div className="flex flex-col border-b border-c-section-line pb-3" data-testid="outright-stats">
+        <h3 className="pb-1 text-[11px] font-bold uppercase tracking-[.08em] text-c-secondary">{scope}</h3>
+        {stats.map((s) => row(s.label, s.value))}
+      </div>}
+      <div className="flex h-9 shrink-0 items-center justify-between rounded-control border border-c-card-border px-1">
+        <Button variant="ghost" size="sm" icon="previous" iconOnly onClick={onPrev} aria-label="Previous month" />
         <span className="text-body font-semibold">{monthWord(month)}</span>
-        <button type="button" onClick={onNext} aria-label="Next month" disabled={!canNext} className="flex text-c-body disabled:text-c-head-line">
-          <MIcon name="chevron_right" size={20} />
-        </button>
+        <Button variant="ghost" size="sm" icon="forward" iconOnly onClick={onNext} aria-label="Next month" disabled={!canNext} />
       </div>
       {loading ? (
         <span className="text-[13px] text-c-secondary" role="status">Loading orders</span>
       ) : (
         <>
-          <div className="flex flex-col">
+          <div className="flex flex-col" data-testid="outright-monthly-totals">
             {row("Proceeded orders", String(inMonth.length))}
             {row("Proceeded value", rm(value))}
             <span className={`pt-1.5 text-[12px] ${delta >= 0 ? "text-c-ok-fg" : "text-c-warn-fg"}`}>

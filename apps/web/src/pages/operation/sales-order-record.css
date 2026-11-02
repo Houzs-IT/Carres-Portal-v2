@@ -1,0 +1,7 @@
+.so-record-root { container: so-record / inline-size; }
+.so-record-layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 12px; align-items: start; }
+.so-document-card { display:flex; flex-direction:column; min-width:0; height:340px; border:1px solid var(--c-card-border); border-radius:8px; background:var(--c-card); overflow:hidden; position:sticky; top:0; }
+
+@container so-record (max-width: 819px) { .so-record-layout { grid-template-columns:minmax(0,1fr); } .so-document-card { position:static; height:640px; } }
+
+.so-document-card[data-expanded="true"] { height:100%; flex:1; width:100%; border:0; border-radius:0; position:static; }

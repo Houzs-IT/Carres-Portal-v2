@@ -50,7 +50,7 @@ describe("/ui — the one Carres UI kit", () => {
     expect(tables).toHaveLength(2);
     const table = within(tables[0] as HTMLElement);
     /* the preserved request keeps its two lines, never ETA (owner 14 Oct 2026) */
-    expect(table.getByRole("columnheader", { name: "Customer Original Delivery Date" })).toHaveTextContent("Customer Original Delivery Date");
+    expect(table.getByRole("columnheader", { name: "Customer’s original requested delivery" })).toHaveTextContent("Customer’s original requested delivery");
     /* ▸ · ☐ · Proceed date · SO no. · … */
     const firstHeader = table.getAllByRole("columnheader")[2]!;
     expect(firstHeader).toHaveTextContent("Proceed date");
@@ -77,7 +77,7 @@ describe("/ui — the one Carres UI kit", () => {
   it("keeps the three empty states apart in the cells", () => {
     render(<UiShowcase />);
     const cells = document.getElementById("cells")!;
-    expect(within(cells).queryByText("Not recorded")).not.toBeInTheDocument();
+    expect(within(cells).getByText("Not recorded")).toBeInTheDocument();
     expect(within(cells).getByText("Could not read")).toBeInTheDocument();
     /* the sample's name and the cell itself */
     expect(within(cells).getAllByText("No access")).toHaveLength(2);
