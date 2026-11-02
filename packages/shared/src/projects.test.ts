@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checklistDueDate, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
+import { checklistDueDate, projectDayCounts, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -67,5 +67,16 @@ describe("project date range", () => {
     expect(projectDateRange("2026-12-04", "2026-12-06")).toBe("4 to 6 Dec 2026");
     expect(projectDateRange("2026-11-30", "2026-12-02")).toBe("30 Nov to 2 Dec 2026");
     expect(projectDateRange("2026-12-30", "2027-01-02")).toBe("30 Dec 2026 to 2 Jan 2027");
+  });
+});
+
+/** Houzs calendar: a project shows on every day it runs, both ends counted (slice 8). */
+describe("project day counts", () => {
+  it("counts each day a project runs, across a month end", () => {
+    const counts = projectDayCounts([
+      { startDate: "2026-11-30", endDate: "2026-12-02" },
+      { startDate: "2026-12-02", endDate: "2026-12-02" },
+    ], "2026-12");
+    expect(counts).toEqual({ "2026-12-01": 1, "2026-12-02": 2 });
   });
 });

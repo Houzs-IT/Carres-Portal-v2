@@ -270,3 +270,23 @@ export function projectDateRange(startDate: string, endDate: string): string {
   if (sm !== em) return `${sd} ${MONTHS[sm - 1]} to ${one(ey, em, ed)}`;
   return `${sd} to ${one(ey, em, ed)}`;
 }
+
+/* ── Slice 8: the month calendar beside the Project List ─────────────── */
+
+/** True when the project runs on that day, both ends counted (Houzs calendar bars). */
+export function projectRunsOn(p: { startDate: string; endDate: string }, day: string): boolean {
+  return p.startDate <= day && day <= p.endDate;
+}
+
+/** `YYYY-MM-DD` → how many projects run that day, for every day of `month` (`YYYY-MM`). */
+export function projectDayCounts(projects: ReadonlyArray<{ startDate: string; endDate: string }>, month: string): Record<string, number> {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const out: Record<string, number> = {};
+  for (let d = 1; d <= last; d++) {
+    const day = `${month}-${String(d).padStart(2, "0")}`;
+    const n = projects.filter((p) => projectRunsOn(p, day)).length;
+    if (n) out[day] = n;
+  }
+  return out;
+}

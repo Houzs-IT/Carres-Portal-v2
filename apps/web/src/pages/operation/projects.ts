@@ -105,6 +105,8 @@ export const PJ = {
   /* Slice 7: the printed project sheet. */
   print: "Print",
   printFailed: "The project sheet could not be made. Try again.",
+  /* Slice 8: the month beside the Project List. */
+  allDates: "All dates",
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",
