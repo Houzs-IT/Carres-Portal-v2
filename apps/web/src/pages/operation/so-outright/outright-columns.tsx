@@ -33,14 +33,14 @@ export type LayoutKey = "so" | "general" | "payment" | "stock" | "warehouse" | "
 /* `so` follows Houzs's SO list order (MfgSalesOrdersListV2 SO_AUTOCOUNT_KEYS).
    Branding, Curr. Code, UOM and Venue are not in the order: Carres records none
    of them. `hidden` starts off and stays in the Columns chooser, as Houzs does. */
-export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: string[]; hidden?: string[]; widths?: Record<string, number> }[] = [
+export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: string[]; hidden?: string[]; widths?: Record<string, number>; headers?: Record<string, [string, string]> }[] = [
   {
     key: "so", label: "Sales Order", icon: "receipt_long",
     columns: ["docNo", "soDate", "ref", "agent", "debtor", "soTotal", "salesLoc", "balance", "processing", "reqDate", "itemGroup", "itemCode", "detail", "detail2", "unitPrice", "lineQty",
       "proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
     hidden: ["proceed", "po", "doNo", "paid", "payment", "stock", "delivery", "phone", "email", "addr1", "addr2", "city", "postcode", "state", "payMethod", "buildingType", "createdBy", "customerType"],
   },
-  { key: "general", label: "Overview", icon: "dashboard", columns: ["order", "soDate", "items", "stock", "delivery", "payment", "pic", "problems", "proceed"], hidden: ["proceed"], widths: { order: 128, soDate: 100, items: 112, stock: 104, delivery: 150, payment: 104, pic: 96, problems: 88 } },
+  { key: "general", label: "Overview", icon: "dashboard", columns: ["order", "soDate", "items", "stock", "delivery", "payment", "pic", "problems", "proceed"], hidden: ["proceed"], widths: { order: 128, soDate: 100, items: 112, stock: 104, delivery: 150, payment: 104, pic: 96, problems: 116 }, headers: { delivery: ["Confirmed", "delivery"] } },
   { key: "payment", label: "Payment", icon: "account_balance_wallet", columns: ["order", "value", "paid", "balance", "rcpt", "payDue", "payment", "hold"] },
   { key: "stock", label: "Stock", icon: "inventory_2", columns: ["order", "items", "po", "eta", "sdo", "grnNo", "stock"] },
   { key: "warehouse", label: "Warehouse", icon: "warehouse", columns: ["order", "items", "grnNo", "loc", "load", "delivery"] },

@@ -46,6 +46,16 @@ async function measure(page: Page) {
     const out = {
       rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
       cellsPastColumn: past,
+      cutHeaders: [...card.querySelectorAll('thead th button')].filter(b => {
+        const edge = b.getBoundingClientRect();
+        const text = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+        for (let n = text.nextNode(); n; n = text.nextNode()) {
+          if (!n.textContent?.trim() || n.parentElement?.closest('.sr-only,[aria-hidden="true"]')) continue;
+          const range = document.createRange(); range.selectNodeContents(n);
+          if ([...range.getClientRects()].some(r => r.right > edge.right + 1 || r.bottom > edge.bottom + 1)) return true;
+        }
+        return false;
+      }).map(b => b.textContent?.trim()),
       buttonHeights: [...new Set(buttons.filter((h) => h > 26))],
       pageScroll: document.documentElement.scrollWidth - window.innerWidth,
       pagerInside: next.getBoundingClientRect().right <= edge.right,
@@ -83,6 +93,7 @@ for (const width of WIDTHS) {
           expect(m.buttonHeights, `${state}: every toolbar button is 32 high`).toEqual([32]);
           expect(m.rowHeights.every(h => h >= 44), `${state}: rows keep the44px minimum and grow for complete facts`).toBe(true);
           expect(m.cellsPastColumn, `${state}: no cell runs past its column`).toBe(0);
+          expect(m.cutHeaders, `${state}: header words are complete`).toEqual([]);
           expect(m.soNoInView, `${state}: Doc. No. stays in view at the list's right end`).toBe(true);
           expect(await carresCheck(page), `${state}: carres-check.js`).toEqual(PASS);
 
@@ -153,7 +164,7 @@ test("Sales Order Outright toolbar never cuts or hides a control with filters on
 
 test("Sales Order Outright toolbar holds one search chip in the Sales Order view on one line, at 1025 with Tasks open (real-data case, owner 14 Oct)", async ({ page }) => {
   await page.setViewportSize({ width: 1025, height: 900 });
-  await page.goto(`${PAGE}?search=1314`, { waitUntil: "networkidle" });
+  await page.goto(`${PAGE}?search=1314&cols=so`, { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
   await setPanels(page, false, true);
   await page.waitForTimeout(500);

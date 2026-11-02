@@ -582,12 +582,13 @@ export default function SalesOrdersOutright() {
         /* The track is the words' room; the engine's cell keeps 5 each side
            inside it (10 between columns), so the column is the track plus 10. */
         const floor = layout.widths?.[k] ?? trackFloor(c.width) + 10;
+        const header = layout.headers?.[k] ?? c.head;
         const textOf = (r: RegisterRow) => c.cell(r, ctx).t;
         return {
           key: c.key,
           /* A two-line header keeps its second line grey 12/400 (owner 14 Oct 2026). */
-          label: c.head ? c.head[0] : c.label,
-          ...(c.head ? { headerSub: c.head[1] } : {}),
+          label: c.label,
+          ...(header ? { headerLines: header } : {}),
           exportLabel: c.label,
           width: floor,
           minWidth: floor,
