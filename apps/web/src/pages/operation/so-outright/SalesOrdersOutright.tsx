@@ -678,7 +678,7 @@ export default function SalesOrdersOutright() {
   const footer = (
     <CListFooter
       testId="outright-footer"
-      count={loadingList ? "Loading orders" : `${list.length} ${list.length === 1 ? "order" : "orders"}`}
+      count={loadingList ? "Loading orders" : `${list.length}${typeof data?.salesOrderTotal === "number" && data.salesOrderTotal > list.length ? ` of ${data.salesOrderTotal}` : ""} ${list.length === 1 && !(typeof data?.salesOrderTotal === "number" && data.salesOrderTotal > list.length) ? "order" : "orders"}`}
       {...(loadingList || totals.parts.length === 0 ? {} : { totals })}
       pageSize={pageSize}
       onPageSize={setPageSize}
@@ -902,6 +902,7 @@ export default function SalesOrdersOutright() {
             groupBanner={false}
             {...(fixedGroups ? { fixedGroups } : {})}
             stickyIdentity={{ columnKey: layout.columns[0]! }}
+            {...(layout.columns[1] === "soDate" ? { pinnedPrefix: { columns: [layout.columns[0]!, "soDate"], narrow: [layout.columns[0]!] } } : {})}
             serverColumns={{ values: filterValues, selected: filters, onChange: onColumnQuery }}
             onRowClick={(r, e) => openQuick(r, e)}
             contextMenu={(r) =>

@@ -295,14 +295,14 @@ export const COLUMNS: Record<string, Column> = {
   },
   channel: {
     key: "channel", label: "Sales location", width: "minmax(120px,1fr)",
-    cell: (r) => ({ t: salesLocationOf(r.o) || "Not recorded", sub: r.o.salespersons?.name?.trim() || "Not recorded" }),
+    cell: (r) => ({ t: salesLocationOf(r.o) || "", sub: r.o.salespersons?.name?.trim() || "" }),
   },
   dloc: {
     key: "dloc", label: "Delivery location", width: "minmax(170px,1fr)",
     cell: (r) => {
       const city = r.o.customer_address_city?.trim();
       const state = r.o.customer_address_state?.trim();
-      return city || state ? { t: city || "Not recorded", sub: state || "Not recorded" } : NOT_RECORDED;
+      return city || state ? { t: city || "", sub: state || "" } : NOT_RECORDED;
     },
   },
   reqDate: {
@@ -325,7 +325,7 @@ export const COLUMNS: Record<string, Column> = {
       const eta = supplierEta(r);
       return {
         t: `${inn}/${total} in`, pill: true, tone: inn === total ? "ok" : "warn",
-        sub: inn === total ? undefined : eta ? `ETA ${shortDay(eta)}` : "ETA Not recorded",
+        sub: inn === total ? undefined : eta ? `ETA ${shortDay(eta)}` : undefined,
         subTone: "muted",
       };
     },

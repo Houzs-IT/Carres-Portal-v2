@@ -46,6 +46,8 @@ async function measure(page: Page) {
     const out = {
       rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
       cellsPastColumn: past,
+      datePinned: getComputedStyle(card.querySelector('thead th[title="Date"]')!).position === "sticky",
+      canvasWidth: box.clientWidth,
       cutHeaders: [...card.querySelectorAll('thead th button')].filter(b => {
         const edge = b.getBoundingClientRect();
         const text = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
@@ -94,6 +96,7 @@ for (const width of WIDTHS) {
           expect(m.rowHeights.every(h => h >= 44), `${state}: rows keep the44px minimum and grow for complete facts`).toBe(true);
           expect(m.cellsPastColumn, `${state}: no cell runs past its column`).toBe(0);
           expect(m.cutHeaders, `${state}: header words are complete`).toEqual([]);
+          expect(m.datePinned, `${state}: date pins on a canvas of at least768px`).toBe(m.canvasWidth >= 768);
           expect(m.soNoInView, `${state}: Doc. No. stays in view at the list's right end`).toBe(true);
           expect(await carresCheck(page), `${state}: carres-check.js`).toEqual(PASS);
 

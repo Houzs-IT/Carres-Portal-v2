@@ -57,6 +57,14 @@ beforeEach(() => {
 });
 
 describe("Outright Summary source states", () => {
+  it.each([60, null])("uses only the server population for filtered footer count (%s)", (total) => {
+    testState.total = total;
+    testState.searchOrders = [testState.orders[0]!];
+    mount("/operation/orders?search=1001");
+    expect(footer()).toHaveTextContent(total === null ? "1 order" : "1 of 60 orders");
+    if (total === null) expect(footer()).not.toHaveTextContent(" of ");
+  });
+
   it.each([403, 500])("a %s read never becomes zero orders or zero money in Summary", (status) => {
     testState.error = new ApiError(status, "TEST secret transport detail", null);
     localStorage.setItem("carres.outright.summary", "1");
