@@ -15,7 +15,7 @@ export default function CSidePanel({
   label,
   title,
   onHide,
-  width = 240,
+  width = 264,
   testId,
   children,
 }: {
