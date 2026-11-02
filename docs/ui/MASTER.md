@@ -1880,6 +1880,8 @@ Menu → top bar (module and page, search, team, notifications) → one 36 toolb
 
 ## 2 · Register
 
+Sales Order's four current-list totals use the existing Summary rows, governed by Orders MASTER "Current Summary placement" (owner2Nov2026); they are not a second KPI-card strip above the table. The list and monthly scopes remain distinct in that same panel.
+
 Module views and shared tools → source-owned records → filtered totals/footer. Current references are `ui-reference/sales-order-design/Carres Table.dc.html` and `Sales Order Outright v12.dc.html`. Use the shared grid, two-line facts where meaningful, horizontal separators and governed columns. Record doors preserve the owning module's opening behaviour; linked document numbers open their own records. No Operations create-SO door. Selection replaces tools in place. Preserve list filters, scroll and selection on return.
 
 **Three layers; every fact lives in exactly one.** The list row holds what is needed to decide the next step, at most 6 data columns. The expanded rows hold what is needed to recognise the goods. The detail page holds everything else. Hover may repeat a value from another layer; it never holds a fact found nowhere else.

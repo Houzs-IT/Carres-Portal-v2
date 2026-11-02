@@ -691,6 +691,8 @@ export default function SalesOrdersOutright() {
       <ModuleHeader testId="sales-orders-destination-header" word="Sales Order" page="Outright" docTitle="Sales Orders · Carres" />
       {summaryOpen && (
         <SummaryPanel
+          stats={stats}
+          scope={tab === "open" ? "Open" : tab === "delivered" ? "Delivered" : "All"}
           rows={all}
           facts={facts}
           casesState={factsState === "ok" && factsFailed?.cases ? "failed" : factsState}
@@ -870,17 +872,7 @@ export default function SalesOrdersOutright() {
           </div>
         )}
 
-        <section ref={gridBox} aria-label="Sales orders" className={`grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-2.5 ${loadingList || failedList ? "grid-rows-[minmax(0,1fr)]" : "grid-rows-[auto_minmax(0,1fr)]"}`} data-carres-table="list">
-        {!loadingList && !failedList && (
-          <div className="grid grid-cols-4 gap-2.5 max-md:grid-cols-2" data-testid="outright-stats">
-            {stats.map((s) => (
-              <div key={s.label} className="flex flex-col rounded-[10px] border border-c-card-border bg-c-card px-3.5 py-2">
-                <span className="text-[12px] text-c-secondary">{s.label}</span>
-                <span className="text-[15px] font-medium tabular-nums text-c-ink">{s.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <section ref={gridBox} aria-label="Sales orders" className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-2.5" data-carres-table="list">
         {cardsView && !loadingList && !failedList && list.length > 0 ? (
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[10px] border border-c-card-border bg-c-card">
             <OrderCards rows={shown} onOpen={(r) => setQuickId(r.id)} />
@@ -1039,6 +1031,8 @@ function OrderItems({
 
 /* ── the Summary panel — v8 `sum` in the kit side panel frame ── */
 function SummaryPanel({
+  stats,
+  scope,
   rows,
   facts,
   casesState,
@@ -1050,6 +1044,8 @@ function SummaryPanel({
   loading,
   failure,
 }: {
+  stats: { label: string; value: string }[];
+  scope: string;
   rows: RegisterRow[];
   facts: Record<string, { cases?: string | null }> | null;
   /** Service's read state — a failed read is never "0 problems". */
@@ -1089,6 +1085,10 @@ function SummaryPanel({
   );
   return (
     <CSidePanel label="Summary" title="Summary" onHide={onHide} testId="outright-summary">
+      {!loading && <div className="flex flex-col border-b border-c-section-line pb-3" data-testid="outright-stats">
+        <h3 className="pb-1 text-[11px] font-bold uppercase tracking-[.08em] text-c-secondary">{scope}</h3>
+        {stats.map((s) => row(s.label, s.value))}
+      </div>}
       <div className="flex h-9 shrink-0 items-center justify-between rounded-[10px] border border-c-card-border px-1">
         <button type="button" onClick={onPrev} aria-label="Previous month" className="flex text-c-body">
           <MIcon name="chevron_left" size={20} />
@@ -1102,7 +1102,7 @@ function SummaryPanel({
         <span className="text-[13px] text-c-secondary" role="status">Loading orders</span>
       ) : (
         <>
-          <div className="flex flex-col">
+          <div className="flex flex-col" data-testid="outright-monthly-totals">
             {row("Proceeded orders", String(inMonth.length))}
             {row("Proceeded value", rm(value))}
             <span className={`pt-1.5 text-[12px] ${delta >= 0 ? "text-c-ok-fg" : "text-c-warn-fg"}`}>

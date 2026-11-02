@@ -1,5 +1,9 @@
 # ORDERS — MASTER
 
+## Current Summary placement · owner2Nov2026
+
+**RULING / frontend delivery commissioned:** the four current-list facts `Total Orders`, `Revenue`, `Outstanding`, `Paid` belong at the top of the existing shared Summary, using its plain label/value rows. Remove their separate cards above the table. This applies the existing accepted-template law that money totals live in Summary; it does not change their arithmetic. Their scope is the current `Open` / `Delivered` / `All` list and its filters, identified separately from the existing month picker. The month picker continues to govern only the proceeded-month, category, delivery and problem facts below it; it must not silently change list totals. Summary's existing collapse/overlay, scroll and keyboard behaviour stays. No new component, backend writer or permission is introduced. Implementation/release evidence remains attached to PR#2177; re-measure its current checks, merge and production state before quoting completion.
+
 ## Current shared UI intake ·30Oct2026
 
 The owner commissioned kit/rule publication first, then separate frontend page work. Follow [UI MASTER current template](../ui/MASTER.md#current-shared-template--owner-adoption-30-oct-2026) and its30Oct reconciliation for Shell, table, surfaces, document-card composition and Send task presentation. These replace conflicting older visual measurements and blanket50:50 document-bearing record presentation below; historical build evidence is not current visual law. Lists stay lists; document-free objects do not acquire a PDF. Module business facts, saved document versions, permissions, writers, approvals and downstream ownership remain unchanged. No frontend migration, backend change or production verification is claimed by this intake. All modules consume the same Shell and shared components; no local kit or task engine.

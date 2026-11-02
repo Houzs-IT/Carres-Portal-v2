@@ -137,10 +137,12 @@ describe("Outright empty population versus filtered empty", () => {
 });
 
 describe("Outright in the Houzs shape", () => {
-  it("opens on Houzs's first columns, with its four cards and tab counts", () => {
+  beforeEach(() => localStorage.setItem("carres.outright.summary", "1"));
+  it("keeps Houzs's columns and places current-list totals in the shared Summary", () => {
     mount("/operation/orders?cols=so");
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent).join(" ")).toMatch(/Doc\. No\..*Date.*Ref No\..*Agent.*Debtor Name.*Total.*Sales Location.*Balance/);
-    const stats = screen.getByTestId("outright-stats");
+    const stats = within(screen.getByTestId("outright-summary")).getByTestId("outright-stats");
+    expect(within(screen.getByRole("region", {name:"Sales orders"})).queryByTestId("outright-stats")).toBeNull();
     expect(stats).toHaveTextContent("Total Orders60");
     expect(stats).toHaveTextContent("Paid");
     expect(screen.getByRole("tab", {name:"All"})).toHaveTextContent("All60");
@@ -159,9 +161,11 @@ describe("Outright in the Houzs shape", () => {
   });
   it("a date range narrows the list, shows a chip, and Clear removes it", async () => {
     mount("/operation/orders?cols=so&from.soDate=2026-10-01");
+    const monthly = screen.getByTestId("outright-monthly-totals").textContent;
     expect(screen.getByTestId("outright-stats")).toHaveTextContent("Total Orders0");
     fireEvent.click(screen.getByRole("button", {name:/Order Date: /}));
     await waitFor(()=>expect(screen.getByTestId("outright-stats")).toHaveTextContent("Total Orders60"));
+    expect(screen.getByTestId("outright-monthly-totals").textContent).toBe(monthly);
   });
 });
 
