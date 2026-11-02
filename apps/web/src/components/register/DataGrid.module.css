@@ -1806,3 +1806,15 @@ div:first-child > .columnsMenuGroup {
 @container list-grid (width < 520px) {
   .rootReference .toolbar:not(.selectionBar) { gap: 4px; }
 }
+
+/* 30 Oct shared header contract; body type never shrinks to fit. */
+.rootReference .th { box-sizing: border-box; height: 40px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--c-heading); white-space: normal; }
+.rootReference .thInner { max-width: 100%; }
+
+.rootReference .sortBtn { text-transform: inherit; white-space: normal; text-align: left; }
+.rootReference .headerSub { font-size: 11px; font-weight: 600; color: inherit; }
+
+.rootReference .sortBtn, .rootReference .headerLines { overflow-wrap: normal; }
+
+.rootReference .th { padding-top: 4px; padding-bottom: 4px; line-height: 14px; }
+.rootReference .headerLines { white-space: normal; }

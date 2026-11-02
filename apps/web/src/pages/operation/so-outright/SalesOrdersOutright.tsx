@@ -515,9 +515,8 @@ export default function SalesOrdersOutright() {
     () =>
       layout.columns.map((k) => {
         const c = COLUMNS[k]!;
-        /* The track is the words' room; the engine's cell keeps 5 each side
-           inside it (10 between columns), so the column is the track plus 10. */
-        const floor = trackFloor(c.width) + 10;
+        /* Whole reference track: shared DataGrid owns the in-cell padding. */
+        const floor = trackFloor(c.width);
         const textOf = (r: RegisterRow) => c.cell(r, ctx).t;
         return {
           key: c.key,
@@ -610,7 +609,7 @@ export default function SalesOrdersOutright() {
           failure={failedList ? <SalesOrderReadFailure error={listError} surface="sales-orders-register" onRetry={retryList} /> : undefined}
         />
       )}
-      <main className="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5">
         {selectedRows.length > 0 ? (
           <div
             role="toolbar"
@@ -784,7 +783,7 @@ export default function SalesOrdersOutright() {
             onCancelled={() => void refetch()}
           />
         )}
-      </main>
+      </div>
     </div>
   );
 }

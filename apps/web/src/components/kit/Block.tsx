@@ -10,7 +10,17 @@
  * `--c-card-border`, 8px corner, no shadow, 14 × 16 padding, a 15 / 600 ink
  * title over a 1px `--c-section-line` rule. Never a box inside a box.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+
+export const BLOCK_TITLE = "text-[11px] font-bold uppercase tracking-[.08em] text-c-heading";
+
+/** The same card surface for existing adapters with their own section headers. */
+export function BlockSurface({ children, tone, label, testId, className = "", block }: {
+  children: ReactNode; tone?: "muted" | "warn"; label?: string; testId?: string; className?: string; block?: string;
+}) {
+  return <section aria-label={label} data-testid={testId} data-block={block}
+    className={`min-w-0 rounded-lg border border-c-card-border ${tone === "muted" ? "bg-c-info-bg" : tone === "warn" ? "bg-c-warn-bg" : "bg-c-card"} [padding:var(--card-pad)] ${className}`}>{children}</section>;
+}
 
 /**
  * A left-pane block. The bar beside the title is the section's whole chrome —
@@ -92,7 +102,7 @@ export default function Block({
   const bodyId = `block-b-${title.replace(/\s+/g, "-").toLowerCase()}`;
 
   return (
-    <section className={`rounded-lg border border-c-card-border ${tone === "muted" ? "bg-c-info-bg" : "bg-c-card"} [padding:var(--card-pad)]`} data-block={title}>
+    <BlockSurface tone={tone} block={title}>
       {/* ⭐ ONE CARD, ONE CHROME — every page draws its cards from here.
           A white card with a 1px rule under the title; the title is
           `text-strong` slate-12 BLACK bold, sentence case (ONE KIT LAW, Jess
@@ -105,7 +115,7 @@ export default function Block({
             `text-strong` slate-12 — never blue (blue is the primary button,
             links and selection only), never a band. Overwrites the
             2026-09-21 "remain blue" ruling in the one place every page draws from. */}
-        <h2 id={headingId} className="text-strong text-c-ink">
+        <h2 id={headingId} className={BLOCK_TITLE}>
           {title}
         </h2>
         {headerSlot}
@@ -168,6 +178,6 @@ export default function Block({
           </div>
         </>
       )}
-    </section>
+    </BlockSurface>
   );
 }

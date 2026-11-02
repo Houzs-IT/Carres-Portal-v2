@@ -114,7 +114,6 @@ export function TasksPill({ fallback = false }: { fallback?: boolean } = {}) {
 export default function ShellTasks() {
   const open = useShellTasks((s) => s.open);
   const setOpen = useShellTasks((s) => s.setOpen);
-  const taskOpen = useTasksHost((s) => s.taskOpen);
   const guard = useTasksHost((s) => s.guard);
   const left = useTasksLeft();
   const pageHosts = useShellTasks((s) => s.pageHosts);
@@ -136,14 +135,14 @@ export default function ShellTasks() {
       className={`max-[1099px]:!w-full max-[1099px]:flex-1 flex min-h-0 shrink-0 flex-col overflow-hidden rounded-lg bg-white ring-1 ring-inset ring-c-border ${
         /* 320 always (01 §2), so opening a task never takes room from the
            list. On a wide screen the opened task may use the spare width. */
-        taskOpen ? "w-[320px] min-[1280px]:w-[clamp(366px,32vw,560px)]" : "w-[320px]"
+        "w-[340px]"
       }`}
     >
       {/* The line is drawn inside the card (an inset ring), so this 36px title row
           starts level with the page toolbar, as the Summary title does (CSidePanel). */}
       <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5">
         <span className="flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap">
-          <span className="text-strong text-c-ink">Tasks</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">Tasks</span>
           <span className="truncate text-meta text-c-muted">
             {weekday}
             {left != null ? ` · ${left} left` : ""}

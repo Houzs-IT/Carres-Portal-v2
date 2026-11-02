@@ -194,12 +194,11 @@ export const SPACE = {
 // never reads as a state. This palette is identity infrastructure, not a staff
 // roster; current membership comes only from the authoritative staff source.
 export const AVATAR_COLORS: { bg: string; fg: string }[] = [
-  { bg: "#E0E7FF", fg: "#3730A3" }, // indigo
-  { bg: "#DBEAFE", fg: "#1E40AF" }, // blue
-  { bg: "#FCE7F3", fg: "#9D174D" }, // rose
-  { bg: "#EDE9FE", fg: "#5B21B6" }, // violet
-  { bg: "#CFFAFE", fg: "#155E75" }, // cyan
-  { bg: "#FAE8FF", fg: "#86198F" }, // fuchsia
-  { bg: "#CCFBF1", fg: "#115E59" }, // teal
-  { bg: "#E2E8F0", fg: "#334155" }, // slate
+  // Shared staff identity palette — UI MASTER 30 Oct, white initials.
+  { bg: "#6B7A8F", fg: "#FFFFFF" },
+  { bg: "#7A6A58", fg: "#FFFFFF" },
+  { bg: "#5E7D6E", fg: "#FFFFFF" },
+  { bg: "#8A6670", fg: "#FFFFFF" },
+  { bg: "#6A6F9A", fg: "#FFFFFF" },
+  { bg: "#8C7A4E", fg: "#FFFFFF" },
 ];

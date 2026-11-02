@@ -37,7 +37,7 @@ export const LAYOUTS: { key: LayoutKey; label: string; icon: string; columns: st
   { key: "delivery", label: "Delivery", icon: "local_shipping", columns: ["order", "logi", "area", "delivery", "appt", "doNo", "payment"] },
 ];
 
-export const NOT_RECORDED: Cell = { t: "Not recorded", fg: "muted" };
+export const NOT_RECORDED: Cell = { t: "", fg: "muted" };
 export const NO_ACCESS: Cell = { t: "No access", fg: "muted", title: "You may not see this record." };
 export const LOADING: Cell = { t: "Loading", fg: "muted" };
 const NOT_YET: Cell = { t: "Not yet", fg: "muted" };
@@ -216,7 +216,7 @@ export const COLUMNS: Record<string, Column> = {
     key: "order", label: "SO no.", width: "minmax(150px,1fr)",
     /* The customer's name stays on one line and ends with … when the column is
        short; the full name is on hover and in the order (owner 14 Oct 2026). */
-    cell: (r) => (r.customer ? { t: `SO-${r.so}`, fw: 600, fg: "ink", sub: r.customer, subClip: true, subTitle: r.customer } : { t: `SO-${r.so}`, fw: 600, fg: "ink", sub: "Not recorded" }),
+    cell: (r) => (r.customer ? { t: `SO-${r.so}`, fw: 600, fg: "ink", sub: r.customer, subClip: true, subTitle: r.customer } : { t: `SO-${r.so}`, fw: 600, fg: "ink", sub: "" }),
   },
   items: {
     key: "items", label: "Items", width: "120px",
@@ -224,22 +224,22 @@ export const COLUMNS: Record<string, Column> = {
   },
   channel: {
     key: "channel", label: "Sales location", width: "minmax(120px,1fr)",
-    cell: (r) => ({ t: salesLocationOf(r.o) || "Not recorded", sub: r.o.salespersons?.name?.trim() || "Not recorded" }),
+    cell: (r) => ({ t: salesLocationOf(r.o) || "", sub: r.o.salespersons?.name?.trim() || "" }),
   },
   dloc: {
     key: "dloc", label: "Delivery location", width: "minmax(170px,1fr)",
     cell: (r) => {
       const city = r.o.customer_address_city?.trim();
       const state = r.o.customer_address_state?.trim();
-      return city || state ? { t: city || "Not recorded", sub: state || "Not recorded" } : NOT_RECORDED;
+      return city || state ? { t: city || "", sub: state || "" } : NOT_RECORDED;
     },
   },
   reqDate: {
     /* Version 1's preserved request (COPY "SO table and filters" / "SO requested-date
        header"): two header lines, never `ETA` (Logistics ETA is a separate fact;
        owner 14 Oct 2026). The day and its weekday; `Delivered` once delivered. */
-    key: "reqDate", label: "Customer’s original requested delivery", width: "140px",
-    head: ["Customer’s original", "requested delivery"],
+    key: "reqDate", label: "Customer Original Delivery Date", width: "210px",
+    head: ["Customer Original", "Delivery Date"],
     cell: (r) => {
       const c = dayCell(r.customerDelivery);
       if (!c) return NOT_RECORDED;
@@ -254,7 +254,7 @@ export const COLUMNS: Record<string, Column> = {
       const eta = supplierEta(r);
       return {
         t: `${inn}/${total} in`, pill: true, tone: inn === total ? "ok" : "warn",
-        sub: inn === total ? undefined : eta ? `ETA ${shortDay(eta)}` : "ETA Not recorded",
+        sub: inn === total ? undefined : eta ? `ETA ${shortDay(eta)}` : undefined,
         subTone: "muted",
       };
     },

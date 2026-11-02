@@ -34,6 +34,7 @@ import Input from "@/components/kit/Input";
 import Loading from "@/components/kit/Loading";
 import Modal from "@/components/kit/Modal";
 import PdfPreview from "@/components/kit/PdfPreview";
+import { COLUMNS as SO_COLUMNS, LAYOUTS } from "@/pages/operation/so-outright/outright-columns";
 import SavedEvidenceViewer from "@/components/kit/SavedEvidenceViewer";
 import SearchInput from "@/components/kit/SearchInput";
 import Select from "@/components/kit/Select";
@@ -99,14 +100,8 @@ function Section({ id, title, note, children }: { id: string; title: string; not
 }
 
 /* ── the one listing engine in the v12 look, with the Sales Order view's columns and TEST rows ── */
-const COLUMNS: CListColumn[] = [
-  { key: "proceed", label: "Proceed date", width: "120px" },
-  { key: "order", label: "SO no.", width: "minmax(150px,1fr)" },
-  { key: "items", label: "Items", width: "120px" },
-  { key: "channel", label: "Sales location", width: "minmax(120px,1fr)" },
-  { key: "dloc", label: "Delivery location", width: "minmax(170px,1fr)" },
-  { key: "reqDate", label: "Customer’s original requested delivery", head: ["Customer’s original", "requested delivery"], width: "140px" },
-];
+const COLUMNS: CListColumn[] = LAYOUTS.find(view => view.key === "so")!.columns.map(key => SO_COLUMNS[key]!);
+
 type Row = { id: string; cells: Record<string, CCell> };
 const ROWS: Row[] = [
   {
@@ -128,7 +123,7 @@ const ROWS: Row[] = [
       items: { t: "2 pcs + 1 set", sub: "MS, SOF", subTitle: "Mattress, Sofa" },
       channel: { t: "TEST Showroom B", sub: "TEST · Staff B" },
       dloc: { t: "Kuala Lumpur", sub: "Kuala Lumpur" },
-      reqDate: { t: "Not recorded", fg: "muted" },
+      reqDate: { t: "", fg: "muted" },
     },
   },
   {
@@ -263,7 +258,7 @@ function OrderLinesExample({ narrow }: { narrow: boolean }) {
 const CELLS: Array<[string, CCell]> = [
   ["Identifier", { t: "SO-TEST-01", sub: "TEST · Customer A", fw: 600, fg: "ink" }],
   ["Date", { t: "11 Oct", sub: "Sun", subTone: "muted", fw: 500 }],
-  ["Read, nothing there", { t: "Not recorded", fg: "muted" }],
+  ["Read, nothing there", { t: "", fg: "muted" }],
   ["Read failed", { t: "Could not read", fg: "warn", title: "Could not read Payments for this order. This does not mean there is no receipt." }],
   ["No access", { t: "No access", fg: "muted", title: "You may not see this record." }],
   ["Done", { t: "6 Oct", sub: "Tue · Delivered", subTone: "ok", fw: 500 }],
@@ -600,12 +595,12 @@ export default function UiShowcase() {
         </div>
       </Section>
 
-      <Section id="table" title="Shared table · DataGrid" note="Sticky grey 40 header · 54 rows, every cell on one line · ▸ and tick 24 · gap 10 · a column is as wide as its longest value · ▸, tick and the identifier stay while the list scrolls in its own box · ▸ opens the items on the row's own columns · the footer takes two lines at most, short forms when the full words need a third, and never widens the list.">
+      <Section id="table" title="Shared table · DataGrid" note="Sticky grey 40 header · 54 rows, every cell on one line · ▸ and tick 24 · gap 10 · default desktop columns fit proportionally to their reference widths, with the 70% / 52px floor · ▸, tick and the identifier stay while the list scrolls in its own box · ▸ opens the items on the row's own columns · the footer takes two lines at most, short forms when the full words need a third, and never widens the list.">
         <TableExample narrow={false} />
         <TableExample narrow />
       </Section>
 
-      <Section id="cells" title="Table cells" note="Main words, then the grey second line, each on one line. A long value widens its column and the list scrolls sideways in its own box; only a customer's name ends with … when its column is short, the full name on hover. A date has no year in this year. Three states are never merged: read and empty, read failed, no access.">
+      <Section id="cells" title="Table cells" note="Main words, then the grey second line, each on one line. Full values stay available on hover and through column resize. Personal widened views scroll inside the table. A date has no year in this year. Three states are never merged: read and empty, read failed, no access.">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {CELLS.map(([name, cell]) => (
             <div key={name} className="flex flex-col gap-1.5 rounded-lg border border-c-card-border bg-c-card p-3">

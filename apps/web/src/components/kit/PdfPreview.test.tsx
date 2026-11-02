@@ -38,6 +38,26 @@ describe("PDF preview", () => {
     await waitFor(() => expect(screen.getByLabelText("Page 1 of 2").style.width).toBe("320px"));
   });
 
+  it("paints expanded paper and returns with the same zoom, scroll and focus", async () => {
+    documentPages();
+    render(<PdfPreview src="blob:record" title="Sales Order document" />);
+    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(2));
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await waitFor(() => expect(screen.getByLabelText("Page 1 of 2").style.width).toBe("400px"));
+    const expand = screen.getByRole("button", { name: "Expand" });
+    const pane = screen.getByLabelText("Page 1 of 2").parentElement!;
+    pane.scrollTop = 120;
+    expand.focus();
+    fireEvent.click(expand);
+    await waitFor(() => expect(screen.getByRole("dialog").querySelectorAll("canvas")).toHaveLength(2));
+    expect(screen.getByText("125%")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText("Page 1 of 2").parentElement!.scrollTop).toBe(120));
+    expect(screen.getByRole("button", { name: "Expand" })).toHaveFocus();
+    expect(screen.getByText("125%")).toBeVisible();
+  });
+
   it("keeps failed paper unreviewed and retries the actual PDF", async () => {
     const { doc, destroy } = documentPages();
     pdf.getDocument.mockReturnValueOnce({ promise: Promise.reject(new Error("decode failed")), destroy });

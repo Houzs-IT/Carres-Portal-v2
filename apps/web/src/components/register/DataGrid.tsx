@@ -977,9 +977,10 @@ function DataGridInner<T>({
      included, as measured after the last paint; a column is never narrower
      than its declared width, and a width the person dragged still wins. */
   const [fitWidths, setFitWidths] = useState<Record<string, number>>({});
-  const widthOf = (col: { key: string; width?: number; wrap?: boolean }): number => {
+  const [fitCanvas, setFitCanvas] = useState(0);
+  const referenceWidthOf = (col: { key: string; width?: number; wrap?: boolean }): number => {
     const own = layout.widths[col.key] ?? col.width ?? 140;
-    if (!fitContent || col.wrap || layout.widths[col.key] != null) return Number(own);
+    if (appearance === "reference" || !fitContent || col.wrap || layout.widths[col.key] != null) return Number(own);
     return Math.max(Number(own), fitWidths[col.key] ?? 0);
   };
   /* The keys a pristine layout hides. Keyed by value so a page that rebuilds
@@ -1400,6 +1401,28 @@ function DataGridInner<T>({
     return synthetic.length ? [...synthetic, ...base] : base;
   }, [columns, layout.order, effectiveHidden, expandable, selectable, narrowCanvas, leadingKeys]);
 
+  // 30 Oct: default desktop views fit the remaining canvas proportionally.
+  // Explicit user widths retain contained scrolling; never shrink body type.
+  const proportionalWidths = useMemo(() => {
+    const out: Record<string, number> = {};
+    if (appearance !== "reference" || embedded || !fitCanvas || Object.keys(layout.widths).length || look === "finance") return out;
+    const data = visibleColumns.filter(c => !c.key.startsWith("__"));
+    const controls = visibleColumns.filter(c => c.key.startsWith("__")).reduce((n,c) => n + referenceWidthOf(c), 0);
+    const total = data.reduce((n,c) => n + referenceWidthOf(c), 0);
+    if (total + controls <= fitCanvas) return out;
+    // A binary search respects both the proportional 70% and absolute52px floor.
+    let lo = .7, hi = 1;
+    for (let i=0; i<24; i++) {
+      const scale = (lo + hi) / 2;
+      const required = data.reduce((n,c) => n + Math.max(52, referenceWidthOf(c) * scale), controls);
+      if (required <= fitCanvas) lo = scale; else hi = scale;
+    }
+    for (const c of data) out[c.key] = Math.max(52, referenceWidthOf(c) * lo);
+    return out;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appearance, embedded, fitCanvas, visibleColumns, layout.widths, fitWidths, look]);
+  const widthOf = (col: { key: string; width?: number; wrap?: boolean }): number => proportionalWidths[col.key] ?? referenceWidthOf(col);
+
   /**
    * ⭐ STICKY IDENTITY — which columns pin, and how far from the left edge.
    *
@@ -1465,7 +1488,7 @@ function DataGridInner<T>({
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stickyIdentity, leadingColumns, pinnedLeadingKeys, prefixKey, narrowCanvas, visibleColumns, layout.widths, fitWidths]);
+  }, [stickyIdentity, leadingColumns, pinnedLeadingKeys, prefixKey, narrowCanvas, visibleColumns, layout.widths, fitWidths, proportionalWidths]);
   /** The last pinned column carries the edge that says where the block ends. */
   const pinnedEdgeKey = useMemo(() => {
     const keys = [...pinnedLefts.keys()];
@@ -2349,6 +2372,7 @@ function DataGridInner<T>({
     if (!viewport || typeof ResizeObserver === "undefined") return;
     const measure = () => {
       setEmptyViewportWidth(viewport.clientWidth);
+      setFitCanvas(viewport.clientWidth);
       /* The CANVAS decides, not the device: a register squeezed below 768px
          inside a wide window is a touch-sized target problem all the same. */
       setNarrowCanvas(viewport.clientWidth > 0 && viewport.clientWidth < 768);
@@ -2489,7 +2513,7 @@ function DataGridInner<T>({
         const fills = col.key === fillKey;
         const style: CSSProperties = {
           width: fills ? undefined : w,
-          minWidth: fills ? w : col.minWidth ?? 40,
+          minWidth: fills ? w : proportionalWidths[col.key] ?? col.minWidth ?? 40,
           ...pinStyle(col.key),
         };
         const isSorted = layout.sort?.key === col.key;
@@ -3784,7 +3808,7 @@ function DataGridInner<T>({
         <table
           className={`${styles.table}${pinnedPrefix || leadingColumns || (typeof stickyIdentity === "object" && Array.isArray(stickyIdentity.columnKey)) ? ` ${styles.tablePinnedBlock}` : ""}`}
           hidden={groupLocalHeaders && !isLoading && errorState == null && renderList.length > 0}
-          style={fillKey ? { minWidth: "100%" } : undefined}
+          style={fillKey ? { minWidth: "100%" } : appearance === "reference" ? { width: groupedTableWidth, tableLayout: "fixed" } : undefined}
         >
           {/* A flat register keeps the one sticky header it has always had. */}
           {!groupLocalHeaders && (

@@ -4,6 +4,54 @@
 
 The owner commissioned kit/rule publication first, then separate frontend page work. Follow [UI MASTER current template](../ui/MASTER.md#current-shared-template--owner-adoption-30-oct-2026) and its30Oct reconciliation for Shell, table, surfaces, document-card composition and Send task presentation. These replace conflicting older visual measurements and blanket50:50 document-bearing record presentation below; historical build evidence is not current visual law. Lists stay lists; document-free objects do not acquire a PDF. Module business facts, saved document versions, permissions, writers, approvals and downstream ownership remain unchanged. No frontend migration, backend change or production verification is claimed by this intake. All modules consume the same Shell and shared components; no local kit or task engine.
 
+## 30Oct frontend correction · review branch ·2Nov2026
+
+**BUILT ON REVIEW BRANCH / NOT OWNER-ACCEPTED / NOT MERGED OR DEPLOYED.**
+`codex/sales-order-30oct-frontend`, isolated checkout
+`/Users/chaichiewlim/carres-worktrees/sales-order-30oct-frontend`, based on fetched
+`origin/main` `e4b518a27`. Desktop uncommitted work is untouched. A subsequent fetch
+encountered DNS timeout; this record does not claim a newer remote authority was verified.
+
+- Reused the shared Operations Shell/PortalSidebar, DataGrid, Button/field recipe,
+  Block surface, DialogFrame-backed Drawer/Modal, Tasks and PdfPreview. Changed
+  shared measurements once: Summary264, Tasks340, surface8/control6, CAPS11 headers40,
+  current title/colour/avatar roles. `/ui` reads the SO column configuration directly.
+- Default SO columns fit their actual desktop canvas proportionally, with the70%/52px
+  floor; explicit personal widths retain contained scroll. Goods expansion keeps Item,
+  specification, separate Qty and owning supplier facts. Stored document identities,
+  list permissions, selection, filtering, sorting and return context are preserved.
+- Record content uses2:1 with the actual PDF, stacking below820px available content.
+  Shared PDF zoom/expand uses the same file, app-window DialogFrame, Escape/close,
+  scroll/zoom retention and focus return. Issued historical files still win; preview
+  generation never changes saved business state or the Print/Download data source.
+- Route Overview now groups the existing source nodes into Purchasing/Supplier,
+  Warehouse, Logistics and Payment, with Loan only when its nodes exist. The same
+  per-line goods facts remain inside the relevant party card and the existing detailed
+  route; one visual Now focuses existing open/problem work without serialising gates.
+  Timeline remains read-only. This is presentation, not a new route/state engine.
+
+**Local frontend evidence:** `output/sales-order-30oct-review/` holds full-page/viewport
+PNG evidence and measured results, using existing TEST fixtures (not production proof).
+At1440/1164/1025 the default table matches its722/1074/935px canvas, headers40; at390
+both list and record have zero page-level sideways overflow, with table-contained scroll.
+The measured record columns are658.656/329.344px on1000px available content. PDF expand,
+zoom retention, Escape, focus return, route/timeline and distinct failed/denied/empty reads
+were walked locally. Targeted component/behaviour checks pass; release/owner acceptance
+and authenticated real-data verification remain owed. No fixture transaction proves a
+backend capability or a successful external send.
+
+**IT handoff — existing upstream/downstream boundary, still owed:** supply the governed
+Journey slot facts/admission (UI MASTER's missing Ops§4 source remains unresolved), exact
+source-backed Map/Documents adapters and production PDF/version/permission integration.
+The frontend must not infer `PO sent`, customer confirmation, early-offer applicability,
+DO issue, delivery proof/completion or Work closure from node position, date or prototype
+booleans. The existing detailed Steps/Details doors remain until those facts and exact
+adapters are available; this branch does not claim the entire Route target complete.
+Existing amendment/approval, money, allocation, Delivery and owner-resolution gaps remain
+with their named modules/IT. No API, database, migration, business rule or production data
+was changed in this frontend correction. Required owner/design review precedes merge and
+release; shared-kit authority remains the planner's ONE UI MASTER.
+
 ## Current Order Route presentation — owner24Oct2026
 
 The latest Sales Order Template Spec in `../ui/MASTER.md` replaces the old GOODS/DELIVERY/PAYMENT group-band Overview with one Journey line and party cards: Purchasing/Supplier, Warehouse, Logistics and Payment. Overview, Map and Documents read the same source-owned facts. Remove the duplicate GOODS Overview band; retain per-SO-line procurement, PO/source, received/accepted/damaged/wrong quantities, exact Units, location and evidence within the owning party card and source-linked Map/Documents. This is a presentation correction, not permission to discard the goods-chain readers or merge goods with stock ownership.

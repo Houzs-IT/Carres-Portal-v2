@@ -65,7 +65,7 @@ describe("Sales Order object template contract", () => {
        asserts against, and a page-local template call would show up here as a
        different name rather than another call of this one. */
     expect(workspace.match(/renderSalesOrderPdf\(/g)).toHaveLength(4);
-    expect(workspace).toContain("const blob = await renderSalesOrderPdf(data)");
+    expect(workspace).toContain("renderSalesOrderPdf(data).then");
     /* Print and Download both build from the SAVED data. */
     expect(workspace.match(/const blob = await renderSalesOrderPdf\(printData\)/g)).toHaveLength(2);
     expect(workspace).toContain("const blob = await renderSalesOrderPdf(issued)");
@@ -390,7 +390,7 @@ describe("Sales Order object template contract", () => {
        only a version that never had one is rebuilt and carries the notice. */
     expect(workspace).toContain("useIssuedSalesOrderDocument");
     expect(workspace).toContain("storeIssuedSalesOrderDocument");
-    expect(workspace).toContain('data-testid="issued-document-pane"');
+    expect(workspace).toContain('src={storedDocumentUrl || preview.url!}');
     expect(workspace).toContain('data-testid="oldrev-issued-document"');
     /* The rebuild is skipped entirely when a file exists — a stored document is
        shown as itself, never redrawn from the snapshot beside it. */
@@ -871,13 +871,13 @@ describe("Sales Order detail — owner-confirmed handoff 2026-10-08", () => {
     expect(workspace).toContain("const locked = !amending || l.removed || protectedLine(l);");
   });
 
-  it("keeps the PDF the SAME document, drawn only while its drawer is open, and the old-version notices", () => {
-    expect(workspace).toContain("usePdfCanvases(pdfOpen ? templateData : null)");
+  it("keeps the PDF in the shared viewer and retains old-version notices", () => {
+    expect(workspace).toContain("useSalesOrderPreview(templateData)");
     expect(workspace).toContain('data-testid="pending-amendment-banner"');
     expect(workspace).toContain('data-testid="unsaved-watermark"');
     expect(workspace).toContain('data-testid="oldrev-rebuilt"');
     expect(workspace).toContain('{isReconstruction && base?.signature_url && <p className="text-[12px]" data-testid="oldrev-signature-unknown">');
-    expect(workspace).toContain('data-testid="issued-document-pane"');
+    expect(workspace).toContain('src={storedDocumentUrl || preview.url!}');
   });
 
   it("states the money from the ONE arithmetic, never a re-sum", () => {
@@ -895,8 +895,11 @@ describe("Sales Order detail — owner-confirmed handoff 2026-10-08", () => {
     expect(soTimeline).not.toMatch(/onDelete|onEdit/);
   });
 
-  it("orders problem cards first on the Order Route overview", () => {
-    expect(soRoute).toContain("const ordered = [...problems, ...byBranch.filter((b) => !problems.includes(b))];");
+  it("groups source facts by party and keeps one visual focus on the Route overview", () => {
+    expect(soRoute).toContain('title: "Purchasing / Supplier"');
+    expect(soRoute).toContain('title: "Warehouse"');
+    expect(soRoute).toContain('title: "Logistics"');
+    expect(soRoute).toContain('focus={party === focusParty}');
     expect(soRoute).toContain('{ key: "ov", label: "Overview" }');
     expect(soRoute).toContain('{ key: "st", label: "Steps" }');
     expect(soRoute).toContain('{ key: "dt", label: "Details" }');

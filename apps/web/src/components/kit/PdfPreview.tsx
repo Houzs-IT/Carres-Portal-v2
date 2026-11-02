@@ -1,9 +1,10 @@
 /** Shared document preview — docs/02-components.md; Purchasing MASTER §8.2. */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
 import { paintPdfPages } from "@/lib/pdf/paint";
 import Button from "./Button";
 import Tooltip from "./Tooltip";
+import Modal from "./Modal";
 import type { ReactNode } from "react";
 
 /** Source-owned identity/actions, also present while its PDF is loading or failed. */
@@ -27,7 +28,19 @@ interface PdfPreviewProps {
 
 /** Actual PDF pages, using the same painter as Sales Order review. */
 export default function PdfPreview({ src, title, onReady, "data-testid": testId }: PdfPreviewProps) {
-  const pane = useRef<HTMLDivElement>(null);
+  const pane = useRef<HTMLDivElement | null>(null);
+  const [paneEpoch, setPaneEpoch] = useState(0);
+  const setPane = useCallback((node: HTMLDivElement | null) => {
+    pane.current = node;
+    if (node) setPaneEpoch(n => n + 1);
+  }, []);
+  const [expanded, setExpanded] = useState(false);
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const scroll = useRef([0, 0]);
+  const changeExpanded = (next: boolean) => {
+    if (pane.current) scroll.current = [pane.current.scrollLeft, pane.current.scrollTop];
+    setExpanded(next);
+  };
   const readiness = useRef(onReady);
   readiness.current = onReady;
   const [width, setWidth] = useState(0);
@@ -37,7 +50,7 @@ export default function PdfPreview({ src, title, onReady, "data-testid": testId 
 
   useEffect(() => {
     const node = pane.current;
-    if (!node) return;
+    if (!node || paneEpoch === 0) return;
     const measure = () => setWidth(node.clientWidth);
     measure();
     if (typeof ResizeObserver === "undefined") return;
@@ -48,11 +61,11 @@ export default function PdfPreview({ src, title, onReady, "data-testid": testId 
     });
     observer.observe(node);
     return () => { clearTimeout(timer); observer.disconnect(); };
-  }, []);
+  }, [expanded, paneEpoch]);
 
   useEffect(() => {
     const node = pane.current;
-    if (!node) return;
+    if (!node || paneEpoch === 0) return;
     let cancelled = false;
     let task: pdfjs.RenderTask | undefined;
     setStatus("loading");
@@ -64,9 +77,11 @@ export default function PdfPreview({ src, title, onReady, "data-testid": testId 
         loading = pdfjs.getDocument(src);
         const doc = await loading.promise;
         if (cancelled) return;
-        await paintPdfPages(doc, node, Math.max(320, width) * zoom,
+        await paintPdfPages(doc, node, (width || 320) * zoom,
           () => cancelled, (next) => { task = next; });
         if (cancelled) return;
+        node.scrollLeft = scroll.current[0]!;
+        node.scrollTop = scroll.current[1]!;
         setStatus("ready");
         readiness.current?.(true);
       } catch {
@@ -81,14 +96,15 @@ export default function PdfPreview({ src, title, onReady, "data-testid": testId 
       task?.cancel();
       void loading?.destroy().catch(() => {});
     };
-  }, [src, width, zoom, attempt]);
+  }, [src, width, zoom, attempt, expanded, paneEpoch]);
 
-  return (
+  const content = (
     <section aria-label={title} data-testid={testId} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="mb-2 flex shrink-0 flex-wrap items-center gap-2">
-        <Button size="sm" disabled={zoom <= 1} onClick={() => setZoom((n) => Math.max(1, n - 0.25))}>Zoom out</Button>
+        <Button size="sm" disabled={zoom <= 1} onClick={() => setZoom((n) => Math.max(1, n - 0.25))} aria-label="Zoom out" title="Zoom out">−</Button>
         <span className="text-meta tabular-nums">{Math.round(zoom * 100)}%</span>
-        <Button size="sm" disabled={zoom >= 3} onClick={() => setZoom((n) => Math.min(3, n + 0.25))}>Zoom in</Button>
+        <Button size="sm" disabled={zoom >= 3} onClick={() => setZoom((n) => Math.min(3, n + 0.25))} aria-label="Zoom in" title="Zoom in">+</Button>
+        {!expanded && <Button ref={expandButton} size="sm" onClick={() => changeExpanded(true)}>Expand</Button>}
         <Button size="sm" disabled={zoom === 1} onClick={() => setZoom(1)}>Fit width</Button>
       </div>
       {status !== "ready" && (
@@ -99,7 +115,13 @@ export default function PdfPreview({ src, title, onReady, "data-testid": testId 
           </>}
         </div>
       )}
-      <div ref={pane} aria-busy={status === "loading"} className="min-h-0 min-w-0 flex-1 overflow-auto" />
+      <div ref={setPane} aria-busy={status === "loading"} className="min-h-0 min-w-0 flex-1 overflow-auto" />
     </section>
   );
+  return <>
+    {!expanded && content}
+    <Modal open={expanded} onOpenChange={changeExpanded} title={title} width="document" returnFocusRef={expandButton}>
+      {expanded && <div className="flex h-[calc(100dvh-112px)] min-h-0 flex-col">{content}</div>}
+    </Modal>
+  </>;
 }

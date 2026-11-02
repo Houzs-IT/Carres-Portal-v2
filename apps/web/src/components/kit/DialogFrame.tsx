@@ -78,7 +78,7 @@ const SIDE_WIDTH = {
   standard: "max-w-[var(--drawer-w)]",
   card: "max-w-drawer",
   summary: "max-w-[264px]",
-  tasks: "max-w-[320px]",
+  tasks: "max-w-[340px]",
 } as const;
 
 /**
@@ -94,6 +94,7 @@ const CENTRE_WIDTH = {
   /** 2026-09-11 — a PICTURE. 880px, measured against the height cap; see the
    *  config. A viewer is not a question and not a list. */
   viewer: "max-w-modal-viewer",
+  document: "!inset-0 !left-0 !top-0 !max-h-none !max-w-none !translate-x-0 !translate-y-0",
 } as const;
 
 export type DialogWidth = keyof typeof CENTRE_WIDTH;
@@ -129,7 +130,7 @@ export default function DialogFrame({
    * picture. Its ABSENCE is the 512px default. There is no default value and
    * no way to express a number.
    */
-  width?: "wide" | "viewer";
+  width?: "wide" | "viewer" | "document";
   children: ReactNode;
   /** Persistent trigger for a dialog opened by a menu item that unmounts. */
   returnFocusRef?: RefObject<HTMLElement>;
@@ -139,7 +140,7 @@ export default function DialogFrame({
    * in the kit at all — §10.1's rule, kept even though a class is not a word. */
   const widthClass =
     place === "centre"
-      ? CENTRE_WIDTH[width === "wide" || width === "viewer" ? width : "standard"]
+      ? CENTRE_WIDTH[width === "wide" || width === "viewer" || width === "document" ? width : "standard"]
       : SIDE_WIDTH[variant === "summary-panel" ? "summary" : variant === "tasks-panel" ? "tasks" : variant === "compact-card" ? "card" : "standard"];
 
   /* WHO HAD FOCUS WHEN THIS OPENED. Captured on the OPEN transition, because

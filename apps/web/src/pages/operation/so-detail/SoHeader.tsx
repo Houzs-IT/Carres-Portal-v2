@@ -62,7 +62,7 @@ export default function SoHeader({
           onClick={onBack}
           aria-label="Back to Sales Orders"
           title="Back to Sales Orders"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-c-card text-c-body hover:bg-c-hover focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:-2px]"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-c-btn-border bg-c-card text-c-body hover:bg-c-hover focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:-2px]"
           data-testid="so-back"
         >
           <MIcon name="arrow_back" size={20} />

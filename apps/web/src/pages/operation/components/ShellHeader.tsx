@@ -21,13 +21,13 @@ export function ShellTitle({ crumb, title }: { crumb?: string | null; title: str
     <div className="flex min-w-0 items-baseline gap-2 whitespace-nowrap" data-testid="shell-title">
       {crumb ? (
         <>
-          <span className="text-[14px] leading-5 text-c-secondary">{crumb}</span>
-          <span className="text-control text-c-line" aria-hidden>
+          <span className="text-[13px] leading-5 text-c-secondary">{crumb}</span>
+          <span className="text-body text-c-line" aria-hidden>
             /
           </span>
         </>
       ) : null}
-      <h1 className="m-0 min-w-0 truncate text-[20px] font-medium leading-7 tracking-[-0.02em] text-c-ink">{title}</h1>
+      <h1 className="m-0 min-w-0 truncate text-[20px] font-semibold leading-7 tracking-[-0.02em] text-c-ink">{title}</h1>
     </div>
   );
 }

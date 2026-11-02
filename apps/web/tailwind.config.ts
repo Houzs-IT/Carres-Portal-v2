@@ -136,6 +136,7 @@ export default {
           ink: "var(--c-ink)",
           main: "var(--c-main)",
           body: "var(--c-body)",
+          heading: "var(--c-heading)",
           tab: "var(--c-tab)",
           secondary: "var(--c-secondary)",
           muted: "var(--c-muted)",

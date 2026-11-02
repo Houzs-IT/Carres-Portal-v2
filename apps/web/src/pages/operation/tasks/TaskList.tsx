@@ -32,11 +32,11 @@ function Card({ card, selected, onOpen }: { card: TaskCard; selected: boolean; o
       ))}
     </>
   );
-  const shape = "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left";
-  if (!card.work) return <div className={`${shape} bg-c-ground`} data-testid={`task-card-${card.id}`}>{body}</div>;
+  const shape = "flex w-full flex-col gap-1 rounded-lg border border-c-card-border px-2.5 py-2 text-left";
+  if (!card.work) return <div className={`${shape} bg-white`} data-testid={`task-card-${card.id}`}>{body}</div>;
   return (
     <button type="button" onClick={() => onOpen(card)} aria-pressed={selected} data-testid={`task-card-${card.id}`} data-task-card
-      className={`${shape} outline-none focus-visible:[outline:var(--c-focus)] ${selected ? "bg-c-select-bg" : "bg-c-ground hover:bg-c-hover"}`}>
+      className={`${shape} outline-none focus-visible:[outline:var(--c-focus)] ${selected ? "bg-[var(--c-select-soft)]" : "bg-white hover:bg-[var(--c-task-hover)]"}`}>
       {body}
     </button>
   );
