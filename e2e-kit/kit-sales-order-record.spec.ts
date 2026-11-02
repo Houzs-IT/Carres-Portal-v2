@@ -25,6 +25,19 @@ for (const width of [1025, 1164, 1440]) {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Sales Order PDF", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Full screen", exact: true })).toBeFocused();
+    await expect(paper).toBeVisible();
+    if (width === 1440) {
+      await page.getByRole("button", { name: "More actions", exact: true }).click();
+      await page.getByTestId("workspace-preview").click();
+      await expect(page.getByTestId("pdf-drawer")).toBeVisible();
+      await page.getByRole("button", { name: "Full screen", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Sales Order PDF", exact: true })).toBeVisible();
+      await expect(page.getByTestId("pdf-drawer")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("pdf-drawer")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Full screen", exact: true })).toBeFocused();
+      await expect(paper).toBeVisible();
+    }
   });
 }
 

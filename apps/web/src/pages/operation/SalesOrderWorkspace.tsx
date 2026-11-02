@@ -1537,6 +1537,7 @@ function SalesOrderWorkspaceBody() {
   const [pdfZoom, setPdfZoom] = useState(1);
   const [pdfExpanded, setPdfExpanded] = useState(false);
   const pdfExpandButton = useRef<HTMLButtonElement>(null);
+  const pdfReturnDrawer = useRef(false);
   const pdfScroller = useRef<HTMLDivElement>(null);
   const pdfReturnScroll = useRef<number | null>(null);
   const restorePdfScroll = () => {
@@ -1545,7 +1546,7 @@ function SalesOrderWorkspaceBody() {
       pdfReturnScroll.current = null;
     }
   };
-  const { setPane, pdfError, pdfBusy, retryPdf } = usePdfCanvases(objectView === "Sales Order" || pdfOpen ? templateData : null, pdfZoom, restorePdfScroll);
+  const { setPane, pdfError, pdfBusy, retryPdf } = usePdfCanvases(objectView === "Sales Order" || pdfOpen || pdfExpanded ? templateData : null, pdfZoom, restorePdfScroll);
 
   /* ⭐ PRINT IS THE SAVED TRUTH — owner ruling 2026-08-15.
      Preview-equals-Print is asserted in the SAVED state only. While the form is
@@ -3208,7 +3209,7 @@ function SalesOrderWorkspaceBody() {
         <CIconBtn icon="remove" label="Zoom out" size={32} disabled={pdfZoom <= 0.5} onClick={() => setPdfZoom(n => Math.max(0.5, n - 0.25))} />
         <button type="button" className="rounded-md px-1 text-meta" aria-label="Fit width" onClick={() => setPdfZoom(1)}>{Math.round(pdfZoom * 100)}%</button>
         <CIconBtn icon="add" label="Zoom in" size={32} disabled={pdfZoom >= 3} onClick={() => setPdfZoom(n => Math.min(3, n + 0.25))} />
-        {!pdfExpanded && <KitButton ref={pdfExpandButton} size="sm" icon="fullscreen" iconOnly aria-label="Full screen" onClick={() => { pdfReturnScroll.current = pdfScroller.current?.scrollTop ?? 0; setPdfExpanded(true); }} />}
+        {!pdfExpanded && <KitButton ref={pdfExpandButton} size="sm" icon="fullscreen" iconOnly aria-label="Full screen" onClick={() => { pdfReturnScroll.current = pdfScroller.current?.scrollTop ?? 0; pdfReturnDrawer.current = pdfOpen; setPdfOpen(false); setPdfExpanded(true); }} />}
       </div>
       <div ref={pdfScroller} className="min-h-0 min-w-0 flex-1 overflow-auto p-2">
         {liveAmendment && !liveAmendment.stale && (
@@ -3448,7 +3449,7 @@ function SalesOrderWorkspaceBody() {
         {!pdfExpanded && pdfDocument}
       </Drawer>
 
-      <KitModal open={pdfExpanded} onOpenChange={setPdfExpanded} title="Sales Order PDF" variant="document-viewer" returnFocusRef={pdfExpandButton}>
+      <KitModal open={pdfExpanded} onOpenChange={(open) => { setPdfExpanded(open); if (!open && pdfReturnDrawer.current) { pdfReturnDrawer.current = false; setPdfOpen(true); } }} title="Sales Order PDF" variant="document-viewer" returnFocusRef={pdfExpandButton}>
         {pdfExpanded && pdfDocument}
       </KitModal>
 
