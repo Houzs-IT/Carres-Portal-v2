@@ -377,6 +377,11 @@ export const serviceCaseSchema = z.object({
 
   /** 0762 — set while the case is archived off the list (Houzs assr.ts:1140). */
   archivedAt: z.string().nullable().optional(),
+
+  /** 0763 — Houzs cost tracking. Records only: nothing posts to the ledger. */
+  customerAmount:     z.number().nullable().optional(),
+  supplierCostAmount: z.number().nullable().optional(),
+  supplierInvoiceRef: z.string().nullable().optional(),
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -442,6 +447,9 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
     resolutionMethodId: z.string().uuid().nullable().optional(),
     /** 0762 — true archives the case off the list, false brings it back. */
     archived: z.boolean().optional(),
+    customerAmount:     z.number({ invalid_type_error: "Use an amount." }).nonnegative("Use an amount of 0 or more.").max(9_999_999_999.99).nullable().optional(),
+    supplierCostAmount: z.number({ invalid_type_error: "Use an amount." }).nonnegative("Use an amount of 0 or more.").max(9_999_999_999.99).nullable().optional(),
+    supplierInvoiceRef: z.string().trim().max(120).nullable().optional(),
   });
 export type UpdateServiceCaseInput = z.infer<typeof updateServiceCaseInputSchema>;
 

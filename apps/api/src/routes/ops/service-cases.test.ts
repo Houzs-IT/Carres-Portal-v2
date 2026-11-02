@@ -1485,6 +1485,22 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(body.items[0]).toMatchObject({ subStatusId: SUB, subStatusLabel: "Pending Supplier Pickup" });
   });
 
+  // 0763 — cost tracking (Houzs 037_assr_settings_and_costs.sql). Records only.
+  it("saves the two amounts and the supplier invoice ref, refuses a negative amount, and reads them back as numbers", async () => {
+    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
+    expect((await patchCase({ customerAmount: 250, supplierCostAmount: 180.5, supplierInvoiceRef: " INV-9 " }, sb)).status).toBe(200);
+    expect(updates).toContainEqual(["service_cases", { customer_amount: 250, supplier_cost_amount: 180.5, supplier_invoice_ref: "INV-9" }]);
+
+    const bad = tableSb({ service_cases: { order_id: null } });
+    expect((await patchCase({ customerAmount: -1 }, bad.sb)).status).toBe(400);
+    expect(bad.updates).toHaveLength(0);
+
+    const row = { ...CASE_ROW, customer_amount: "250.00", supplier_cost_amount: null, supplier_invoice_ref: "INV-9" };
+    const read = tableSb({ service_cases: [row] });
+    const body = (await (await get("/ops/service-cases", read.sb)).json()) as { items: Array<Record<string, unknown>> };
+    expect(body.items[0]).toMatchObject({ customerAmount: 250, supplierCostAmount: null, supplierInvoiceRef: "INV-9" });
+  });
+
   // 0762 — archive off the list (Houzs assr.ts:1140).
   it("archives and unarchives a case, and the list hides archived cases unless asked", async () => {
     const { sb, updates } = tableSb({ service_cases: { order_id: null } });
