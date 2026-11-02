@@ -41,7 +41,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   for (const k of Object.keys(results)) delete results[k];
   calls.length = 0;
-  vi.mocked(userClient).mockReturnValue({ from } as never);
+  const rpc = async (fn: string, args: unknown) => { calls.push({ table: "rpc", op: fn, args: [args] }); return { data: null, error: null }; };
+  vi.mocked(userClient).mockReturnValue({ from, rpc } as never);
 });
 
 describe("/api/operation/projects", () => {
@@ -122,5 +123,28 @@ describe("/api/operation/projects", () => {
     await post("/projects/checklist/k1/status", { status: "pending" });
     expect(calls.find((c) => c.op === "update")!.args[0]).toMatchObject({ status: "pending", completed_by: null, completed_at: null });
     expect((await post("/projects/checklist/k1/status", { status: "late" })).status).toBe(422);
+  });
+
+  it("prices linked orders with orderMoney and leaves cancelled ones out of the totals (0753)", async () => {
+    results.orders = [{ data: [
+      { id: "o1", so: "SO-1", status: "confirmed", customer_name: "A", placed_at: null, paid: 300, credited: 0, order_lines: [{ qty: 2, unit_price: 500 }], order_addons: [], ops_order_control: null },
+      { id: "o2", so: "SO-2", status: "cancelled", customer_name: "B", placed_at: null, paid: 0, credited: 0, order_lines: [{ qty: 1, unit_price: 900 }], order_addons: [], ops_order_control: null },
+    ], error: null }];
+    const res = await app().request("/projects/p1/sales-orders");
+    expect(await res.json()).toMatchObject({
+      orders: [{ id: "o1", total: 1000, paid: 300, balance: 700 }, { id: "o2", total: 900 }],
+      totals: { count: 1, total: 1000, paid: 300, balance: 700 },
+    });
+  });
+
+  it("refuses an order on another project, and unlinks only from this one (0753)", async () => {
+    results.orders = [{ data: { id: "o1", project_id: "p2" }, error: null }];
+    expect(await (await post("/projects/p1/sales-orders", { so: "SO-1" })).json()).toMatchObject({ code: "other_project" });
+    results.orders = [{ data: null, error: null }];
+    expect((await post("/projects/p1/sales-orders/o1", undefined, "DELETE")).status).toBe(404);
+    expect(calls.some((c) => c.table === "rpc")).toBe(false);
+    results.orders = [{ data: { id: "o1", project_id: null }, error: null }];
+    expect((await post("/projects/p1/sales-orders", { so: "SO-1" })).status).toBe(201);
+    expect(calls.find((c) => c.table === "rpc")).toEqual({ table: "rpc", op: "project_link_order", args: [{ p_order: "o1", p_project: "p1" }] });
   });
 });

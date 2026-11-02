@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import {
   checklistApplyInput, checklistItemInput, checklistStatusInput, checklistTemplateInput, checklistTemplatePatch,
-  deriveProjectCode, deriveProjectName, projectCreateInput, projectMasterInput, projectMasterPatch, projectNoteInput,
+  deriveProjectCode, deriveProjectName, projectCreateInput, projectOrderLinkInput, projectSalesTotals, projectMasterInput, projectMasterPatch, projectNoteInput,
   projectPatchInput, projectTeamInput, PROJECT_STAGES, PROJECT_STATUSES, uniqueProjectCode,
-  type ChecklistTask, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectRow, type ProjectTeamMember,
+  type ChecklistTask, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectSalesOrder, type ProjectRow, type ProjectTeamMember,
 } from "@carres/shared/projects";
+import { orderMoney } from "@carres/shared/order-money";
 import { requireOperation } from "../../lib/auth-guards";
 import { fail, parseJsonBody } from "../../lib/route-helpers";
 import { userClient } from "../../lib/supabase";
@@ -28,6 +29,7 @@ import type { AppEnv } from "../../types";
  *   GET/POST /checklist-templates · PATCH /checklist-templates/:tid · POST /checklist-templates/:tid/items
  *   DELETE /checklist-template-items/:iid · POST /:id/checklist · POST /:id/checklist/apply
  *   POST  /checklist/:taskId/status · DELETE /checklist/:taskId   checklists (0752)
+ *   GET/POST /:id/sales-orders · DELETE /:id/sales-orders/:orderId  Sales Orders at the project (0753)
  *
  * Row security (0750) admits Operation and the principal; the caller's own
  * token reaches the tables.
@@ -334,6 +336,60 @@ router.post("/:id/checklist/apply", requireOperation, async (c) => {
   const error = await applyTemplate(userClient(c.env, c.var.auth.jwt), c.req.param("id"), body.data.templateId);
   if (error) return fail(c, error);
   return c.json({ ok: true }, 201);
+});
+
+/* ── Sales Orders at the project (0753, Houzs SO project_id) ──
+ * Money comes from the shared orderMoney, which reads orders.paid; order_payments is
+ * not summed because the raw-create door writes a deposit into both (order-money.ts:22-28). */
+type MoneyLine = { qty: number; unit_price: number | null };
+const sumLines = (ls: MoneyLine[] | null | undefined) => (ls ?? []).reduce((s, l) => s + Number(l.qty) * Number(l.unit_price ?? 0), 0);
+
+router.get("/:id/sales-orders", requireOperation, async (c) => {
+  const { data, error } = await userClient(c.env, c.var.auth.jwt)
+    .from("orders")
+    .select("id, so, status, customer_name, placed_at, paid, credited, order_lines(qty, unit_price), order_addons(qty, unit_price), ops_order_control(balance)")
+    .eq("project_id", c.req.param("id"))
+    .order("placed_at", { ascending: false });
+  if (error) return fail(c, error);
+  const orders: ProjectSalesOrder[] = ((data ?? []) as Row[]).map((o) => {
+    const ctrl = (Array.isArray(o.ops_order_control) ? o.ops_order_control[0] : o.ops_order_control) as { balance?: number | null } | null;
+    const m = orderMoney({
+      lineSum: sumLines(o.order_lines as MoneyLine[]), addonSum: sumLines(o.order_addons as MoneyLine[]),
+      paid: o.paid as number | null, credited: o.credited as number | null, controlBalance: ctrl?.balance ?? null,
+    });
+    return {
+      id: String(o.id), so: String(o.so ?? ""), status: String(o.status), customerName: (o.customer_name as string | null) ?? null,
+      placedAt: (o.placed_at as string | null) ?? null, total: m.total, paid: m.paid, balance: m.goodsOwing,
+    };
+  });
+  return c.json({ orders, totals: projectSalesTotals(orders) });
+});
+
+router.post("/:id/sales-orders", requireOperation, async (c) => {
+  const body = await parseJsonBody(c, projectOrderLinkInput);
+  if (!body.ok) return c.json(body.body, body.status);
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const found = await sb.from("orders").select("id, project_id").eq("so", body.data.so).maybeSingle();
+  if (found.error) return fail(c, found.error);
+  const order = found.data as Row | null;
+  if (!order) return c.json({ error: "not_found", code: "order_not_found", message: "No Sales Order has that number." }, 404);
+  if (order.project_id && order.project_id !== c.req.param("id")) {
+    return c.json({ error: "rule_violation", code: "other_project", message: "This Sales Order is on another project. Remove it there first." }, 422);
+  }
+  const { error } = await sb.rpc("project_link_order", { p_order: order.id, p_project: c.req.param("id") });
+  if (error) return fail(c, error);
+  return c.json({ ok: true }, 201);
+});
+
+router.delete("/:id/sales-orders/:orderId", requireOperation, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  // Unlink only from this project, so a stale page cannot take an order off another one.
+  const found = await sb.from("orders").select("id").eq("id", c.req.param("orderId")).eq("project_id", c.req.param("id")).maybeSingle();
+  if (found.error) return fail(c, found.error);
+  if (!found.data) return c.json({ error: "not_found", code: "order_not_found", message: "No Sales Order has that number." }, 404);
+  const { error } = await sb.rpc("project_link_order", { p_order: c.req.param("orderId"), p_project: null });
+  if (error) return fail(c, error);
+  return c.json({ ok: true });
 });
 
 router.post("/:id/team", requireOperation, async (c) => {
