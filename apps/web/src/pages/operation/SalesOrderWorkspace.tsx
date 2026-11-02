@@ -49,6 +49,8 @@ import { DialogContainerProvider } from "@/components/kit/dialog-container";
 import "./sales-order-detail-theme.css";
 import "./sales-order-record.css";
 import PdfPreview from "@/components/kit/PdfPreview";
+import KitModal from "@/components/kit/Modal";
+import KitButton from "@/components/kit/Button";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import * as pdfjs from "pdfjs-dist";
@@ -336,7 +338,9 @@ export function contentWidthOf(node: HTMLElement): number {
 /** A sales order below this is unreadable; it scrolls in the pane instead. */
 
 
-function usePdfCanvases(data: SalesOrderTemplateData | null, zoom = 1) {
+function usePdfCanvases(data: SalesOrderTemplateData | null, zoom = 1, onPaint?: () => void) {
+  const painted = useRef(onPaint);
+  painted.current = onPaint;
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfAttempt, setPdfAttempt] = useState(0);
@@ -418,6 +422,7 @@ function usePdfCanvases(data: SalesOrderTemplateData | null, zoom = 1) {
            it was there at every width, not only narrow ones. */
         const width = Math.max(contentWidthOf(pane), 1) * zoom;
         await paintPdfPages(doc, pane, width, () => cancelled, (task) => { renderTask = task; });
+        if (!cancelled) painted.current?.();
       } catch (e) {
         if (!cancelled) setPdfError(e instanceof ApiError ? e.message : String(e));
       } finally {
@@ -1530,17 +1535,17 @@ function SalesOrderWorkspaceBody() {
   }, [mode, viewedRevision, base, debouncedDraftData, addonNameByKey]);
 
   const [pdfZoom, setPdfZoom] = useState(1);
-  const documentCard = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const leaveFullscreen = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && document.fullscreenElement && document.fullscreenElement === documentCard.current) {
-        void document.exitFullscreen().catch(() => {});
-      }
-    };
-    document.addEventListener("keydown", leaveFullscreen);
-    return () => document.removeEventListener("keydown", leaveFullscreen);
-  }, []);
-  const { setPane, pdfError, pdfBusy, retryPdf } = usePdfCanvases(objectView === "Sales Order" || pdfOpen ? templateData : null, pdfZoom);
+  const [pdfExpanded, setPdfExpanded] = useState(false);
+  const pdfExpandButton = useRef<HTMLButtonElement>(null);
+  const pdfScroller = useRef<HTMLDivElement>(null);
+  const pdfReturnScroll = useRef<number | null>(null);
+  const restorePdfScroll = () => {
+    if (!pdfExpanded && pdfReturnScroll.current !== null && pdfScroller.current) {
+      pdfScroller.current.scrollTop = pdfReturnScroll.current;
+      pdfReturnScroll.current = null;
+    }
+  };
+  const { setPane, pdfError, pdfBusy, retryPdf } = usePdfCanvases(objectView === "Sales Order" || pdfOpen ? templateData : null, pdfZoom, restorePdfScroll);
 
   /* ⭐ PRINT IS THE SAVED TRUTH — owner ruling 2026-08-15.
      Preview-equals-Print is asserted in the SAVED state only. While the form is
@@ -3197,15 +3202,15 @@ function SalesOrderWorkspaceBody() {
       : "/operation/orders";
 
   const pdfDocument = (
-    <section ref={documentCard} className="so-document-card" aria-label="Sales Order PDF">
+    <section className="so-document-card" data-expanded={pdfExpanded || undefined} aria-label="Sales Order PDF">
       <div className="flex min-h-10 flex-wrap items-center gap-1 border-b border-c-section-line px-2 py-1">
         <span className="mr-auto text-[11px] font-semibold uppercase tracking-[.04em]">Sales Order PDF</span>
         <CIconBtn icon="remove" label="Zoom out" size={32} disabled={pdfZoom <= 0.5} onClick={() => setPdfZoom(n => Math.max(0.5, n - 0.25))} />
         <button type="button" className="rounded-md px-1 text-meta" aria-label="Fit width" onClick={() => setPdfZoom(1)}>{Math.round(pdfZoom * 100)}%</button>
         <CIconBtn icon="add" label="Zoom in" size={32} disabled={pdfZoom >= 3} onClick={() => setPdfZoom(n => Math.min(3, n + 0.25))} />
-        <CIconBtn icon="fullscreen" label="Full screen" size={32} onClick={() => { const request = documentCard.current?.requestFullscreen?.(); if (request) void request.catch(() => toast.error("Could not open full screen")); }} />
+        {!pdfExpanded && <KitButton ref={pdfExpandButton} size="sm" icon="fullscreen" iconOnly aria-label="Full screen" onClick={() => { pdfReturnScroll.current = pdfScroller.current?.scrollTop ?? 0; setPdfExpanded(true); }} />}
       </div>
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-2">
+      <div ref={pdfScroller} className="min-h-0 min-w-0 flex-1 overflow-auto p-2">
         {liveAmendment && !liveAmendment.stale && (
           <div className="mb-3 rounded-lg bg-c-warn-bg px-3 py-2 text-[13px] font-medium text-c-warn-fg" data-testid="pending-amendment-banner">
             Amendment pending approval{pendingDeliveryDate ? `: delivery date → ${fmtDate(pendingDeliveryDate)}` : ""}. The document shows the order as it is now.
@@ -3213,7 +3218,7 @@ function SalesOrderWorkspaceBody() {
         )}
         <div className="relative" aria-label="Sales Order document">
           {storedDocumentUrl ? (
-            <PdfPreview src={storedDocumentUrl} zoom={pdfZoom} controls={false} title={`The document (${viewedRevision?.revision ?? ""}) was issued as`} data-testid="issued-document-pane" />
+            <PdfPreview src={storedDocumentUrl} zoom={pdfZoom} controls={false} onReady={(ready) => { if (ready) restorePdfScroll(); }} title={`The document (${viewedRevision?.revision ?? ""}) was issued as`} data-testid="issued-document-pane" />
           ) : (
             <>
               {pdfBusy && <Loading label="Rendering preview" />}
@@ -3374,7 +3379,7 @@ function SalesOrderWorkspaceBody() {
         ) : order ? (
           <div className="so-record-layout" data-testid="so-record-layout">
             <div className="min-w-0">{salesOrderTab}</div>
-            {!menuPdf && pdfDocument}
+            {!menuPdf && <div className="min-w-0">{!pdfExpanded && pdfDocument}</div>}
           </div>
         ) : null}
       </div>
@@ -3440,8 +3445,12 @@ function SalesOrderWorkspaceBody() {
           </>
         }
       >
-        {pdfDocument}
+        {!pdfExpanded && pdfDocument}
       </Drawer>
+
+      <KitModal open={pdfExpanded} onOpenChange={setPdfExpanded} title="Sales Order PDF" variant="document-viewer" returnFocusRef={pdfExpandButton}>
+        {pdfExpanded && pdfDocument}
+      </KitModal>
 
       {/* ── The confirmation before the commit — Before / After and what it starts. ── */}
       <Dialog

@@ -53,6 +53,8 @@ records, release gates and authenticated production verification remain separate
 
 ### 30 Oct intake reconciliation · one current answer per role
 
+**Shared implementation entry:** `Modal variant="document-viewer"` reuses DialogFrame for an app-window document surface, with Escape/close, focus trapping and return to the explicit opener. It is demonstrated by `/ui`'s existing PDF sample and consumed by Sales Order; it does not request browser fullscreen permission. Sales Order retains its controlled zoom and restores document scroll after repaint.2Nov local record checks4/4 passed across1025/1164/1440 and narrow stacking, including Escape and opener focus; final-head hosted release checks still gate deployment.
+
 | Role / trigger | Current contract | Shared entry / remaining work |
 |---|---|---|
 | Table headers, parent and goods tables |40px high; CAPS11/600,.04em,#374151; at most two lines. Split long titles by meaning, never reduce font to fit | DataGrid / ItemRows; migrate shared implementation once and demonstrate on `/ui` |

@@ -42,6 +42,7 @@ const GLYPH = {
   download: "download",
   print: "print",
   open: "open_in_new",
+  fullscreen: "fullscreen",
   close: "close",
   overflow: "more_vert",
   flag: "flag",

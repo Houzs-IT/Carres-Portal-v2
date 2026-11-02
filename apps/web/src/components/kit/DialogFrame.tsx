@@ -119,7 +119,7 @@ export default function DialogFrame({
   title: string;
   description?: string;
   headerActions?: ReactNode;
-  variant?: "quick-view" | "compact-card" | "task-review" | "summary-panel" | "tasks-panel";
+  variant?: "quick-view" | "compact-card" | "task-review" | "document-viewer" | "summary-panel" | "tasks-panel";
   /** The actions. One `primary` — §3.4 bans two blue actions in one block. */
   footer?: ReactNode;
   /** The `data-kit` value, so a test can tell a modal from a drawer. */
@@ -148,6 +148,8 @@ export default function DialogFrame({
   /* 03 §8 already requires this full surface. The module retains its existing
      Save/Cancel and submission guards; Escape/outside must not discard work. */
   const taskReview = variant === "task-review";
+  const documentViewer = variant === "document-viewer";
+  const fullSurface = taskReview || documentViewer;
   const contextualPanel = variant === "summary-panel" || variant === "tasks-panel";
   const holdPanel = usePanelDialogPresence();
   useLayoutEffect(() => {
@@ -176,7 +178,7 @@ export default function DialogFrame({
           /* Radix warns when Content carries no Description. Passing undefined
            * explicitly is its documented way of saying "there is none". */
           aria-describedby={description ? undefined : undefined}
-          className={`${taskReview ? "fixed inset-0 flex flex-col bg-white text-c-ink" : `${SURFACE} ${PLACE[place]} ${widthClass}`} ${Z_DIALOG} focus:outline-none`}
+          className={`${fullSurface ? "fixed inset-0 flex flex-col bg-white text-c-ink" : `${SURFACE} ${PLACE[place]} ${widthClass}`} ${Z_DIALOG} focus:outline-none`}
           onEscapeKeyDown={taskReview ? (event) => event.preventDefault() : undefined}
           onPointerDownOutside={taskReview ? (event) => event.preventDefault() : undefined}
           onOpenAutoFocus={(event) => {
@@ -196,6 +198,12 @@ export default function DialogFrame({
                all (`composeEventHandlers` checks `defaultPrevented`), so the
                null-trigger path that dropped focus on `<body>` never fires. */
             event.preventDefault();
+            // A document moves back from this surface before its trigger
+            // remounts. Resolve the explicit return ref after that commit.
+            if (documentViewer && returnFocusRef) {
+              requestAnimationFrame(() => returnFocusRef.current?.focus());
+              return;
+            }
             // A responsive panel may have moved its focused input into the
             // inline canvas. Keep that valid focus instead of the old opener.
             const active = document.activeElement;
@@ -243,7 +251,7 @@ export default function DialogFrame({
           {/* The compact card's own identity band reaches the corners, so its
               scroller clips to the 8px corner. Never the whole surface: a list
               portaled into this dialog must not be cut off. */}
-          <div className={taskReview ? "flex min-h-0 flex-1 flex-col" : contextualPanel ? "flex min-h-0 flex-1 flex-col" : variant === "compact-card" ? "flex-1 overflow-y-auto rounded-lg" : "flex-1 overflow-y-auto p-4"}>{children}</div>
+          <div className={fullSurface ? "flex min-h-0 flex-1 flex-col" : contextualPanel ? "flex min-h-0 flex-1 flex-col" : variant === "compact-card" ? "flex-1 overflow-y-auto rounded-lg" : "flex-1 overflow-y-auto p-4"}>{children}</div>
 
           {footer && (
             <footer className="flex items-center justify-end gap-2 rounded-b-lg border-t border-c-section-line [padding:var(--card-pad)]">

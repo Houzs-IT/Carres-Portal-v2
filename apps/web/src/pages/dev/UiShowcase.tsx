@@ -294,6 +294,7 @@ function Panel2({ children }: { children: ReactNode }) {
 
 function PdfPreviewSample() {
   const [src, setSrc] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(false);
   useEffect(() => () => { if (src) URL.revokeObjectURL(src); }, [src]);
   async function openSample(broken: boolean) {
@@ -314,8 +315,12 @@ function PdfPreviewSample() {
     <div className="flex flex-wrap gap-2">
       <Button loading={loading} onClick={() => void openSample(false)}>Show preview</Button>
       <Button disabled={loading} onClick={() => void openSample(true)}>Show failed preview</Button>
+      <Button disabled={!src} onClick={() => setExpanded(true)}>Full screen</Button>
     </div>
-    {src && <div className="flex h-[70vh] min-w-0 bg-c-ground p-4"><PdfPreview src={src} title="TEST document" /></div>}
+    {src && !expanded && <div className="flex h-[70vh] min-w-0 bg-c-ground p-4"><PdfPreview src={src} title="TEST document" /></div>}
+    <Modal open={expanded} onOpenChange={setExpanded} title="TEST document" variant="document-viewer">
+      {src && <div className="flex min-h-0 flex-1 bg-c-ground p-4"><PdfPreview src={src} title="TEST document" /></div>}
+    </Modal>
   </div>;
 }
 

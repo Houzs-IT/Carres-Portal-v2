@@ -20,9 +20,11 @@ for (const width of [1025, 1164, 1440]) {
     await page.getByRole("button", { name: "Fit width", exact: true }).click();
     await expect.poll(async () => (await paper.boundingBox())?.width ?? 0).toBeCloseTo(before, 0);
     await page.getByRole("button", { name: "Full screen", exact: true }).click();
-    await expect.poll(() => page.evaluate(() => document.fullscreenElement?.getAttribute("aria-label"))).toBe("Sales Order PDF");
+    await expect(page.getByRole("dialog", { name: "Sales Order PDF", exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog").getByTestId("pdf-pane").locator("canvas").first()).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
+    await expect(page.getByRole("dialog", { name: "Sales Order PDF", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Full screen", exact: true })).toBeFocused();
   });
 }
 
