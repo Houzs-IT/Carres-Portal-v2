@@ -279,6 +279,11 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                 <Link className="text-kit-blue-11" to={`/operation?tab=arrival-source&kind=failed-delivery-return&case=${id}`}>Plan Failed Delivery return</Link>
                 <Link className="text-kit-blue-11" to={`/operation?tab=arrival-source&kind=repair-return&case=${id}`}>Plan Repair</Link>
               </div>
+              {/* 0761 — Houzs ServiceCases.tsx:4139: the resolution method, from Service Settings. */}
+              <div className="max-w-xs">
+                <Select id="case-resolution-method" label="Resolution Method" value={d.resolutionMethodId ?? undefined} onValueChange={(v) => saveSelect({ resolutionMethodId: v })} placeholder="Resolution Method"
+                  options={(configQ.data?.resolutionMethods ?? []).map((m) => ({ value: m.id, label: m.label }))} />
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <InlineField id="scm-action" label="Resolution" textarea value={d.carresAction} onSave={(v) => save({ carresAction: v })} />
                 <InlineField id="scm-affected" label="What was affected" textarea value={d.whatAffected} onSave={(v) => save({ whatAffected: v })} />

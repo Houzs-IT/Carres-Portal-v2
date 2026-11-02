@@ -202,6 +202,7 @@ export default function OperationServiceCases() {
     { key: "location", label: "Location", width: W.customer, defaultHidden: true, accessor: (r) => r.customerAddress || null, searchValue: (r) => r.customerAddress ?? "" },
     { key: "category", label: "Service Category", width: W.category, defaultHidden: true, accessor: (r) => (r.productCategory ? caseProductCategoryLabel(r.productCategory) : null), searchValue: (r) => (r.productCategory ? caseProductCategoryLabel(r.productCategory) : "") },
     { key: "issue", label: "Issue Category", width: W.category, defaultHidden: true, accessor: (r) => (r.issueType ? caseIssueLabel(r.issueType) : null), searchValue: (r) => (r.issueType ? caseIssueLabel(r.issueType) : "") },
+    { key: "method", label: "Resolution Method", width: W.category, defaultHidden: true, accessor: (r) => r.resolutionMethodLabel ?? null, searchValue: (r) => r.resolutionMethodLabel ?? "" },
     { key: "type", label: "Case Type", width: W.category, defaultHidden: true, accessor: (r) => r.caseTypeLabel ?? null, searchValue: (r) => r.caseTypeLabel ?? "" },
     { key: "supplier", label: "Supplier", width: W.customer, accessor: (r) => r.supplierName ?? null, searchValue: (r) => r.supplierName ?? "" },
     // S4 — 14 working days from the day it was reported, from the same clock the case view and server read.

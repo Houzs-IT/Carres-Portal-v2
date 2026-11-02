@@ -265,6 +265,23 @@ describe("Service Cases — the case page and the views", () => {
     expect(workflow).not.toHaveTextContent("Other stage");
   });
 
+  it("offers the resolution methods from Service Settings on the case (0761)", async () => {
+    vi.mocked(apiFetch).mockReset();
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path.endsWith("/remedy")) return { requests: [], proposals: [], evidence: [], units: [], approver: null, canPropose: false, canDecide: false };
+      if (path.endsWith("/config")) return {
+        types: [], statuses: [{ id: "s1", label: "Pending", isClosed: false }],
+        resolutionMethods: [{ id: "m1", code: "replace_unit", label: "Replace Unit", sortOrder: 10, active: true }],
+      };
+      const one = { ...row, statusId: "s1", statusLabel: "Pending", resolutionMethodId: "m1", resolutionMethodLabel: "Replace Unit" };
+      if (path.includes("/api/ops/service-cases/")) return one;
+      return { items: [one], total: 1, staff: [] };
+    });
+    at("/operation?tab=service-notes&case=c1");
+    const resolution = await screen.findByRole("region", { name: "Resolution" });
+    await waitFor(() => expect(resolution).toHaveTextContent("Replace Unit"));
+  });
+
   it("hides closed cases on Hide completed, and shows them again when the closed stage is picked", async () => {
     answer([
       { ...row, id: "a", caseNo: "SC-A", statusId: "s1", statusLabel: "Pending" },
