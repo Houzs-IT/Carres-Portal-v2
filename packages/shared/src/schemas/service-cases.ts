@@ -503,6 +503,12 @@ export const serviceCaseNumbersResponseSchema = z.object({
     late:   z.number().int(),
     pct:    z.number().nullable(),
   }),
+  // Optional: a Worker from before 0745/0761 does not send them.
+  byStage: z.array(z.object({
+    stage: z.string(), visits: z.number().int(), avgDays: z.number(), pastTarget: z.number().int(),
+  })).optional(),
+  byResolutionMethod: z.array(z.object({ label: z.string(), count: z.number().int() })).optional(),
+  resolutionMethodNotSet: z.number().int().optional(),
   headline: z.string(),
 });
 export type ServiceCaseNumbersResponse = z.infer<typeof serviceCaseNumbersResponseSchema>;

@@ -269,6 +269,48 @@ export default function ServiceCaseNumbersPanel() {
           )}
         </div>
       </section>
+
+      {/* 0745 + 0761 — Houzs assrQuality.ts time per stage and ServiceMetrics.tsx resolution mix. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="rounded border border-base-200 bg-white" data-testid="numbers-stages">
+          <header className="px-4 py-3 border-b border-base-100">
+            <span className="text-strong text-base-900">Time in each stage</span>
+          </header>
+          <div className="px-4 py-2">
+            {(d.byStage ?? []).length === 0 ? (
+              <Empty>No stage change recorded in this period.</Empty>
+            ) : (
+              (d.byStage ?? []).map((s) => (
+                <div key={s.stage} className="flex items-baseline justify-between gap-3 py-1.5 border-t border-base-100 first:border-t-0" data-testid={`numbers-stage-${s.stage}`}>
+                  <span className="text-body text-base-900 truncate">{s.stage}</span>
+                  <span className="shrink-0 text-meta text-base-500">
+                    {s.pastTarget > 0 && <span className="text-error-700 mr-2 tabular-nums">{s.pastTarget} past target</span>}
+                    <span className="font-mono tabular-nums text-body text-base-900">{s.avgDays} days</span>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="rounded border border-base-200 bg-white" data-testid="numbers-methods">
+          <header className="px-4 py-3 border-b border-base-100">
+            <span className="text-strong text-base-900">Resolution Method</span>
+          </header>
+          <div className="px-4 py-2">
+            {(d.byResolutionMethod ?? []).length === 0 && !d.resolutionMethodNotSet ? (
+              <Empty>No case in this period.</Empty>
+            ) : (
+              [...(d.byResolutionMethod ?? []), ...(d.resolutionMethodNotSet ? [{ label: "Not recorded", count: d.resolutionMethodNotSet }] : [])].map((m) => (
+                <div key={m.label} className="flex items-baseline justify-between gap-3 py-1.5 border-t border-base-100 first:border-t-0">
+                  <span className="text-body text-base-900 truncate">{m.label}</span>
+                  <span className="font-mono tabular-nums text-body text-base-900 shrink-0">{m.count}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

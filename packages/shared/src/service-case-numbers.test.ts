@@ -51,12 +51,47 @@ function aCase(over: Partial<CaseNumbersCase> = {}): CaseNumbersCase {
     supplierName: over.supplierName,
     progress: over.progress,
     slaEvents: over.slaEvents,
+    resolutionMethod: over.resolutionMethod,
+    stageVisits: over.stageVisits,
   };
 }
 
 function run(cases: CaseNumbersCase[], period: string | null = null) {
   return computeCaseNumbers({ cases, todayIso: TODAY, period });
 }
+
+// ── Time in each stage (0745) and resolution method mix (0761) ───────────────
+
+describe("time in each stage and the resolution method", () => {
+  const visit = (stage: string, sortOrder: number, enteredAt: string, exitedAt: string | null, targetDays: number | null = null) =>
+    ({ stage, sortOrder, enteredAt, exitedAt, targetDays });
+
+  it("averages the days per stage in stage order and counts the visits past target", () => {
+    const r = computeCaseNumbers({
+      todayIso: TODAY,
+      nowIso: "2026-07-27T00:00:00Z",
+      cases: [
+        aCase({ id: "a", stageVisits: [visit("Inspect", 2, "2026-07-01T00:00:00Z", "2026-07-05T00:00:00Z", 3), visit("New", 1, "2026-06-30T00:00:00Z", "2026-07-01T00:00:00Z")] }),
+        aCase({ id: "b", stageVisits: [visit("Inspect", 2, "2026-07-25T00:00:00Z", null, 3)] }),
+      ],
+    });
+    expect(r.byStage).toEqual([
+      { stage: "New", visits: 1, avgDays: 1, pastTarget: 0 },
+      { stage: "Inspect", visits: 2, avgDays: 3, pastTarget: 1 },
+    ]);
+  });
+
+  it("ranks the resolution methods and counts the cases with none picked", () => {
+    const r = run([
+      aCase({ id: "a", resolutionMethod: "Replace Unit" }),
+      aCase({ id: "b", resolutionMethod: "Replace Unit" }),
+      aCase({ id: "c", resolutionMethod: "Supplier Service" }),
+      aCase({ id: "d" }),
+    ]);
+    expect(r.byResolutionMethod).toEqual([{ label: "Replace Unit", count: 2 }, { label: "Supplier Service", count: 1 }]);
+    expect(r.resolutionMethodNotSet).toBe(1);
+  });
+});
 
 // ── The window ───────────────────────────────────────────────────────────────
 
