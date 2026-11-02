@@ -100,6 +100,14 @@ Button 32 high (icon button 32 × 32) · status pill 22 high (20 inside dense ro
 
 Side panels: quick card (Module Card) 560 wide · History 560 · Tasks 340. Content inside a panel fits its width; never widen the panel to fit content.
 
+### Tasks implementation handoff ·2Nov2026 · review branch only
+
+**BUILT ON REVIEW BRANCH / NOT OWNER-ACCEPTED / NOT MERGED OR DEPLOYED.** The existing30Oct Tasks/Send contract is implemented through `components/kit/TaskView.tsx` (opened task and exported `SendTaskSteps`, `SendTaskStep`, `SendTaskDownload`, `SendTaskChannelDoor`), retaining the existing `StepList` engine. `TaskList` consumes the shared card/identity/deadline roles; `TaskFrame` retains source-owned facts, tabs, history/files and mounted drafts. This is reuse of the admitted Send pattern, not a second component kit or business engine.
+
+The PO Tasks host reuses Purchasing's existing `PoSupplierResultContent`/`PoSupplierBundle` scoped to the exact source PO, rather than showing a second generic Work request-recorder. Existing PO batch/bundle send, Purchase Return's send dialog and Repair Order's document-send surface consume the same three-step presentation. Their original writers, permissions, document versions and evidence requirements remain. Adapting those module surfaces does not claim that every Return/Repair action is admitted to the Work feed; only actual source-owned Work interactions may open an embedded task.
+
+Review checkout: `/Users/chaichiewlim/carres-worktrees/sales-order-30oct-frontend`. Local TEST screenshots and draft/narrow checks are review evidence only, never proof of an external send, backend integration or production adoption. Remaining acceptance belongs in the owning module handoff; do not rerun a broad backend campaign for this presentation change.
+
 ### Table and task content grammar · retained25Oct additions in the supplied Spec
 
 One fact per column. Quantity has its own Qty column; an item's second line is specification only (size, fabric, code), not a hidden quantity. Owning module MASTER still determines record grain and approved columns; this is no permission to add duplicate quantities or change inventory arithmetic. Where Stock age is displayed, show days (`112 days`), not rounded months; retain its owning source/date basis. Relative deadline display uses `Late 12d` / `3d left` only when the owning governed deadline supports that fact; date subtraction alone cannot invent Late.

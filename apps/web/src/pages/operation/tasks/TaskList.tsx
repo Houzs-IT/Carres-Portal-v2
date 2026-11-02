@@ -11,26 +11,28 @@
  * This file only draws. What is listed, counted and worded is `task-cards.ts`.
  */
 import { useState } from "react";
+import CPill from "@/components/carres/CPill";
 import MIcon from "@/components/carres/MIcon";
+import { avatarColor } from "@/lib/staff-avatar";
+import { ownerInitials } from "@/components/kit/TaskView";
 import Tabs from "@/components/kit/Tabs";
 import { TASK_CARD_WORDS as W, TASK_TABS, emptyWord, type TaskCard, type TaskGroup, type TaskStrip, type TaskTab } from "./task-cards";
 import { TASK_MODULE_SYMBOL } from "./tasks-model";
 
 function Card({ card, selected, onOpen }: { card: TaskCard; selected: boolean; onOpen: (card: TaskCard) => void }) {
+  const owner = card.work?.source.owner?.acting;
+  const deadline = card.rows.find(row => row.label === W.deadline || row.label === W.cutOff);
   const body = (
-    <>
-      <span className="flex items-start gap-2">
-        <MIcon name={TASK_MODULE_SYMBOL[card.module]} size={18} className="mt-px shrink-0 text-c-secondary" />
-        <span className="min-w-0 flex-1 break-words text-body font-medium text-c-ink" data-testid="task-card-title">{card.title}</span>
-        {card.work ? <MIcon name="chevron_right" size={18} className="shrink-0 text-c-muted" /> : null}
+    <span className="grid w-full min-w-0 grid-cols-[20px_22px_minmax(0,1fr)_104px] items-start gap-x-1.5 gap-y-1">
+      <span className="mt-px grid h-5 w-5 place-items-center rounded-full border border-c-border text-c-secondary" aria-hidden="true">{!card.work && <MIcon name="check" size={16} />}</span>
+      {owner?.name ? <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full text-[11px] font-medium" style={{background:avatarColor(owner.userId ?? owner.name).bg,color:avatarColor(owner.userId ?? owner.name).fg}} title={owner.name} aria-label={owner.name}>{ownerInitials(owner.name)}</span> : <MIcon name={TASK_MODULE_SYMBOL[card.module]} size={20} className="text-c-secondary" />}
+      <span className="min-w-0 break-words text-body font-medium text-c-ink" data-testid="task-card-title">{card.title}</span>
+      <span className="flex min-w-0 flex-col items-end gap-1 break-words text-right text-body text-c-ink" aria-label={deadline?.value} data-warn={deadline?.warn || undefined}>
+        {deadline?.value.split(" · ")[0]}
+        {card.late ? <CPill tone="err">{deadline?.value.split(" · ").slice(1).join(" · ") || "Late"}</CPill> : deadline?.value.includes(" · ") ? <span className="text-meta text-c-secondary">{deadline.value.split(" · ").slice(1).join(" · ")}</span> : null}
       </span>
-      {card.rows.map((row) => (
-        <span key={row.label} className="flex items-baseline justify-between gap-3 pl-[26px] text-meta" data-warn={row.warn || undefined}>
-          <span className={`shrink-0 ${row.warn ? "text-c-warn-fg" : "text-c-secondary"}`}>{row.label}</span>
-          <span className={`min-w-0 break-words text-right font-medium ${row.warn ? "text-c-warn-fg" : "text-c-ink"}`}>{row.value}</span>
-        </span>
-      ))}
-    </>
+      {card.rows.filter(row => row !== deadline).map(row => <span key={row.label} className="col-span-2 col-start-3 min-w-0 break-words text-meta text-c-secondary"><span>{row.label}</span>{" · "}{row.value}</span>)}
+    </span>
   );
   const shape = "flex w-full flex-col gap-1 rounded-lg border border-c-card-border px-2.5 py-2 text-left";
   if (!card.work) return <div className={`${shape} bg-white`} data-testid={`task-card-${card.id}`}>{body}</div>;
@@ -48,7 +50,7 @@ function Group({ group, lastTaskId, onOpen }: { group: TaskGroup; lastTaskId: st
     <section className="rounded-lg border border-c-card-border bg-white" data-testid={`task-group-${group.key}`}>
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
         className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left outline-none focus-visible:[outline:var(--c-focus)]">
-        <span className="min-w-0 break-words text-body font-semibold text-c-ink">{group.name}</span>
+        <span className="min-w-0 break-words text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">{group.name}</span>
         <span className="text-meta text-c-secondary tabular-nums" data-testid="task-group-count">{group.cards.length}</span>
         <span className="flex-1" />
         <MIcon name={open ? "expand_less" : "expand_more"} size={18} className="shrink-0 text-c-muted" />

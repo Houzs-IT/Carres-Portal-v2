@@ -17,7 +17,6 @@ export function OrderQuickView({
   row,
   ctx,
   catalogNames,
-  right,
   onClose,
   onOpenFull,
   onPrint,
@@ -38,7 +37,7 @@ export function OrderQuickView({
   const heading = (words: string) => <h3 className="pb-1 pt-3.5 text-[13px] font-medium text-c-ink first:pt-0">{words}</h3>;
   const lines = (row.o.order_lines ?? []).filter((l) => Number(l.qty) > 0);
   return (
-    <Drawer open title={`SO-${row.so}`} onClose={onClose} width={440} right={right} testId="outright-quick-view">
+    <Drawer open title={`SO-${row.so}`} onClose={onClose} testId="outright-quick-view">
       <div className="flex flex-wrap gap-1.5 pb-3">
         <CBtn kind="normal" icon="open_in_full" onClick={() => onOpenFull(row)}>Open full page</CBtn>
         <CBtn kind="normal" icon="print" onClick={() => onPrint(row)}>Print SO</CBtn>
