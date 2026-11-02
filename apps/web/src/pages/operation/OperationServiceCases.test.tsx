@@ -362,6 +362,24 @@ describe("Service Cases — the second Houzs round", () => {
     expect(vi.mocked(apiFetch).mock.calls.filter(([, x]) => (x as RequestInit | undefined)?.body === JSON.stringify({ ownerUserId: "me" }))).toHaveLength(2);
   });
 
+  it("archives picked cases, and the Archived filter asks for archived ones and offers Unarchive (0762)", async () => {
+    answer([{ ...row, id: "a", caseNo: "SC-A" }]);
+    const list = vi.mocked(apiFetch).getMockImplementation()!;
+    vi.mocked(apiFetch).mockImplementation(async (path: string, o?: RequestInit) => (o?.method === "PATCH" ? { id: "a" } : list(path, o)));
+    at("/operation?tab=service-notes");
+    await screen.findByText("SC-A");
+    fireEvent.click(screen.getAllByRole("checkbox", { name: "Select row" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Archive" }));
+    expect(await screen.findByRole("status", { name: "" })).toHaveTextContent("1 archived.");
+    expect(vi.mocked(apiFetch).mock.calls.some(([p, x]) => p === "/api/ops/service-cases/a" && (x as RequestInit | undefined)?.body === JSON.stringify({ archived: true }))).toBe(true);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Archived" }));
+    await waitFor(() => expect(vi.mocked(apiFetch).mock.calls.some(([p]) => p === "/api/ops/service-cases?archived=1")).toBe(true));
+    await screen.findByText("SC-A");
+    fireEvent.click(screen.getAllByRole("checkbox", { name: "Select row" })[0]);
+    expect(await screen.findByRole("button", { name: "Unarchive" })).toBeInTheDocument();
+  });
+
   it("offers the three print copies on the case page", async () => {
     answer([{ ...row, statusId: "s1", statusLabel: "Pending" }]);
     at("/operation?tab=service-notes&case=c1");

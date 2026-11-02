@@ -374,6 +374,9 @@ export const serviceCaseSchema = z.object({
   /** 0761 — how the case is resolved (Houzs resolution method). */
   resolutionMethodId:    z.string().uuid().nullable().optional(),
   resolutionMethodLabel: z.string().nullable().optional(),
+
+  /** 0762 — set while the case is archived off the list (Houzs assr.ts:1140). */
+  archivedAt: z.string().nullable().optional(),
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -437,6 +440,8 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
     ...caseLegFields,
     subStatusId: z.string().uuid().nullable().optional(),
     resolutionMethodId: z.string().uuid().nullable().optional(),
+    /** 0762 — true archives the case off the list, false brings it back. */
+    archived: z.boolean().optional(),
   });
 export type UpdateServiceCaseInput = z.infer<typeof updateServiceCaseInputSchema>;
 
