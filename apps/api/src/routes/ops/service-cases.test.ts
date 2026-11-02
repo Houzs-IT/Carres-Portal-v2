@@ -1434,4 +1434,50 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
       itemLocation: null, deliveryBy: "own", deliveryConfirmedAt: "2026-11-20",
     });
   });
+
+  // 0760 — sub-statuses inside a stage (Houzs assr-sub-statuses.ts).
+  const STAGE = "22222222-2222-4222-8222-222222222222";
+  const SUB = "33333333-3333-4333-8333-333333333333";
+  async function postPick(list: string, body: unknown, sb: unknown) {
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    return app.request(
+      `/api/ops/service-cases/settings/${list}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await makeJwt("principal")}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      env,
+    );
+  }
+
+  it("adds a sub-status into its stage, and refuses one without a stage or a type with one", async () => {
+    const ok = tableSb({}, true);
+    expect((await postPick("subStatuses", { label: "Pending Supplier Pickup", statusId: STAGE }, ok.sb)).status).toBe(201);
+    expect(ok.inserts[0]).toEqual(["service_case_sub_statuses", expect.objectContaining({ label: "Pending Supplier Pickup", status_id: STAGE })]);
+    for (const [list, body] of [["subStatuses", { label: "X" }], ["types", { label: "X", statusId: STAGE }]] as const) {
+      const { sb, inserts } = tableSb({}, true);
+      expect((await postPick(list, body, sb)).status).toBe(422);
+      expect(inserts).toHaveLength(0);
+    }
+  });
+
+  it("switches the sub-status, and answers 422 when the database says it is another stage's", async () => {
+    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
+    expect((await patchCase({ subStatusId: SUB }, sb)).status).toBe(200);
+    expect(updates).toContainEqual(["service_cases", { sub_status_id: SUB }]);
+
+    const refusal = { code: "22023", details: "sub_status_not_in_stage", message: "This sub-status belongs to another stage." };
+    const chain: Record<string, unknown> = { update: () => chain, eq: () => Promise.resolve({ data: null, error: refusal }) };
+    const res = await patchCase({ subStatusId: SUB }, { from: vi.fn(() => chain), rpc: vi.fn() });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ message: refusal.message });
+  });
+
+  it("reads the sub-status and its label back", async () => {
+    const row = { ...CASE_ROW, sub_status_id: SUB, service_case_sub_statuses: { label: "Pending Supplier Pickup" } };
+    const { sb } = tableSb({ service_cases: [row] });
+    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
+    expect(body.items[0]).toMatchObject({ subStatusId: SUB, subStatusLabel: "Pending Supplier Pickup" });
+  });
 });
