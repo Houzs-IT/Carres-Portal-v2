@@ -96,4 +96,31 @@ describe("/api/operation/projects", () => {
     expect(res.status).toBe(201);
     expect(calls.find((c) => c.op === "insert")!.args[0]).toEqual({ project_id: "p1", user_id: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff", role: "onsite" });
   });
+
+  it("reads the templates, not a project called checklist-templates (0752)", async () => {
+    results.project_checklist_templates = [{ data: [{ id: "t1", name: "Solo", event_type: "solo", active: true, items: [{ id: "i2", section: null, seq: 2, title: "B", due_offset_days: 1 }, { id: "i1", section: null, seq: 1, title: "A", due_offset_days: -7 }] }], error: null }];
+    const res = await app().request("/projects/checklist-templates");
+    expect(await res.json()).toMatchObject({ templates: [{ id: "t1", eventType: "solo", items: [{ id: "i1" }, { id: "i2" }] }] });
+    expect(calls.some((c) => c.table === "projects")).toBe(false);
+  });
+
+  it("copies the event type's default template onto a new project (0752)", async () => {
+    results.projects = [{ data: [], error: null }, { data: row, error: null }];
+    results.project_checklist_templates = [{ data: { id: "t1" }, error: null }];
+    results.project_checklist_template_items = [{ data: [{ section: "Before", seq: 1, title: "Book the lorry", due_offset_days: -7 }], error: null }];
+    const res = await post("/projects", { eventType: "solo", brand: "Carres", state: "Johor", venue: "Paradigm Mall", startDate: "2026-12-04", endDate: "2026-12-06" });
+    expect(res.status).toBe(201);
+    const copy = calls.find((c) => c.table === "project_checklist" && c.op === "insert")!.args[0];
+    expect(copy).toEqual([{ project_id: "p1", section: "Before", seq: 1, title: "Book the lorry", due_offset_days: -7 }]);
+  });
+
+  it("stamps who finished a task, and clears it when reopened (0752)", async () => {
+    results.project_checklist = [{ data: { id: "k1" }, error: null }, { data: { id: "k1" }, error: null }];
+    expect((await post("/projects/checklist/k1/status", { status: "na" })).status).toBe(200);
+    expect(calls.find((c) => c.op === "update")!.args[0]).toMatchObject({ status: "na", completed_by: "u1" });
+    calls.length = 0;
+    await post("/projects/checklist/k1/status", { status: "pending" });
+    expect(calls.find((c) => c.op === "update")!.args[0]).toMatchObject({ status: "pending", completed_by: null, completed_at: null });
+    expect((await post("/projects/checklist/k1/status", { status: "late" })).status).toBe(422);
+  });
 });

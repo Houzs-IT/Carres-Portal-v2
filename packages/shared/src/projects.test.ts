@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
+import { checklistDueDate, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -31,5 +31,22 @@ describe("project code and name", () => {
   it("refuses an end date before the start date", () => {
     expect(projectCreateInput.safeParse({ ...base, endDate: "2026-12-01" }).success).toBe(false);
     expect(projectCreateInput.safeParse({ ...base, endDate: "2026-12-06" }).success).toBe(true);
+  });
+});
+
+/** Houzs 054 due offset and the done/na progress rule, ported for 0752. */
+describe("project checklist", () => {
+  it("counts the due day from the start day, across a month end", () => {
+    expect(checklistDueDate("2026-12-04", -7)).toBe("2026-11-27");
+    expect(checklistDueDate("2026-12-04", 30)).toBe("2027-01-03");
+    expect(checklistDueDate("2026-12-04", null)).toBeNull();
+  });
+  it("counts done and not needed as finished", () => {
+    expect(checklistProgress([{ status: "done" }, { status: "na" }, { status: "pending" }, { status: "blocked" }])).toBe(50);
+    expect(checklistProgress([])).toBe(0);
+  });
+  it("refuses an offset past a year", () => {
+    expect(checklistItemInput.safeParse({ title: "Book the lorry", dueOffsetDays: 400 }).success).toBe(false);
+    expect(checklistItemInput.safeParse({ title: "Book the lorry", dueOffsetDays: -7 }).success).toBe(true);
   });
 });

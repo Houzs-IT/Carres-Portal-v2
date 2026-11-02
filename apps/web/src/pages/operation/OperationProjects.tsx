@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, projectDurationDays,
-  type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectTeamMember,
+  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, projectDurationDays,
+  type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectTeamMember,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
@@ -18,7 +18,7 @@ import Textarea from "@/components/kit/Textarea";
 import { fmtDate } from "@/lib/fmt-date";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
-import { PJ, STATUS_TONE, refusalOf, useProject, useProjectMasters, useProjectWrite, useProjects, useStaffOptions } from "./projects";
+import { PJ, STATUS_TONE, refusalOf, useChecklistTemplates, useProject, useProjectMasters, useProjectWrite, useProjects, useStaffOptions } from "./projects";
 
 /**
  * Projects (0750): Project List, create and detail. Follows Houzs
@@ -175,12 +175,13 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   if (q.isError) return <CouldNotLoad detail={(q.error as { status?: number })?.status === 404 ? PJ.notFound : PJ.failed} onRetry={() => void q.refetch()} />;
   if (!q.data) return null;
-  const { project: p, activity, team } = q.data;
+  const { project: p, activity, team, checklist } = q.data;
   const archived = !!p.archivedAt;
   const act: Act = (path, body, method = "POST", done) => {
     setMessage(null);
-    // `/team/<id>` is not under the project; every other door is.
-    write.mutate({ path: path.startsWith("/team/") ? path : `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
+    // `/team/<id>` and `/checklist/<id>/...` are not under the project; every other door is.
+    const own = path.startsWith("/team/") || (path.startsWith("/checklist/") && path !== "/checklist/apply");
+    write.mutate({ path: own ? path : `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
   };
   const stageAt = PROJECT_STAGES.indexOf(p.stage);
   const facts: Array<[string, string]> = [
@@ -232,6 +233,8 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
           ))}
         </dl>
       </Panel>
+
+      <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
 
       <TeamPanel team={team} act={act} busy={write.isPending} />
 
@@ -310,6 +313,7 @@ export function ProjectMaintenancePage() {
       {q.isError ? <CouldNotLoad detail={PJ.failed} onRetry={() => void q.refetch()} /> : (
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 xl:grid-cols-2">
           {PROJECT_MASTER_KINDS.map((k) => <MasterList key={k} kind={k} rows={(q.data?.masters ?? []).filter((m) => m.kind === k)} />)}
+          <TemplateList />
         </div>
       )}
     </div>
@@ -349,6 +353,128 @@ function MasterList({ kind, rows }: { kind: ProjectMasterKind; rows: ProjectMast
             ))}
           </ul>
         ) : <p className="text-body text-c-secondary">{PJ.noMasters}</p>}
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Checklist (Houzs project_checklist: tasks by section, due = start + offset) ── */
+
+function ChecklistPanel({ startDate, tasks, act, busy }: { startDate: string; tasks: ChecklistTask[]; act: Act; busy: boolean }) {
+  const templates = (useChecklistTemplates().data?.templates ?? []).filter((t) => t.active && t.items.length);
+  const [templateId, setTemplateId] = useState("");
+  const [title, setTitle] = useState("");
+  const [section, setSection] = useState("");
+  const [offset, setOffset] = useState("");
+  const sections = [...new Set(tasks.map((t) => t.section ?? ""))];
+  const progress = checklistProgress(tasks);
+  return (
+    <Panel title={PJ.checklist} right={tasks.length ? <span className="text-body text-c-secondary">{PJ.progress(progress)}</span> : undefined}>
+      <div className="flex flex-col gap-3" data-testid="project-checklist">
+        {templates.length ? (
+          <span className="flex flex-wrap items-end gap-2">
+            <Select id="project-checklist-template" label={PJ.template} value={templateId || undefined} onValueChange={setTemplateId}
+              options={templates.map((t) => ({ value: t.id, label: t.name }))} />
+            <Button size="sm" disabled={!templateId} loading={busy} onClick={() => act("/checklist/apply", { templateId }, "POST", () => setTemplateId(""))}>{PJ.applyTemplate}</Button>
+          </span>
+        ) : null}
+        {sections.map((s) => (
+          <div key={s} className="flex flex-col gap-1">
+            {s ? <span className="text-strong text-c-ink">{s}</span> : null}
+            <ul className="flex flex-col gap-1 text-body">
+              {tasks.filter((t) => (t.section ?? "") === s).map((t) => {
+                const due = checklistDueDate(startDate, t.dueOffsetDays);
+                return (
+                  <li key={t.id} className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-0 flex-1 break-words">{t.title}</span>
+                    {due ? <span className="text-c-secondary">{fmtDate(due)}</span> : null}
+                    {t.completedByName && (t.status === "done" || t.status === "na") ? <span className="text-c-secondary">{t.completedByName}</span> : null}
+                    <Select id={`checklist-${t.id}`} toolbar value={t.status} onValueChange={(v) => act(`/checklist/${t.id}/status`, { status: v }, "POST")}
+                      options={CHECKLIST_STATUSES.map((x) => ({ value: x, label: PJ.checklistStatuses[x] }))} />
+                    <Button size="sm" onClick={() => act(`/checklist/${t.id}`, undefined, "DELETE")}>{PJ.remove}</Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+        {!tasks.length ? <p className="text-body text-c-secondary">{PJ.noChecklist}</p> : null}
+        <span className="flex flex-wrap items-end gap-2">
+          <Input id="project-task-section" label={PJ.section} maxLength={80} value={section} onChange={(e) => setSection(e.target.value)} />
+          <Input id="project-task-title" label={PJ.task} maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Input id="project-task-offset" label={PJ.dueOffset} hint={PJ.dueOffsetHint} type="number" min={-365} max={365} value={offset} onChange={(e) => setOffset(e.target.value)} />
+          <Button size="sm" variant="primary" disabled={!title.trim()} loading={busy}
+            onClick={() => act("/checklist", { section: section.trim() || null, title: title.trim(), dueOffsetDays: offset === "" ? null : Number(offset) }, "POST",
+              () => { setTitle(""); setOffset(""); })}>{PJ.addTask}</Button>
+        </span>
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Checklist templates on Project Maintenance (Houzs template editor) ── */
+
+function TemplateList() {
+  const q = useChecklistTemplates();
+  const write = useProjectWrite();
+  const [name, setName] = useState("");
+  const [openId, setOpenId] = useState("");
+  const [title, setTitle] = useState("");
+  const [section, setSection] = useState("");
+  const [offset, setOffset] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const run = (path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown, done?: () => void) => {
+    setMessage(null);
+    write.mutate({ path, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
+  };
+  const templates = q.data?.templates ?? [];
+  const open = templates.find((t) => t.id === openId);
+  const typeOptions = [{ value: "none", label: PJ.none }, ...PROJECT_EVENT_TYPES.map((t) => ({ value: t, label: PJ.eventTypes[t] }))];
+  return (
+    <Panel title={PJ.templates}>
+      <div className="flex flex-col gap-3" data-testid="project-checklist-templates">
+        <span className="flex flex-wrap items-end gap-2">
+          <Input id="template-name" label={PJ.template} maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+          <Button size="sm" variant="primary" disabled={!name.trim()} loading={write.isPending}
+            onClick={() => run("/checklist-templates", "POST", { name: name.trim() }, () => setName(""))}>{PJ.add}</Button>
+        </span>
+        {message ? <p role="alert" className="text-body">{message}</p> : null}
+        {templates.length ? (
+          <ul className="flex flex-col gap-2 text-body">
+            {templates.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-2">
+                <button type="button" className={`min-w-0 flex-1 break-words text-left ${t.active ? "" : "text-c-secondary"}`} onClick={() => setOpenId(t.id === openId ? "" : t.id)}>
+                  {t.name}<span className="text-c-secondary">{` · ${PJ.taskCount(t.items.length)}`}</span>
+                </button>
+                <Select id={`template-type-${t.id}`} toolbar label={PJ.defaultFor} value={t.eventType ?? "none"}
+                  onValueChange={(v) => run(`/checklist-templates/${t.id}`, "PATCH", { eventType: v === "none" ? null : v })} options={typeOptions} />
+                <Button size="sm" onClick={() => run(`/checklist-templates/${t.id}`, "PATCH", { active: !t.active })}>{t.active ? PJ.retire : PJ.reuse}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-body text-c-secondary">{PJ.noMasters}</p>}
+        {open ? (
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <span className="text-strong text-c-ink">{open.name}</span>
+            <ul className="flex flex-col gap-1 text-body">
+              {open.items.map((i) => (
+                <li key={i.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 break-words">{i.section ? <span className="text-c-secondary">{`${i.section} · `}</span> : null}{i.title}</span>
+                  {i.dueOffsetDays != null ? <span className="text-c-secondary">{PJ.offsetDays(i.dueOffsetDays)}</span> : null}
+                  <Button size="sm" onClick={() => run(`/checklist-template-items/${i.id}`, "DELETE")}>{PJ.remove}</Button>
+                </li>
+              ))}
+            </ul>
+            <span className="flex flex-wrap items-end gap-2">
+              <Input id="template-item-section" label={PJ.section} maxLength={80} value={section} onChange={(e) => setSection(e.target.value)} />
+              <Input id="template-item-title" label={PJ.task} maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input id="template-item-offset" label={PJ.dueOffset} hint={PJ.dueOffsetHint} type="number" min={-365} max={365} value={offset} onChange={(e) => setOffset(e.target.value)} />
+              <Button size="sm" variant="primary" disabled={!title.trim()} loading={write.isPending}
+                onClick={() => run(`/checklist-templates/${open.id}/items`, "POST", { section: section.trim() || null, title: title.trim(), dueOffsetDays: offset === "" ? null : Number(offset) },
+                  () => { setTitle(""); setOffset(""); })}>{PJ.addTask}</Button>
+            </span>
+          </div>
+        ) : null}
       </div>
     </Panel>
   );

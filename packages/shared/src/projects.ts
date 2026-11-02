@@ -183,3 +183,50 @@ export interface ProjectTeamMember {
   name: string | null;
   role: string | null;
 }
+
+/* ── Slice 3 (0752): checklist templates and the project checklist ──────── */
+
+/** Houzs checklist statuses; `na` is "not needed". */
+export const CHECKLIST_STATUSES = ["pending", "done", "na", "blocked"] as const;
+export type ChecklistStatus = (typeof CHECKLIST_STATUSES)[number];
+
+const offset = z.number().int().min(-365).max(365).nullish().transform((v) => v ?? null);
+
+export const checklistTemplateInput = z.object({ name: text(120), eventType: z.enum(PROJECT_EVENT_TYPES).nullish().transform((v) => v ?? null) });
+export const checklistTemplatePatch = z.object({
+  name: text(120).optional(),
+  eventType: z.enum(PROJECT_EVENT_TYPES).nullable().optional(),
+  active: z.boolean().optional(),
+});
+/** One task: on a template, or added straight to a project. */
+export const checklistItemInput = z.object({ section: optText(80), title: text(200), dueOffsetDays: offset });
+export const checklistStatusInput = z.object({ status: z.enum(CHECKLIST_STATUSES), notes: optText(1000).optional() });
+export const checklistApplyInput = z.object({ templateId: z.string().uuid() });
+
+export interface ChecklistTemplateItem { id: string; section: string | null; seq: number; title: string; dueOffsetDays: number | null }
+export interface ChecklistTemplate { id: string; name: string; eventType: ProjectEventType | null; active: boolean; items: ChecklistTemplateItem[] }
+export interface ChecklistTask {
+  id: string;
+  section: string | null;
+  seq: number;
+  title: string;
+  dueOffsetDays: number | null;
+  status: ChecklistStatus;
+  notes: string | null;
+  completedByName: string | null;
+  completedAt: string | null;
+}
+
+/** Houzs 054: due day = project start + offset; null when the task has no offset. */
+export function checklistDueDate(startDate: string, offsetDays: number | null): string | null {
+  if (offsetDays == null) return null;
+  const d = new Date(`${startDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Done or not needed counts as finished (Houzs: status NOT IN ('done','na')). */
+export function checklistProgress(tasks: ReadonlyArray<{ status: ChecklistStatus }>): number {
+  if (!tasks.length) return 0;
+  return Math.round((tasks.filter((t) => t.status === "done" || t.status === "na").length / tasks.length) * 100);
+}
