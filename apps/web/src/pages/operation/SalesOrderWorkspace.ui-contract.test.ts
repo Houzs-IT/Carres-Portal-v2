@@ -872,7 +872,7 @@ describe("Sales Order detail — owner-confirmed handoff 2026-10-08", () => {
   });
 
   it("keeps the PDF the SAME document, drawn in the record and expanded preview, and the old-version notices", () => {
-    expect(workspace).toContain('usePdfCanvases(objectView === "Sales Order" || pdfOpen ? templateData : null, pdfZoom)');
+    expect(workspace).toContain('usePdfCanvases(objectView === "Sales Order" || pdfOpen ? templateData : null, pdfZoom, restorePdfScroll)');
     expect(workspace).toContain('data-testid="pending-amendment-banner"');
     expect(workspace).toContain('data-testid="unsaved-watermark"');
     expect(workspace).toContain('data-testid="oldrev-rebuilt"');
