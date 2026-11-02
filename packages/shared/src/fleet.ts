@@ -29,7 +29,13 @@ export interface FleetStop {
   confirmedTime: string | null;
   expectedArrival: string | null;
   revenue: number;
+  /** The live Delivery Order for this order + leg; read on a one-day board only. */
+  doNumber?: string | null;
+  /** The latest delivery attempt on or after this day; read on a one-day board only. */
+  status?: FleetStopStatus;
 }
+/** A stop on the Last Mile board: the latest attempt's result, else `scheduled`. */
+export type FleetStopStatus = "scheduled" | "delivered" | "partial" | "failed";
 export interface FleetRun { day: string; vehicleId: string | null; plate: string | null; stops: FleetStop[]; revenue: number }
 
 export const isOnLeave = (crewId: string, day: string, leave: readonly FleetLeave[]) =>
@@ -51,6 +57,71 @@ export function groupRuns(stops: readonly FleetStop[]): FleetRun[] {
   return [...runs.values()].sort(
     (a, b) => a.day.localeCompare(b.day) || Number(a.plate == null) - Number(b.plate == null) || (a.plate ?? "").localeCompare(b.plate ?? ""),
   );
+}
+
+/* ── Last Mile board: one card per lorry (Houzs fleet-day/vm.ts buildLorryCards,
+   #5094 / #5107, owner rule 2026-11-01) ──────────────────────────────────── */
+
+export type LorryRunStatus = "scheduled" | "on_the_way" | "completed";
+export interface LorryCard {
+  /** null = the day's stops whose vehicle is none of the Carres plates. */
+  vehicleId: string | null;
+  plate: string | null;
+  capacity: string | null;
+  stops: FleetStop[];
+  status: LorryRunStatus;
+  /** A stop with any attempt (delivered, partly or failed) is no longer waiting. */
+  attempted: number;
+  delivered: number;
+  failed: number;
+  revenue: number;
+}
+
+/** A run is Completed when every stop has an attempt, On the way once one has. */
+export function runStatusOf(stops: readonly Pick<FleetStop, "status">[]): LorryRunStatus {
+  const tried = stops.filter((s) => s.status && s.status !== "scheduled").length;
+  return stops.length > 0 && tried === stops.length ? "completed" : tried > 0 ? "on_the_way" : "scheduled";
+}
+
+/**
+ * The day's lorry cards. Every active Carres lorry is pinned, shown even with no
+ * stop (Houzs: in-house lorries always show); the stops matching no plate come
+ * last as one `vehicleId: null` card. Stops in arrival order (groupRuns).
+ */
+export function lorryCards(day: string, lorries: readonly FleetLorry[], stops: readonly FleetStop[]): LorryCard[] {
+  const runs = groupRuns(stops.filter((s) => s.day === day));
+  const card = (vehicleId: string | null, plate: string | null, capacity: string | null): LorryCard => {
+    const run = runs.find((r) => r.vehicleId === vehicleId);
+    const list = run?.stops ?? [];
+    return {
+      vehicleId, plate, capacity, stops: list,
+      status: runStatusOf(list),
+      attempted: list.filter((s) => s.status && s.status !== "scheduled").length,
+      delivered: list.filter((s) => s.status === "delivered").length,
+      failed: list.filter((s) => s.status === "failed").length,
+      revenue: run?.revenue ?? 0,
+    };
+  };
+  const out = lorries.filter((l) => l.active).map((l) => card(l.id, l.plate, l.capacity));
+  // An inactive lorry that still carries stops today keeps its card.
+  for (const r of runs) {
+    if (r.vehicleId && !out.some((c) => c.vehicleId === r.vehicleId)) {
+      const l = lorries.find((x) => x.id === r.vehicleId);
+      out.push(card(r.vehicleId, l?.plate ?? r.plate, l?.capacity ?? null));
+    }
+  }
+  if (runs.some((r) => r.vehicleId === null)) out.push(card(null, null, null));
+  return out;
+}
+
+/** Board search (Houzs searchMatch): customer, SO, DO or 3+ phone digits; under 2 characters matches all. */
+export function stopMatches(s: FleetStop, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return true;
+  const digits = q.replace(/\D/g, "");
+  if (digits.length >= 3 && (s.customerPhone ?? "").replace(/\D/g, "").includes(digits)) return true;
+  return [s.customerName, s.so == null ? null : `so-${s.so}`, s.so == null ? null : String(s.so), s.doNumber]
+    .some((v) => (v ?? "").toLowerCase().includes(q));
 }
 
 export interface CrewPick { driverId: string | null; helperId: string | null; confirmed: boolean }
