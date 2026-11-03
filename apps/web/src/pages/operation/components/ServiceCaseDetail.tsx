@@ -11,10 +11,8 @@ import {
   CASE_REPORTERS,
   caseDelayReasonLabel,
   caseFollowUpPlan,
-  caseIssueLabel,
   caseLegLabel,
   caseNeedsManager,
-  caseProductCategoryLabel,
   caseStageDwell,
   fmtMoney,
   caseUsableLabel,
@@ -213,16 +211,22 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                     {configQ.data?.types.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 </Field>
+                {/* 0764 — Houzs 065_assr_lookups.sql: priorities, issue and product categories, root causes from Service Settings. */}
                 <Select id="case-priority" label="Priority" value={d.priority ?? undefined} onValueChange={(v) => saveSelect({ priority: v })} placeholder="Priority"
-                  options={[{ value: "high", label: "Urgent" }, { value: "normal", label: "Normal" }, { value: "low", label: "Low" }]} />
+                  options={lookupOptions(configQ.data?.priorities, d.priority, d.priorityLabel)} />
+                <Select id="case-issue-category" label="Issue Category" value={d.issueType ?? undefined} onValueChange={(v) => saveSelect({ issueType: v })} placeholder="Issue Category"
+                  options={lookupOptions(configQ.data?.issueCategories, d.issueType, d.issueTypeLabel)} />
+                <Select id="case-product-category" label="Product Category" value={d.productCategory ?? undefined} onValueChange={(v) => saveSelect({ productCategory: v })} placeholder="Product Category"
+                  options={lookupOptions(configQ.data?.productCategories, d.productCategory, d.productCategoryLabel)} />
+                <Select id="case-root-cause" label="Root Cause" value={d.rootCause ?? undefined} onValueChange={(v) => saveSelect({ rootCause: v })} placeholder="Root Cause"
+                  options={lookupOptions(configQ.data?.rootCauses, d.rootCause, d.rootCauseLabel)} />
                 {d.priority && caseNeedsManager(d.priority) && <p className="text-meta text-base-600">tell manager</p>}
                 <InlineField id="scm-opened" label="Date" type="date" required value={d.openedAt} onSave={(v) => save({ openedAt: v })} />
               </Panel>
               <Panel title="Product Info">
                 {/* S1 — the guided intake's answers are asked once and only read here. */}
                 <dl className="space-y-1.5">
-                  <InfoRow label="Product" value={[d.productCategory ? caseProductCategoryLabel(d.productCategory) : null, d.productSku].filter(Boolean).join(" · ")} />
-                  <InfoRow label="Issue Category" value={d.issueType ? caseIssueLabel(d.issueType) : null} />
+                  <InfoRow label="Product" value={d.productSku ?? null} />
                   <InfoRow label="Found by" value={reporterLabel(d.reportedBy)} />
                   <InfoRow label="Still usable" value={d.usable ? caseUsableLabel(d.usable) : null} />
                   <InfoRow label="Customer wants" value={(d.customerWants ?? []).map(caseWantLabel).join(", ")} />
@@ -323,7 +327,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
             </Panel>
 
             {/* S4 — the one thing here with a date the customer is waiting on. */}
-            <CaseDeadline caseId={id} openedAt={d.openedAt ?? null} closed={d.statusIsClosed} customerName={d.customerName} events={d.slaEvents ?? []} />
+            <CaseDeadline caseId={id} openedAt={d.openedAt ?? null} slaHours={d.slaHours ?? null} closed={d.statusIsClosed} customerName={d.customerName} events={d.slaEvents ?? []} />
 
             <Panel title={history.length ? `Customer History (${history.length})` : "Customer History"}>
               {history.length === 0 && <p className="text-meta text-base-500">No prior cases for this customer.</p>}
@@ -484,4 +488,11 @@ function InfoRow({ label, value }: { label: string; value: string | null }) {
 function reporterLabel(key: string | null | undefined): string {
   if (!key) return "";
   return CASE_REPORTERS.find((r) => r.key === key)?.label ?? key;
+}
+
+/** The list's codes in use, plus the case's own code when it was taken out of use. */
+function lookupOptions(items: Array<{ code: string; label: string }> | undefined, current: string | null | undefined, currentLabel: string | null | undefined) {
+  const opts = (items ?? []).map((m) => ({ value: m.code, label: m.label }));
+  if (current && !opts.some((o) => o.value === current)) opts.push({ value: current, label: currentLabel ?? current });
+  return opts;
 }

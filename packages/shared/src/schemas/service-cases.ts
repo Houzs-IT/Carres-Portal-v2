@@ -1,7 +1,5 @@
 import { z } from "zod";
 import {
-  CASE_ISSUE_KEYS,
-  CASE_PRODUCT_CATEGORY_KEYS,
   CASE_REPORTER_KEYS,
   CASE_USABLE_KEYS,
   CASE_WANT_KEYS,
@@ -63,6 +61,11 @@ export const serviceCaseConfigSchema = z.object({
   subStatuses: z.array(caseSubStatusSchema).optional(),
   /** 0761 — Houzs resolution methods; same shape as a case type. */
   resolutionMethods: z.array(caseTypeSchema).optional(),
+  /** 0764 — Houzs lookups (065_assr_lookups.sql). Cases store the `code`. */
+  issueCategories:   z.array(caseTypeSchema).optional(),
+  productCategories: z.array(caseTypeSchema).optional(),
+  priorities:        z.array(caseTypeSchema.extend({ slaHours: z.number().nullable() })).optional(),
+  rootCauses:        z.array(caseTypeSchema).optional(),
 });
 export type ServiceCaseConfig = z.infer<typeof serviceCaseConfigSchema>;
 
@@ -300,10 +303,18 @@ export const serviceCaseSchema = z.object({
   reportedBy:      z.enum(CASE_REPORTER_KEYS).nullable().optional(),
   orderLineId:     z.string().uuid().nullable().optional(),
   productSku:      z.string().nullable().optional(),
-  productCategory: z.enum(CASE_PRODUCT_CATEGORY_KEYS).nullable().optional(),
-  issueType:       z.enum(CASE_ISSUE_KEYS).nullable().optional(),
+  // 0764 — codes from the Service Settings lists (Houzs 065_assr_lookups.sql).
+  productCategory: z.string().nullable().optional(),
+  productCategoryLabel: z.string().nullable().optional(),
+  issueType:       z.string().nullable().optional(),
+  issueTypeLabel:  z.string().nullable().optional(),
   usable:          z.enum(CASE_USABLE_KEYS).nullable().optional(),
-  priority:        z.enum(["low", "normal", "high"]).nullable().optional(),
+  priority:        z.string().nullable().optional(),
+  priorityLabel:   z.string().nullable().optional(),
+  /** 0764 — the priority's SLA hours; blank = 14 working days. */
+  slaHours:        z.number().nullable().optional(),
+  rootCause:       z.string().nullable().optional(),
+  rootCauseLabel:  z.string().nullable().optional(),
   customerWants:   z.array(z.enum(CASE_WANT_KEYS)).optional(),
 
   /**
@@ -412,8 +423,8 @@ export const createServiceCaseInputSchema = z.object({
   reportedBy:      z.enum(CASE_REPORTER_KEYS).optional(),
   orderLineId:     z.string().uuid().optional(),
   productSku:      z.string().trim().optional(),
-  productCategory: z.enum(CASE_PRODUCT_CATEGORY_KEYS).optional(),
-  issueType:       z.enum(CASE_ISSUE_KEYS).optional(),
+  productCategory: z.string().trim().min(1).max(60).optional(),
+  issueType:       z.string().trim().min(1).max(60).optional(),
   usable:          z.enum(CASE_USABLE_KEYS).optional(),
   customerWants:   z.array(z.enum(CASE_WANT_KEYS)).optional(),
 
@@ -440,7 +451,8 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
   // 0711 — Weisiang's decision (WhatsApp 2026-10-22): staff edit the priority
   // and the Sales Order PIC picks the case owner (Houzs way).
   .extend({
-    priority:    z.enum(["low", "normal", "high"]).nullable().optional(),
+    priority:    z.string().trim().min(1).max(60).nullable().optional(),
+    rootCause:   z.string().trim().min(1).max(60).nullable().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
     ...caseLegFields,
     subStatusId: z.string().uuid().nullable().optional(),
@@ -577,7 +589,10 @@ export function mayPickCaseOwner(args: {
 
 /** 0711 — Service settings (Houzs Service Maintenance): the default case owner
  *  and the two pick lists staff choose from on a case. */
-export const SERVICE_PICK_LISTS = ["types", "statuses", "subStatuses", "resolutionMethods"] as const;
+export const SERVICE_PICK_LISTS = [
+  "types", "statuses", "subStatuses", "resolutionMethods",
+  "issueCategories", "productCategories", "priorities", "rootCauses",
+] as const;
 export type ServicePickList = (typeof SERVICE_PICK_LISTS)[number];
 
 export const serviceSettingsPatchSchema = z.object({
@@ -593,4 +608,6 @@ export const servicePickItemPatchSchema = z.object({
   active: z.boolean().optional(),
   /** 0745 — stages only: target days in the stage, null clears it. */
   targetDays: z.number().positive().max(365).nullable().optional(),
+  /** 0764 — priorities only: SLA hours, null = 14 working days. */
+  slaHours: z.number().int().positive().max(8760).nullable().optional(),
 });

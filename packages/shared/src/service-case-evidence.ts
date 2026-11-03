@@ -265,11 +265,12 @@ export interface CaseEvidenceRequirement {
  * asks no issue question) must not become unreadable or unsavable.
  */
 export function caseEvidenceChecklist(
-  issueType: CaseIssueKey | null | undefined,
+  issueType: string | null | undefined,
   reportedBy: CaseReporterKey | null | undefined,
 ): CaseEvidenceRequirement[] {
   if (!issueType) return [];
-  const rules = CASE_EVIDENCE_BY_ISSUE[issueType];
+  // 0764: a category added in Settings has no checklist yet.
+  const rules = CASE_EVIDENCE_BY_ISSUE[issueType as CaseIssueKey];
   if (!rules) return [];
 
   return rules
@@ -301,7 +302,7 @@ export interface CaseEvidenceGap {
 }
 
 export function caseEvidenceGaps(
-  issueType: CaseIssueKey | null | undefined,
+  issueType: string | null | undefined,
   reportedBy: CaseReporterKey | null | undefined,
   files: readonly CaseEvidenceFile[],
 ): CaseEvidenceGap[] {
@@ -320,7 +321,7 @@ export function caseEvidenceGaps(
  * client that skips the button cannot skip the rule.
  */
 export function caseEvidenceComplete(
-  issueType: CaseIssueKey | null | undefined,
+  issueType: string | null | undefined,
   reportedBy: CaseReporterKey | null | undefined,
   files: readonly CaseEvidenceFile[],
 ): boolean {

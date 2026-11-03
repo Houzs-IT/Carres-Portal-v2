@@ -105,6 +105,7 @@ describe("the priority law", () => {
 
   it("flags a manager on High and on nothing else", () => {
     expect(caseNeedsManager("high")).toBe(true);
+    expect(caseNeedsManager("urgent")).toBe(true);
     expect(caseNeedsManager("normal")).toBe(false);
     expect(caseNeedsManager("low")).toBe(false);
     expect(caseNeedsManager(null)).toBe(false);

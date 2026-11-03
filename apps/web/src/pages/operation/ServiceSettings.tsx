@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ServicePickList } from "@carres/shared";
 import { apiFetch } from "@/lib/api";
 import { useCanEditSettings } from "@/lib/settings-queries";
 import Button from "@/components/kit/Button";
@@ -17,8 +18,9 @@ import PageShell from "@/components/kit/PageShell";
 import Select from "@/components/kit/Select";
 import { W } from "./settings-core/parts";
 
-type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null; statusId?: string | null };
-type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[]; subStatuses?: PickItem[]; resolutionMethods?: PickItem[] };
+type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null; slaHours?: number | null; statusId?: string | null };
+type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[]; subStatuses?: PickItem[]; resolutionMethods?: PickItem[];
+  issueCategories?: PickItem[]; productCategories?: PickItem[]; priorities?: PickItem[]; rootCauses?: PickItem[] };
 const KEY = ["ops", "service-cases", "settings"] as const;
 
 export default function ServiceSettings() {
@@ -71,13 +73,18 @@ export default function ServiceSettings() {
         <PickList list="types" title="Case types" help="The case types staff pick on a case." items={q.data?.types ?? []} canEdit={canEdit} onChanged={refresh} />
         {/* 0761 — Houzs 065_assr_lookups.sql resolution methods. */}
         <PickList list="resolutionMethods" title="Resolution methods" help="How a case is resolved. Staff pick one on the case." items={q.data?.resolutionMethods ?? []} canEdit={canEdit} onChanged={refresh} />
+        {/* 0764 — Houzs ServiceSettings.tsx:90-111 lookup lists. */}
+        <PickList list="priorities" title="Priorities" help="The priorities staff pick on a case. SLA hours: the case deadline counts from the case date. Blank: 14 working days." items={q.data?.priorities ?? []} canEdit={canEdit} onChanged={refresh} />
+        <PickList list="issueCategories" title="Issue categories" help="The issue categories staff pick on a case." items={q.data?.issueCategories ?? []} canEdit={canEdit} onChanged={refresh} />
+        <PickList list="productCategories" title="Product categories" help="The product categories staff pick on a case." items={q.data?.productCategories ?? []} canEdit={canEdit} onChanged={refresh} />
+        <PickList list="rootCauses" title="Root causes" help="Why the problem happened. Staff pick one on the case." items={q.data?.rootCauses ?? []} canEdit={canEdit} onChanged={refresh} />
       </div>
     </PageShell>
   );
 }
 
 function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
-  list: "types" | "statuses" | "subStatuses" | "resolutionMethods";
+  list: ServicePickList;
   statusId?: string;
   title: string;
   help: string;
@@ -91,7 +98,7 @@ function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
     onSuccess: () => { setLabel(""); onChanged(); },
   });
   const edit = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { label?: string; active?: boolean; targetDays?: number | null } }) =>
+    mutationFn: ({ id, body }: { id: string; body: { label?: string; active?: boolean; targetDays?: number | null; slaHours?: number | null } }) =>
       apiFetch(`/api/ops/service-cases/settings/${list}/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: onChanged,
   });
@@ -143,6 +150,28 @@ function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
                   />
                 </div>
               )}
+              {/* 0764 — Houzs assr_priorities.sla_hours: the case deadline. */}
+              {list === "priorities" && (
+                <div className="w-28">
+                  <Input
+                    id={`service-${list}-${it.id}-sla`}
+                    aria-label={`SLA hours for ${it.label}`}
+                    placeholder="SLA hours"
+                    type="number"
+                    min={1}
+                    max={8760}
+                    step={1}
+                    defaultValue={it.slaHours ?? ""}
+                    disabled={!canEdit}
+                    onBlur={(e) => {
+                      const raw = e.target.value.trim();
+                      const next = raw === "" ? null : Number(raw);
+                      if (next !== null && !(Number.isInteger(next) && next > 0 && next <= 8760)) return;
+                      if (next !== (it.slaHours ?? null)) edit.mutate({ id: it.id, body: { slaHours: next } });
+                    }}
+                  />
+                </div>
+              )}
               <Checkbox
                 id={`service-${list}-${it.id}-active`}
                 label="In use"
@@ -158,7 +187,7 @@ function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
       {canEdit && (
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <Input id={`service-${key}-new`} label={list === "subStatuses" ? "New sub-status" : `New ${title.toLowerCase().replace(/s$/, "")}`} value={label} onChange={(e) => setLabel(e.target.value)} />
+            <Input id={`service-${key}-new`} label={list === "subStatuses" ? "New sub-status" : `New ${title.toLowerCase().replace(/ies$/, "y").replace(/s$/, "")}`} value={label} onChange={(e) => setLabel(e.target.value)} />
           </div>
           <Button variant="primary" disabled={!label.trim()} loading={add.isPending} onClick={() => add.mutate()}>Add</Button>
         </div>

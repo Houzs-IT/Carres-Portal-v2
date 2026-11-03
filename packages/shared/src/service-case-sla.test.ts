@@ -63,6 +63,16 @@ describe("the deadline", () => {
     expect(caseSlaBaseDue(OPENED, { holidays: ["2026-07-08"] })).toBe("2026-07-23");
   });
 
+  // 0764 — Houzs assr.ts:465-468: the priority's SLA hours, in whole days, landing on a working day.
+  it("counts the priority's SLA hours when it has them", () => {
+    expect(caseSlaBaseDue("2026-07-01", {}, 24)).toBe("2026-07-02");
+    expect(caseSlaBaseDue("2026-07-01", {}, 72)).toBe("2026-07-04");
+    expect(caseSlaBaseDue("2026-07-01", {}, 25)).toBe("2026-07-03");
+    // 2026-07-05 is a Sunday: the deadline moves to Monday.
+    expect(caseSlaBaseDue("2026-07-01", {}, 96)).toBe("2026-07-06");
+    expect(caseSlaBaseDue("2026-07-01", {}, null)).toBe(caseSlaBaseDue("2026-07-01"));
+  });
+
   it("is null when the case has no report date", () => {
     expect(caseSlaBaseDue(null)).toBeNull();
     expect(caseSlaBaseDue("")).toBeNull();

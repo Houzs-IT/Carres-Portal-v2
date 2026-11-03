@@ -169,6 +169,8 @@ export interface CaseSlaInput {
   closed?: boolean;
   /** Named where we know it, so the action can carry the party. */
   customerName?: string | null;
+  /** 0764 — the priority's SLA hours (Houzs assrSla.ts:56-77). Blank keeps the 14 working days. */
+  slaHours?: number | null;
 }
 
 /**
@@ -217,13 +219,22 @@ export function caseSlaWorkingDay(iso: IsoDate, opts: WorkingDayOptions = {}): I
   return isWorkingDay(iso, opts) ? iso : addWorkingDays(iso, 1, opts);
 }
 
-/** The deadline with no extension applied: report date + 14 working days. */
+/** The deadline with no extension applied: report date + the priority's SLA hours
+ *  (Houzs assr.ts:465-468, counted in whole days and moved to a working day), or
+ *  + 14 working days when the priority has none. */
 export function caseSlaBaseDue(
   openedAt: string | null | undefined,
   opts: WorkingDayOptions = {},
+  slaHours?: number | null,
 ): IsoDate | null {
   const from = day(openedAt);
-  return from ? addWorkingDays(from, CASE_SLA_WORKING_DAYS, opts) : null;
+  if (!from) return null;
+  if (slaHours && slaHours > 0) {
+    const d = new Date(`${from}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + Math.ceil(slaHours / 24));
+    return caseSlaWorkingDay(d.toISOString().slice(0, 10), opts);
+  }
+  return addWorkingDays(from, CASE_SLA_WORKING_DAYS, opts);
 }
 
 /** The one extension on file, or null. */
@@ -243,7 +254,7 @@ export function caseSlaClock(
   opts: WorkingDayOptions = {},
 ): CaseSlaClock {
   const events = input.events ?? EMPTY;
-  const baseDueIso = caseSlaBaseDue(input.openedAt, opts);
+  const baseDueIso = caseSlaBaseDue(input.openedAt, opts, input.slaHours);
   const ext = caseSlaExtension(events);
   const extendedToIso = day(ext?.until);
   const dueIso = extendedToIso ?? baseDueIso;

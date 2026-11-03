@@ -180,8 +180,8 @@ export function casePriorityFor(usable: CaseUsableKey | null | undefined): CaseP
 /** High priority = a manager has to be told. There is no message-sending
  *  integration anywhere in the API today, so "notify" is a VISIBLE flag on the
  *  list and the case, not a silent send that never happens. */
-export function caseNeedsManager(priority: CasePriority | null | undefined): boolean {
-  return priority === "high";
+export function caseNeedsManager(priority: string | null | undefined): boolean {
+  return priority === "high" || priority === "urgent";
 }
 
 export function caseUsableLabel(key: string | null | undefined): string {
