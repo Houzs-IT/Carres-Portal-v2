@@ -76,7 +76,7 @@ export default function TeamButton() {
           title={name}
           aria-expanded={open}
           data-testid="team-button"
-          className="relative grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full border border-c-head-line bg-white text-c-ink hover:bg-c-search-bg"
+          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full border border-c-head-line bg-white text-c-ink hover:bg-c-search-bg"
         >
           <MIcon name="group" size={20} />
           <span

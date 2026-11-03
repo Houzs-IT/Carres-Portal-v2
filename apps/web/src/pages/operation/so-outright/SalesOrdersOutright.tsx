@@ -231,13 +231,16 @@ export default function SalesOrdersOutright() {
   /* ── list state: tab · column view · header filters, in the URL ── */
   const saved = useMemo(() => {
     try {
-      return JSON.parse(readStore(VIEW_KEY(userId)) ?? "null") as { tab?: Tab; cols?: LayoutKey } | null;
+      return JSON.parse(readStore(VIEW_KEY(userId)) ?? "null") as { tab?: Tab; cols?: LayoutKey; layoutVersion?: number } | null;
     } catch {
       return null;
     }
   }, [userId]);
   const tab: Tab = (["open", "delivered", "all"] as const).find((t) => t === params.get("tab")) ?? saved?.tab ?? "open";
-  const layoutKey: LayoutKey = LAYOUTS.find((l) => l.key === params.get("cols"))?.key ?? saved?.cols ?? "so";
+  // Legacy unversioned SO pointers used the old wide default. Retain their
+  // stored layout/widths; explicit links and newly saved choices still win.
+  const savedLayout = saved?.cols === "so" && saved.layoutVersion !== 2 ? undefined : LAYOUTS.find(l => l.key === saved?.cols)?.key;
+  const layoutKey: LayoutKey = LAYOUTS.find((l) => l.key === params.get("cols"))?.key ?? savedLayout ?? "general";
   const layout = LAYOUTS.find((l) => l.key === layoutKey)!;
   /* Header filters ride the URL (`f.{column}`, repeated for each value), so a
      chip, a link and the engine's filter menu read one answer. */
@@ -578,13 +581,14 @@ export default function SalesOrdersOutright() {
         const c = COLUMNS[k]!;
         /* The track is the words' room; the engine's cell keeps 5 each side
            inside it (10 between columns), so the column is the track plus 10. */
-        const floor = trackFloor(c.width) + 10;
+        const floor = layout.widths?.[k] ?? trackFloor(c.width) + 10;
+        const header = layout.headers?.[k] ?? c.head;
         const textOf = (r: RegisterRow) => c.cell(r, ctx).t;
         return {
           key: c.key,
           /* A two-line header keeps its second line grey 12/400 (owner 14 Oct 2026). */
-          label: c.head ? c.head[0] : c.label,
-          ...(c.head ? { headerSub: c.head[1] } : {}),
+          label: c.label,
+          ...(header ? { headerLines: header } : {}),
           exportLabel: c.label,
           width: floor,
           minWidth: floor,
@@ -674,7 +678,7 @@ export default function SalesOrdersOutright() {
   const footer = (
     <CListFooter
       testId="outright-footer"
-      count={loadingList ? "Loading orders" : `${list.length} ${list.length === 1 ? "order" : "orders"}`}
+      count={loadingList ? "Loading orders" : `${list.length}${typeof data?.salesOrderTotal === "number" && data.salesOrderTotal > list.length ? ` of ${data.salesOrderTotal}` : ""} ${list.length === 1 && !(typeof data?.salesOrderTotal === "number" && data.salesOrderTotal > list.length) ? "order" : "orders"}`}
       {...(loadingList || totals.parts.length === 0 ? {} : { totals })}
       pageSize={pageSize}
       onPageSize={setPageSize}
@@ -719,13 +723,13 @@ export default function SalesOrdersOutright() {
               · {selPcs} {selPcs === 1 ? "pc" : "pcs"} · Total {rm(selTotal)}
             </span>
             <span className="ml-auto flex items-center gap-1.5">
-              <button type="button" onClick={() => void downloadExcel(selectedRows)} className="flex h-8 items-center gap-1 rounded-lg border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
+              <button type="button" onClick={() => void downloadExcel(selectedRows)} className="flex h-8 items-center gap-1 rounded-control border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
                 <MIcon name="download" size={16} />Export
               </button>
-              <button type="button" onClick={() => void printSalesOrdersOrSay(selectedRows)} className="flex h-8 items-center gap-1 rounded-lg border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
+              <button type="button" onClick={() => void printSalesOrdersOrSay(selectedRows)} className="flex h-8 items-center gap-1 rounded-control border border-c-btn-border bg-white px-3 text-[13px] font-medium text-c-ink hover:bg-c-hover">
                 <MIcon name="print" size={16} />Print SO
               </button>
-              <button type="button" onClick={() => setSelected(new Set())} className="flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-medium text-c-select-fg hover:bg-white/60">
+              <button type="button" onClick={() => setSelected(new Set())} className="flex h-8 items-center gap-1 rounded-control px-2.5 text-[13px] font-medium text-c-select-fg hover:bg-white/60">
                 Clear<MIcon name="close" size={16} />
               </button>
             </span>
@@ -863,7 +867,7 @@ export default function SalesOrdersOutright() {
                 {GROUPS.map((g) => (
                   <CMenuItem key={g.label} checked={group === g.key} onSelect={() => { setMoreOpen(false); setParam("group", g.key); }}>{g.label}</CMenuItem>
                 ))}
-                <CMenuItem icon="bookmark_add" onSelect={() => { setMoreOpen(false); writeStore(VIEW_KEY(userId), JSON.stringify({ tab, cols: layoutKey })); toast.success(`Saved as your view: ${TABS.find((t) => t.key === tab)!.label} · ${layout.label}`); }}>Save as my view…</CMenuItem>
+                <CMenuItem icon="bookmark_add" onSelect={() => { setMoreOpen(false); writeStore(VIEW_KEY(userId), JSON.stringify({ tab, cols: layoutKey, layoutVersion: 2 })); toast.success(`Saved as your view: ${TABS.find((t) => t.key === tab)!.label} · ${layout.label}`); }}>Save as my view…</CMenuItem>
                 <CMenuGroup>DATA</CMenuGroup>
                 <CMenuItem icon="sync" note={dataUpdatedAt ? `Last ${time12(dataUpdatedAt)}` : undefined} onSelect={() => { setMoreOpen(false); void refetch(); }}>Sync from Sales Portal now</CMenuItem>
               </CPopover>
@@ -874,7 +878,7 @@ export default function SalesOrdersOutright() {
 
         <section ref={gridBox} aria-label="Sales orders" className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-2.5" data-carres-table="list">
         {cardsView && !loadingList && !failedList && list.length > 0 ? (
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[10px] border border-c-card-border bg-c-card">
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-c-card-border bg-c-card">
             <OrderCards rows={shown} onOpen={(r) => setQuickId(r.id)} />
             {footer}
           </div>
@@ -898,6 +902,7 @@ export default function SalesOrdersOutright() {
             groupBanner={false}
             {...(fixedGroups ? { fixedGroups } : {})}
             stickyIdentity={{ columnKey: layout.columns[0]! }}
+            {...(layout.columns[1] === "soDate" ? { pinnedPrefix: { columns: [layout.columns[0]!, "soDate"], narrow: [layout.columns[0]!] } } : {})}
             serverColumns={{ values: filterValues, selected: filters, onChange: onColumnQuery }}
             onRowClick={(r, e) => openQuick(r, e)}
             contextMenu={(r) =>
@@ -1089,14 +1094,10 @@ function SummaryPanel({
         <h3 className="pb-1 text-[11px] font-bold uppercase tracking-[.08em] text-c-secondary">{scope}</h3>
         {stats.map((s) => row(s.label, s.value))}
       </div>}
-      <div className="flex h-9 shrink-0 items-center justify-between rounded-[10px] border border-c-card-border px-1">
-        <button type="button" onClick={onPrev} aria-label="Previous month" className="flex text-c-body">
-          <MIcon name="chevron_left" size={20} />
-        </button>
+      <div className="flex h-9 shrink-0 items-center justify-between rounded-control border border-c-card-border px-1">
+        <Button variant="ghost" size="sm" icon="previous" iconOnly onClick={onPrev} aria-label="Previous month" />
         <span className="text-body font-semibold">{monthWord(month)}</span>
-        <button type="button" onClick={onNext} aria-label="Next month" disabled={!canNext} className="flex text-c-body disabled:text-c-head-line">
-          <MIcon name="chevron_right" size={20} />
-        </button>
+        <Button variant="ghost" size="sm" icon="forward" iconOnly onClick={onNext} aria-label="Next month" disabled={!canNext} />
       </div>
       {loading ? (
         <span className="text-[13px] text-c-secondary" role="status">Loading orders</span>

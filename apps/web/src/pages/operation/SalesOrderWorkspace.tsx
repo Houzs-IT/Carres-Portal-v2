@@ -2698,12 +2698,12 @@ function SalesOrderWorkspaceBody() {
             <CInput id="so-floor" label={`Floor (Max is ${MAX_DELIVERY_FLOOR}rd Floor)`} type="number" min={1} max={MAX_DELIVERY_FLOOR}
               value={draft.delivery_floor == null ? "" : String(draft.delivery_floor)}
               onChange={(e) => setField("delivery_floor", e.target.value === "" ? null : Math.min(MAX_DELIVERY_FLOOR, Math.max(1, Number(e.target.value) || 1)))} />,
-            baseline.delivery_floor == null ? "Not recorded" : String(baseline.delivery_floor))}
+            baseline.delivery_floor == null ? "" : String(baseline.delivery_floor))}
           {row("lift", "Lift", factOf(draft.delivery_has_lift == null ? "" : draft.delivery_has_lift ? "Has lift" : "No lift"), ["delivery_has_lift"],
             <CSelect id="so-lift" label="Lift available?" value={draft.delivery_has_lift == null ? "" : draft.delivery_has_lift ? "Has lift" : "No lift"}
               onChange={(v) => setField("delivery_has_lift", v === "Has lift")}
               options={LIFT_OPTIONS.map((o) => ({ value: o, label: o }))} />,
-            baseline.delivery_has_lift == null ? "Not recorded" : baseline.delivery_has_lift ? "Has lift" : "No lift")}
+            baseline.delivery_has_lift == null ? "" : baseline.delivery_has_lift ? "Has lift" : "No lift")}
           {mode === "object" && editing &&
             row("stair-items", "Items needing stair carry",
               factOf(draft.delivery_stair_items == null ? "" : String(draft.delivery_stair_items)), ["delivery_stair_items"],
@@ -3020,7 +3020,7 @@ function SalesOrderWorkspaceBody() {
     <div className="sticky top-0 z-[6] flex flex-col gap-2 rounded-lg border border-c-btn-border bg-c-card px-3 py-2.5" style={{ boxShadow: "var(--shadow-menu)" }} data-testid="amendment-bar">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="flex items-center gap-1.5 text-[13px] font-semibold text-c-ink" data-testid="change-count">
-          <MIcon name="edit_note" size={18} />
+          <MIcon name="edit_note" size={20} />
           Amendment · {changeCount} {changeCount === 1 ? "change" : "changes"}
         </span>
         <span className="inline-flex items-center gap-1 text-[12px] text-c-secondary">
@@ -3030,7 +3030,7 @@ function SalesOrderWorkspaceBody() {
         <span className="relative flex">
           <CBtn kind="normal" onClick={() => { setWhyOpen((v) => !v); setProofOpen(false); }} aria-expanded={whyOpen} data-testid="amendment-why">
             {changeReason.trim() ? "Why: written" : "Why?"}
-            <MIcon name="expand_more" size={18} className="text-c-muted" />
+            <MIcon name="expand_more" size={16} className="text-c-muted" />
           </CBtn>
           {whyOpen && (
             <DialogContainerProvider>{(setContainer) => (
@@ -3211,7 +3211,7 @@ function SalesOrderWorkspaceBody() {
         <CIconBtn icon="add" label="Zoom in" size={32} disabled={pdfZoom >= 3} onClick={() => setPdfZoom(n => Math.min(3, n + 0.25))} />
         {!pdfExpanded && <KitButton ref={pdfExpandButton} size="sm" icon="fullscreen" iconOnly aria-label="Full screen" onClick={() => { pdfReturnScroll.current = pdfScroller.current?.scrollTop ?? 0; pdfReturnDrawer.current = pdfOpen; setPdfOpen(false); setPdfExpanded(true); }} />}
       </div>
-      <div ref={pdfScroller} className="min-h-0 min-w-0 flex-1 overflow-auto p-2">
+      <div ref={pdfScroller} className="min-h-0 min-w-0 flex-1 overflow-auto p-2 [scrollbar-gutter:stable]">
         {liveAmendment && !liveAmendment.stale && (
           <div className="mb-3 rounded-lg bg-c-warn-bg px-3 py-2 text-[13px] font-medium text-c-warn-fg" data-testid="pending-amendment-banner">
             Amendment pending approval{pendingDeliveryDate ? `: delivery date → ${fmtDate(pendingDeliveryDate)}` : ""}. The document shows the order as it is now.
