@@ -97,8 +97,13 @@ row security. Mapping:
 4. **Sales Orders at the fair.** `orders.project_id`; detail page lists the linked orders with total,
    paid and balance (from `orders.paid` through `orderMoney`; summing `order_payments` would count a
    deposit twice [code: packages/shared/src/order-money.ts:22-28]), cancelled excluded; link / unlink an order.
-5. **Finance.** Rental, total sales, cost lines, cost rates by brand, simple P&L; money visible to
-   principal and finance only.
+5. **Finance (0754).** YH, 3 Nov 2026: "decision all follow houzs, i repeat, all follow houzs".
+   Houzs's model: Finance marks an account Needs project and the row it fills; a bill, voucher or
+   journal line names its project and its ledger leg carries it; confirm and approve refuse a
+   needs-project line with none. The Finance page Project money reads the books live (posted legs,
+   neither side of a reversal, plus vouchers checked and not yet approved), lets a row the books fill
+   replace its typed lines, and shows the two P&Ls (By Total Sales, By Sales Orders) with brand rate
+   cards. Money is visible to Finance and the principal only (gl_may_read).
 6. **Stock transfers.** Stock out to the fair / return, by Carres warehouse, confirm / unconfirm.
 7. **Print.** Project sheet.
 8. **Calendar view.** Built with the kit `MonthCalendar` beside the Project List: each day counts the
@@ -117,8 +122,8 @@ row security. Mapping:
 - Fair report and setup invoice AI scans (`/fair-report/*`, `/setup-invoice/*`): Houzs agents.
 - Defect photo two-stage review, phase photos, region-split reviewers: keyed on Houzs positions
   (Storekeeper Supervisor, Ops Exec) that Carres does not have [code: docs/modules/projects-pms.md:18-27].
-- Payment-voucher / GL books on the event (`event-books.ts`) and the two-P&L engine: Carres Finance
-  is Chew's module; slice 5 keeps a typed P&L only [code: docs/modules/projects-pms.md:192-212].
+- Supplier credit notes knocking off a project's books (Houzs SCN credits in `event-books.ts`): not
+  in slice 5; credit and debit note lines carry no project yet.
 - Venue resolution onto Sales Orders (`venue_source`) and commission by venue: Carres commission is a
   separate HR rule [my guess].
 - Notion URL, project chat, unread markers, CSV import.

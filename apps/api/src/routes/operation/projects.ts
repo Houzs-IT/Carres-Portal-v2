@@ -3,10 +3,10 @@ import {
   checklistApplyInput, checklistItemInput, checklistStatusInput, checklistTemplateInput, checklistTemplatePatch,
   deriveProjectCode, deriveProjectName, projectCreateInput, projectOrderLinkInput, projectSalesTotals, projectMasterInput, projectMasterPatch, projectNoteInput,
   projectPatchInput, projectTeamInput, PROJECT_STAGES, PROJECT_STATUSES, uniqueProjectCode,
-  type ChecklistTask, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectSalesOrder, type ProjectRow, type ProjectTeamMember,
+  type ChecklistTask, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectRow, type ProjectTeamMember,
 } from "@carres/shared/projects";
-import { orderMoney } from "@carres/shared/order-money";
 import { requireOperation } from "../../lib/auth-guards";
+import { readProjectOrders } from "../../lib/project-orders";
 import { fail, parseJsonBody } from "../../lib/route-helpers";
 import { userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
@@ -338,30 +338,9 @@ router.post("/:id/checklist/apply", requireOperation, async (c) => {
   return c.json({ ok: true }, 201);
 });
 
-/* ── Sales Orders at the project (0753, Houzs SO project_id) ──
- * Money comes from the shared orderMoney, which reads orders.paid; order_payments is
- * not summed because the raw-create door writes a deposit into both (order-money.ts:22-28). */
-type MoneyLine = { qty: number; unit_price: number | null };
-const sumLines = (ls: MoneyLine[] | null | undefined) => (ls ?? []).reduce((s, l) => s + Number(l.qty) * Number(l.unit_price ?? 0), 0);
-
 router.get("/:id/sales-orders", requireOperation, async (c) => {
-  const { data, error } = await userClient(c.env, c.var.auth.jwt)
-    .from("orders")
-    .select("id, so, status, customer_name, placed_at, paid, credited, order_lines(qty, unit_price), order_addons(qty, unit_price), ops_order_control(balance)")
-    .eq("project_id", c.req.param("id"))
-    .order("placed_at", { ascending: false });
+  const { error, orders } = await readProjectOrders(userClient(c.env, c.var.auth.jwt), c.req.param("id"));
   if (error) return fail(c, error);
-  const orders: ProjectSalesOrder[] = ((data ?? []) as Row[]).map((o) => {
-    const ctrl = (Array.isArray(o.ops_order_control) ? o.ops_order_control[0] : o.ops_order_control) as { balance?: number | null } | null;
-    const m = orderMoney({
-      lineSum: sumLines(o.order_lines as MoneyLine[]), addonSum: sumLines(o.order_addons as MoneyLine[]),
-      paid: o.paid as number | null, credited: o.credited as number | null, controlBalance: ctrl?.balance ?? null,
-    });
-    return {
-      id: String(o.id), so: String(o.so ?? ""), status: String(o.status), customerName: (o.customer_name as string | null) ?? null,
-      placedAt: (o.placed_at as string | null) ?? null, total: m.total, paid: m.paid, balance: m.goodsOwing,
-    };
-  });
   return c.json({ orders, totals: projectSalesTotals(orders) });
 });
 

@@ -590,6 +590,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "stock-drops", label: "Stock drops", icon: Boxes, financePath: "/finance/reports/stock-drops", section: "Reports" },
       { key: "corrections", label: "Corrections", icon: History, financePath: "/finance/corrections", section: "Reports" },
       { key: "payment-report", label: "Payment", icon: Wallet, financePath: "/finance/reports/payment", section: "Reports" },
+      /* 0754: a project's money (Houzs event page finance, YH 3 Nov 2026). */
+      { key: "project-money", label: "Project money", icon: BarChart3, financePath: "/finance/project-money", section: "Reports" },
 
       /* FORECASTING and SETUP: one Carres page each, so plain rows. */
       { key: "forecast", label: "Forecast P&L", icon: TrendingUp, financePath: "/finance/reports/forecast", section: "Forecast" },
