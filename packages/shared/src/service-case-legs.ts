@@ -36,3 +36,27 @@ export function casePickupPicOptions(drivers: string[], supplier: string | null,
   if (current && !choices.includes(current)) choices.unshift(current);
   return choices.map((v) => ({ value: v, label: v === supplier ? `${v} (Supplier)` : v }));
 }
+
+export type CaseBoardCase = {
+  pickup_by: string | null; pickup_requested_at: string | null; pickup_confirmed_at: string | null; actual_pickup_at: string | null;
+  delivery_by: string | null; delivery_requested_at: string | null; delivery_confirmed_at: string | null;
+};
+export type CaseBoardLeg = { leg: "pickup" | "delivery"; requested: string | null; confirmed: string | null };
+
+/** Houzs backend/src/scm/lib/assr-board-scope.ts:115-134 (assrBoardLegs): the open legs a case puts
+ *  on Delivery Planning. Own-team legs only; a blank choice counts as own once a date is keyed.
+ *  The case's date is the request, the board's date is the confirmed one. A picked-up pickup and
+ *  every leg of a closed case are done and leave the board (Carres has no Delivered tab). */
+export function caseBoardLegs(c: CaseBoardCase, caseClosed: boolean): CaseBoardLeg[] {
+  if (caseClosed) return [];
+  const legs: CaseBoardLeg[] = [];
+  const pickupDated = Boolean(c.pickup_requested_at || c.pickup_confirmed_at);
+  if ((c.pickup_by === "own" || (c.pickup_by == null && pickupDated)) && pickupDated && !c.actual_pickup_at) {
+    legs.push({ leg: "pickup", requested: c.pickup_requested_at, confirmed: c.pickup_confirmed_at });
+  }
+  const deliveryDated = Boolean(c.delivery_requested_at || c.delivery_confirmed_at);
+  if ((c.delivery_by === "own" || (c.delivery_by == null && deliveryDated)) && deliveryDated) {
+    legs.push({ leg: "delivery", requested: c.delivery_requested_at, confirmed: c.delivery_confirmed_at });
+  }
+  return legs;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyDateAgreed, fillTimeSlots, ownFleetOf, planRows, planStatus, proposeDates, tripsOf, type PlanFeed } from "./delivery-planning";
+import { companyDateAgreed, fillTimeSlots, ownFleetOf, planRows, planStatus, proposeDates, serviceRows, tripsOf, type PlanFeed } from "./delivery-planning";
 
 // Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): Delivery Planning,
 // Auto-schedule and Trips the Houzs way. Jess was not part of this decision.
@@ -87,5 +87,23 @@ describe("Trips", () => {
     expect(fillTimeSlots(trips[1]!.stops).map((s) => [s.seq, s.timeSlot])).toEqual([[1, "09:00-11:00"], [2, "13:00-15:00"]]);
     const many = Array.from({ length: 7 }, () => ({ ...rows[0]!, timeSlot: null }));
     expect(fillTimeSlots(many).map((s) => s.timeSlot).slice(4)).toEqual(["17:00-19:00", "17:00-19:00", "17:00-19:00"]);
+  });
+});
+
+// Houzs delivery-planning.ts:1075-1076: open Service Case legs ride the board.
+describe("serviceRows", () => {
+  it("makes one row per case leg, the confirmed date as the day", () => {
+    const rows = serviceRows({ ...feed, serviceJobs: [
+      { caseId: "k1", caseNo: "SC-0001", leg: "pickup", requested: "2030-01-07", confirmed: null, customer: "Tan", phone: null, address: "Klang" },
+      { caseId: "k1", caseNo: "SC-0001", leg: "delivery", requested: null, confirmed: "2030-01-09", customer: "Tan", phone: null, address: "Klang" },
+    ] });
+    expect(rows.map((r) => [r.key, r.so, r.day, planStatus(r)])).toEqual([
+      ["SC-0001#pickup", "SC-0001 · Pickup", null, "Waiting for a date"],
+      ["SC-0001#delivery", "SC-0001 · Service", "2030-01-09", "Scheduled"],
+    ]);
+    expect(rows[0]!.serviceLeg).toEqual({ caseId: "k1", leg: "pickup" });
+  });
+  it("is empty when the API sends no service jobs", () => {
+    expect(serviceRows(feed)).toEqual([]);
   });
 });

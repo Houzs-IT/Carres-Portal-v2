@@ -19,7 +19,7 @@ import { rm } from "@/lib/format-currency";
 import { FleetPage } from "./OperationFleetSetup";
 import { useDeliveryDays } from "@/lib/deadline-queries";
 import {
-  OWN_LORRY, carrierOf, companyDateAgreed, fillTimeSlots, ownFleetOf, planRows, planStatus, proposeDates, tripsOf,
+  OWN_LORRY, carrierOf, companyDateAgreed, fillTimeSlots, ownFleetOf, planRows, planStatus, proposeDates, serviceRows, tripsOf,
   type PlanFeed, type PlanRegion, type PlanRow,
 } from "./delivery-planning";
 
@@ -98,6 +98,28 @@ const slotColumn: DataGridColumn<PlanRow> = { key: "slot", label: "Time slot", w
 const statusColumn: DataGridColumn<PlanRow> = { key: "status", label: "Status", width: 220, accessor: planStatus, filterType: "enum" };
 
 /** The one date form: Delivery Planning's row, and DP Orders' New DP Order. */
+/** Houzs "Set job date" for a Service Case leg: the date only; it is saved on the case. */
+function ServiceJobForm({ row, onClose, onSaved }: { row: PlanRow & { serviceLeg: NonNullable<PlanRow["serviceLeg"]> }; onClose: () => void; onSaved: () => void }) {
+  const [date, setDate] = useState<string | null>(row.day);
+  const save = useMutation({
+    mutationFn: () => send("/service-date", { ...row.serviceLeg, date }),
+    onSuccess: () => { onSaved(); onClose(); },
+  });
+  return (
+    <Modal open onOpenChange={(o) => !o && onClose()} title={`Job date · ${row.so}`}
+      footer={<>
+        <Button variant="neutral" onClick={onClose}>Close</Button>
+        <Button variant="primary" loading={save.isPending} disabled={!date} onClick={() => save.mutate()}>Save</Button>
+      </>}>
+      <div className="flex flex-col gap-3">
+        <DatePicker id="plan-service-date" label="Job date" required value={date} onChange={setDate} />
+        {row.requested && <p className="text-body text-c-muted">Service asked for {fmtDate(row.requested)}. The date you save shows on the case as Logistics Confirmed Date.</p>}
+        {save.isError && <FieldError>{errorText(save.error)}</FieldError>}
+      </div>
+    </Modal>
+  );
+}
+
 function PlanForm({ feed, row, onClose, onSaved }: { feed: Feed; row: PlanRow | "new"; onClose: () => void; onSaved: () => void }) {
   const isNew = row === "new";
   const [doNumber, setDoNumber] = useState("");
@@ -240,7 +262,9 @@ const ALL_REGIONS = "__all__";
 
 /** Row 33 — the planning board, its Regions list and its Residence rules. */
 export function DeliveryPlanning() {
-  const { q, rows, refresh } = usePlan();
+  const { q, rows: orderRows, refresh } = usePlan();
+  // Service Case legs ride the Board only; DP Orders, Auto-schedule and Trips stay order jobs.
+  const rows = useMemo(() => (q.data ? [...orderRows, ...serviceRows(q.data)] : orderRows), [q.data, orderRows]);
   const [view, setView] = useState("board");
   const [editing, setEditing] = useState<PlanRow | null>(null);
   const columns = useMemo(() => [...baseColumns, ...moreColumns, ...ruleColumns, requestedColumn, dayColumn, carrierColumn, slotColumn, statusColumn], []);
@@ -272,7 +296,8 @@ export function DeliveryPlanning() {
           {view === "rules" && <ResidenceRules rules={q.data?.residenceRules ?? []} onSaved={() => void refresh()} />}
         </ListPageShell>
       )}
-      {editing && q.data && <PlanForm feed={q.data} row={editing} onClose={() => setEditing(null)} onSaved={() => void refresh()} />}
+      {editing?.serviceLeg && <ServiceJobForm row={{ ...editing, serviceLeg: editing.serviceLeg }} onClose={() => setEditing(null)} onSaved={() => void refresh()} />}
+      {editing && !editing.serviceLeg && q.data && <PlanForm feed={q.data} row={editing} onClose={() => setEditing(null)} onSaved={() => void refresh()} />}
     </Page>
   );
 }

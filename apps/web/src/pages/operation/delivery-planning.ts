@@ -38,6 +38,12 @@ export type PlanFeed = {
   regions: PlanRegion[];
   residenceRules: { building_type: string; note: string }[];
   companies: { id: string; name: string; own_fleet: boolean }[];
+  /** Open Service Case legs (Houzs assr-board-scope.ts); absent on an older API. */
+  serviceJobs?: ServiceJob[];
+};
+export type ServiceJob = {
+  caseId: string; caseNo: string; leg: "pickup" | "delivery"; requested: string | null; confirmed: string | null;
+  customer: string | null; phone: string | null; address: string | null;
 };
 
 export const NO_REGION = "No region";
@@ -54,6 +60,8 @@ export type PlanRow = {
   /* Houzs board and DP Orders columns (DeliveryPlanningBoard.tsx:1015-1402, DpOrders.tsx). */
   phone: string | null; salesperson: string | null; refNo: string | null;
   address: string | null; postcode: string | null; amount: number;
+  /** Set on a Service Case leg: its date is saved on the case, not on an order. */
+  serviceLeg?: { caseId: string; leg: ServiceJob["leg"] };
 };
 
 export const carrierOf = (partner: { name: string; own_fleet: boolean } | null, vehicle: string | null) =>
@@ -108,6 +116,21 @@ export function planRows(feed: PlanFeed): PlanRow[] {
     }
   }
   return rows;
+}
+
+/** Houzs ASSR_LEG_STAFF_LABEL (assr-arrangement-message.ts:51-55): the board's job names. */
+const SERVICE_JOB_LABEL: Record<ServiceJob["leg"], string> = { pickup: "Pickup", delivery: "Service" };
+
+/** Houzs delivery-planning.ts:1075-1076: one board row per open Service Case leg, keyed `{case}#{leg}`. */
+export function serviceRows(feed: PlanFeed): PlanRow[] {
+  return (feed.serviceJobs ?? []).map((j) => ({
+    key: `${j.caseNo}#${j.leg}`, orderId: "", leg: 0, so: `${j.caseNo} · ${SERVICE_JOB_LABEL[j.leg]}`, customer: j.customer ?? "",
+    location: j.address ?? "", state: null, region: NO_REGION, buildingType: "", rule: "",
+    requested: j.requested, doNumber: null, partnerId: null, ownLorry: false, carrier: NOT_ASSIGNED, vehicle: null,
+    day: j.confirmed, scheduled: Boolean(j.confirmed), seq: null, timeSlot: null,
+    phone: j.phone, salesperson: null, refNo: null, address: j.address, postcode: null, amount: 0,
+    serviceLeg: { caseId: j.caseId, leg: j.leg },
+  }));
 }
 
 export const planStatus = (r: PlanRow) =>
