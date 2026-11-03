@@ -1,6 +1,6 @@
 # Supply Chain: Houzs vs Carres gap list
 
-Measured 2 Nov 2026 against Houzs `origin/main` 3780e1757 and Carres `origin/main`.
+Measured 2 Nov 2026, statuses updated 3 Nov 2026, against Houzs `origin/main` 3780e1757 and Carres `origin/main`.
 Houzs pages live in `frontend/src/pages/scm-v2/` [code: Houzs-ERP origin/main].
 
 Rule for this port: Houzs wins over a written Carres rule, as long as staff can open SO, PO and DO
@@ -30,18 +30,18 @@ The list is ordered by business value: opening SO, PO and DO comes first.
 | Transfer to a 3PL warehouse (Houzs 675aebbcc) | yes | warehouse `kind` own / logistics_partner [code: supabase/migrations/0027_warehouses_kind.sql:29] | Stock Transfer can target a partner warehouse |
 | Delivery Maintenance (coverage, residence rules, lorries) | yes | `DeliveryPlanning.tsx:347 CoverageFleet` | |
 | Auto-schedule, Trips, Zones, Rate Cards, Fleet, Fleet Health, Live Map, Capacity, Crew Leave | yes | `DeliveryPlanning.tsx`, `OperationFleet.tsx`, migrations 0724, 0725 | |
-| Logistics Cost (`LogisticsCost.tsx`) | no | none found | **Needs a decision.** Houzs reads costs from the books: Finance ticks which accounts feed each Logistics row on the Chart of Accounts, plus Houzs regions and fair setup trips [code: Houzs-ERP frontend/src/pages/scm-v2/LogisticsCost.tsx:13]. In Carres that is Chew's Finance module |
-| Logistics P&L (`LogisticsPnl.tsx`) | no | none found | **Needs a decision.** Built on Logistics Cost, plus a transport income share of DO value (Houzs starts at 3%) [code: Houzs-ERP frontend/src/pages/scm-v2/LogisticsPnl.tsx:10] |
+| Logistics Cost (`LogisticsCost.tsx`) | no, **paused** | none found | Paused by YH, 3 Nov 2026 ("pause lorry cost"). When it resumes: Houzs reads costs from the books: Finance ticks which accounts feed each Logistics row on the Chart of Accounts, plus Houzs regions and fair setup trips [code: Houzs-ERP frontend/src/pages/scm-v2/LogisticsCost.tsx:13]. In Carres that is Chew's Finance module |
+| Logistics P&L (`LogisticsPnl.tsx`) | no, **paused** | none found | Paused with Logistics Cost (YH, 3 Nov 2026). Built on Logistics Cost, plus a transport income share of DO value (Houzs starts at 3%) [code: Houzs-ERP frontend/src/pages/scm-v2/LogisticsPnl.tsx:10] |
 
 ## 3. Purchasing
 
 | Houzs feature | Carres | Where in Carres | Notes |
 |---|---|---|---|
 | Purchase consignment | yes | #2127, #2134 | |
-| PO from an approved product request (Houzs fb2fd8e3e) | no | none | **Needs a decision.** Carres has no Product Requests module at all. Building it is a new module, not a port of one button |
+| PO from an approved product request (Houzs fb2fd8e3e) | **partly → PR #2233** | Manual Purchase request, `RequestNewModels.tsx`, migration 0774 | Draft. A request can ask for a model the catalog does not have; the Purchasing Approver builds it and links its SKU; no PO while one waits. Not done: consignment path, Sales raising, Houzs applications |
 | Supplier bindings and CSV import (`SupplierBindingsCsv.tsx`) | **partly → PR #2210** | `apps/web/src/pages/catalog/components/SupplierOffers.tsx`, Supplier detail › Items | Draft adds price list download and import. Sofa per-height prices left out |
-| Price after DO (`PriceAfterDoModal.tsx`) | no | none found | **Needs a decision.** This changes a sales order line's selling price after a DO, and copies it onto the DO and any invoice [code: Houzs-ERP frontend/src/pages/scm-v2/PriceAfterDoModal.tsx:18]. In Carres a price change is an SO amendment, and invoices are Finance's |
-| Payment vouchers (`PaymentVoucher*.tsx`) | partly | `apps/web/src/lib/payables-queries.ts`, `lib/pdf/payment-voucher-template.tsx`, #2199 | Finance owns this in Carres (Chew). Not compared screen by screen |
+| Price after DO (`PriceAfterDoModal.tsx`) | **yes → PR #2226** | DO page line `Change price`, migration 0772 | Draft. Principal or Payment Approver; the order's invoices move and an issued one is reposted [code: Houzs-ERP frontend/src/pages/scm-v2/PriceAfterDoModal.tsx:18] |
+| Payment vouchers (`PaymentVoucher*.tsx`) | **partly → PR #2229** | `PaymentVouchers.tsx`, #2199, migration 0773 | Draft adds removing a file until checked and reading the bill on a direct voucher. Not done: merged print bundle (needs a PDF merge library), bank charge and FX (Chew names the account) |
 
 ## 4. Stock and warehouse
 
@@ -56,14 +56,16 @@ The list is ordered by business value: opening SO, PO and DO comes first.
 
 | Houzs feature | Carres | Where in Carres | Notes |
 |---|---|---|---|
-| Sofa Price 3 and 4 by leather (Houzs ca0c384dc) | no, **needs a decision** | tiers stop at PRICE_3 [code: supabase/migrations/0179_sofa_combo_pricing.sql], [code: supabase/migrations/0202_catalog_fabrics.sql] | Needs a migration across catalog and POS pricing, plus a price owner's say on the tiers |
-| Product Profit (`ProductProfit.tsx`) | **partly → PR #2209** | Principal › Sales analysis › Products | Draft. Cost is the catalog SKU cost, because Carres SO lines carry none |
+| Sofa Price 3 and 4 by leather (Houzs ca0c384dc) | **yes → PR #2225** | migration 0771, `fabric-tier.ts`, fabric CSV | Draft. Sofa fabrics take PRICE_4 (full leather); bedframes stay at 3 tiers. The catalog keeper sets which fabrics are PRICE_4 |
+| Product Profit (`ProductProfit.tsx`) | **yes → PR #2209** | Principal › Sales analysis › Products, migration 0770 | Draft. Each SO line keeps the cost it was priced at, as Houzs does |
 | Sales Invoices | yes | ported | |
 
-## Decisions for YH before the rest can be built
+## Decisions
 
-1. **Price after DO.** Should staff change a delivered line's selling price directly, with the DO and invoice following (Houzs)? Or should it stay a Carres SO amendment? It touches invoices, which are Finance's (Chew).
-2. **Sofa Price 3 and 4 by leather.** Does Carres sell sofas at a fourth price tier? This needs a migration across catalog and POS pricing.
-3. **Logistics Cost and Logistics P&L.** Which Carres accounts feed lorry cost (petrol, tolls, driver, upkeep)? Which regions should the report use? This is Chew's Finance setup.
-4. **Product Requests.** Does Carres want a product request, then approval, then PO module? It is a new module, so plan it before building.
-5. **Product Profit cost.** Keep the catalog SKU cost (PR #2209), or use the actual PO cost of the unit delivered?
+YH, 3 Nov 2026: "decision all follow houzs, i repeat, all follow houzs". Items 1, 2, 4 and 5 below were built that way (PRs #2226, #2225, #2233, #2209). Logistics Cost and P&L are paused (YH, 3 Nov 2026).
+
+Still needs someone outside code:
+1. **Which fabrics are PRICE_4 (full leather).** The catalog keeper sets them; no fabric is PRICE_4 today.
+2. **Voucher bank charge and foreign currency.** Chew names the account and the ledger rule.
+3. **Product request raised by Sales.** Jess says which Carres role raises a purchase request besides Operation.
+4. **Logistics Cost and P&L.** Paused. When resumed, Chew names the accounts and regions.
