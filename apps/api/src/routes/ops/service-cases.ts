@@ -44,6 +44,7 @@ import type { AppEnv } from "../../types";
 import { parseBody } from "../../lib/route-helpers";
 import { todayIsoMYT } from "../../lib/delivery-order-issue";
 import serviceCaseRemedyRouter from "./service-case-remedy";
+import { issueSurveyToken, sendCompletionSurvey, surveyLink } from "../../lib/service-survey";
 
 /**
  * Service Cases (SC) — migration 0210. The case / 病历 parent layer above
@@ -918,6 +919,7 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   if (parsed.customerAmount      !== undefined) patch.customer_amount       = parsed.customerAmount;
   if (parsed.supplierCostAmount  !== undefined) patch.supplier_cost_amount  = parsed.supplierCostAmount;
   if (parsed.supplierInvoiceRef  !== undefined) patch.supplier_invoice_ref  = parsed.supplierInvoiceRef || null;
+  if (parsed.surveyEmail         !== undefined) patch.survey_email          = parsed.surveyEmail || null;
   if (parsed.archived !== undefined) {
     patch.archived_at = parsed.archived ? new Date().toISOString() : null;
     patch.archived_by = parsed.archived ? c.var.auth.id : null;
@@ -929,7 +931,24 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   }
   if (error) throw new HTTPException(500, { message: error.message });
 
+  // 0765 — Houzs assr.ts:2866-2871: a case that reaches a closing stage emails its survey.
+  if (parsed.statusId) {
+    const { data: st } = await sb.from("service_case_statuses").select("is_closed").eq("id", parsed.statusId).maybeSingle();
+    if ((st as { is_closed?: boolean } | null)?.is_closed) await sendCompletionSurvey(c.env, sb, id);
+  }
+
   return c.json({ id });
+});
+
+// POST /:id/survey-token — Houzs assr.ts:2133-2140: a survey link staff share by hand.
+scRouter.post("/:id/survey-token", requireOperationOrPrincipal, async (c) => {
+  const id = c.req.param("id");
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const { data, error } = await sb.from("service_cases").select("id").eq("id", id).maybeSingle();
+  if (error) throw new HTTPException(500, { message: error.message });
+  if (!data) throw new HTTPException(404, { message: "Service case not found" });
+  const token = await issueSurveyToken(sb, id);
+  return c.json({ token, url: surveyLink(c.env, token) });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1329,6 +1348,9 @@ interface RawCase {
   customer_amount?: number | string | null;
   supplier_cost_amount?: number | string | null;
   supplier_invoice_ref?: string | null;
+  satisfaction_rating?: number | null;
+  satisfaction_notes?: string | null;
+  survey_email?: string | null;
   service_case_resolution_methods?: { label: string; code?: string } | null;
   /** 0764 — the lookup lists, embedded by code. */
   root_cause?: string | null;
@@ -1431,6 +1453,9 @@ function shapeCase(r: RawCase) {
     customerAmount:        r.customer_amount == null ? null : Number(r.customer_amount),
     supplierCostAmount:    r.supplier_cost_amount == null ? null : Number(r.supplier_cost_amount),
     supplierInvoiceRef:    r.supplier_invoice_ref ?? null,
+    satisfactionRating:    r.satisfaction_rating ?? null,
+    satisfactionNotes:     r.satisfaction_notes ?? null,
+    surveyEmail:           r.survey_email ?? null,
 
     ...stageClock(r),
   };

@@ -34,6 +34,7 @@ import { PayCancelled, PaySuccess } from "@/pages/pay/PayResult";
 const UiShowcase = lazy(() => import("@/pages/dev/UiShowcase"));
 /* 0581 — the external logistics link: public, lazy, its own chunk. */
 const DeliveryLinkPage = lazy(() => import("@/pages/public/DeliveryLinkPage"));
+const ServiceSurveyPage = lazy(() => import("@/pages/public/ServiceSurveyPage"));
 
 function HomeRedirect() {
   const location = useLocation();
@@ -270,6 +271,15 @@ export default function App() {
         />
         {/* 0581 — a logistics company with no portal login answers here.
             NOT behind RequireAuth: the link's token is the whole boundary. */}
+        {/* 0765 — the customer rates a closed service case. NOT behind RequireAuth: the token is the boundary. */}
+        <Route
+          path="/survey/:token"
+          element={
+            <Suspense fallback={<div className="p-4 text-body text-kit-slate-11">Loading…</div>}>
+              <ServiceSurveyPage />
+            </Suspense>
+          }
+        />
         <Route
           path="/delivery-link/:token"
           element={

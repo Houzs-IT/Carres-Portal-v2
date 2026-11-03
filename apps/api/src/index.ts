@@ -5,6 +5,7 @@ import analyticsRouter from "./routes/analytics";
 import authRouter from "./routes/auth";
 import deliveryLinksRouter from "./routes/operation/delivery-links";
 import publicDeliveryLinkRouter from "./routes/public/delivery-link";
+import publicServiceSurveyRouter from "./routes/public/service-survey";
 import catalogRouter from "./routes/catalog";
 import dealerRouter from "./routes/dealers";
 import ordersRouter from "./routes/orders";
@@ -203,6 +204,8 @@ app.route("/stripe", stripeWebhookRouter);
 // THE EXTERNAL LOGISTICS LINK (0581) — OUTSIDE the signed-in /api group: the
 // logistics company has no login. The 256-bit token is the trust boundary.
 app.route("/public/delivery-link", publicDeliveryLinkRouter);
+// 0765 — the customer satisfaction survey: no login, the token is the boundary.
+app.route("/public/service-survey", publicServiceSurveyRouter);
 
 const api = new Hono<AppEnv>();
 api.use("*", authMiddleware);
