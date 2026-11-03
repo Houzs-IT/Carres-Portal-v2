@@ -86,7 +86,7 @@ export function caseProductCategory(sku: string | null | undefined): CaseProduct
   return cat === "acc" || cat === "unknown" ? "other" : cat;
 }
 
-export function caseProductCategoryLabel(cat: CaseProductCategory): string {
+export function caseProductCategoryLabel(cat: string): string {
   return CASE_PRODUCT_CATEGORIES.find((c) => c.key === cat)?.label ?? cat;
 }
 
