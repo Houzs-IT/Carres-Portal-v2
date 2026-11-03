@@ -31,6 +31,7 @@ import CaseFollowUps from "./CaseFollowUps";
 import CaseDeadline from "./CaseDeadline";
 import CaseCostSuggestion from "./CaseCostSuggestion";
 import CaseSurvey from "./CaseSurvey";
+import CaseArrangementMessage from "./CaseArrangementMessage";
 import CaseRemedyApproval from "./CaseRemedyApproval";
 import ConfirmActionDialog from "./ConfirmActionDialog";
 import Button from "@/components/kit/Button";
@@ -270,6 +271,8 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                   <InlineField id="scm-pickup-actual" label="Actual Pickup Date" type="date" value={d.actualPickupAt} onSave={(v) => save({ actualPickupAt: v || null })} />
                 </div>
                 {d.pickupBy === "own" && !d.actualPickupAt && <LegNote requested={d.pickupRequestedAt} confirmed={d.pickupConfirmedAt} />}
+                {/* Houzs assr-arrangement-message.ts:131-133: the confirmed date, else the requested one. */}
+                {d.pickupBy === "own" && !d.actualPickupAt && <CaseArrangementMessage c={d} leg="pickup" date={d.pickupConfirmedAt ?? d.pickupRequestedAt} />}
                 <Select id="case-pickup-pic" label="Pickup PIC" value={d.pickupPic ?? undefined} onValueChange={(v) => saveSelect({ pickupPic: v })} placeholder="Pickup PIC"
                   options={casePickupPicOptions((driversQ.data?.data ?? []).map((r) => r.name), d.supplierName ?? null, d.pickupPic ?? null)} />
                 <Select id="case-item-location" label="Current Item Location" value={d.itemLocation ?? undefined} onValueChange={(v) => saveSelect({ itemLocation: v })} placeholder="Current Item Location" options={legOptions(CASE_ITEM_LOCATION_KEYS)} />
@@ -283,6 +286,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                       <InlineField id="scm-delivery-confirmed" label="Logistics Confirmed Date" type="date" value={d.deliveryConfirmedAt} onSave={(v) => save({ deliveryConfirmedAt: v || null })} />
                     </div>
                     <LegNote requested={d.deliveryRequestedAt} confirmed={d.deliveryConfirmedAt} />
+                    <CaseArrangementMessage c={d} leg="delivery" date={d.deliveryConfirmedAt ?? d.deliveryRequestedAt} />
                   </>
                 )}
                 {d.deliveryBy === "supplier" && <p className="text-meta text-base-600">The supplier delivers it back.</p>}

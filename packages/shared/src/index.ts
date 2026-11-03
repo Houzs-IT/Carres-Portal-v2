@@ -2129,6 +2129,8 @@ export {
   caseLegLabel,
   casePickupPicOptions,
   logisticsConfirmedText,
+  caseArrangementMessage,
+  CASE_LEG_CUSTOMER_LABEL,
 } from "./service-case-legs";
 // S5 — the monthly numbers. NO migration and no new table: the day a case ended
 // is the `customer_confirmed` entry S3's own close gate already demands, so the

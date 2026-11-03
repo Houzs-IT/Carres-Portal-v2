@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caseLegLabel, casePickupPicOptions, logisticsConfirmedText } from "./service-case-legs";
+import { caseArrangementMessage, caseLegLabel, casePickupPicOptions, logisticsConfirmedText } from "./service-case-legs";
 
 describe("logisticsConfirmedText", () => {
   const fmt = (iso: string) => `[${iso}]`;
@@ -31,5 +31,16 @@ describe("casePickupPicOptions", () => {
       { value: "Factory A", label: "Factory A (Supplier)" },
       { value: "Ali", label: "Ali" },
     ]);
+  });
+});
+
+describe("caseArrangementMessage", () => {
+  const c = { caseNo: "SC-0001", customerName: "Tan" };
+  it("names the leg and the date", () => {
+    expect(caseArrangementMessage(c, "pickup", "2026-11-05", (d) => d)).toContain("furniture pickup on 2026-11-05");
+    expect(caseArrangementMessage(c, "delivery", "2026-11-09", (d) => d)).toContain("return delivery on 2026-11-09");
+  });
+  it("has nothing to say without a date", () => {
+    expect(caseArrangementMessage(c, "pickup", null, (d) => d)).toBeNull();
   });
 });

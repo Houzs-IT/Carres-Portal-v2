@@ -36,3 +36,23 @@ export function casePickupPicOptions(drivers: string[], supplier: string | null,
   if (current && !choices.includes(current)) choices.unshift(current);
   return choices.map((v) => ({ value: v, label: v === supplier ? `${v} (Supplier)` : v }));
 }
+
+/** Houzs backend/src/scm/lib/assr-arrangement-message.ts:41-46 (ASSR_LEG_CUSTOMER_LABEL). */
+export const CASE_LEG_CUSTOMER_LABEL = { pickup: "furniture pickup", delivery: "return delivery" } as const;
+
+/** Houzs assr-arrangement-message.ts:1-19, 131-133: one Service Arrangement message per leg, the
+ *  confirmed date first, else the requested one; null when the leg has no date. The customer's
+ *  answer is a request; it never moves the date. shortcut: Houzs sends the approved WhatsApp
+ *  template hc_service_arrangement through its Connect gateway, which Carres lacks; staff copy
+ *  this text or open WhatsApp instead. Swap for a real send once a gateway exists. */
+export function caseArrangementMessage(
+  c: { caseNo: string; customerName: string },
+  leg: keyof typeof CASE_LEG_CUSTOMER_LABEL,
+  date: string | null | undefined,
+  fmt: (iso: string) => string,
+): string | null {
+  if (!date) return null;
+  return `Hi ${c.customerName}, this is Carres about your service case ${c.caseNo}. `
+    + `We have arranged the ${CASE_LEG_CUSTOMER_LABEL[leg]} on ${fmt(date)}. `
+    + "Please reply to confirm this date, or tell us another date that suits you.";
+}
