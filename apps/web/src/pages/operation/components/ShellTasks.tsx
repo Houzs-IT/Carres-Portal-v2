@@ -141,7 +141,7 @@ export default function ShellTasks() {
           starts level with the page toolbar, as the Summary title does (CSidePanel). */}
       <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5">
         <span className="flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap">
-          <span className="text-strong text-c-ink">Tasks</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">Tasks</span>
           <span className="truncate text-meta text-c-muted">
             {weekday}
             {left != null ? ` · ${left} left` : ""}

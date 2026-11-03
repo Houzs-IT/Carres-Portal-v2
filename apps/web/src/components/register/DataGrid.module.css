@@ -1820,3 +1820,12 @@ div:first-child > .columnsMenuGroup {
 
 .thTwoLine { font-size:11px; }
 .th .sortBtn { max-width:100%; white-space:normal; }
+
+/* Reserve the same usable canvas before and after rows create a scrollbar. */
+.rootShrink .scroll { scrollbar-gutter: stable; }
+
+/* Two header lines share the existing 40px row. Keep single-line words
+   whole; the filter uses the spare second line rather than squeezing text. */
+.rootShrink .thInner { display:block; position:relative; width:100%; min-height:28px; }
+.rootShrink .sortBtn { width:100%; }
+.rootShrink .thFilter { position:absolute; right:0; bottom:0; }

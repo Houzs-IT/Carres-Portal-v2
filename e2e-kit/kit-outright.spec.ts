@@ -37,7 +37,7 @@ async function measure(page: Page) {
     const toolbar = document.querySelector('[data-testid="outright-toolbar"]') as HTMLElement | null;
     const edge = card.getBoundingClientRect();
     box.scrollLeft = box.scrollWidth;
-    const soNo = [...card.querySelectorAll("thead th")].find((h) => h.textContent?.trim() === "Doc. No.") as HTMLElement;
+    const soNo = [...card.querySelectorAll("thead th")].find((h) => /^(Doc\. No\.|SO no\.)$/i.test(h.textContent?.trim() ?? "")) as HTMLElement;
     const soAt = soNo.getBoundingClientRect();
     const rows = [...card.querySelectorAll("tbody tr")].filter((r) => !r.hasAttribute("data-expansion-of") && r.getAttribute("aria-hidden") !== "true");
     const cells = rows.flatMap((r) => [...r.querySelectorAll(":scope > td")]);
@@ -46,6 +46,18 @@ async function measure(page: Page) {
     const out = {
       rowHeights: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
       cellsPastColumn: past,
+      datePinned: getComputedStyle(card.querySelector('thead th[title="Date"]')!).position === "sticky",
+      canvasWidth: box.clientWidth,
+      cutHeaders: [...card.querySelectorAll('thead th button')].filter(b => {
+        const edge = b.getBoundingClientRect();
+        const text = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+        for (let n = text.nextNode(); n; n = text.nextNode()) {
+          if (!n.textContent?.trim() || n.parentElement?.closest('.sr-only,[aria-hidden="true"]')) continue;
+          const range = document.createRange(); range.selectNodeContents(n);
+          if ([...range.getClientRects()].some(r => r.right > edge.right + 1 || r.bottom > edge.bottom + 1)) return true;
+        }
+        return false;
+      }).map(b => b.textContent?.trim()),
       buttonHeights: [...new Set(buttons.filter((h) => h > 26))],
       pageScroll: document.documentElement.scrollWidth - window.innerWidth,
       pagerInside: next.getBoundingClientRect().right <= edge.right,
@@ -83,6 +95,8 @@ for (const width of WIDTHS) {
           expect(m.buttonHeights, `${state}: every toolbar button is 32 high`).toEqual([32]);
           expect(m.rowHeights.every(h => h >= 44), `${state}: rows keep the44px minimum and grow for complete facts`).toBe(true);
           expect(m.cellsPastColumn, `${state}: no cell runs past its column`).toBe(0);
+          expect(m.cutHeaders, `${state}: header words are complete`).toEqual([]);
+          expect(m.datePinned, `${state}: date pins on a canvas of at least768px`).toBe(m.canvasWidth >= 768);
           expect(m.soNoInView, `${state}: Doc. No. stays in view at the list's right end`).toBe(true);
           expect(await carresCheck(page), `${state}: carres-check.js`).toEqual(PASS);
 
@@ -94,7 +108,7 @@ for (const width of WIDTHS) {
 
 test("Sales Order Outright headers follow Houzs's order and keep the preserved date's two lines (Weisiang 1 Nov)", async ({ page }) => {
   await page.setViewportSize({ width: 1164, height: 900 });
-  await page.goto(PAGE, { waitUntil: "networkidle" });
+  await page.goto(`${PAGE}?cols=so`, { waitUntil: "networkidle" });
   await page.locator('[data-testid^="outright-row-"]').first().waitFor();
   const heads = await page.locator(`${TABLE} thead tr`).first().locator("th").allInnerTexts();
   expect(heads.map((h) => h.replace(/\n/g, " / ").toLowerCase()).filter(Boolean)).toEqual([
@@ -153,7 +167,7 @@ test("Sales Order Outright toolbar never cuts or hides a control with filters on
 
 test("Sales Order Outright toolbar holds one search chip in the Sales Order view on one line, at 1025 with Tasks open (real-data case, owner 14 Oct)", async ({ page }) => {
   await page.setViewportSize({ width: 1025, height: 900 });
-  await page.goto(`${PAGE}?search=1314`, { waitUntil: "networkidle" });
+  await page.goto(`${PAGE}?search=1314&cols=so`, { waitUntil: "networkidle" });
   await page.waitForTimeout(500);
   await setPanels(page, false, true);
   await page.waitForTimeout(500);

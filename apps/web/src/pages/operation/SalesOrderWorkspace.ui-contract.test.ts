@@ -895,8 +895,10 @@ describe("Sales Order detail — owner-confirmed handoff 2026-10-08", () => {
     expect(soTimeline).not.toMatch(/onDelete|onEdit/);
   });
 
-  it("orders problem cards first on the Order Route overview", () => {
-    expect(soRoute).toContain("const ordered = [...problems, ...byBranch.filter((b) => !problems.includes(b))];");
+  it("keeps party-oriented cards and one recommended focus on the Order Route overview", () => {
+    expect(soRoute).toContain('title: "Purchasing / Supplier"');
+    expect(soRoute).toContain('title: "Warehouse"');
+    expect(soRoute).toContain("const focusParty =");
     expect(soRoute).toContain('{ key: "ov", label: "Overview" }');
     expect(soRoute).toContain('{ key: "st", label: "Steps" }');
     expect(soRoute).toContain('{ key: "dt", label: "Details" }');

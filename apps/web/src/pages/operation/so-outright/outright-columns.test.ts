@@ -215,3 +215,10 @@ describe("The item row's Supplier (owner 14 Oct 2026: source-owned records only,
     expect(cell(withLines({ l1: { from: "po", names: [null] } })).t).toBe("No access");
   });
 });
+
+
+it("Overview leads with the order and record date while Proceed date remains available", () => {
+  const overview = LAYOUTS.find(layout => layout.key === "general")!;
+  expect(overview.columns.filter(key => !overview.hidden?.includes(key)).slice(0,2)).toEqual(["order","soDate"]);
+  expect(overview.columns).toContain("proceed");
+});
