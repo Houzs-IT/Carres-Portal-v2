@@ -105,7 +105,7 @@ describe("TaskFrame, inside the Tasks area", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "History" }));
     expect(within(screen.getByTestId("task-history")).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "Supplier answer recordedThu, 8 Oct 11:00",
-      "PO sent to supplierPO-261001-9001-V2 · WhatsAppThu, 1 Oct 10:14 · TEST · Staff A",
+      "PO sent to supplierThu, 1 Oct 10:14 · TEST · Staff APO-261001-9001-V2 · WhatsApp",
     ]);
   });
   it("History: nothing recorded says so", () => {
