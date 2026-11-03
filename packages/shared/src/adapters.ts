@@ -254,7 +254,7 @@ export const catalogFabricFromRow = (r: DB.CatalogFabricRow): D.CatalogFabric =>
   description: r.description ?? null,
   supplierCode: r.supplier_code ?? null,
   sofaTier: (r.sofa_tier ?? "PRICE_2") as D.FabricTier,
-  bedframeTier: (r.bedframe_tier ?? "PRICE_2") as D.FabricTier,
+  bedframeTier: (r.bedframe_tier ?? "PRICE_2") as D.BedframeTier,
   active: r.active,
   sortOrder: Number(r.sort_order),
   cost: r.cost == null ? null : Number(r.cost),
@@ -272,7 +272,7 @@ export const catalogFabricFromRow = (r: DB.CatalogFabricRow): D.CatalogFabric =>
   },
 });
 
-const FABRIC_TIERS: readonly D.FabricTier[] = ["PRICE_1", "PRICE_2", "PRICE_3"];
+const FABRIC_TIERS: readonly D.FabricTier[] = ["PRICE_1", "PRICE_2", "PRICE_3", "PRICE_4"];
 
 /** 0202 — a section='fabrics' catalog_config_history row → domain. The
  *  snapshot entries are fabric-shaped (camelCase, written by
@@ -295,8 +295,8 @@ export const catalogFabricsHistoryFromRow = (
         sofaTier: FABRIC_TIERS.includes(o.sofaTier as D.FabricTier)
           ? (o.sofaTier as D.FabricTier)
           : "PRICE_2",
-        bedframeTier: FABRIC_TIERS.includes(o.bedframeTier as D.FabricTier)
-          ? (o.bedframeTier as D.FabricTier)
+        bedframeTier: FABRIC_TIERS.includes(o.bedframeTier as D.FabricTier) && o.bedframeTier !== "PRICE_4"
+          ? (o.bedframeTier as D.BedframeTier)
           : "PRICE_2",
         active: typeof o.active === "boolean" ? o.active : true,
         sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : 0,
