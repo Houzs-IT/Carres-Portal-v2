@@ -1268,6 +1268,31 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(filters).toContainEqual(["is", "void_at", null]);
   });
 
+  // Houzs assr.ts:562-651: suggest the customer amount from the SO line and the supplier cost from its PO line.
+  it("suggests the cost from the case's Sales Order and Purchase Order lines", async () => {
+    const { sb } = tableSb({
+      service_cases: { order_id: "ord-1", order_line_id: "ol1", product_sku: "M-1", orders: { so: 1234 } },
+      order_lines: { id: "ol1", qty: 2, unit_price: "500" },
+      po_line_sources: [{ po_line_id: "pl1" }],
+      purchase_order_lines: { po_id: "PO-2054", qty: 2, cost: "300.5" },
+    });
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    const res = await app.request("/api/ops/service-cases/c1/cost-suggestion", { headers: { Authorization: `Bearer ${await makeJwt("operation")}` } }, env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      customerAmount: 1000,
+      supplierCost: 601,
+      sources: { so: { docNo: "SO-1234", qty: 2, unitPrice: 500 }, po: { docNo: "PO-2054", qty: 2, unitPrice: 300.5 } },
+    });
+  });
+
+  it("asks for the product when the case names none", async () => {
+    const { sb } = tableSb({ service_cases: { order_id: "ord-1", order_line_id: null, product_sku: null, orders: { so: 1234 } } });
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    const res = await app.request("/api/ops/service-cases/c1/cost-suggestion", { headers: { Authorization: `Bearer ${await makeJwt("operation")}` } }, env);
+    expect(await res.json()).toMatchObject({ customerAmount: null, supplierCost: null, reason: "The case names no product. Pick the product first." });
+  });
+
   async function patchCase(body: unknown, sb: unknown, role = "operation") {
     vi.mocked(userClient).mockReturnValue(sb as never);
     return app.request(

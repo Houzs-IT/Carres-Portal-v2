@@ -745,6 +745,74 @@ scRouter.post("/", requireOperationOrPrincipal, async (c) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /:id — detail
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /:id/cost-suggestion — Houzs backend/src/routes/assr.ts:562-651. A
+// suggestion, not a write: the customer amount from the case's Sales Order line
+// (qty × unit price) and the supplier cost from its Purchase Order line
+// (qty × cost). Staff review it on the case and apply it, or type their own.
+// ─────────────────────────────────────────────────────────────────────────────
+scRouter.get("/:id/cost-suggestion", requireOperationOrPrincipal, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const { data: cs, error } = await sb
+    .from("service_cases")
+    .select("id, order_id, order_line_id, product_sku, orders(so)")
+    .eq("id", c.req.param("id"))
+    .maybeSingle();
+  if (error) throw new HTTPException(500, { message: error.message });
+  if (!cs) throw new HTTPException(404, { message: "Service case not found" });
+  const row = cs as unknown as { order_id: string | null; order_line_id: string | null; product_sku: string | null; orders: { so: number | string | null } | null };
+  const sku = (row.product_sku ?? "").trim();
+  if (!row.order_line_id && !sku) {
+    return c.json({ customerAmount: null, supplierCost: null, sources: { so: null, po: null }, reason: "The case names no product. Pick the product first." });
+  }
+
+  // Sales Order side: the case's own line, else the order's line for that SKU.
+  type SoLine = { id: string; qty: number | null; unit_price: number | string | null };
+  let soLine: SoLine | null = null;
+  if (row.order_line_id) {
+    const { data } = await sb.from("order_lines").select("id, qty, unit_price").eq("id", row.order_line_id).maybeSingle();
+    soLine = (data as SoLine | null) ?? null;
+  } else if (row.order_id) {
+    const { data } = await sb.from("order_lines").select("id, qty, unit_price").eq("order_id", row.order_id).eq("sku", sku).limit(1);
+    soLine = ((data ?? [])[0] as SoLine | undefined) ?? null;
+  }
+  const soQty = soLine ? Number(soLine.qty ?? 1) : 0;
+  const soPrice = soLine?.unit_price == null ? null : Number(soLine.unit_price);
+  const so = soLine && soPrice != null && row.orders?.so != null
+    ? { docNo: `SO-${row.orders.so}`, qty: soQty, unitPrice: soPrice }
+    : null;
+
+  // Purchase Order side: the PO line sourced from that order line, else the
+  // order's PO line for that SKU.
+  type PoLine = { po_id: string; qty: number | null; cost: number | string | null };
+  let poLine: PoLine | null = null;
+  const lineId = soLine?.id ?? row.order_line_id;
+  if (lineId) {
+    const { data: src } = await sb.from("po_line_sources").select("po_line_id").eq("order_line_id", lineId).limit(1);
+    const poLineId = (src ?? [])[0]?.po_line_id as string | undefined;
+    if (poLineId) {
+      const { data } = await sb.from("purchase_order_lines").select("po_id, qty, cost").eq("id", poLineId).maybeSingle();
+      poLine = (data as PoLine | null) ?? null;
+    }
+  }
+  if (!poLine && row.order_id && sku) {
+    const { data: threads } = await sb.from("order_supplier_threads").select("po_id").eq("order_id", row.order_id);
+    const poIds = [...new Set(((threads ?? []) as Array<{ po_id: string | null }>).map((t) => t.po_id).filter((x): x is string => !!x))];
+    if (poIds.length > 0) {
+      const { data } = await sb.from("purchase_order_lines").select("po_id, qty, cost").in("po_id", poIds).eq("sku", sku).limit(1);
+      poLine = ((data ?? [])[0] as PoLine | undefined) ?? null;
+    }
+  }
+  const poCost = poLine?.cost == null ? null : Number(poLine.cost);
+  const po = poLine && poCost != null ? { docNo: poLine.po_id, qty: Number(poLine.qty ?? 1), unitPrice: poCost } : null;
+
+  return c.json({
+    customerAmount: so ? Math.round(so.qty * so.unitPrice * 100) / 100 : null,
+    supplierCost: po ? Math.round(po.qty * po.unitPrice * 100) / 100 : null,
+    sources: { so, po },
+  });
+});
+
 scRouter.get("/:id", requireOperationOrPrincipal, async (c) => {
   const id = c.req.param("id");
   const sb = userClient(c.env, c.var.auth.jwt);

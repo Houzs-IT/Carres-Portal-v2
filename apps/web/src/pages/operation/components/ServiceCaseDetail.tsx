@@ -28,6 +28,7 @@ import CaseOrderLink from "./CaseOrderLink";
 import CaseEvidenceGallery from "./CaseEvidenceGallery";
 import CaseFollowUps from "./CaseFollowUps";
 import CaseDeadline from "./CaseDeadline";
+import CaseCostSuggestion from "./CaseCostSuggestion";
 import CaseRemedyApproval from "./CaseRemedyApproval";
 import ConfirmActionDialog from "./ConfirmActionDialog";
 import Button from "@/components/kit/Button";
@@ -307,6 +308,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                 <InlineField id="scm-supplier-invoice" label="Supplier Invoice Ref" mono value={d.supplierInvoiceRef} onSave={(v) => save({ supplierInvoiceRef: v || null })} />
               </div>
               {d.customerAmount != null && d.supplierCostAmount != null && <MarginLine margin={d.customerAmount - d.supplierCostAmount} />}
+              <CaseCostSuggestion caseId={id} onApply={save} />
             </Panel>
 
             <CaseRemedyApproval caseId={id} onDirtyChange={setRemedyDirty} onBusyChange={setRemedyBusy} />
