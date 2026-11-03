@@ -25,8 +25,9 @@
   // 3 type ladder
   const txt = (root, pred) => root ? qa('span,button,a').filter(e => root.contains(e) && e.children.length === 0 && e.textContent.trim() && (!pred || pred(e))) : [];
   const chk = (n, e, size, weight) => { if (!e) return; const c = cs(e); if (c.fontSize !== size + 'px') say(n, 'size', c.fontSize, size); if (weight && c.fontWeight !== String(weight)) say(n, 'weight', c.fontWeight, weight); };
-  chk('Summary title', txt(sum).find(e => e.textContent.trim() === 'Summary'), 15, 500);
-  chk('Tasks title', txt(tk).find(e => e.textContent.trim() === 'Tasks'), 15, 500);
+  // Current 30 Oct card/section role; 15/500 belongs to the Now step.
+  chk('Summary title', txt(sum).find(e => e.textContent.trim() === 'Summary'), 11, 700);
+  chk('Tasks title', txt(tk).find(e => e.textContent.trim() === 'Tasks'), 11, 700);
   qa('nav[aria-label=Modules] button').forEach(b => { const c = cs(b); if (b.hasAttribute('aria-expanded') && !b.hasAttribute('aria-current')) return; if (b.getAttribute('aria-current') == null) return; const main = !!b.querySelector(':scope > i.material-symbols-rounded'), cur = b.getAttribute('aria-current') === 'true', nm = b.innerText.trim().split('\n').pop(); if (c.fontSize !== '13px') say('menu item ' + nm, 'size', c.fontSize, 13); const want = cur ? '600' : main ? '500' : '400'; if (c.fontWeight !== want) say('menu item ' + nm, 'weight', c.fontWeight, want); });
   qa('[role=tab]').forEach(b => { const c = cs(b); const on = b.getAttribute('aria-selected') === 'true'; if (c.fontWeight !== (on ? '500' : '400')) say('tab ' + b.innerText, 'weight', c.fontWeight, on ? 500 : 400); });
   // A caps LABEL has letters; a money value (RM 2,629) or a number is a row value at 13, not a label (14 Oct, Code: the live Summary prints RM values)

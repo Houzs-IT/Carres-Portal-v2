@@ -19,6 +19,7 @@
  * row is the Portal having no record, not proof nobody sent it. Pickup facts
  * are Stock's; `Fully picked up` never implies `Supplier Received Date`.
  */
+import { SendTaskSteps, SendTaskStep, SendTaskDownload, SendTaskChannelDoor } from "@/components/kit/TaskView";
 import { useOfficeDays } from "@/lib/deadline-queries";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -191,14 +192,14 @@ function HistorySection({ pr }: { pr: PurchaseReturnDetail }) {
   </Block>;
 }
 
-function DoorDialog({ open, onClose, title, pending, error, canSave, onSave, children, saveWord = title, keepWord = "Cancel" }: {
+function DoorDialog({ open, onClose, title, pending, error, canSave, onSave, children, saveWord = title, keepWord = "Cancel", saveInContent = false }: {
   open: boolean; onClose: () => void; title: string; pending: boolean; error: unknown; canSave: boolean; onSave: () => void; children: ReactNode;
-  saveWord?: string; keepWord?: string;
+  saveWord?: string; keepWord?: string; saveInContent?: boolean;
 }) {
   return <Modal open={open} onOpenChange={(v) => { if (!v) onClose(); }} title={title}
     footer={<div className="flex justify-end gap-2 [&_button]:min-h-[40px] sm:[&_button]:min-h-0">
       <Button variant="neutral" onClick={onClose} disabled={pending}>{keepWord}</Button>
-      <Button variant="primary" disabled={!canSave} loading={pending} onClick={onSave}>{saveWord}</Button>
+      {!saveInContent && <Button variant="primary" disabled={!canSave} loading={pending} onClick={onSave}>{saveWord}</Button>}
     </div>}>
     <div className="grid gap-3">
       {error ? <p role="alert" className="rounded-control border border-kit-red-9 bg-kit-red-3 px-3 py-2 text-body text-kit-red-11">{refusal(error)}</p> : null}
@@ -214,12 +215,22 @@ function SendDialog({ pr, open, onClose }: { pr: PurchaseReturnDetail; open: boo
   const [channel, setChannel] = useState("whatsapp");
   const [recipient, setRecipient] = useState("");
   const [note, setNote] = useState("");
+  const { url, failed } = usePurchaseReturnPdfUrl(open ? `${pr.id}:${pr.sends.length}:${pr.confirmed_pickup_date ?? ""}` : null, () => purchaseReturnPrintData(pr.id));
+  const recordResult = () => door.mutate({ channel, recipient: recipient.trim(), note: note.trim() || null }, { onSuccess: onClose });
   return <DoorDialog open={open} onClose={onClose} title={RETURN_DOCUMENT_SENT} pending={door.isPending} error={door.error}
-    canSave={recipient.trim().length > 0}
-    onSave={() => door.mutate({ channel, recipient: recipient.trim(), note: note.trim() || null }, { onSuccess: onClose })}>
-    <Select id="pr-send-channel" label="Channel" value={channel} onValueChange={setChannel} options={CHANNELS} />
-    <Input id="pr-send-recipient" label="Recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
-    <Textarea id="pr-send-note" label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+    saveInContent canSave={recipient.trim().length > 0} onSave={recordResult}>
+    <SendTaskSteps aria-label="Send purchase return">
+      <SendTaskStep n={1} state="current"><SendTaskDownload url={url} failed={failed} filename={`${pr.pr_no}.pdf`} /></SendTaskStep>
+      <SendTaskStep n={2} state="pending">
+        <Select id="pr-send-channel" label="Channel" value={channel} onValueChange={setChannel} options={CHANNELS} />
+        <Input id="pr-send-recipient" label="Recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
+        <SendTaskChannelDoor channel={channel} recipient={recipient} />
+      </SendTaskStep>
+      <SendTaskStep n={3} state="pending">
+        <Textarea id="pr-send-note" label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        <span><Button variant="primary" disabled={!recipient.trim()} loading={door.isPending} onClick={recordResult}>{RETURN_DOCUMENT_SENT}</Button></span>
+      </SendTaskStep>
+    </SendTaskSteps>
   </DoorDialog>;
 }
 

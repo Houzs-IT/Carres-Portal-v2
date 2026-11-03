@@ -20,8 +20,36 @@
  * nothing: the owning module supplies every fact, step and file.
  */
 import { useState, type ReactNode } from "react";
+import Button from "./Button";
 import MIcon from "@/components/carres/MIcon";
 import Tabs from "./Tabs";
+import { avatarColor } from "@/lib/staff-avatar";
+import { waLink } from "@/lib/wa-link";
+import StepList, { Step } from "./StepList";
+export type { StepState } from "./StepList";
+
+/** Shared document-send presentation; modules retain all actions and outcomes. */
+export const SendTaskSteps = StepList;
+export function SendTaskStep(props: Parameters<typeof Step>[0]) {
+  const titles: Record<number, string> = { 1: "Download", 2: "WhatsApp or Email", 3: "Record the result" };
+  return <Step {...props} title={props.state === "done" && props.title ? props.title : titles[props.n]} />;
+}
+
+/** Exact module PDF only; this action never records a send. */
+export function SendTaskDownload({ url, filename, failed }: { url: string | null; filename: string; failed?: boolean }) {
+  return <div className="flex flex-col gap-2"><span className="break-words text-meta text-c-secondary">{filename}</span><span><Button disabled={!url} onClick={() => { if (!url) return; const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); }}>Download PDF</Button></span>{!url && <p role={failed ? "alert" : "status"} className="text-meta text-c-secondary">{failed ? "The PDF could not be loaded" : "Loading PDF"}</p>}</div>;
+}
+
+/** Opens a channel only; each module retains its own result writer. */
+export function SendTaskChannelDoor({ channel, recipient }: { channel: string; recipient: string }) {
+  const value = recipient.trim();
+  const number = value.replace(/[\s()+-]/g, "");
+  const href = channel === "email" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value) ? `mailto:${value}`
+    : channel === "whatsapp" && /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+$/.test(value) ? value
+    : channel === "whatsapp" && /^\d{7,15}$/.test(number) ? waLink(value) : null;
+  if (channel !== "whatsapp" && channel !== "email") return null;
+  return <span><Button disabled={!href} onClick={() => { if (href) window.open(href, "_blank", "noopener,noreferrer"); }}>{channel === "email" ? "Open Email" : "Open WhatsApp"}</Button></span>;
+}
 
 export interface TaskViewFact {
   key: string;
@@ -50,7 +78,7 @@ export function ownerInitials(name: string): string {
   return words.slice(0, 2).map((word) => word.charAt(0).toUpperCase()).join("");
 }
 
-export default function TaskView({ title, moduleIcon, page, record, openRecordLabel, onOpenRecord, owner, facts, afterFacts, tabs, initialTab, tabsLabel, "data-testid": testId }: {
+export default function TaskView({ title, moduleIcon, page, record, openRecordLabel, onOpenRecord, owner, ownerKey, facts, afterFacts, tabs, initialTab, tabsLabel, "data-testid": testId }: {
   /** The task, in the words its list card uses. */
   title: string;
   /** The module's icon, a Material Symbols name. */
@@ -64,6 +92,7 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
   onOpenRecord?: () => void;
   /** Who does this task now; `null` when nobody is assigned. */
   owner: string | null;
+  ownerKey?: string | null;
   facts: readonly TaskViewFact[];
   /** One act about the task itself, between the facts and the tabs (the
    *  Tasks area's `Record as sent`). The owner of the act draws it. */
@@ -86,8 +115,8 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
   };
   return (
     <article className="flex flex-col rounded-lg border border-c-card-border bg-white" aria-label={title} data-kit="task-view" data-testid={testId}>
-      <h3 className="break-words border-b border-c-row-line px-2.5 py-2 text-body font-medium text-c-ink" data-testid="task-view-title">{title}</h3>
-      <div className="flex flex-col gap-2 px-2.5 pb-1 pt-2.5">
+      <h3 className="break-words border-b border-c-row-line px-3 py-3 text-body font-medium text-c-ink" data-testid="task-view-title">{title}</h3>
+      <div className="flex flex-col gap-2 px-3 pb-1 pt-2.5">
         <div className="flex min-h-5 items-center gap-1.5 text-meta" data-testid="task-view-head">
           <MIcon name={moduleIcon} size={16} className="shrink-0 text-c-secondary" />
           <span className="shrink-0 text-c-secondary">{page}</span>
@@ -105,7 +134,7 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
           ) : null}
           <span className="flex-1" />
           {owner ? (
-            <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-c-track px-1 text-label font-medium text-c-ink" title={owner} aria-label={owner} data-testid="task-view-owner">
+            <span className="grid h-task-avatar min-w-task-avatar shrink-0 place-items-center rounded-full px-1 text-label" style={{ background: avatarColor(ownerKey ?? owner).bg, color: avatarColor(ownerKey ?? owner).fg }} title={owner} aria-label={owner} data-testid="task-view-owner">
               {ownerInitials(owner)}
             </span>
           ) : null}
@@ -114,14 +143,14 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
           /* ONE grid for every fact, so the values start on one line: icon,
              then the label (as wide as the longest, at most 104), then the
              value. A longer label wraps; a value is never cut. */
-          <dl className="m-0 grid grid-cols-[16px_fit-content(104px)_minmax(0,1fr)] gap-x-1.5 gap-y-1.5 text-body" data-testid="task-view-facts">
+          <dl className="m-0 grid grid-cols-[16px_fit-content(88px)_minmax(0,1fr)] items-center gap-x-2 text-body" data-testid="task-view-facts">
             {facts.map((fact) => (
               <div key={fact.key} className="contents" data-warn={fact.warn || undefined} data-testid={`task-view-fact-${fact.key}`}>
-                <dt className={`col-span-2 grid grid-cols-subgrid items-start ${fact.warn ? "text-c-warn-fg" : "text-c-secondary"}`}>
+                <dt className="col-span-2 grid min-h-9 grid-cols-subgrid items-center border-t border-c-row-line py-2 text-meta text-c-secondary">
                   <MIcon name={fact.icon} size={16} className="mt-[2px]" />
                   <span className="min-w-0 break-words">{fact.label}</span>
                 </dt>
-                <dd className={`m-0 min-w-0 break-words ${fact.warn ? "font-medium text-c-warn-fg" : "text-c-ink"}`}>{fact.value}</dd>
+                <dd className="m-0 flex min-h-9 min-w-0 flex-wrap items-center gap-1.5 break-words border-t border-c-row-line py-2 text-body text-c-ink">{fact.warn && <MIcon name="schedule" size={16} className="shrink-0 text-c-warn-fg" />}{fact.value}</dd>
                 {fact.detail ? <dd className="col-span-3 m-0 min-w-0" data-testid={`task-view-fact-detail-${fact.key}`}>{fact.detail}</dd> : null}
               </div>
             ))}
@@ -130,13 +159,13 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
       </div>
       {afterFacts}
       {tabs.length > 1 ? (
-        <div className="px-2.5 pb-1 pt-1.5" data-testid="task-view-tabs">
+        <div className="px-3 pb-1 pt-2" data-testid="task-view-tabs">
           <Tabs variant="segmented" fill label={tabsLabel} value={tab} onValueChange={choose}
             tabs={tabs.map((t) => ({ value: t.key, label: t.label }))} />
         </div>
       ) : null}
       {tabs.map((t) => (opened.has(t.key) ? (
-        <div key={t.key} role="tabpanel" aria-label={t.label} hidden={t.key !== tab} className={t.key === tab ? "min-w-0 px-2.5 pb-2.5 pt-2" : undefined} data-testid={`task-view-panel-${t.key}`}>
+        <div key={t.key} role="tabpanel" aria-label={t.label} hidden={t.key !== tab} className={t.key === tab ? "min-w-0 px-3 pb-3 pt-3" : undefined} data-testid={`task-view-panel-${t.key}`}>
           {t.content}
         </div>
       ) : null))}
