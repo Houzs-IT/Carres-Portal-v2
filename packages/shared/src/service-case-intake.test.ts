@@ -10,6 +10,7 @@ import {
   caseIntakeComplete,
   caseIssuesFor,
   caseNeedsManager,
+  caseResolutionRoute,
   casePriorityFor,
   caseProductCategory,
   composeCaseSummary,
@@ -210,5 +211,15 @@ describe("the key sets stay closed", () => {
       expect(o.label.trim().length).toBeGreaterThan(0);
       expect(o.label).not.toMatch(/_/);
     }
+  });
+});
+
+describe("caseResolutionRoute (Houzs stages.ts:87-94)", () => {
+  it("keeps own team and return visits internal, sends every other method to the supplier", () => {
+    expect(caseResolutionRoute("field_service_own")).toBe("internal");
+    expect(caseResolutionRoute("return_visit")).toBe("internal");
+    expect(caseResolutionRoute("replace_unit")).toBe("supplier");
+    expect(caseResolutionRoute("a_method_added_in_settings")).toBe("supplier");
+    expect(caseResolutionRoute(null)).toBeNull();
   });
 });

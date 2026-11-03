@@ -73,7 +73,7 @@ scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
  * costs one extra column per row.
  */
 const CASE_SELECT =
-  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_resolution_methods(label), service_case_issue_categories(label), service_case_product_categories(label), service_case_priorities(label,sla_hours), service_case_root_causes(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
+  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_resolution_methods(label,code), service_case_issue_categories(label), service_case_product_categories(label), service_case_priorities(label,sla_hours), service_case_root_causes(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /config — config-driven Case Type + Status (active only, sorted)
@@ -1205,7 +1205,7 @@ interface RawCase {
   customer_amount?: number | string | null;
   supplier_cost_amount?: number | string | null;
   supplier_invoice_ref?: string | null;
-  service_case_resolution_methods?: { label: string } | null;
+  service_case_resolution_methods?: { label: string; code?: string } | null;
   /** 0764 — the lookup lists, embedded by code. */
   root_cause?: string | null;
   service_case_issue_categories?: { label: string } | null;
@@ -1296,6 +1296,7 @@ function shapeCase(r: RawCase) {
     subStatusLabel:      r.service_case_sub_statuses?.label ?? null,
     resolutionMethodId:    r.resolution_method_id ?? null,
     resolutionMethodLabel: r.service_case_resolution_methods?.label ?? null,
+    resolutionMethodCode:  r.service_case_resolution_methods?.code ?? null,
     issueTypeLabel:        r.service_case_issue_categories?.label ?? null,
     productCategoryLabel:  r.service_case_product_categories?.label ?? null,
     priorityLabel:         r.service_case_priorities?.label ?? null,

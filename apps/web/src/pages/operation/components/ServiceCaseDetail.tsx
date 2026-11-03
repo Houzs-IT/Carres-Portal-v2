@@ -13,6 +13,7 @@ import {
   caseFollowUpPlan,
   caseLegLabel,
   caseNeedsManager,
+  caseResolutionRoute,
   caseStageDwell,
   fmtMoney,
   caseUsableLabel,
@@ -289,6 +290,8 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                 <Select id="case-resolution-method" label="Resolution Method" value={d.resolutionMethodId ?? undefined} onValueChange={(v) => saveSelect({ resolutionMethodId: v })} placeholder="Resolution Method"
                   options={(configQ.data?.resolutionMethods ?? []).map((m) => ({ value: m.id, label: m.label }))} />
               </div>
+              {/* Houzs ServiceCases.tsx:4150-4190: the route chip and its one line under the method. */}
+              <RouteLine route={caseResolutionRoute(d.resolutionMethodCode)} />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <InlineField id="scm-action" label="Resolution" textarea value={d.carresAction} onSave={(v) => save({ carresAction: v })} />
                 <InlineField id="scm-affected" label="What was affected" textarea value={d.whatAffected} onSave={(v) => save({ whatAffected: v })} />
@@ -495,4 +498,17 @@ function lookupOptions(items: Array<{ code: string; label: string }> | undefined
   const opts = (items ?? []).map((m) => ({ value: m.code, label: m.label }));
   if (current && !opts.some((o) => o.value === current)) opts.push({ value: current, label: currentLabel ?? current });
   return opts;
+}
+
+function RouteLine({ route }: { route: "supplier" | "internal" | null }) {
+  const [chip, line] =
+    route === "supplier" ? ["Supplier", "Supplier flow: assign a supplier."]
+    : route === "internal" ? ["Internal", "Internal handling: own team, no supplier needed."]
+    : ["No route yet", "Pick a method. It decides the supplier or internal path."];
+  return (
+    <p className="flex flex-wrap items-center gap-2 text-meta text-kit-slate-11" data-testid="case-route">
+      <span className="pill pill-neutral">{chip}</span>
+      {line}
+    </p>
+  );
 }
