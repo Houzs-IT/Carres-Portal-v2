@@ -74,8 +74,8 @@ export function klDay(iso: string): string {
 /** More filters' date ranges: an order with no date never matches a range. */
 export const DATE_FILTERS: { key: string; label: string; iso: (r: RegisterRow) => string | null | undefined }[] = [
   { key: "soDate", label: "Order Date", iso: (r) => r.ordered },
-  { key: "processing", label: "Processing Date", iso: (r) => r.o.proceed_date },
-  { key: "reqDate", label: "Delivery Date", iso: (r) => r.customerDelivery },
+  { key: "processing", label: "Proceed Date", iso: (r) => r.o.proceed_date },
+  { key: "reqDate", label: "Customer Original ETA", iso: (r) => r.customerDelivery },
 ];
 export function inDateRange(iso: string | null | undefined, from: string | null, to: string | null): boolean {
   if (!from && !to) return true;
@@ -261,7 +261,7 @@ export const COLUMNS: Record<string, Column> = {
   /* Houzs's Location position. It holds the Carres fact, the outlet or dealer
      the order was sold through; Houzs's own value is a warehouse. */
   salesLoc: { key: "salesLoc", label: "Sales Location", width: "minmax(130px,1fr)", filterable: true, cell: (r) => textCell(salesLocationOf(r.o)) },
-  processing: { key: "processing", label: "Processing Date", width: "110px", cell: (r) => dayCell(r.o.proceed_date, 400) ?? NOT_RECORDED },
+  processing: { key: "processing", label: "Proceed Date", width: "110px", cell: (r) => dayCell(r.o.proceed_date, 400) ?? NOT_RECORDED },
   itemGroup: { key: "itemGroup", label: "Item Group", width: "110px", cell: (r) => lineCell(r, goodsCategoryWordOf) },
   itemCode: { key: "itemCode", label: "Item Code", width: "130px", cell: (r) => lineCell(r, (l) => l.sku) },
   detail: { key: "detail", label: "Detail Description", width: "170px", cell: (r) => lineCell(r, (l) => lineName(l).split(" · ")[0]) },
@@ -306,11 +306,10 @@ export const COLUMNS: Record<string, Column> = {
     },
   },
   reqDate: {
-    /* Version 1's preserved request (COPY "SO table and filters" / "SO requested-date
-       header"): two header lines, never `ETA` (Logistics ETA is a separate fact;
-       owner 14 Oct 2026). The day and its weekday; `Delivered` once delivered. */
-    key: "reqDate", label: "Customer’s original requested delivery", width: "140px",
-    head: ["Customer’s original", "requested delivery"],
+    /* Owner3Nov2026 display name; still version1's preserved request.
+       This is not Logistics ETA. The original reader and Delivered state stay. */
+    key: "reqDate", label: "Customer Original ETA", width: "140px",
+    head: ["Customer", "Original ETA"],
     cell: (r) => {
       const c = dayCell(r.customerDelivery);
       if (!c) return NOT_RECORDED;

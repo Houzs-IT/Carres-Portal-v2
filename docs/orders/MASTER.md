@@ -1,6 +1,10 @@
 # ORDERS — MASTER
 
 
+## Sales Order label correction · owner3Nov2026
+
+**RULING:** the full Sales Order listing's Processing Date heading becomes **Proceed Date**; Customer’s original requested delivery becomes **Customer Original ETA**. Use the same names in the column chooser, export, accessible label and date filters. Keep orders.proceed_date and the preserved revision1 request readers unchanged; do not substitute actual release time, current request or Logistics ETA. Shared Shell review also found title20/500 with−.02em tracking and Tasks toggle8px radius; restore the existing MASTER20/600/−.01em title and6px small-control tokens through shared components. These are corrections to the existing kit, not a new layout.
+
 ## Current Sales Order frontend adoption ·2Nov2026
 
 **IMPLEMENTATION / owner-commissioned whole-page adoption.** This integrates the reviewed Tasks correction against main `7058c36e5`; main's264px Summary/four current-list KPIs, table roles,2:1 real-PDF record and shared Modal fullscreen/Escape/focus return remain. The wide inline SO PDF card now follows the current340px reference with internal document scroll; narrow stacking and fullscreen sizing remain separate. The Summary month control and shared toolbar controls use the admitted6px control family. Quick reference reuses the shared quick-view Drawer with its560px dark identity header and focus/Escape handling. Source-owned Route party cards have one recommended Now without suppressing parallel actions; staff identity uses the shared Shell palette.
