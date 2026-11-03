@@ -4,7 +4,7 @@
  * Renaming it stays allowed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
@@ -62,5 +62,31 @@ describe("Service Settings: the last stage that closes the case", () => {
     await within(stages).findByDisplayValue("Closed");
     expect(inUse("s4")).toBeDisabled();
     expect(inUse("s5")).not.toBeDisabled();
+  });
+});
+
+// 0766 — Houzs ServiceLeadTimePortal.tsx: a target change carries a reason.
+describe("Service Settings: Lead Time", () => {
+  it("asks for a reason before a target change saves", async () => {
+    const lead = { profiles: [{ id: "p1", name: "Normal", description: null, isActive: true, targets: { s1: 2 } }], amendments: [] };
+    vi.mocked(apiFetch).mockImplementation(async (path: string) =>
+      path === "/api/ops/service-cases/settings"
+        ? { defaultOwnerUserId: null, types: [], statuses: [stage("s1", "Pending", true, false), stage("s4", "Resolved", true, true)] }
+        : path === "/api/ops/service-cases/settings/lead-time" ? lead : { staff: [] },
+    );
+    mount();
+    const section = await screen.findByTestId("service-lead-time");
+    const days = await within(section).findByLabelText("Target days for Pending");
+    fireEvent.change(days, { target: { value: "3" } });
+    const save = within(section).getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    fireEvent.change(within(section).getByLabelText("Reason for Pending"), { target: { value: "Peak season backlog" } });
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith("/api/ops/service-cases/settings/lead-time/targets", {
+        method: "PATCH",
+        body: JSON.stringify({ profileId: "p1", statusId: "s1", targetDays: 3, reason: "Peak season backlog" }),
+      }),
+    );
   });
 });

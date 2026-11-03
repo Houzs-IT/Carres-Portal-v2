@@ -30,6 +30,8 @@ import {
   serviceSettingsPatchSchema,
   servicePickItemCreateSchema,
   servicePickItemPatchSchema,
+  leadTimeProfileCreateSchema,
+  leadTimeTargetAmendSchema,
   type CaseEvidenceUploaded,
   type CaseFollowUpInput,
   type CaseNumbersCase,
@@ -366,6 +368,61 @@ scRouter.patch("/settings", requireOperationOrPrincipal, requireSettingsEditor("
     .eq("id", true);
   if (error) throw new HTTPException(500, { message: error.message });
   return c.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0766 — Lead Time profiles, Houzs backend/src/routes/assrPortal.ts:42-196, 281-340.
+// Registered before /settings/:list/:itemId, which would otherwise take /lead-time/targets.
+// Every write goes through a checked database function.
+// ─────────────────────────────────────────────────────────────────────────────
+scRouter.get("/settings/lead-time", requireOperationOrPrincipal, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const [profiles, targets, amendments] = await Promise.all([
+    sb.from("service_case_lead_time_profiles").select("id, name, description, is_active").order("created_at"),
+    sb.from("service_case_lead_time_targets").select("profile_id, status_id, target_days"),
+    sb.from("service_case_lead_time_amendments").select("id, profile_id, status_id, before_days, after_days, reason, created_at").order("created_at", { ascending: false }).limit(50),
+  ]);
+  const err = profiles.error ?? targets.error ?? amendments.error;
+  if (err) throw new HTTPException(500, { message: err.message });
+  const byProfile = new Map<string, Record<string, number>>();
+  for (const t of (targets.data ?? []) as Array<{ profile_id: string; status_id: string; target_days: number | string }>) {
+    byProfile.set(t.profile_id, { ...(byProfile.get(t.profile_id) ?? {}), [t.status_id]: Number(t.target_days) });
+  }
+  return c.json({
+    profiles: ((profiles.data ?? []) as Array<{ id: string; name: string; description: string | null; is_active: boolean }>).map((p) => ({
+      id: p.id, name: p.name, description: p.description, isActive: p.is_active, targets: byProfile.get(p.id) ?? {},
+    })),
+    amendments: ((amendments.data ?? []) as Array<{ id: string; profile_id: string; status_id: string; before_days: number | string | null; after_days: number | string; reason: string; created_at: string }>).map((a) => ({
+      id: a.id, profileId: a.profile_id, statusId: a.status_id, beforeDays: numOrNull(a.before_days), afterDays: Number(a.after_days), reason: a.reason, createdAt: a.created_at,
+    })),
+  });
+});
+
+scRouter.post("/settings/lead-time/profiles", requireOperationOrPrincipal, requireSettingsEditor("service"), async (c) => {
+  const parsed = await parseBody(c, leadTimeProfileCreateSchema);
+  const { data, error } = await userClient(c.env, c.var.auth.jwt)
+    .rpc("service_case_create_lead_time_profile", { p_name: parsed.name, p_description: parsed.description ?? null });
+  if (error?.code === "23505") return c.json({ error: "conflict", code: "duplicate", message: "A profile with this name already exists." }, 409);
+  if (error) throw new HTTPException(500, { message: error.message });
+  return c.json({ id: data }, 201);
+});
+
+scRouter.post("/settings/lead-time/profiles/:id/activate", requireOperationOrPrincipal, requireSettingsEditor("service"), async (c) => {
+  const { error } = await userClient(c.env, c.var.auth.jwt)
+    .rpc("service_case_activate_lead_time_profile", { p_profile: c.req.param("id") });
+  if (error?.code === "P0002") throw new HTTPException(404, { message: "Profile not found" });
+  if (error) throw new HTTPException(500, { message: error.message });
+  return c.json({ ok: true });
+});
+
+scRouter.patch("/settings/lead-time/targets", requireOperationOrPrincipal, requireSettingsEditor("service"), async (c) => {
+  const parsed = await parseBody(c, leadTimeTargetAmendSchema);
+  const { data, error } = await userClient(c.env, c.var.auth.jwt).rpc("service_case_amend_lead_time_target", {
+    p_profile: parsed.profileId, p_status: parsed.statusId, p_days: parsed.targetDays, p_reason: parsed.reason,
+  });
+  if (error?.code === "P0002") throw new HTTPException(404, { message: "Profile not found" });
+  if (error) throw new HTTPException(500, { message: error.message });
+  return c.json({ reapplied: Number(data ?? 0) });
 });
 
 scRouter.post("/settings/:list", requireOperationOrPrincipal, requireSettingsEditor("service"), async (c) => {
