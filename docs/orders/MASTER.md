@@ -1,6 +1,10 @@
 # ORDERS — MASTER
 
 
+## Sales Order label correction · owner3Nov2026
+
+**RULING:** the full Sales Order listing's Processing Date heading becomes **Proceed Date**; Customer’s original requested delivery becomes **Customer Original ETA**. Use the same names in the column chooser, export, accessible label and date filters. Keep orders.proceed_date and the preserved revision1 request readers unchanged; do not substitute actual release time, current request or Logistics ETA. Shared Shell review also found title20/500 with−.02em tracking and Tasks toggle8px radius/global Search/Team/Alerts34px controls; restore the existing MASTER20/600/−.01em title and6px/32px control tokens through shared components. The full-view Balance amount uses the existing13/500 ink value role; status colour remains in the owning payment pill, without changing balance arithmetic. These are corrections to the existing kit, not a new layout. Source/geometry measurements, focused checks and exact-head release/production evidence are recorded in [PR#2221](https://github.com/wenwei4046/Carres-Portal-v2/pull/2221); explicit full-column and saved panel choices remain supported.
+
 ## Current Sales Order frontend adoption ·2Nov2026
 
 **IMPLEMENTATION / owner-commissioned whole-page adoption.** This integrates the reviewed Tasks correction against main `7058c36e5`; main's264px Summary/four current-list KPIs, table roles,2:1 real-PDF record and shared Modal fullscreen/Escape/focus return remain. The wide inline SO PDF card now follows the current340px reference with internal document scroll; narrow stacking and fullscreen sizing remain separate. The Summary month control and shared toolbar controls use the admitted6px control family. Quick reference reuses the shared quick-view Drawer with its560px dark identity header and focus/Escape handling. Source-owned Route party cards have one recommended Now without suppressing parallel actions; staff identity uses the shared Shell palette.

@@ -100,7 +100,7 @@ export function TasksPill({ fallback = false }: { fallback?: boolean } = {}) {
       data-testid="tasks-pill"
       /* Below 768px the phone top bar carries its own Tasks door, so the
          pill hides there: one Tasks control per screen. */
-      className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-transparent px-2.5 text-[13px] font-medium text-c-secondary hover:bg-c-hover hover:text-c-ink max-[767px]:hidden"
+      className="flex h-8 shrink-0 items-center gap-1.5 rounded-control bg-transparent px-2.5 text-[13px] font-medium text-c-secondary hover:bg-c-hover hover:text-c-ink max-[767px]:hidden"
     >
       <MIcon name="right_panel_open" size={18} />
       Tasks

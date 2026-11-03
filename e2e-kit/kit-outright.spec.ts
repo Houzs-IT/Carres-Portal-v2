@@ -112,7 +112,7 @@ test("Sales Order Outright headers follow Houzs's order and keep the preserved d
   await page.locator('[data-testid^="outright-row-"]').first().waitFor();
   const heads = await page.locator(`${TABLE} thead tr`).first().locator("th").allInnerTexts();
   expect(heads.map((h) => h.replace(/\n/g, " / ").toLowerCase()).filter(Boolean)).toEqual([
-    "doc. no.", "date", "ref no.", "agent", "debtor name", "total", "sales location", "balance", "processing date", "customer’s original / requested delivery",
+    "doc. no.", "date", "ref no.", "agent", "debtor name", "total", "sales location", "balance", "proceed date", "customer / original eta",
     "item group", "item code", "detail description", "detail description 2", "unit price", "qty",
   ]);
 });
