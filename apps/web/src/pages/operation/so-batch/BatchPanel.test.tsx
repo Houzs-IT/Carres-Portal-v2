@@ -186,8 +186,8 @@ describe("BatchPanel — opened by window key from any page", () => {
        package, in the Portal's words): download, send, then the one act. */
     const steps = within(card).getByTestId("batch-whatsapp-steps");
     expect(within(steps).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "10 of 2 downloadedDownload PDFs (2)",
-      "2Send the PDF, then press PO sent to supplier.Copy messageOpen WhatsApp group",
+      "1Download0 of 2 downloadedDownload PDFs (2)",
+      "2WhatsApp or EmailSend the PDF, then press PO sent to supplier.Copy messageOpen WhatsApp group",
       expect.stringContaining("PO sent to supplier (2)"),
     ]);
     expect(within(steps).getAllByRole("listitem").map((li) => li.getAttribute("data-state"))).toEqual(["current", "pending", "pending"]);

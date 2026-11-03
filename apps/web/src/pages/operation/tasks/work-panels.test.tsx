@@ -8,6 +8,8 @@ import type { WorkPanelHost } from "./tasks-host";
 const refreshWork = vi.hoisted(() => vi.fn());
 import { panelFor } from "./work-panels";
 
+vi.mock("../so-batch/PoSupplierResultPanel", () => ({ PoSupplierResultContent: ({pos, onChanged}: {pos: {id: string; version: number}[]; onChanged: () => void}) => <button onClick={onChanged}>{pos[0]?.id} V{pos[0]?.version} owning send</button> }));
+vi.mock("@/lib/api", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/api")>(), apiFetch: vi.fn(async (path: string) => path.includes("/suppliers") ? { suppliers: [{id: "s1", name: "TEST supplier"}] } : { pos: [{id: "PO-260910-3301", supplier_id: "s1", version: 2, purchase_order_lines: [], sends: [], promises: []}] }) }));
 vi.mock("../work/WorkOrderRoute", () => ({ useMissionRoute: () => ({ route: null, loading: true, failed: false }) }));
 /* Delivery's own forms are their own doors; here they only prove which one a
    task opens, for which order, and that closing them returns to the task. */
@@ -56,14 +58,18 @@ describe("the act panel, in the one task view", () => {
     expect(screen.getByTestId("where")).toHaveTextContent("/operation/orders/so/o-9105");
   });
 
-  it("a PO send task opens its owning PO instead of the supplier-answer form", () => {
+  it("a PO send task embeds its exact-version owning sender and refreshes only after its result", async () => {
     const destination = "/operation/procurement?po=PO-260910-3301";
     mount(task({ module: "purchasing", ruleKey: "purchasing.cancellation_send", destination, line: "Send PO-260910-3301-V2 to TEST supplier" }, {
       object: { kind: "purchase_order", id: "PO-260910-3301", label: "PO-260910-3301-V2" },
       requiredResult: "Current PO version marked as sent",
       interaction: { mode: "embedded", actionKey: "purchasing.confirm_po_sent", fallbackDestination: destination },
     }));
-    expect(screen.getByTestId("task-generic-open")).toBeInTheDocument();
+    const send = await screen.findByRole("button", { name: "PO-260910-3301 V2 owning send" });
+    expect(screen.queryByTestId("task-generic-open")).not.toBeInTheDocument();
+    refreshWork.mockClear();
+    fireEvent.click(send);
+    expect(refreshWork).toHaveBeenCalledOnce();
     expect(screen.queryByTestId("task-record-supplier-answer")).not.toBeInTheDocument();
   });
 

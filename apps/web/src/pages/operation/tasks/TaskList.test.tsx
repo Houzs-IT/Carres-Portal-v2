@@ -87,11 +87,12 @@ describe("the cards", () => {
     /* Tuesday's work is not under today. */
     expect(screen.queryByTestId("task-group-TEST Supplier B")).toBeNull();
   });
-  it("a card is its title, then label on the left and value on the right; amber only on the late row", () => {
+  it("a card keeps its source facts and overdue date status, with one opening button", () => {
     draw();
     const late = screen.getByTestId("task-card-late");
-    const rows = [...late.querySelectorAll("span.flex.items-baseline")].map((el) => [el.children[0]!.textContent, el.children[1]!.textContent, el.getAttribute("data-warn")]);
-    expect(rows).toEqual([["PO No", "PO-261001-9001", null], ["Deadline", "Tue, 29 Sep · 4 days late", "true"]]);
+    expect(late).toHaveTextContent("PO No · PO-261001-9001");
+    expect(late.querySelector('[data-warn="true"]')).toHaveAccessibleName("Tue, 29 Sep · 4 days late");
+    expect(within(late).getByText("4 days late")).toHaveAttribute("data-tone", "err");
     const onTime = screen.getByTestId("task-card-now");
     expect(onTime.querySelector("[data-warn]")).toBeNull();
     /* No tag and no button on a card: the card itself is the one control. */
