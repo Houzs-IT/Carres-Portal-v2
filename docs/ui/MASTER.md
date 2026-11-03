@@ -1230,8 +1230,8 @@ recorded in §6.0; the compact card in §4.3.4.
    `MPR No · Proceed Date`; Purchase Orders `PO No · PO Doc Date`; Receiving `GRN No · GRN Doc Date`;
    Purchase Returns `PR No · PR Doc Date`; Repair Orders `RO No · RO Doc Date`; Supplier Claims
    `Supplier Claim No · Claim status`; Delivery Orders `DO No · DO Doc Date`; Payment Records
-   `Receipt No · Paid date`. NOT YET MOVED: Sales Orders still `Proceed Date · SO Doc Date · SO No`
-   and SO Batch `Proceed Date · SO No`. Never invent a date fact; exact page orders live in the module
+   `Receipt No · Paid date`. Sales Order default/full views use `SO No · SO Doc Date`.
+   NOT YET MOVED: SO Batch still `Proceed Date · SO No`. Never invent a date fact; exact page orders live in the module
    MASTERs.
 3. **A useful default view.** At 1440px with filters open, identity and the facts for the main
    judgement are fully visible in the real shell and font; other columns scroll or sit in Columns;

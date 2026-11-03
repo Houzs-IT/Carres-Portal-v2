@@ -225,7 +225,7 @@ export default function DialogFrame({
             }
           }}
         >
-          <header className={variant === "compact-card" || contextualPanel || taskReview ? "sr-only" : variant === "quick-view" ? "flex h-14 shrink-0 items-center justify-between gap-4 bg-c-body pl-5 pr-4" : "flex items-start justify-between gap-4 rounded-t-lg border-b border-c-section-line [padding:var(--card-pad)]"}>
+          <header className={variant === "compact-card" || contextualPanel || taskReview ? "sr-only" : variant === "quick-view" ? "flex h-14 shrink-0 items-center justify-between gap-4 bg-c-body pl-quick-view-inset pr-4" : "flex items-start justify-between gap-4 rounded-t-lg border-b border-c-section-line [padding:var(--card-pad)]"}>
             <div className={`flex flex-col gap-1 ${variant === "quick-view" ? "min-w-0 flex-1" : ""}`}>
               <Dialog.Title
                 className={variant === "quick-view" ? "truncate text-body font-medium text-white" : "text-strong text-c-ink"}

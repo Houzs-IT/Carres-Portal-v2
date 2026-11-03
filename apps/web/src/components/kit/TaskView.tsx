@@ -134,7 +134,7 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
           ) : null}
           <span className="flex-1" />
           {owner ? (
-            <span className="grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full px-1 text-[11px] font-medium" style={{ background: avatarColor(ownerKey ?? owner).bg, color: avatarColor(ownerKey ?? owner).fg }} title={owner} aria-label={owner} data-testid="task-view-owner">
+            <span className="grid h-task-avatar min-w-task-avatar shrink-0 place-items-center rounded-full px-1 text-label" style={{ background: avatarColor(ownerKey ?? owner).bg, color: avatarColor(ownerKey ?? owner).fg }} title={owner} aria-label={owner} data-testid="task-view-owner">
               {ownerInitials(owner)}
             </span>
           ) : null}
@@ -146,11 +146,11 @@ export default function TaskView({ title, moduleIcon, page, record, openRecordLa
           <dl className="m-0 grid grid-cols-[16px_fit-content(88px)_minmax(0,1fr)] items-center gap-x-2 text-body" data-testid="task-view-facts">
             {facts.map((fact) => (
               <div key={fact.key} className="contents" data-warn={fact.warn || undefined} data-testid={`task-view-fact-${fact.key}`}>
-                <dt className="col-span-2 grid min-h-9 grid-cols-subgrid items-center border-t border-c-row-line py-2 text-[12px] leading-4 text-c-secondary">
+                <dt className="col-span-2 grid min-h-9 grid-cols-subgrid items-center border-t border-c-row-line py-2 text-meta text-c-secondary">
                   <MIcon name={fact.icon} size={16} className="mt-[2px]" />
                   <span className="min-w-0 break-words">{fact.label}</span>
                 </dt>
-                <dd className="m-0 flex min-h-9 min-w-0 flex-wrap items-center gap-1.5 break-words border-t border-c-row-line py-2 text-[13px] leading-[18px] text-c-ink">{fact.warn && <MIcon name="schedule" size={16} className="shrink-0 text-c-warn-fg" />}{fact.value}</dd>
+                <dd className="m-0 flex min-h-9 min-w-0 flex-wrap items-center gap-1.5 break-words border-t border-c-row-line py-2 text-body text-c-ink">{fact.warn && <MIcon name="schedule" size={16} className="shrink-0 text-c-warn-fg" />}{fact.value}</dd>
                 {fact.detail ? <dd className="col-span-3 m-0 min-w-0" data-testid={`task-view-fact-detail-${fact.key}`}>{fact.detail}</dd> : null}
               </div>
             ))}
