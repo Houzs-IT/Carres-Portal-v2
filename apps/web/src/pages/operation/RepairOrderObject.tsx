@@ -1,3 +1,4 @@
+import { SendTaskSteps, SendTaskStep, SendTaskDownload, SendTaskChannelDoor } from "@/components/kit/TaskView";
 // design-standard: not-a-list-page — the Repair Order OBJECT (full-width,
 // one scroll; UI MASTER §4.1 "ONE SCROLL · Repair Order").
 /**
@@ -536,8 +537,14 @@ function IssueWorkspace({ ro, onClose, onDone }: { ro: RepairOrderDetail; onClos
           <div className="grid gap-3">
             {door.error ? <p role="alert" className="rounded-control border border-kit-red-9 bg-kit-red-3 px-3 py-2 text-body text-kit-red-11">{refusal(door.error)}</p> : null}
             <p className="text-body text-kit-slate-11">{`The 14 working days start when ${supplier} receives it.`}</p>
+            <SendTaskSteps aria-label="Send repair order">
+            <SendTaskStep n={1} state="current"><SendTaskDownload url={url} failed={failed} filename={`${poDocumentNumberOf(ro.ro_no, ro.version)}.pdf`} /></SendTaskStep>
+            <SendTaskStep n={2} state="pending">
             <Select id="ro-issue-channel" label="Channel" value={channel} onValueChange={setChannel} options={CHANNELS} />
             <Input id="ro-issue-recipient" label="Recipient" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
+            <SendTaskChannelDoor channel={channel} recipient={recipient} />
+            </SendTaskStep>
+            <SendTaskStep n={3} state="pending">
             <Textarea id="ro-issue-note" label="Note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="neutral" onClick={onClose} disabled={door.isPending}>Cancel</Button>
@@ -550,6 +557,8 @@ function IssueWorkspace({ ro, onClose, onDone }: { ro: RepairOrderDetail; onClos
                 Record what you sent
               </Button>
             </div>
+            </SendTaskStep>
+            </SendTaskSteps>
           </div>
         </Block>
       </div>

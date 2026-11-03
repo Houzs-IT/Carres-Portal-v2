@@ -49,7 +49,7 @@ import Input from "@/components/kit/Input";
 import Loading from "@/components/kit/Loading";
 import Modal from "@/components/kit/Modal";
 import Select from "@/components/kit/Select";
-import StepList, { Step } from "@/components/kit/StepList";
+import { SendTaskSteps as StepList, SendTaskStep as Step } from "@/components/kit/TaskView";
 import Tabs from "@/components/kit/Tabs";
 import DocumentTable from "@/components/kit/DocumentTable";
 import PdfPreview from "@/components/kit/PdfPreview";
@@ -148,7 +148,7 @@ export function batchTasksOf(data: SoBatchPurchaseResponse): BatchTask[] {
     const qty = acc.buy.reduce((sum, row) => sum + (row.toBuy ?? 0), 0);
     return { key, windowKey: acc.windowKey, supplierId: acc.supplierId, supplierName: acc.supplierName, dueAt,
       action: T.issue(acc.supplierName),
-      reference: `${sos.length === 1 ? (sos[0] == null ? "Not recorded" : `SO-${sos[0]}`) : T.salesOrders(sos.length)} · ${T.itemsToBuy(qty)}` };
+      reference: `${sos.length === 1 ? (sos[0] == null ? "" : `SO-${sos[0]}`) : T.salesOrders(sos.length)} · ${T.itemsToBuy(qty)}` };
   }).sort((a, b) => a.dueAt.localeCompare(b.dueAt) || a.supplierName.localeCompare(b.supplierName));
 }
 
@@ -454,7 +454,7 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
     : unknown ? T.unknownPos(rows.length)
     : missing.length ? T.notRecordedYet(missing.flatMap((attempt) => attempt.documents.filter((document) => !document.recorded)).length)
     : unsent.length ? T.toSend(unsent.length) : null;
-  const destinationName = (id: string | null | undefined) => data?.destinations.find((d) => d.id === id)?.name ?? "Not recorded";
+  const destinationName = (id: string | null | undefined) => data?.destinations.find((d) => d.id === id)?.name ?? "";
   const lastSendOf = (fact: PoFacts) => [...fact.sends].reverse().find((send) => send.kind === "confirmed_sent" && send.po_version === fact.document?.version);
 
   /* One PO: its number (a tick while it is still to send), then its items and
@@ -504,7 +504,7 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
           tabs={[{ value: "whatsapp", label: "WhatsApp", icon: "message" }, { value: "email", label: "Email", icon: "mail" }]} />
         {activeChannel === "whatsapp" ? <div className="flex flex-col gap-2" data-testid="batch-whatsapp">
           <span className="text-meta text-kit-slate-11">
-            {contact?.whatsappGroupUrl ? T.toGroup(supplierName) : contact?.contact ? `To ${contact.contact}` : "To Not recorded"}
+            {contact?.whatsappGroupUrl ? T.toGroup(supplierName) : contact?.contact ? `To ${contact.contact}` : ""}
             {contact && !contact.poSendChannel ? ` · ${T.defaultNotSet} · ` : null}
             {contact && !contact.poSendChannel ? <Button variant="ghost" size="sm" onClick={() => navigate("/operation/settings/purchasing")}>{T.set}</Button> : null}
           </span>
@@ -524,7 +524,10 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
             </Step>
           </StepList>
         </div> : <div className="flex flex-col gap-2" data-testid="batch-email">
-          <Input id={`batch-email-to-${item.id}`} label="To" readOnly value={contact?.contactEmail ?? "Not recorded"} />
+          <StepList aria-label={T.sendBy} data-testid="batch-email-steps">
+          <Step n={1} state={allHeld ? "done" : "current"} sub={T.downloaded(heldCount, tickedReady.length)} action={<Button loading={busy} disabled={!tickedReady.length} onClick={() => void download()}><Icon name="download" size={16} />{T.downloadPdfs(tickedReady.length)}</Button>} />
+          <Step n={2} state={unknown || missing.length ? "current" : "pending"}>
+          <Input id={`batch-email-to-${item.id}`} label="To" readOnly value={contact?.contactEmail ?? ""} />
           <Input id={`batch-email-subject-${item.id}`} label="Subject" value={subject} disabled={busy || unknown} onChange={(event) => setSubject(event.target.value)} />
           <span className="text-meta text-kit-slate-11">{T.attached}</span>
           {tickedReady.map((fact) => <span key={fact.po.id} className="text-meta text-kit-slate-12">{`${fact.document!.po_number.replace(/[^a-zA-Z0-9._-]/g, "_")}-V${fact.document!.version}.pdf`}</span>)}
@@ -540,6 +543,11 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
               disabled={!emailConfigured || !contact?.contactEmail || !subject.trim() || !tickedReady.length || missing.length > 0}
               title={!emailConfigured ? "Not available" : undefined} onClick={() => void sendEmail()}>Send Email</Button>
           </div>}
+          </Step>
+          <Step n={3} state={missing.length ? "current" : "pending"}>
+            {missing.length > 0 && <p className="text-meta text-c-secondary">{T.notConfirmedTryAgain}</p>}
+          </Step>
+          </StepList>
         </div>}
       </>}
       {missing.length > 0 && <div className="flex flex-col gap-1 rounded-control border border-kit-slate-6 p-3" data-testid="batch-email-result">
@@ -560,7 +568,7 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
     <div className="flex flex-col gap-2" data-testid="batch-issue">
       {rows.length > 0 && <span className="text-meta text-kit-amber-11">{T.itemsToBuy(lines.reduce((sum, row) => sum + (row.toBuy ?? 0), 0))}</span>}
       {lines.map((row) => <div key={row.id} className="flex min-w-0 items-center gap-2 border-t border-kit-slate-5 py-1.5">
-        <Checkbox id={`batch-buy-${row.id}`} label={`${row.so == null ? "Not recorded" : `SO-${row.so}`} · ${[row.item, row.variant].filter(Boolean).join(" ")}`}
+        <Checkbox id={`batch-buy-${row.id}`} label={`${row.so == null ? "" : `SO-${row.so}`} · ${[row.item, row.variant].filter(Boolean).join(" ")}`}
           checked={!buyUnticked.has(row.id)}
           onCheckedChange={(on) => setBuyUnticked((previous) => { const next = new Set(previous); if (on) next.delete(row.id); else next.add(row.id); return next; })} />
         <span className="ml-auto shrink-0 text-meta text-kit-slate-11">× {row.toBuy}</span>
@@ -629,8 +637,8 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
         <span className="text-strong">{T.sosOnPos(orderIds.length)}</span>
         <span className="text-meta text-kit-slate-11">{T.pickOne}</span>
         <DocumentTable label="Sales Orders" columns={[{ key: "so", label: "SO No" }, { key: "customer", label: "Customer" }]}
-          rows={orderIds.map((order) => ({ key: order.orderId, onOpen: () => setSoPick(order.orderId), openLabel: `Open ${order.so == null ? "Not recorded" : `SO-${order.so}`}`,
-            cells: { so: order.so == null ? "Not recorded" : `SO-${order.so}`, customer: order.customer ?? "Not recorded" } }))} />
+          rows={orderIds.map((order) => ({ key: order.orderId, onOpen: () => setSoPick(order.orderId), openLabel: order.so == null ? "Open Sales Order" : `Open SO-${order.so}`,
+            cells: { so: order.so == null ? "" : `SO-${order.so}`, customer: order.customer ?? "" } }))} />
       </div>;
 
   /* The Sales Orders with a number are the ones a Route and a file can name. */
