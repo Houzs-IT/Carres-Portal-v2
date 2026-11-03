@@ -54,6 +54,7 @@ const SEEDS: Seed[] = [
 ];
 
 function item(seed: Seed, index: number, me: { id: string; name: string }, today: string): OperationWorkItem {
+  if (new URLSearchParams(window.location.search).get("task") === "send" && index === 0) seed = { ...seed, ruleKey: "purchasing.confirm_po_sent", action: "Send PO to TEST Supplier A", problem: "Sending not confirmed" };
   const actionOn = seed.day === null ? null : workingDay(today, seed.day);
   /* A Purchase Order is its own number; a Sales Order is an order id. */
   const id = seed.kind === "purchase_order" ? seed.label : `test-${index + 1}`;
@@ -97,7 +98,7 @@ function item(seed: Seed, index: number, me: { id: string; name: string }, today
     communication: null,
     blocker: null,
     nextConsequence: null,
-    interaction: { mode: "open_module", fallbackDestination: destination },
+    interaction: seed.ruleKey === "purchasing.confirm_po_sent" ? { mode: "embedded", actionKey: "purchasing.confirm_po_sent", componentKey: "po-send", capability: "TEST:po-send", inputContract: "TEST:po-version", evidenceContract: "TEST:send-proof", idempotencyKey: `TEST:${id}:send`, staleVersion: "2", staleRefusal: "TEST:refresh-document", successReceipt: "TEST:confirmed-send", fallbackDestination: destination } : { mode: "open_module", fallbackDestination: destination },
     destination,
     observedAt: `${today}T01:00:00.000Z`,
     sourceVersion: `${today}T01:00:00.000Z`,
@@ -193,9 +194,10 @@ export function testTaskPo(poId: string) {
   if (!seed || seed.module !== "purchasing") return { pos: [], destinations: [], referencedDestinations: [] };
   const supplier = seed?.recipient === "TEST Supplier B" ? TEST_SUPPLIERS[1]! : TEST_SUPPLIERS[0]!;
   const sentOn = workingDay(today, -6);
+  const sendTask = new URLSearchParams(window.location.search).get("task") === "send" && poId === "PO-261001-9001";
   return {
     pos: [{
-      id: poId, supplier_id: supplier.id, version: 2, status: "sent",
+      id: poId, supplier_id: supplier.id, version: 2, status: sendTask ? "issued" : "sent",
       official_delivery_date: workingDay(today, seed?.day ?? 0), eta_date: workingDay(today, seed?.day ?? 0),
       destination_id: "w1", warehouse_id: "w1",
       purchase_order_lines: [
@@ -206,7 +208,7 @@ export function testTaskPo(poId: string) {
         { kind: "sales_order", reference: "SO-9101", order_id: "00000000-0000-4000-8000-000000009101" },
         { kind: "sales_order", reference: "SO-9102", order_id: "00000000-0000-4000-8000-000000009102" },
       ],
-      sends: [
+      sends: sendTask ? [] : [
         { channel: "whatsapp", note: null, sent_at: `${sentOn}T02:10:00.000Z`, kind: "external_open", recipient: null, po_version: 2, sent_by_name: "TEST · Staff A", po_revisions: null },
         { channel: "whatsapp", note: null, sent_at: `${sentOn}T02:14:00.000Z`, kind: "confirmed_sent", recipient: "TEST group", po_version: 2, sent_by_name: "TEST · Staff A", po_revisions: null },
       ],
@@ -226,7 +228,7 @@ export function testTaskPoDocument(poId: string): PoTemplateData | null {
   const supplier = TEST_SUPPLIERS.find((candidate) => candidate.id === po.supplier_id)!;
   return {
     po_id: po.id, po_number: po.id, version: po.version,
-    issue_date: po.sends[0]!.sent_at.slice(0, 10),
+    issue_date: po.sends[0]?.sent_at.slice(0, 10) ?? workingDay(appTodayIso(), -6),
     supplier: { name: supplier.name, address: null, contact: null },
     destination: { name: source.destinations[0]!.name, address: "TEST destination" },
     delivery_instructions: null, eta_date: po.eta_date,
