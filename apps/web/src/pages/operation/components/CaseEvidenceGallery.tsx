@@ -8,7 +8,6 @@ import {
   caseEvidenceSlotLabel,
   type CaseEvidenceListResponse,
   type CaseEvidenceSlotKey,
-  type CaseIssueKey,
   type CaseReporterKey,
 } from "@carres/shared";
 import { apiFetch } from "@/lib/api";
@@ -31,7 +30,7 @@ export default function CaseEvidenceGallery({
   reportedBy,
 }: {
   caseId: string;
-  issueType: CaseIssueKey | null;
+  issueType: string | null;
   reportedBy: CaseReporterKey | null;
 }) {
   const qc = useQueryClient();
