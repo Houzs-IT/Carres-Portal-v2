@@ -66,6 +66,7 @@ import soBatchReadyStockRouter from "./routes/operation/so-batch-ready-stock";
 import purchaseDemandsRouter from "./routes/operation/purchase-demands";
 import forecastPurchaseRouter from "./routes/operation/forecast-purchase";
 import manualPurchaseRouter from "./routes/operation/manual-purchase";
+import requestNewModelsRouter from "./routes/operation/request-new-models";
 import purchasingSettingsRouter from "./routes/operation/purchasing-settings";
 // Settings → Warehouse — the ONE Warehouse Settings surface (0456 · 0457).
 import warehouseSettingsRouter from "./routes/operation/warehouse-settings";
@@ -278,6 +279,8 @@ api.route("/operation/purchase/forecast", forecastPurchaseRouter);
 api.route("/operation/purchase/demands", soBatchReadyStockRouter);
 // Manual Purchase requests (0359) — the typed lane's header + lines + register.
 api.route("/operation/purchasing/requests", manualPurchaseRouter);
+// 0774 — a request's models the catalog does not have yet (Houzs product requests).
+api.route("/operation/purchasing/new-models", requestNewModelsRouter);
 // P1 (0303) — Purchasing → Settings: the numbers the ordering engine reads.
 api.route("/operation/purchasing/settings", purchasingSettingsRouter);
 api.route("/operation/warehouse-settings", warehouseSettingsRouter);
