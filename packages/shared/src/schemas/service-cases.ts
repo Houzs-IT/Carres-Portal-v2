@@ -536,6 +536,19 @@ export const serviceCaseNumbersResponseSchema = z.object({
   })).optional(),
   byResolutionMethod: z.array(z.object({ label: z.string(), count: z.number().int() })).optional(),
   resolutionMethodNotSet: z.number().int().optional(),
+  /** Houzs Quality Overview supplier rate: cases against goods received (posted GRNs). */
+  returnRate: z.object({
+    rateFrom: z.string(),
+    to: z.string(),
+    noSupplier: z.number().int(),
+    rows: z.array(z.object({
+      name: z.string(),
+      receivedQty: z.number(),
+      cases: z.number().int(),
+      ratePct: z.number().nullable(),
+      months: z.array(z.object({ month: z.string(), receivedQty: z.number(), cases: z.number().int(), ratePct: z.number().nullable() })),
+    })),
+  }).optional(),
   headline: z.string(),
 });
 export type ServiceCaseNumbersResponse = z.infer<typeof serviceCaseNumbersResponseSchema>;
