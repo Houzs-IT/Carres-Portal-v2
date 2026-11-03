@@ -3,7 +3,7 @@
 
 ## Sales Order label correction · owner3Nov2026
 
-**RULING:** the full Sales Order listing's Processing Date heading becomes **Proceed Date**; Customer’s original requested delivery becomes **Customer Original ETA**. Use the same names in the column chooser, export, accessible label and date filters. Keep orders.proceed_date and the preserved revision1 request readers unchanged; do not substitute actual release time, current request or Logistics ETA. Shared Shell review also found title20/500 with−.02em tracking and Tasks toggle8px radius; restore the existing MASTER20/600/−.01em title and6px small-control tokens through shared components. These are corrections to the existing kit, not a new layout.
+**RULING:** the full Sales Order listing's Processing Date heading becomes **Proceed Date**; Customer’s original requested delivery becomes **Customer Original ETA**. Use the same names in the column chooser, export, accessible label and date filters. Keep orders.proceed_date and the preserved revision1 request readers unchanged; do not substitute actual release time, current request or Logistics ETA. Shared Shell review also found title20/500 with−.02em tracking and Tasks toggle8px radius/global Search/Team/Alerts34px controls; restore the existing MASTER20/600/−.01em title and6px/32px control tokens through shared components. These are corrections to the existing kit, not a new layout.
 
 ## Current Sales Order frontend adoption ·2Nov2026
 

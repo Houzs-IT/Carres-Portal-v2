@@ -43,7 +43,7 @@ records, release gates and authenticated production verification remain separate
 
 ## Sales Order shared-component correction ·3Nov2026
 
-Owner's top-to-toe review found remaining shared-role deviations: ShellTitle still used20/500 with−.02em tracking; TasksPill used8px corners. Apply the current text-page20/600/−.01em token and6px control radius once in those shared components. Header56/navigation220 or64/toolbar36/Summary264/Tasks340 contracts stay unchanged; saved collapse and explicit full-column view choices remain functional. Orders/COPY own the new listing names Proceed Date and Customer Original ETA; underlying dates and module boundaries are unchanged. This follow-up is in implementation, not yet production proof.
+Owner's top-to-toe review found remaining shared-role deviations: ShellTitle still used20/500 with−.02em tracking; TasksPill used8px corners; global Search/Team/Alerts retained34px controls. Apply the current text-page20/600/−.01em token,6px control radius and32px global controls once in those shared components. Header56/navigation220 or64/toolbar36/Summary264/Tasks340 contracts stay unchanged; saved collapse and explicit full-column view choices remain functional. Orders/COPY own the new listing names Proceed Date and Customer Original ETA; underlying dates and module boundaries are unchanged. This follow-up is in implementation, not yet production proof.
 
 ## Current shared template · owner adoption 30 Oct 2026
 
