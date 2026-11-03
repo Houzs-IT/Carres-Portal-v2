@@ -13,6 +13,7 @@ for (const width of [1025, 1164, 1440]) {
     });
     expect(geometry.ratio).toBeCloseTo(2, 1);
     expect(geometry.overflow).toBe(false);
+    await expect(page.locator('.so-document-card:not([data-expanded="true"])')).toHaveCSS("height", "340px");
     const paper = page.getByTestId("pdf-pane").locator("canvas").first();
     const before = (await paper.boundingBox())!.width;
     await page.getByRole("button", { name: "Zoom in", exact: true }).click();
