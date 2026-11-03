@@ -100,7 +100,7 @@ export function TasksPill({ fallback = false }: { fallback?: boolean } = {}) {
       data-testid="tasks-pill"
       /* Below 768px the phone top bar carries its own Tasks door, so the
          pill hides there: one Tasks control per screen. */
-      className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-transparent px-2.5 text-[13px] font-medium text-c-secondary hover:bg-c-hover hover:text-c-ink max-[767px]:hidden"
+      className="flex h-8 shrink-0 items-center gap-1.5 rounded-control bg-transparent px-2.5 text-[13px] font-medium text-c-secondary hover:bg-c-hover hover:text-c-ink max-[767px]:hidden"
     >
       <MIcon name="right_panel_open" size={18} />
       Tasks
@@ -141,7 +141,7 @@ export default function ShellTasks() {
           starts level with the page toolbar, as the Summary title does (CSidePanel). */}
       <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5">
         <span className="flex min-w-0 flex-1 items-baseline gap-1.5 whitespace-nowrap">
-          <span className="text-strong text-c-ink">Tasks</span>
+          <span className="text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">Tasks</span>
           <span className="truncate text-meta text-c-muted">
             {weekday}
             {left != null ? ` · ${left} left` : ""}

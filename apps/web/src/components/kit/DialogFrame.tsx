@@ -225,14 +225,14 @@ export default function DialogFrame({
             }
           }}
         >
-          <header className={variant === "compact-card" || contextualPanel || taskReview ? "sr-only" : "flex items-start justify-between gap-4 rounded-t-lg border-b border-c-section-line [padding:var(--card-pad)]"}>
+          <header className={variant === "compact-card" || contextualPanel || taskReview ? "sr-only" : variant === "quick-view" ? "flex h-14 shrink-0 items-center justify-between gap-4 bg-c-body pl-quick-view-inset pr-4" : "flex items-start justify-between gap-4 rounded-t-lg border-b border-c-section-line [padding:var(--card-pad)]"}>
             <div className={`flex flex-col gap-1 ${variant === "quick-view" ? "min-w-0 flex-1" : ""}`}>
               <Dialog.Title
-                className={`text-strong text-c-ink ${variant === "quick-view" ? "truncate" : ""}`}
+                className={variant === "quick-view" ? "truncate text-body font-medium text-white" : "text-strong text-c-ink"}
                 title={variant === "quick-view" && typeof title === "string" ? title : undefined}
               >{title}</Dialog.Title>
               {description && (
-                <Dialog.Description className="text-meta text-c-secondary">
+                <Dialog.Description className={variant === "quick-view" ? "text-meta text-white/75" : "text-meta text-c-secondary"}>
                   {description}
                 </Dialog.Description>
               )}
@@ -242,7 +242,7 @@ export default function DialogFrame({
               aria-label="Close"
               title="Close"
               data-kit="dialog-close"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-c-secondary hover:bg-c-hover focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:-2px] md:h-8 md:w-8"
+              className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full focus-visible:[outline:var(--c-focus)] focus-visible:[outline-offset:-2px] md:h-8 md:w-8 ${variant === "quick-view" ? "text-white hover:bg-white/10" : "text-c-secondary hover:bg-c-hover"}`}
             >
               <Icon name="close" size={16} />
             </Dialog.Close></div>}

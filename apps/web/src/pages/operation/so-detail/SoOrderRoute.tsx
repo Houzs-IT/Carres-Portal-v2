@@ -26,21 +26,20 @@ import SalesOrderRoute, { type RouteActionOwners, type RoutePerson, type RouteRe
 import { Avatar, Card, ViewSwitch } from "./ui";
 
 type View = "ov" | "st" | "dt";
-type Branch = "goods" | "warehouse" | "delivery" | "money" | "loan";
+type Branch = "goods" | "delivery" | "money" | "loan";
 
 const BRANCH: Record<Branch, { name: string; icon: string }> = {
-  goods: { name: "Supplier", icon: "inventory_2" },
-  warehouse: { name: "Warehouse", icon: "warehouse" },
-  delivery: { name: "Logistics", icon: "local_shipping" },
+  goods: { name: "Goods", icon: "inventory_2" },
+  delivery: { name: "Delivery", icon: "local_shipping" },
   money: { name: "Payment", icon: "payments" },
   loan: { name: "Loan", icon: "chair" },
 };
 
 const MARK_WORD: Record<NodeMark, { word: string; tone: CPillTone }> = {
   complete: { word: "Done", tone: "ok" },
-  current: { word: "Now", tone: "info" },
+  current: { word: "Open", tone: "info" },
   waiting: { word: "Waiting", tone: "info" },
-  blocked: { word: "Blocked", tone: "blocked" },
+  blocked: { word: "Blocked", tone: "info" },
   future: { word: "Not yet", tone: "info" },
   unreadable: { word: "Not read", tone: "warn" },
 };
@@ -150,10 +149,9 @@ function DoorLink({ node }: { node: RouteNode }) {
   );
 }
 
-function BranchCard({ branch, nodes, owners, route }: { branch: Branch; nodes: RouteNode[]; owners: RouteActionOwners; route: RouteMap }) {
+function BranchCard({ branch, nodes, owners, route, title, icon, focus }: { branch: Branch; nodes: RouteNode[]; owners: RouteActionOwners; route: RouteMap; title?: string; icon?: string; focus?: boolean }) {
   const steps = nodes.filter((n) => !isPlate(n));
   const mark = worstOf(steps);
-  const problem = mark === "blocked" || mark === "unreadable";
   const current = steps.find((n) => n.mark === "unreadable" || n.mark === "blocked") ?? steps.find((n) => n.current) ?? steps.find((n) => n.mark !== "complete") ?? null;
   const last = steps[steps.length - 1] ?? null;
   const pill = steps.length > 0 && steps.every((n) => n.mark === "complete") ? MARK_WORD.complete : MARK_WORD[mark];
@@ -170,28 +168,31 @@ function BranchCard({ branch, nodes, owners, route }: { branch: Branch; nodes: R
   );
   const facts: Array<{ k: string; v: React.ReactNode; muted?: boolean }> = [
     { k: "Now at", v: current ? titleCase(current.title) : "Done" },
-    { k: "Next", v: current?.action ? current.action.label : "Not set", muted: !current?.action },
-    { k: "Due", v: current?.action?.context.detail ? spell(current.action.context.detail) : "Not set", muted: !current?.action?.context.detail },
+    { k: "Next", v: current?.action ? current.action.label : "", muted: !current?.action },
+    { k: "Due", v: current?.action?.context.detail ? spell(current.action.context.detail) : "", muted: !current?.action?.context.detail },
     { k: "Doc", v: current?.door || last?.door ? <DoorLink node={(current?.door ? current : last)!} /> : "Not yet", muted: !(current?.door || last?.door) },
   ];
-  const items = branch === "warehouse" ? goodsItems(route) : [];
+  const scopedIds = new Set(nodes.map(n => n.id));
+  const items = branch === "goods" ? goodsItems(route).map(item => ({ ...item, nodes: item.nodes.filter(n => scopedIds.has(n.id)) })).filter(item => item.nodes.length > 0) : [];
   return (
-    <div
-      className={`flex min-w-0 flex-col gap-2 rounded-lg border px-3.5 py-3 ${problem ? "border-c-btn-border bg-c-warn-bg" : "border-c-card-border bg-c-card"}`}
-      data-testid={`route-card-${branch}`}
-      data-problem={problem ? "yes" : "no"}
-    >
-      <div className="flex items-center gap-2">
-        <MIcon name={BRANCH[branch].icon} size={18} className="text-c-secondary" />
-        <span className="flex-1 text-[11px] font-bold uppercase tracking-[.08em] text-c-body">{BRANCH[branch].name}</span>
-        <CPill tone={pill.tone}>{pill.word}</CPill>
+    <Card className="gap-2" label={title ?? BRANCH[branch].name} testId={`route-card-${title ?? branch}`}>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <MIcon name={icon ?? BRANCH[branch].icon} size={18} className="shrink-0 text-c-secondary" />
+          <span className="min-w-0 flex-1 break-words text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">{title ?? BRANCH[branch].name}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {focus && <CPill tone="info">Now</CPill>}
+          <CPill tone={pill.tone}>{pill.word}</CPill>
+        </div>
       </div>
       {current?.action && (
         <div className="flex items-center gap-2 pb-0.5">
           {owner ? (
             <Avatar person={{ userId: owner.userId, name: owner.name, email: owner.email }} size={22} ring={false} />
           ) : (
-            <span title="Not recorded" className="grid h-[22px] w-[22px] place-items-center rounded-full border border-dashed border-c-input-border text-[11px] text-c-muted">?</span>
+            <span title="Staff identity not recorded" className="grid h-[22px] w-[22px] place-items-center rounded-full border border-dashed border-c-input-border text-[11px] text-c-muted">?</span>
           )}
           <span className="min-w-0 truncate text-[12px] text-c-secondary">Waiting for {OWNER_WORD[current.action.ownerKey]}</span>
         </div>
@@ -210,10 +211,9 @@ function BranchCard({ branch, nodes, owners, route }: { branch: Branch; nodes: R
           <span className="pb-0.5 text-[11px] font-medium tracking-[.06em] text-c-secondary">ITEMS</span>
           {items.map(({ plate, nodes: own }) => {
             const m = worstOf(own);
-            const bad = m === "blocked" || m === "unreadable";
             const word = own.length > 0 && own.every((n) => n.mark === "complete") ? MARK_WORD.complete : MARK_WORD[m];
             return (
-              <div key={plate.id} className={`-mx-1.5 flex flex-col gap-0.5 rounded-md px-1.5 py-1 ${bad ? "bg-c-warn-bg" : ""}`}>
+              <div key={plate.id} className="-mx-1.5 flex flex-col gap-0.5 rounded-md px-1.5 py-1">
                 <div className="flex items-center gap-1.5 text-[12px]">
                   <span className="min-w-0 flex-1 break-words font-semibold text-c-ink">{plate.title}</span>
                   <CPill tone={word.tone}>{word.word}</CPill>
@@ -243,7 +243,7 @@ function BranchCard({ branch, nodes, owners, route }: { branch: Branch; nodes: R
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -275,17 +275,24 @@ export default function SoOrderRoute({
   const [view, setView] = useState<View>("ov");
   const byBranch = useMemo(() => {
     const out: Array<{ branch: Branch; nodes: RouteNode[] }> = [];
-    for (const b of ["goods", "warehouse", "delivery", "money", "loan"] as const) {
-      const nodes = route.nodes.filter((n) => b === "goods"
-        ? n.kind === "purchasing" || n.kind === "supplier"
-        : b === "warehouse" ? n.kind === "receiving" || n.kind === "stock" : n.branch === b);
+    for (const b of ["goods", "delivery", "money", "loan"] as const) {
+      const nodes = route.nodes.filter((n) => n.branch === b);
       if (nodes.length > 0) out.push({ branch: b, nodes });
     }
     return out;
   }, [route]);
   const problems = byBranch.filter(({ nodes }) => nodes.some((n) => n.mark === "blocked" || n.mark === "unreadable"));
-  /* Problem cards are amber and come first (Layout Standard §3.2). */
-  const ordered = [...problems, ...byBranch.filter((b) => !problems.includes(b))];
+  /* Current party composition; states and line scope remain source-owned. */
+  const parties: Array<{ key: string; title: string; icon: string; branch: Branch; nodes: RouteNode[] }> = [
+    { key: "purchasing", title: "Purchasing / Supplier", icon: "factory", branch: "goods", nodes: route.nodes.filter(n => n.kind === "purchasing" || n.kind === "supplier") },
+    { key: "warehouse", title: "Warehouse", icon: "warehouse", branch: "goods", nodes: route.nodes.filter(n => n.kind === "receiving" || n.kind === "stock") },
+    { key: "logistics", title: "Logistics", icon: "local_shipping", branch: "delivery", nodes: route.nodes.filter(n => n.branch === "delivery") },
+    { key: "payment", title: "Payment", icon: "payments", branch: "money", nodes: route.nodes.filter(n => n.branch === "money") },
+    { key: "loan", title: "Loan", icon: "chair", branch: "loan", nodes: route.nodes.filter(n => n.branch === "loan") },
+  ].filter(p => p.nodes.length > 0) as Array<{ key: string; title: string; icon: string; branch: Branch; nodes: RouteNode[] }>;
+  // Visual focus only; all parallel source actions and doors remain available.
+  const focusParty = parties.find(p => p.nodes.some(n => n.mark === "blocked" || n.mark === "unreadable"))
+    ?? parties.find(p => p.nodes.some(n => n.current));
 
   const postponed = Boolean(originalDate && currentDate && originalDate.slice(0, 10) !== currentDate.slice(0, 10));
   const monitored = currentDate ?? originalDate;
@@ -325,7 +332,7 @@ export default function SoOrderRoute({
           small facts in a row (label 12 grey over value 13/500). */}
       <Card label="Order status" testId="route-status-card" className="gap-2">
         <div className="flex items-center gap-2">
-          <span className="flex-1 text-[15px] font-medium text-c-ink">Delivery date</span>
+          <span className="flex-1 text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">Delivery date</span>
           <ViewSwitch
             label="View"
             value={view}
@@ -345,7 +352,7 @@ export default function SoOrderRoute({
               {postponed ? "Customer new delivery date" : "Customer original delivery date"}
             </span>
             <span className={`break-words text-[13px] font-medium ${monitored ? "text-c-ink" : "text-c-muted"}`} data-testid="route-monitored-date">
-              {monitored ? fmtDate(monitored) : "Not recorded"}
+              {monitored ? fmtDate(monitored) : ""}
             </span>
             {postponed && originalDate && <span className="text-[12px] text-c-muted">Originally {fmtDate(originalDate)}</span>}
           </span>
@@ -388,7 +395,7 @@ export default function SoOrderRoute({
                 {daysPill.word}
               </span>
             ) : (
-              <span className="text-[13px] font-medium text-c-muted" data-testid="route-days-left">Not recorded</span>
+              <span className="text-[13px] font-medium text-c-muted" data-testid="route-days-left"></span>
             )}
           </span>
           <span className="flex min-w-0 flex-col items-start gap-0.5">
@@ -426,8 +433,8 @@ export default function SoOrderRoute({
         )}
         {view === "ov" && (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-2.5 border-t border-c-section-line pt-3" data-testid="route-overview">
-            {ordered.map(({ branch, nodes }) => (
-              <BranchCard key={branch} branch={branch} nodes={nodes} owners={owners} route={route} />
+            {parties.map(party => (
+              <BranchCard key={party.key} branch={party.branch} nodes={party.nodes} owners={owners} route={route} title={party.title} icon={party.icon} focus={party === focusParty} />
             ))}
           </div>
         )}
@@ -456,10 +463,10 @@ export default function SoOrderRoute({
                       {itemOf.get(n.id) && <span className="break-words text-[12px] text-c-secondary">{itemOf.get(n.id)}</span>}
                     </span>
                     <span className={owner ? "text-c-secondary" : "text-c-muted"}>
-                      {owner?.name ?? (n.action ? OWNER_WORD[n.action.ownerKey] : KIND_MODULE[n.kind] ?? "Not recorded")}
+                      {owner?.name ?? (n.action ? OWNER_WORD[n.action.ownerKey] : KIND_MODULE[n.kind] ?? "")}
                     </span>
                     <span className={n.action?.context.detail ? "text-c-body" : "text-c-muted"}>
-                      {n.action?.context.detail ? spell(n.action.context.detail) : "Not set"}
+                      {n.action?.context.detail ? spell(n.action.context.detail) : ""}
                     </span>
                     <span className={n.mark === "complete" ? "text-c-ink" : "text-c-muted"}>
                       {n.mark === "complete" ? spell(n.lines[0] ?? "Done") : "Not yet"}
