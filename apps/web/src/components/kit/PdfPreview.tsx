@@ -103,7 +103,7 @@ export default function PdfPreview({ src, title, onReady, zoom: controlledZoom, 
           </>}
         </div>
       )}
-      <div ref={pane} aria-busy={status === "loading"} className="min-h-0 min-w-0 flex-1 overflow-auto" />
+      <div ref={pane} aria-busy={status === "loading"} className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-gutter:stable]" />
     </section>
   );
 }
