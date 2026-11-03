@@ -26,7 +26,7 @@
  * knows; the frame owns the head, the fact rows and the tabs. A form wider
  * than the panel opens on the host's full surface (`TaskWideSurface`).
  */
-import { type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { INTERNAL_TASK_KIND, documentDisplayNumber, parsePoWindowKey, poLineReportable } from "@carres/shared";
@@ -45,6 +45,7 @@ import { poTaskHistory, poTaskOrders } from "../purchase-orders/po-task-parts";
 import PoTaskGoods from "../purchase-orders/PoTaskGoods";
 import SupplierAnswerTaskPanel, { SUPPLIER_ANSWER_RULES } from "../purchase-orders/SupplierAnswerTaskPanel";
 import InternalTaskPanel from "./InternalTaskPanel";
+import { PoSupplierResultContent } from "../so-batch/PoSupplierResultPanel";
 import TaskFrame, { TaskWideSurface } from "./TaskFrame";
 import { purchasingFileStages } from "./task-files";
 import { TASK_VIEW_WORDS as V } from "./task-view";
@@ -72,11 +73,10 @@ export function panelFor(item: WorkRow, host: WorkPanelHost): ReactNode {
   if (item.module === "purchasing" && SUPPLIER_ANSWER_RULES.has(item.ruleKey)) {
     return <SupplierAnswerTaskPanel key={item.id} item={item} host={host} />;
   }
-  // A send obligation is not a supplier-date answer. Until an embedded
-  // single-PO send panel exists, use its governed owning-module door.
+  // An admitted send action uses Purchasing’s exact-version sender and evidence.
   if (item.module === "purchasing" && item.source.object.kind === "purchase_order"
     && item.source.interaction.mode === "embedded" && item.source.interaction.actionKey === "purchasing.confirm_po_sent") {
-    return <GenericTaskPanel key={item.id} item={item} host={host} />;
+    return <PoDutyTaskPanel key={item.id} item={item} host={host} send />;
   }
   if (item.module === "purchasing" && item.source.object.kind === "purchase_order") {
     return <PoDutyTaskPanel key={item.id} item={item} host={host} />;
@@ -91,7 +91,8 @@ function PanelState({ text, alert = false }: { text: string; alert?: boolean }) 
 /* ── PO Duty — the exact PO, with the Work page's own `Record supplier answer`
    (Purchasing §2.4). Receiving is never asked to chase. ─────────────────── */
 
-function PoDutyTaskPanel({ item, host }: { item: WorkRow; host: WorkPanelHost }) {
+function PoDutyTaskPanel({ item, host, send = false }: { item: WorkRow; host: WorkPanelHost; send?: boolean }) {
+  const refreshWork = useRefreshWork();
   const poId = item.source.object.id;
   const poQ = useQuery({
     queryKey: ["operation", "pos", "one", poId],
@@ -100,12 +101,19 @@ function PoDutyTaskPanel({ item, host }: { item: WorkRow; host: WorkPanelHost })
   });
   const suppliersQ = useOperationSuppliers();
   const po = poQ.data?.pos.find((p) => p.id === poId) ?? null;
-  if (poQ.isPending) return <PanelState text="Loading…" />;
-  if (poQ.isError || !po) return <PanelState text="This purchase order could not be opened" alert />;
-  const supplier = (suppliersQ.data?.suppliers ?? []).find((s) => s.id === po.supplier_id) as
+  const supplier = (suppliersQ.data?.suppliers ?? []).find((s) => s.id === po?.supplier_id) as
     | (SupplierRow & { whatsapp_group_url?: string | null })
     | undefined;
-  const supplierName = supplier?.name ?? "the supplier";
+  const sendPos = useMemo(() => po ? [{
+    id: po.id, version: po.version ?? undefined, supplierId: po.supplier_id,
+    supplierName: supplier?.name ?? null, destinationId: po.destination_id ?? "", destination: null,
+    whatsappGroupUrl: supplier?.whatsapp_group_url ?? null,
+    contactEmail: supplier?.contact_email ?? null, contact: supplier?.contact ?? null,
+    poSendChannel: supplier?.po_send_channel ?? null,
+  }] : [], [po, supplier]);
+  if (poQ.isPending || suppliersQ.isPending) return <PanelState text="Loading…" />;
+  if (poQ.isError || suppliersQ.isError || !po) return <PanelState text="This purchase order could not be opened" alert />;
+  const supplierName = supplier?.name ?? "";
   const lines = po.purchase_order_lines ?? [];
   const orders = poTaskOrders(po);
   const poDate = po.official_delivery_date ?? po.eta_date;
@@ -126,12 +134,12 @@ function PoDutyTaskPanel({ item, host }: { item: WorkRow; host: WorkPanelHost })
     <div className="p-3" data-testid="task-panel-po-duty">
       <TaskFrame
         head={{ title: item.line, page: TASK_MODULE_WORD[item.module], record: item.source.object.label, moduleIcon: TASK_MODULE_SYMBOL[item.module], destination: item.destination }}
-        facts={[{ key: "po-date", icon: "local_shipping", label: "PO Delivery Date", value: poDate ? fmtDate(poDate) : "Not recorded" }]}
+        facts={[{ key: "po-date", icon: "local_shipping", label: "PO Delivery Date", value: poDate ? fmtDate(poDate) : "" }]}
         orders={orders}
         salesOrders={orders.length ? <EmbeddedSalesOrders orderIds={orders.map((order) => order.orderId)} /> : undefined}
         history={poTaskHistory(po)}
         files={purchasingFileStages(orders, [{ id: po.id, label: poLabel }])}
-        steps={
+        steps={send ? <PoSupplierResultContent taskScoped showOpenObject={false} open onClose={() => {}} pos={sendPos} onChanged={() => { void poQ.refetch(); refreshWork(); }} /> :
           <div className="flex flex-col gap-3" data-testid="task-po-duty">
             <p className="text-body text-c-ink">{item.problem}</p>
             <PoTaskGoods
