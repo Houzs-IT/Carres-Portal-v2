@@ -27,7 +27,7 @@ export function ShellTitle({ crumb, title }: { crumb?: string | null; title: str
           </span>
         </>
       ) : null}
-      <h1 className="m-0 min-w-0 truncate text-[20px] font-medium leading-7 tracking-[-0.02em] text-c-ink">{title}</h1>
+      <h1 className="m-0 min-w-0 truncate text-page text-c-ink">{title}</h1>
     </div>
   );
 }

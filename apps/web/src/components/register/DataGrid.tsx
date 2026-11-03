@@ -3798,8 +3798,9 @@ function DataGridInner<T>({
         <table
           className={`${styles.table}${pinnedPrefix || leadingColumns || (typeof stickyIdentity === "object" && Array.isArray(stickyIdentity.columnKey)) ? ` ${styles.tablePinnedBlock}` : ""}`}
           hidden={groupLocalHeaders && !isLoading && errorState == null && renderList.length > 0}
-          style={fillKey ? { minWidth: "100%" } : undefined}
+          style={shrinkToFit ? { tableLayout: "fixed", width: groupedTableWidth } : fillKey ? { minWidth: "100%" } : undefined}
         >
+          {shrinkToFit && <colgroup>{visibleColumns.map(col => <col key={col.key} style={{ width: widthOf(col) }} />)}</colgroup>}
           {/* A flat register keeps the one sticky header it has always had. */}
           {!groupLocalHeaders && (
             <thead
