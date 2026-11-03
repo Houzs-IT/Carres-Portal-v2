@@ -5,7 +5,6 @@ import {
   caseEvidenceChecklist,
   type CaseEvidenceRequirement,
   type CaseEvidenceSlotKey,
-  type CaseIssueKey,
   type CaseReporterKey,
 } from "@carres/shared";
 import {
@@ -36,7 +35,7 @@ export default function CaseEvidenceChecklist({
   files,
   onUploaded,
 }: {
-  issueType: CaseIssueKey | null;
+  issueType: string | null;
   reportedBy: CaseReporterKey | null;
   target: CaseEvidenceTarget;
   /** Everything uploaded so far, in this session or on a previous day. */
