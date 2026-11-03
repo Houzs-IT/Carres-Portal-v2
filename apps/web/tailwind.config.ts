@@ -243,6 +243,8 @@ export default {
        * The law's token names (`t-page` … `t-label`) could not be used as CSS
        * class names — `.t-body` is already the retired v17 ramp's 14px/400 in
        * index.css and is live in 5 files. UI-KIT §2.1 records the mapping. */
+      // Existing MASTER dimensions, named for shared component use.
+      spacing: { "task-avatar": "22px", "quick-view-inset": "20px" },
       fontSize: {
         /* THE KIT PAIRS (01 §2): 20/600 is the page title or record number,
            the one boldest text on a page; card and panel titles are 15/500.
