@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checklistDueDate, projectDayCounts, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
+import { checklistDueDate, projectDayCounts, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode, stockRecordSignInput, stockTransferInput } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -78,5 +78,25 @@ describe("project day counts", () => {
       { startDate: "2026-12-02", endDate: "2026-12-02" },
     ], "2026-12");
     expect(counts).toEqual({ "2026-12-01": 1, "2026-12-02": 2 });
+  });
+});
+
+describe("stock transfers (0757, Houzs project_stock_transfers)", () => {
+  const pid = "11111111-2222-4333-8444-555555555555";
+  it("takes out or return, and an empty day stays empty for the database default", () => {
+    expect(stockTransferInput.parse({ direction: "out" })).toMatchObject({ direction: "out", transferredAt: null, recordPath: null, notes: null });
+    expect(stockTransferInput.safeParse({ direction: "in" }).success).toBe(false);
+    expect(stockTransferInput.safeParse({ direction: "return", transferredAt: "3 Nov" }).success).toBe(false);
+  });
+  it("accepts only a server named record path, with its type", () => {
+    const path = `${pid}/${pid}.pdf`;
+    expect(stockTransferInput.parse({ direction: "out", recordPath: path, mimeType: "application/pdf" }).recordPath).toBe(path);
+    expect(stockTransferInput.safeParse({ direction: "out", recordPath: path }).success).toBe(false);
+    expect(stockTransferInput.safeParse({ direction: "out", recordPath: `../${path}`, mimeType: "application/pdf" }).success).toBe(false);
+  });
+  it("signs only a photo or PDF up to 10 MB", () => {
+    expect(stockRecordSignInput.safeParse({ mimeType: "image/png", sizeBytes: 1000 }).success).toBe(true);
+    expect(stockRecordSignInput.safeParse({ mimeType: "text/plain", sizeBytes: 1000 }).success).toBe(false);
+    expect(stockRecordSignInput.safeParse({ mimeType: "image/png", sizeBytes: 10 * 1024 * 1024 + 1 }).success).toBe(false);
   });
 });
