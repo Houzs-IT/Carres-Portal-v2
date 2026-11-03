@@ -138,13 +138,13 @@ describe("Sales Order view headers (fix list 14 Oct 2026)", () => {
   it("starts in Houzs's column order, with the Carres sales location in Houzs's Location position", () => {
     const so = LAYOUTS.find((l) => l.key === "so")!;
     expect(so.columns.filter((k) => !so.hidden?.includes(k)).map((k) => COLUMNS[k]!.label)).toEqual([
-      "Doc. No.", "Date", "Ref No.", "Agent", "Debtor Name", "Total", "Sales Location", "Balance", "Processing Date",
-      "Customer’s original requested delivery", "Item Group", "Item Code", "Detail Description", "Detail Description 2", "Unit Price", "Qty",
+      "Doc. No.", "Date", "Ref No.", "Agent", "Debtor Name", "Total", "Sales Location", "Balance", "Proceed Date",
+      "Customer Original ETA", "Item Group", "Item Code", "Detail Description", "Detail Description 2", "Unit Price", "Qty",
     ]);
   });
 
-  it("splits the preserved date's header on two lines, never ETA", () => {
-    expect(COLUMNS.reqDate!.head).toEqual(["Customer’s original", "requested delivery"]);
+  it("uses the owner-approved two-line Customer Original ETA label", () => {
+    expect(COLUMNS.reqDate!.head).toEqual(["Customer", "Original ETA"]);
   });
 
   it("prints a line fact as the first value and +N, with every value on hover", () => {
