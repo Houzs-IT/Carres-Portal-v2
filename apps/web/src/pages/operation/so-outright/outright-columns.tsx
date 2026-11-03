@@ -388,7 +388,7 @@ export const COLUMNS: Record<string, Column> = {
       if (r.balance.kind === "settled") return { t: "RM 0", align: "end" };
       if (r.balance.kind !== "amount") return { ...NOT_RECORDED, align: "end" };
       return r.balance.value > 0
-        ? { t: rm(r.balance.value), fw: 600, fg: "warn", align: "end" }
+        ? { t: rm(r.balance.value), fw: 500, fg: "ink", align: "end" }
         : { t: "RM 0", align: "end" };
     },
   },
