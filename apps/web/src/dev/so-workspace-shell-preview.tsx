@@ -159,6 +159,9 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       return json(result.pos.length ? result : { error: "TEST fixture: this Purchase Order is not seeded" }, result.pos.length ? 200 : 404);
     }
   }
+  if (path === "/api/operation/pos/email-capability") return json({ configured: false });
+  if (path === "/api/operation/pos/send-evidence-policy") return json({ required: true, available: true });
+  if (/^\/api\/operation\/pos\/[^/]+\/sends$/.test(path)) return json({ sends: [] });
   if (path === "/api/operation/partners") return json({ partners: [] });
   if (path === "/api/operation/suppliers") return json(testTaskSuppliers());
   /* Current Order Route reads the owning sources separately. Empty arrays here
