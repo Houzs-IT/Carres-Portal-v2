@@ -531,6 +531,15 @@ export function useUploadApFile(kind: ApDocKind, id: string) {
   });
 }
 
+/** 0773: a voucher's file can be removed until the voucher is checked. */
+export function useRemoveVoucherFile(id: string) {
+  const refresh = useInvalidatePayables();
+  return useMutation<unknown, Error, string>({
+    mutationFn: (fileId) => apiFetch(`${BASE}/vouchers/${id}/files/${fileId}`, { method: "DELETE" }),
+    onSuccess: () => { void refresh(); },
+  });
+}
+
 /** A short-lived link to read one stored file, signed with the user's token. */
 export async function openApFile(path: string): Promise<void> {
   const { url } = await apiFetch<{ url: string }>(`${BASE}/files/url?path=${encodeURIComponent(path)}`);
