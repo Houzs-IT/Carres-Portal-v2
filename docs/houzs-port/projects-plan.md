@@ -65,7 +65,7 @@ caller's own token reaches the tables (`userClient`), the same as `operation/fle
 |---|---|
 | 1 | `GET /` (filters: search, status, stage, brand, from, to, archived), `GET /:id`, `POST /`, `PATCH /:id`, `POST /:id/archive`, `POST /:id/unarchive`, `POST /:id/notes` |
 | 2 | `GET /masters`, `POST /masters`, `PATCH /masters/:mid` (a master is retired with `active`, never removed); `POST /:id/team`, `DELETE /team/:teamId` |
-| 3 | `GET /checklist-templates`, template CRUD, `POST /:id/checklist`, `PATCH /checklist/:itemId`, `POST /checklist/:itemId/status`, `POST /:id/sections` |
+| 3 | `GET/POST /checklist-templates`, `PATCH /checklist-templates/:tid`, `POST /checklist-templates/:tid/items`, `DELETE /checklist-template-items/:iid`, `POST /:id/checklist`, `POST /:id/checklist/apply`, `POST /checklist/:taskId/status`, `DELETE /checklist/:taskId` (sections are a text label on the task; no templates seeded, Houzs seed titles carry dashes) |
 | 4 | `GET /:id/sales-orders` (orders with `project_id`, paid from `order_payments`), `PUT /orders/:orderId/project` |
 | 5 | `PATCH /:id/finance`, `POST /:id/finance/lines`, `PATCH/DELETE /finance/lines/:lineId`, `GET /cost-rates`, `PUT /cost-rates/:brand` |
 | 6 | `POST /:id/stock-transfers`, `POST /stock-transfers/:tid/confirm`, `/unconfirm`, `DELETE /stock-transfers/:tid` |

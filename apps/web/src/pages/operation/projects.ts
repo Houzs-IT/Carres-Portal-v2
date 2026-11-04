@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  ProjectActivity, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectTeamMember,
+  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectTeamMember,
 } from "@carres/shared/projects";
 import type { OrderActionTone } from "@carres/shared/order-actions";
 import { apiFetch } from "@/lib/api";
@@ -77,6 +77,22 @@ export const PJ = {
   addMember: "Add to team",
   remove: "Remove",
   noTeam: "No one on the team yet.",
+  /* Slice 3 (0752): checklist. */
+  checklist: "Checklist",
+  progress: (pct: number) => `${pct}% done`,
+  checklistStatuses: { pending: "To do", done: "Done", na: "Not needed", blocked: "Blocked" } satisfies Record<ChecklistStatus, string>,
+  template: "Checklist template",
+  templates: "Checklist templates",
+  applyTemplate: "Add template tasks",
+  defaultFor: "New projects of this type",
+  section: "Section",
+  task: "Task",
+  dueOffset: "Due (days from start)",
+  dueOffsetHint: "Use a minus number for days before the start.",
+  offsetDays: (n: number) => (n === 0 ? "Start day" : n < 0 ? `${-n} days before start` : `${n} days after start`),
+  taskCount: (n: number) => `${n} tasks`,
+  addTask: "Add task",
+  noChecklist: "No tasks yet.",
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",
@@ -100,7 +116,7 @@ export function useProject(id: string | null) {
   return useQuery({
     queryKey: ["projects", "one", id],
     enabled: !!id,
-    queryFn: () => apiFetch<{ project: ProjectRow; activity: ProjectActivity[]; team: ProjectTeamMember[] }>(`/api/operation/projects/${id}`),
+    queryFn: () => apiFetch<{ project: ProjectRow; activity: ProjectActivity[]; team: ProjectTeamMember[]; checklist: ChecklistTask[] }>(`/api/operation/projects/${id}`),
   });
 }
 
@@ -135,6 +151,15 @@ export function useProjectMasters() {
   return useQuery({
     queryKey: ["projects", "masters"],
     queryFn: () => apiFetch<{ masters: ProjectMaster[] }>("/api/operation/projects/masters"),
+    staleTime: 60_000,
+  });
+}
+
+/** Checklist templates (0752) for Project Maintenance and the detail page. */
+export function useChecklistTemplates() {
+  return useQuery({
+    queryKey: ["projects", "checklist-templates"],
+    queryFn: () => apiFetch<{ templates: ChecklistTemplate[] }>("/api/operation/projects/checklist-templates"),
     staleTime: 60_000,
   });
 }

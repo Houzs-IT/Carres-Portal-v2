@@ -6295,3 +6295,5 @@ Fairs, exhibitions and solo roadshows, following Houzs Projects. These words are
 | Refusals | `Unarchive the project to change its status.` · `That is already on the list.` |
 | Project Maintenance (0751) | `Project Maintenance` · lists `Brands` · `Venues` · `Organizers` · `Contractors` · `Contractor` · `Add` · `In use` · `Stop using` · `Use again` · `Nothing here yet. Add the first one above.` |
 | Project team (0751) | `Team` · `Role` · placeholder `For example onsite or sales` · `Add to team` · `Remove` · `No one on the team yet.` |
+| Checklist (0752) | `Checklist` · `N% done` · statuses `To do` · `Done` · `Not needed` · `Blocked` · `Section` · `Task` · `Due (days from start)` · hint `Use a minus number for days before the start.` · `Start day` · `N days before start` · `N days after start` · `Add task` · `No tasks yet.` |
+| Checklist templates (0752) | `Checklist template` · `Checklist templates` · `Add template tasks` · `New projects of this type` · `N tasks` |
