@@ -622,7 +622,7 @@ export const servicePickItemPatchSchema = z.object({
   label:  z.string().trim().min(1).max(60).optional(),
   active: z.boolean().optional(),
   /** 0745 — stages only: target days in the stage, null clears it. */
-  targetDays: z.number().positive().max(365).nullable().optional(),
+  targetDays: z.number().min(0).nullable().optional(),
   /** 0764 — priorities only: SLA hours, null = 14 working days. */
   slaHours: z.number().int().positive().max(8760).nullable().optional(),
 });
