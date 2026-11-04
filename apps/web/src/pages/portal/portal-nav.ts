@@ -50,6 +50,7 @@ import {
   Handshake,
   MapPin,
   Gauge,
+  FolderKanban,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
@@ -99,6 +100,8 @@ export type PortalSection =
   | "Warehouse"
   | "Payments"
   | "Customer Care"
+  /* Fairs, exhibitions and solo roadshows (0750, Houzs Projects). */
+  | "Projects"
   /* One page, so it draws as a plain row under SERVICE (Layout Standard §2,
    * owner-confirmed 2026-10-08). */
   | "Issue Tracker"
@@ -120,6 +123,7 @@ export type PortalSection =
 export const SECTION_ORDER: ReadonlyArray<PortalSection> = [
   "Workspace",
   "Customer Care",
+  "Projects",
   "Sales",
   "Consignment",
   "Purchasing",
@@ -200,6 +204,7 @@ export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   { section: "Warehouse", label: "Warehouse", icon: Warehouse, mIcon: "warehouse", landingKey: WAREHOUSE_LANDING_KEY },
   { section: "Payments", label: "Payments", icon: Banknote, mIcon: "payments", landingKey: PAYMENTS_LANDING_KEY },
   { section: "Customer Care", label: "Service Cases", icon: Headset, mIcon: "support_agent" },
+  { section: "Projects", label: "Projects", icon: FolderKanban, mIcon: "event" },
   /* Finance, Houzs words (Sidebar.tsx:740-853). */
   { section: "Receivables", label: "Money in", icon: ArrowDownLeft },
   { section: "Payables", label: "Money out", icon: ArrowUpRight },
@@ -330,6 +335,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "service-mine", label: "My Cases", icon: UserCheck, tab: "service-notes", query: "mine=1", section: "Customer Care" },
       // Carres-only (0261-0263): the claim desk, where a claim ends up.
       { key: "guarantees", label: "Guarantees", icon: ShieldCheck, section: "Customer Care" },
+
+      /* PROJECTS — Sidebar.tsx:367-404 (0750). Overview, Calendar and Maintenance come in later slices. */
+      { key: "projects", label: "Project List", icon: ClipboardList, section: "Projects" },
 
       /* SALES ORDER — Sidebar.tsx:533-546. */
       {
@@ -813,7 +821,7 @@ export interface MenuGroup {
 
 export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
   { label: "Workspace", sections: ["Workspace"] },
-  { label: "Operations", sections: ["Customer Care"] },
+  { label: "Operations", sections: ["Customer Care", "Projects"] },
   {
     label: null,
     row: { key: "supply-chain", label: "Supply Chain", icon: Boxes, mIcon: "inventory_2" },
