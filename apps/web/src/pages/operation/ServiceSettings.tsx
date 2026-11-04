@@ -129,15 +129,14 @@ function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
                     aria-label={`Target days for ${it.label}`}
                     placeholder="Target days"
                     type="number"
-                    min={0.5}
-                    max={365}
+                    min={0}
                     step={0.5}
                     defaultValue={it.targetDays ?? ""}
                     disabled={!canEdit}
                     onBlur={(e) => {
                       const raw = e.target.value.trim();
                       const next = raw === "" ? null : Number(raw);
-                      if (next !== null && !(next > 0 && next <= 365)) return;
+                      if (next !== null && !(next >= 0)) return;
                       if (next !== (it.targetDays ?? null)) edit.mutate({ id: it.id, body: { targetDays: next } });
                     }}
                   />
