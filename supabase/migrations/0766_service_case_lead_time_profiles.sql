@@ -35,7 +35,7 @@ create unique index if not exists sc_lead_time_one_active
 create table if not exists public.service_case_lead_time_targets (
   profile_id  uuid not null references public.service_case_lead_time_profiles(id) on delete cascade,
   status_id   uuid not null references public.service_case_statuses(id) on delete cascade,
-  target_days numeric(5,1) not null check (target_days > 0 and target_days <= 365),
+  target_days numeric not null check (target_days >= 0), -- Houzs: min 0, no max (ServiceLeadTimePortal.tsx:226-229)
   primary key (profile_id, status_id)
 );
 
@@ -43,8 +43,8 @@ create table if not exists public.service_case_lead_time_amendments (
   id          uuid primary key default gen_random_uuid(),
   profile_id  uuid not null references public.service_case_lead_time_profiles(id) on delete cascade,
   status_id   uuid not null references public.service_case_statuses(id) on delete cascade,
-  before_days numeric(5,1),
-  after_days  numeric(5,1) not null,
+  before_days numeric,
+  after_days  numeric not null,
   reason      text not null check (length(btrim(reason)) >= 10),
   changed_by  uuid,
   created_at  timestamptz not null default now()
@@ -165,7 +165,7 @@ security definer
 set search_path = public, pg_temp
 as $fn$
 declare
-  v_before numeric(5,1);
+  v_before numeric;
   v_active boolean;
   v_changed integer := 0;
 begin
