@@ -230,3 +230,26 @@ export function checklistProgress(tasks: ReadonlyArray<{ status: ChecklistStatus
   if (!tasks.length) return 0;
   return Math.round((tasks.filter((t) => t.status === "done" || t.status === "na").length / tasks.length) * 100);
 }
+
+/* ── Slice 4 (0753): Sales Orders at the project ─────────────────────── */
+
+export const projectOrderLinkInput = z.object({ so: text(40) });
+
+export interface ProjectSalesOrder {
+  id: string;
+  so: string;
+  status: string;
+  customerName: string | null;
+  placedAt: string | null;
+  /** From the shared orderMoney; null when the order has no value on record. */
+  total: number | null;
+  paid: number;
+  balance: number;
+}
+
+/** Houzs: a cancelled order is left out of the project's sales. Sums in sen. */
+export function projectSalesTotals(orders: ReadonlyArray<ProjectSalesOrder>) {
+  const live = orders.filter((o) => o.status !== "cancelled");
+  const sen = (f: (o: ProjectSalesOrder) => number) => live.reduce((s, o) => s + Math.round(f(o) * 100), 0) / 100;
+  return { count: live.length, total: sen((o) => o.total ?? 0), paid: sen((o) => o.paid), balance: sen((o) => o.balance) };
+}

@@ -66,7 +66,7 @@ caller's own token reaches the tables (`userClient`), the same as `operation/fle
 | 1 | `GET /` (filters: search, status, stage, brand, from, to, archived), `GET /:id`, `POST /`, `PATCH /:id`, `POST /:id/archive`, `POST /:id/unarchive`, `POST /:id/notes` |
 | 2 | `GET /masters`, `POST /masters`, `PATCH /masters/:mid` (a master is retired with `active`, never removed); `POST /:id/team`, `DELETE /team/:teamId` |
 | 3 | `GET/POST /checklist-templates`, `PATCH /checklist-templates/:tid`, `POST /checklist-templates/:tid/items`, `DELETE /checklist-template-items/:iid`, `POST /:id/checklist`, `POST /:id/checklist/apply`, `POST /checklist/:taskId/status`, `DELETE /checklist/:taskId` (sections are a text label on the task; no templates seeded, Houzs seed titles carry dashes) |
-| 4 | `GET /:id/sales-orders` (orders with `project_id`, paid from `order_payments`), `PUT /orders/:orderId/project` |
+| 4 | `GET /:id/sales-orders` (orders with `project_id`, money from the shared `orderMoney`, which reads `orders.paid`), `POST /:id/sales-orders {so}`, `DELETE /:id/sales-orders/:orderId`, both through `project_link_order` |
 | 5 | `PATCH /:id/finance`, `POST /:id/finance/lines`, `PATCH/DELETE /finance/lines/:lineId`, `GET /cost-rates`, `PUT /cost-rates/:brand` |
 | 6 | `POST /:id/stock-transfers`, `POST /stock-transfers/:tid/confirm`, `/unconfirm`, `DELETE /stock-transfers/:tid` |
 | 7 | `GET /:id/print` (project sheet HTML, Carres PDF kit) |
@@ -95,7 +95,8 @@ row security. Mapping:
 3. **Checklist.** Templates with sections and items (due offset days), cloned at create; tick
    done / N/A / blocked on the detail page; progress %.
 4. **Sales Orders at the fair.** `orders.project_id`; detail page lists the linked orders with total,
-   paid and balance (from `order_payments`), cancelled excluded; link / unlink an order.
+   paid and balance (from `orders.paid` through `orderMoney`; summing `order_payments` would count a
+   deposit twice [code: packages/shared/src/order-money.ts:22-28]), cancelled excluded; link / unlink an order.
 5. **Finance.** Rental, total sales, cost lines, cost rates by brand, simple P&L; money visible to
    principal and finance only.
 6. **Stock transfers.** Stock out to the fair / return, by Carres warehouse, confirm / unconfirm.

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectTeamMember,
+  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectSalesOrder, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectTeamMember,
 } from "@carres/shared/projects";
 import type { OrderActionTone } from "@carres/shared/order-actions";
 import { apiFetch } from "@/lib/api";
@@ -93,9 +93,20 @@ export const PJ = {
   taskCount: (n: number) => `${n} tasks`,
   addTask: "Add task",
   noChecklist: "No tasks yet.",
+  /* Slice 4 (0753): Sales Orders at the project. */
+  salesOrders: "Sales Orders",
+  soNo: "SO No",
+  linkSo: "Add Sales Order",
+  noSalesOrders: "No Sales Orders on this project yet.",
+  noValue: "No value",
+  cancelledSo: "Cancelled",
+  paidBalance: (paid: string, balance: string) => `Paid ${paid} · Balance ${balance}`,
+  salesTotals: (n: number, total: string, paid: string, balance: string) => `${n} orders · ${total} · Paid ${paid} · Balance ${balance}`,
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",
+    order_not_found: "No Sales Order has that number.",
+    other_project: "This Sales Order is on another project. Remove it there first.",
   } as Record<string, string>,
 };
 
@@ -161,5 +172,13 @@ export function useChecklistTemplates() {
     queryKey: ["projects", "checklist-templates"],
     queryFn: () => apiFetch<{ templates: ChecklistTemplate[] }>("/api/operation/projects/checklist-templates"),
     staleTime: 60_000,
+  });
+}
+
+/** Sales Orders on one project (0753), cancelled ones included but left out of the totals. */
+export function useProjectSalesOrders(id: string) {
+  return useQuery({
+    queryKey: ["projects", "sales-orders", id],
+    queryFn: () => apiFetch<{ orders: ProjectSalesOrder[]; totals: { count: number; total: number; paid: number; balance: number } }>(`/api/operation/projects/${id}/sales-orders`),
   });
 }

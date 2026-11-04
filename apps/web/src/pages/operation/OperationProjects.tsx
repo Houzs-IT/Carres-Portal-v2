@@ -16,9 +16,10 @@ import StatusPill from "@/components/kit/StatusPill";
 import { Step } from "@/components/kit/StepList";
 import Textarea from "@/components/kit/Textarea";
 import { fmtDate } from "@/lib/fmt-date";
+import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
-import { PJ, STATUS_TONE, refusalOf, useChecklistTemplates, useProject, useProjectMasters, useProjectWrite, useProjects, useStaffOptions } from "./projects";
+import { PJ, STATUS_TONE, refusalOf, useChecklistTemplates, useProject, useProjectMasters, useProjectSalesOrders, useProjectWrite, useProjects, useStaffOptions } from "./projects";
 
 /**
  * Projects (0750): Project List, create and detail. Follows Houzs
@@ -233,6 +234,8 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
           ))}
         </dl>
       </Panel>
+
+      <SalesOrdersPanel projectId={p.id} act={act} busy={write.isPending} />
 
       <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
 
@@ -475,6 +478,39 @@ function TemplateList() {
             </span>
           </div>
         ) : null}
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Sales Orders at the project (Houzs project SO list: total, paid, balance) ── */
+
+function SalesOrdersPanel({ projectId, act, busy }: { projectId: string; act: Act; busy: boolean }) {
+  const q = useProjectSalesOrders(projectId);
+  const [so, setSo] = useState("");
+  const t = q.data?.totals;
+  return (
+    <Panel title={PJ.salesOrders} right={t?.count ? <span className="text-body text-c-secondary">{PJ.salesTotals(t.count, rm(t.total), rm(t.paid), rm(t.balance))}</span> : undefined}>
+      <div className="flex flex-col gap-3" data-testid="project-sales-orders">
+        <span className="flex flex-wrap items-end gap-2">
+          <Input id="project-link-so" label={PJ.soNo} maxLength={40} value={so} onChange={(e) => setSo(e.target.value)} />
+          <Button size="sm" variant="primary" disabled={!so.trim()} loading={busy}
+            onClick={() => act("/sales-orders", { so: so.trim() }, "POST", () => setSo(""))}>{PJ.linkSo}</Button>
+        </span>
+        {q.isError ? <p className="text-body">{PJ.failed}</p> : q.data?.orders.length ? (
+          <ul className="flex flex-col gap-2 text-body">
+            {q.data.orders.map((o) => (
+              <li key={o.id} className={`flex flex-wrap items-center gap-2 ${o.status === "cancelled" ? "text-c-secondary" : ""}`}>
+                <span className="w-28 shrink-0">{o.so}</span>
+                <span className="min-w-0 flex-1 break-words">{o.customerName ?? ""}</span>
+                {o.status === "cancelled" ? <StatusPill tone="neutral">{PJ.cancelledSo}</StatusPill> : null}
+                <span className="tabular-nums">{o.total == null ? PJ.noValue : rm(o.total)}</span>
+                <span className="tabular-nums text-c-secondary">{PJ.paidBalance(rm(o.paid), rm(o.balance))}</span>
+                <Button size="sm" onClick={() => act(`/sales-orders/${o.id}`, undefined, "DELETE")}>{PJ.remove}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-body text-c-secondary">{PJ.noSalesOrders}</p>}
       </div>
     </Panel>
   );
