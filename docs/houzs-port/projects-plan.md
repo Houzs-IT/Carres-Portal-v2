@@ -49,7 +49,7 @@ dropped [code: docs/modules/projects-pms.md:120-131]. Row security replaces the 
 |---|---|---|
 | `projects` | `projects` minus `company_id`; brand/venue/organizer/contractor kept as text (Houzs stores names, pickers are backed by masters) [code: schema.pg.ts:154-192] | 1 |
 | `project_activity` | `project_activity` (stage/status changes, notes) [code: schema.pg.ts:241-251] | 1 |
-| `project_brands`, `project_event_types`, `project_venues`, `project_organizers`, `project_contractors` | Houzs masters [code: schema.pg.ts:206-213; migrations/038_venues.sql; 028_organizers.sql; migrations-pg/20260902T1224_projects_contractor.sql] | 2 |
+| `project_masters` (one table, `kind` = brand, venue, organizer or contractor; event types stay the fixed Exhibition and Solo of slice 1) — built as 0751 from `project_brands`, `project_venues`, `project_organizers`, `project_contractors` | Houzs masters [code: schema.pg.ts:206-213; migrations/038_venues.sql; 028_organizers.sql; migrations-pg/20260902T1224_projects_contractor.sql] | 2 |
 | `project_team` | `project_team` (user + role) [code: migrations/021_projects.sql project_team] | 2 |
 | `project_checklist_templates`, `_template_sections`, `_template_items`, `project_checklist_sections`, `project_checklist`, `project_checklist_comments` | Houzs checklist set [code: schema.pg.ts:541-631; migrations/024_pms_notion_parity.sql] | 3 |
 | `orders.project_id` (nullable FK) | `scm.mfg_sales_orders.project_id` [code: migrations-pg/0146_scm_so_project_id.sql] | 4 |
@@ -64,7 +64,7 @@ caller's own token reaches the tables (`userClient`), the same as `operation/fle
 | Slice | Routes |
 |---|---|
 | 1 | `GET /` (filters: search, status, stage, brand, from, to, archived), `GET /:id`, `POST /`, `PATCH /:id`, `POST /:id/archive`, `POST /:id/unarchive`, `POST /:id/notes` |
-| 2 | `GET /masters`, `POST/PATCH/DELETE /masters/:kind/:id?` for brands, event-types, venues, organizers, contractors; `POST /:id/team`, `DELETE /team/:teamId` |
+| 2 | `GET /masters`, `POST /masters`, `PATCH /masters/:mid` (a master is retired with `active`, never removed); `POST /:id/team`, `DELETE /team/:teamId` |
 | 3 | `GET /checklist-templates`, template CRUD, `POST /:id/checklist`, `PATCH /checklist/:itemId`, `POST /checklist/:itemId/status`, `POST /:id/sections` |
 | 4 | `GET /:id/sales-orders` (orders with `project_id`, paid from `order_payments`), `PUT /orders/:orderId/project` |
 | 5 | `PATCH /:id/finance`, `POST /:id/finance/lines`, `PATCH/DELETE /finance/lines/:lineId`, `GET /cost-rates`, `PUT /cost-rates/:brand` |

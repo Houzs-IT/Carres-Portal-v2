@@ -20,7 +20,7 @@ const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
 function from(table: string) {
   const next = () => (results[table] ?? []).shift() ?? { data: null, error: null };
   const q: Record<string, unknown> = {};
-  for (const op of ["select", "insert", "update", "eq", "is", "not", "in", "gte", "lte", "or", "like", "order", "limit"]) {
+  for (const op of ["select", "insert", "update", "delete", "eq", "is", "not", "in", "gte", "lte", "or", "like", "order", "limit"]) {
     q[op] = (...args: unknown[]) => { calls.push({ table, op, args }); return q; };
   }
   q.single = async () => next();
@@ -81,5 +81,19 @@ describe("/api/operation/projects", () => {
     expect(await (await post("/projects/p1", { stage: "setup" }, "PATCH")).json()).toMatchObject({ project: { stage: "setup" } });
     results.projects = [{ data: null, error: null }];
     expect((await post("/projects/p9", { stage: "setup" }, "PATCH")).status).toBe(404);
+  });
+
+  it("reads the masters, not a project called masters (0751)", async () => {
+    results.project_masters = [{ data: [{ id: "m1", kind: "venue", name: "MITEC", state: "Kuala Lumpur", address: null, notes: null, active: true }], error: null }];
+    const res = await app().request("/projects/masters");
+    expect(await res.json()).toEqual({ masters: [{ id: "m1", kind: "venue", name: "MITEC", state: "Kuala Lumpur", address: null, notes: null, active: true }] });
+    expect(calls.some((c) => c.table === "projects")).toBe(false);
+  });
+
+  it("refuses a master of an unknown kind and adds a team member", async () => {
+    expect((await post("/projects/masters", { kind: "colour", name: "Red" })).status).toBe(422);
+    const res = await post("/projects/p1/team", { userId: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff", role: "onsite" });
+    expect(res.status).toBe(201);
+    expect(calls.find((c) => c.op === "insert")!.args[0]).toEqual({ project_id: "p1", user_id: "6f9619ff-8b86-4d01-b42d-00cf4fc964ff", role: "onsite" });
   });
 });

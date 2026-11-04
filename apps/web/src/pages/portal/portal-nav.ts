@@ -336,8 +336,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only (0261-0263): the claim desk, where a claim ends up.
       { key: "guarantees", label: "Guarantees", icon: ShieldCheck, section: "Customer Care" },
 
-      /* PROJECTS — Sidebar.tsx:367-404 (0750). Overview, Calendar and Maintenance come in later slices. */
+      /* PROJECTS — Sidebar.tsx:367-404 (0750). Overview and Calendar come in later slices. */
       { key: "projects", label: "Project List", icon: ClipboardList, section: "Projects" },
+      { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, section: "Projects" },
 
       /* SALES ORDER — Sidebar.tsx:533-546. */
       {

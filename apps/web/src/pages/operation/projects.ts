@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ProjectActivity, ProjectRow, ProjectStage, ProjectStatus } from "@carres/shared/projects";
+import type {
+  ProjectActivity, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectTeamMember,
+} from "@carres/shared/projects";
 import type { OrderActionTone } from "@carres/shared/order-actions";
 import { apiFetch } from "@/lib/api";
 
@@ -59,9 +61,25 @@ export const PJ = {
   actions: {
     created: "Created", stage_change: "Stage", status_change: "Status", archived: "Archived", unarchived: "Unarchived", note: "Note",
   } as Record<string, string>,
+  /* Slice 2 (0751): Project Maintenance and the team. */
+  maintenance: "Project Maintenance",
+  kinds: { brand: "Brands", venue: "Venues", organizer: "Organizers", contractor: "Contractors" } satisfies Record<ProjectMasterKind, string>,
+  kindOne: { brand: "Brand", venue: "Venue", organizer: "Organizer", contractor: "Contractor" } satisfies Record<ProjectMasterKind, string>,
+  add: "Add",
+  inUse: "In use",
+  retire: "Stop using",
+  reuse: "Use again",
+  address: "Address",
+  noMasters: "Nothing here yet. Add the first one above.",
+  team: "Team",
+  role: "Role",
+  rolePlaceholder: "For example onsite or sales",
+  addMember: "Add to team",
+  remove: "Remove",
+  noTeam: "No one on the team yet.",
   refusals: {
     archived: "Unarchive the project to change its status.",
-    already_exists: "That code is already used. Change the venue or date and save again.",
+    already_exists: "That is already on the list.",
   } as Record<string, string>,
 };
 
@@ -82,7 +100,7 @@ export function useProject(id: string | null) {
   return useQuery({
     queryKey: ["projects", "one", id],
     enabled: !!id,
-    queryFn: () => apiFetch<{ project: ProjectRow; activity: ProjectActivity[] }>(`/api/operation/projects/${id}`),
+    queryFn: () => apiFetch<{ project: ProjectRow; activity: ProjectActivity[]; team: ProjectTeamMember[] }>(`/api/operation/projects/${id}`),
   });
 }
 
@@ -90,7 +108,7 @@ export function useProject(id: string | null) {
 export function useProjectWrite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ path, method = "POST", body }: { path: string; method?: "POST" | "PATCH"; body?: unknown }) =>
+    mutationFn: ({ path, method = "POST", body }: { path: string; method?: "POST" | "PATCH" | "DELETE"; body?: unknown }) =>
       apiFetch<{ project?: ProjectRow }>(`/api/operation/projects${path}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
@@ -110,4 +128,13 @@ export function refusalOf(error: unknown): string {
   const e = error as { code?: string; message?: string; body?: { code?: string; message?: string } } | null;
   const code = e?.body?.code ?? e?.code;
   return (code && PJ.refusals[code]) || e?.body?.message || PJ.saveFailed;
+}
+
+/** Project Maintenance lists (0751); the form picks from the ones in use. */
+export function useProjectMasters() {
+  return useQuery({
+    queryKey: ["projects", "masters"],
+    queryFn: () => apiFetch<{ masters: ProjectMaster[] }>("/api/operation/projects/masters"),
+    staleTime: 60_000,
+  });
 }

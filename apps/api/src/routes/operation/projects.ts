@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import {
-  deriveProjectCode, deriveProjectName, projectCreateInput, projectNoteInput, projectPatchInput,
-  PROJECT_STAGES, PROJECT_STATUSES, uniqueProjectCode,
-  type ProjectActivity, type ProjectRow,
+  deriveProjectCode, deriveProjectName, projectCreateInput, projectMasterInput, projectMasterPatch, projectNoteInput,
+  projectPatchInput, projectTeamInput, PROJECT_STAGES, PROJECT_STATUSES, uniqueProjectCode,
+  type ProjectActivity, type ProjectMaster, type ProjectRow, type ProjectTeamMember,
 } from "@carres/shared/projects";
 import { requireOperation } from "../../lib/auth-guards";
 import { fail, parseJsonBody } from "../../lib/route-helpers";
@@ -22,6 +22,8 @@ import type { AppEnv } from "../../types";
  *   PATCH /:id               edit fields, stage or status
  *   POST  /:id/notes         add a note to the activity
  *   POST  /:id/archive · /:id/unarchive
+ *   GET   /masters · POST /masters · PATCH /masters/:mid      Project Maintenance (0751)
+ *   POST  /:id/team · DELETE /team/:teamId                    the project team (0751)
  *
  * Row security (0750) admits Operation and the principal; the caller's own
  * token reaches the tables.
@@ -82,21 +84,64 @@ router.get("/", requireOperation, async (c) => {
   return c.json({ projects: ((data ?? []) as Row[]).map(toProject) });
 });
 
+/* ── Project Maintenance (0751, Houzs project masters) ── registered before /:id. */
+const MASTER_COLS = "id, kind, name, state, address, notes, active";
+const toMaster = (r: Row): ProjectMaster => ({
+  id: String(r.id), kind: r.kind as ProjectMaster["kind"], name: String(r.name), state: (r.state as string | null) ?? null,
+  address: (r.address as string | null) ?? null, notes: (r.notes as string | null) ?? null, active: r.active === true,
+});
+
+router.get("/masters", requireOperation, async (c) => {
+  const { data, error } = await userClient(c.env, c.var.auth.jwt).from("project_masters").select(MASTER_COLS).order("name");
+  if (error) return fail(c, error);
+  return c.json({ masters: ((data ?? []) as Row[]).map(toMaster) });
+});
+
+router.post("/masters", requireOperation, async (c) => {
+  const body = await parseJsonBody(c, projectMasterInput);
+  if (!body.ok) return c.json(body.body, body.status);
+  const { data, error } = await userClient(c.env, c.var.auth.jwt).from("project_masters").insert(body.data).select(MASTER_COLS).single();
+  if (error) return fail(c, error);
+  return c.json({ master: toMaster(data as Row) }, 201);
+});
+
+router.patch("/masters/:mid", requireOperation, async (c) => {
+  const body = await parseJsonBody(c, projectMasterPatch);
+  if (!body.ok) return c.json(body.body, body.status);
+  const patch = Object.fromEntries(Object.entries(body.data).filter(([, v]) => v !== undefined));
+  if (!Object.keys(patch).length) return c.json({ error: "invalid_input", code: "invalid_param", message: "Nothing to save." }, 422);
+  const { data, error } = await userClient(c.env, c.var.auth.jwt).from("project_masters").update(patch).eq("id", c.req.param("mid")).select(MASTER_COLS).maybeSingle();
+  if (error) return fail(c, error);
+  if (!data) return c.json({ error: "not_found", code: "not_found", message: "Not found." }, 404);
+  return c.json({ master: toMaster(data as Row) });
+});
+
+router.delete("/team/:teamId", requireOperation, async (c) => {
+  const { error } = await userClient(c.env, c.var.auth.jwt).from("project_team").delete().eq("id", c.req.param("teamId"));
+  if (error) return fail(c, error);
+  return c.json({ ok: true });
+});
+
 router.get("/:id", requireOperation, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
   const id = c.req.param("id");
-  const [pR, aR] = await Promise.all([
+  const [pR, aR, tR] = await Promise.all([
     sb.from("projects").select(COLS).eq("id", id).maybeSingle(),
     sb.from("project_activity").select("id, action, from_value, to_value, note, created_at, by:app_users(name)").eq("project_id", id).order("created_at", { ascending: false }).limit(200),
+    sb.from("project_team").select("id, user_id, role, who:app_users(name)").eq("project_id", id).order("created_at"),
   ]);
   if (pR.error) return fail(c, pR.error);
   if (aR.error) return fail(c, aR.error);
+  if (tR.error) return fail(c, tR.error);
   if (!pR.data) return c.json({ error: "not_found", code: "not_found", message: "Project not found." }, 404);
   const activity: ProjectActivity[] = ((aR.data ?? []) as Row[]).map((r) => ({
     id: String(r.id), action: String(r.action), fromValue: (r.from_value as string | null) ?? null, toValue: (r.to_value as string | null) ?? null,
     note: (r.note as string | null) ?? null, byName: ((r.by as { name?: string } | null)?.name) ?? null, createdAt: String(r.created_at),
   }));
-  return c.json({ project: toProject(pR.data as Row), activity });
+  const team: ProjectTeamMember[] = ((tR.data ?? []) as Row[]).map((r) => ({
+    id: String(r.id), userId: String(r.user_id), role: (r.role as string | null) ?? null, name: ((r.who as { name?: string } | null)?.name) ?? null,
+  }));
+  return c.json({ project: toProject(pR.data as Row), activity, team });
 });
 
 router.post("/", requireOperation, async (c) => {
@@ -154,6 +199,16 @@ router.post("/:id/notes", requireOperation, async (c) => {
   const { error } = await userClient(c.env, c.var.auth.jwt)
     .from("project_activity")
     .insert({ project_id: c.req.param("id"), action: "note", note: body.data.note, user_id: c.var.auth.id });
+  if (error) return fail(c, error);
+  return c.json({ ok: true }, 201);
+});
+
+router.post("/:id/team", requireOperation, async (c) => {
+  const body = await parseJsonBody(c, projectTeamInput);
+  if (!body.ok) return c.json(body.body, body.status);
+  const { error } = await userClient(c.env, c.var.auth.jwt)
+    .from("project_team")
+    .insert({ project_id: c.req.param("id"), user_id: body.data.userId, role: body.data.role });
   if (error) return fail(c, error);
   return c.json({ ok: true }, 201);
 });

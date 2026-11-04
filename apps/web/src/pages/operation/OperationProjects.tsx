@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  PROJECT_STAGES, PROJECT_STATUSES, projectDurationDays,
-  type ProjectCreateInput, type ProjectRow, type ProjectStage, type ProjectStatus,
+  PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, projectDurationDays,
+  type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectTeamMember,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
@@ -18,7 +18,7 @@ import Textarea from "@/components/kit/Textarea";
 import { fmtDate } from "@/lib/fmt-date";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
-import { PJ, STATUS_TONE, refusalOf, useProject, useProjectWrite, useProjects, useStaffOptions } from "./projects";
+import { PJ, STATUS_TONE, refusalOf, useProject, useProjectMasters, useProjectWrite, useProjects, useStaffOptions } from "./projects";
 
 /**
  * Projects (0750): Project List, create and detail. Follows Houzs
@@ -104,10 +104,25 @@ function ProjectForm({ project, onClose, onSaved }: { project?: ProjectRow; onCl
   const [message, setMessage] = useState<string | null>(null);
   const write = useProjectWrite();
   const staff = useStaffOptions().data?.staff ?? [];
+  const masters = useProjectMasters().data?.masters ?? [];
   const set = (k: keyof Draft) => (v: string | null) => setD((x) => ({ ...x, [k]: v ?? "" }));
   const text = (k: keyof Draft, label: string, extra: { hint?: string; required?: boolean; maxLength?: number } = {}) => (
     <Input id={`project-${k}`} label={label} value={String(d[k] ?? "")} onChange={(e) => set(k)(e.target.value)} {...extra} />
   );
+  /** Houzs pickers: a Project Maintenance list once it has entries, typed text until then. */
+  const pick = (k: ProjectMasterKind & keyof Draft, extra: { hint?: string; required?: boolean } = {}) => {
+    const list = masters.filter((m) => m.kind === k && (m.active || m.name === d[k]));
+    if (!list.length) return text(k, PJ.kindOne[k], { ...extra, maxLength: 120 });
+    const onPick = (v: string) => {
+      const m = list.find((x) => x.name === v);
+      // Houzs: picking a venue fills its state and address when they are still empty.
+      setD((x) => ({ ...x, [k]: v, ...(k === "venue" && m ? { state: x.state || m.state || "", venueAddress: x.venueAddress || m.address || "" } : {}) }));
+    };
+    return (
+      <Select id={`project-${k}`} label={PJ.kindOne[k]} value={String(d[k] ?? "") || undefined} onValueChange={onPick}
+        options={list.map((m) => ({ value: m.name, label: m.name }))} />
+    );
+  };
   const ready = d.brand.trim() && d.state.trim() && d.venue.trim() && d.startDate && d.endDate && d.endDate >= d.startDate;
   const save = () => {
     setMessage(null);
@@ -131,17 +146,17 @@ function ProjectForm({ project, onClose, onSaved }: { project?: ProjectRow; onCl
         {message ? <p role="alert" className="text-body">{message}</p> : null}
         <Select id="project-eventType" label={PJ.eventType} value={d.eventType || undefined} onValueChange={set("eventType")}
           options={[{ value: "exhibition", label: PJ.eventTypes.exhibition }, { value: "solo", label: PJ.eventTypes.solo }]} />
-        {text("brand", PJ.brand, { required: true, maxLength: 60 })}
+        {pick("brand", { required: true })}
+        {pick("venue", { required: true })}
         {text("state", PJ.state, { required: true, maxLength: 60 })}
-        {text("venue", PJ.venue, { required: true, maxLength: 120 })}
-        {text("organizer", PJ.organizer, { hint: PJ.organizerHint, maxLength: 120 })}
+        {pick("organizer", { hint: PJ.organizerHint })}
         <DatePicker id="project-start" label={PJ.start} required value={d.startDate || null} onChange={set("startDate")} />
         <DatePicker id="project-end" label={PJ.end} required minDate={d.startDate || undefined} value={d.endDate || null} onChange={set("endDate")} />
         {text("name", PJ.name, { hint: project ? undefined : PJ.nameHint, maxLength: 200 })}
         <Select id="project-pic" label={PJ.pic} value={d.picId || "none"} onValueChange={(v) => set("picId")(v === "none" ? "" : v)}
           options={[{ value: "none", label: PJ.none }, ...staff.map((s) => ({ value: s.user_id, label: s.name ?? s.user_id }))]} />
         {text("venueAddress", PJ.venueAddress, { maxLength: 300 })}
-        {text("contractor", PJ.contractor, { maxLength: 120 })}
+        {pick("contractor")}
         {text("boothNo", PJ.boothNo, { maxLength: 40 })}
         <Input id="project-size" label={PJ.size} type="number" min={0} value={d.sizeSqm} onChange={(e) => set("sizeSqm")(e.target.value)} />
         <Textarea id="project-notes" label={PJ.notes} value={d.notes ?? ""} maxLength={2000} onChange={(e) => set("notes")(e.target.value)} />
@@ -160,11 +175,12 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   if (q.isError) return <CouldNotLoad detail={(q.error as { status?: number })?.status === 404 ? PJ.notFound : PJ.failed} onRetry={() => void q.refetch()} />;
   if (!q.data) return null;
-  const { project: p, activity } = q.data;
+  const { project: p, activity, team } = q.data;
   const archived = !!p.archivedAt;
-  const act = (path: string, body?: unknown, method: "POST" | "PATCH" = "POST", done?: () => void) => {
+  const act: Act = (path, body, method = "POST", done) => {
     setMessage(null);
-    write.mutate({ path: `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
+    // `/team/<id>` is not under the project; every other door is.
+    write.mutate({ path: path.startsWith("/team/") ? path : `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
   };
   const stageAt = PROJECT_STAGES.indexOf(p.stage);
   const facts: Array<[string, string]> = [
@@ -217,6 +233,8 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
         </dl>
       </Panel>
 
+      <TeamPanel team={team} act={act} busy={write.isPending} />
+
       <Panel title={PJ.activity}>
         <div className="flex flex-col gap-3">
           <span className="flex items-end gap-2">
@@ -246,5 +264,92 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
       </Panel>
       {editing ? <ProjectForm project={p} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} /> : null}
     </div>
+  );
+}
+
+/* ── Team (Houzs project_team: a person and a free text role) ───────────── */
+
+type Act = (path: string, body?: unknown, method?: "POST" | "PATCH" | "DELETE", done?: () => void) => void;
+
+function TeamPanel({ team, act, busy }: { team: ProjectTeamMember[]; act: Act; busy: boolean }) {
+  const staff = useStaffOptions().data?.staff ?? [];
+  const [userId, setUserId] = useState("");
+  const [role, setRole] = useState("");
+  return (
+    <Panel title={PJ.team}>
+      <div className="flex flex-col gap-3" data-testid="project-team">
+        <span className="flex flex-wrap items-end gap-2">
+          <Select id="project-team-user" label={PJ.pic} value={userId || undefined} onValueChange={setUserId}
+            options={staff.map((s) => ({ value: s.user_id, label: s.name ?? s.user_id }))} />
+          <Input id="project-team-role" label={PJ.role} placeholder={PJ.rolePlaceholder} maxLength={40} value={role} onChange={(e) => setRole(e.target.value)} />
+          <Button size="sm" variant="primary" disabled={!userId} loading={busy}
+            onClick={() => act("/team", { userId, role: role.trim() || null }, "POST", () => { setUserId(""); setRole(""); })}>{PJ.addMember}</Button>
+        </span>
+        {team.length ? (
+          <ul className="flex flex-col gap-2 text-body">
+            {team.map((m) => (
+              <li key={m.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 break-words">{m.name ?? ""}{m.role ? <span className="text-c-secondary">{` · ${m.role}`}</span> : null}</span>
+                <Button size="sm" onClick={() => act(`/team/${m.id}`, undefined, "DELETE")}>{PJ.remove}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-body text-c-secondary">{PJ.noTeam}</p>}
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Project Maintenance (Houzs ProjectMaintenance: one list per master) ── */
+
+export function ProjectMaintenancePage() {
+  const q = useProjectMasters();
+  return (
+    <div className="flex h-full min-h-0 flex-col" data-testid="project-maintenance-page">
+      <ModuleHeader destinationHeader testId="project-maintenance-destination-header" word={PJ.maintenance} docTitle={`${PJ.maintenance} · Carres`} />
+      {q.isError ? <CouldNotLoad detail={PJ.failed} onRetry={() => void q.refetch()} /> : (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto p-4 xl:grid-cols-2">
+          {PROJECT_MASTER_KINDS.map((k) => <MasterList key={k} kind={k} rows={(q.data?.masters ?? []).filter((m) => m.kind === k)} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MasterList({ kind, rows }: { kind: ProjectMasterKind; rows: ProjectMaster[] }) {
+  const write = useProjectWrite();
+  const [name, setName] = useState("");
+  const [state, setState] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const venue = kind === "venue";
+  const run = (path: string, method: "POST" | "PATCH", body: unknown, done?: () => void) => {
+    setMessage(null);
+    write.mutate({ path, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
+  };
+  return (
+    <Panel title={PJ.kinds[kind]}>
+      <div className="flex flex-col gap-3" data-testid={`project-masters-${kind}`}>
+        <span className="flex flex-wrap items-end gap-2">
+          <Input id={`master-${kind}-name`} label={PJ.kindOne[kind]} maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
+          {venue ? <Input id="master-venue-state" label={PJ.state} maxLength={60} value={state} onChange={(e) => setState(e.target.value)} /> : null}
+          <Button size="sm" variant="primary" disabled={!name.trim()} loading={write.isPending}
+            onClick={() => run("/masters", "POST", { kind, name, state: venue ? state : null }, () => { setName(""); setState(""); })}>{PJ.add}</Button>
+        </span>
+        {message ? <p role="alert" className="text-body">{message}</p> : null}
+        {rows.length ? (
+          <ul className="flex flex-col gap-2 text-body">
+            {rows.map((m) => (
+              <li key={m.id} className="flex items-center gap-2">
+                <span className={`min-w-0 flex-1 break-words ${m.active ? "" : "text-c-secondary"}`}>
+                  {m.name}{m.state ? <span className="text-c-secondary">{` · ${m.state}`}</span> : null}
+                </span>
+                {m.active ? <StatusPill tone="success">{PJ.inUse}</StatusPill> : null}
+                <Button size="sm" onClick={() => run(`/masters/${m.id}`, "PATCH", { active: !m.active })}>{m.active ? PJ.retire : PJ.reuse}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-body text-c-secondary">{PJ.noMasters}</p>}
+      </div>
+    </Panel>
   );
 }
