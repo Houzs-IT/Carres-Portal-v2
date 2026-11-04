@@ -96,7 +96,7 @@ import { PoWaitingFlags, useWaitingPoChangeRequests } from "../OperationPoChange
 import { CHANNEL_WORD, refreshPurchasingReads } from "../components/PoIssueEvidence";
 import { PoSupplierResultContent } from "../so-batch/PoSupplierResultPanel";
 import ChangeDeliverToForm from "./ChangeDeliverToForm";
-import NewPurchaseOrderModal from "./NewPurchaseOrderModal";
+import NewPurchaseOrderModal, { draftFromCopy, type NewPoDraft, type PoCopySeed } from "./NewPurchaseOrderModal";
 import PoBulkSupplierDateModal from "./PoBulkSupplierDateModal";
 import type { BulkDateTarget } from "./po-bulk-supplier-date";
 import { poLineRowsOf, type PoLineRow } from "./po-line-rows";
@@ -487,6 +487,20 @@ export default function PurchaseOrdersPage() {
   /* New Consignment Order — the same form and door, marked consignment
      (Weisiang's decision, Mr Lim, WhatsApp 2026-10-22; Jess was not part of it). */
   const [newPoConsignment, setNewPoConsignment] = useState(false);
+  /* Copy as new (Houzs HC-0149): the form remounts (`key`) with the source's
+     supplier, Deliver To and lines. */
+  const [newPoStart, setNewPoStart] = useState<{ key: number; draft?: NewPoDraft }>({ key: 0 });
+  const openNewPo = (consignment: boolean, draft?: NewPoDraft) => {
+    setNewPoConsignment(consignment);
+    setNewPoStart((s) => ({ key: s.key + 1, draft }));
+    setNewPoOpen(true);
+  };
+  const copyAsNew = (poId: string) => {
+    setPdfProblem(null);
+    apiFetch<PoCopySeed>(`/api/operation/pos/${encodeURIComponent(poId)}/copy-seed`)
+      .then((seed) => openNewPo(seed.consignment, draftFromCopy(seed)))
+      .catch(() => setPdfProblem("The order to copy could not be read"));
+  };
   const catalogQ = useCatalog({ enabled: newPoOpen });
   const newPoSkus = useMemo(() => {
     const models = new Map((catalogQ.data?.models ?? []).map((m) => [m.id, m.name]));
@@ -1343,6 +1357,7 @@ export default function PurchaseOrdersPage() {
               setPdfProblem("The official PDF could not be opened");
             });
           },
+      more: [{ label: "Copy as new", onClick: () => copyAsNew(row.id) }],
     });
 
   const registerToolbarStart = <>
@@ -1352,8 +1367,8 @@ export default function PurchaseOrdersPage() {
         testId="purchase-orders-show-filters"
       />
     )}
-    <Button size="sm" icon="add" onClick={() => { setNewPoConsignment(false); setNewPoOpen(true); }} data-testid="po-new">New Purchase Order</Button>
-    <Button size="sm" icon="add" onClick={() => { setNewPoConsignment(true); setNewPoOpen(true); }} data-testid="po-new-consignment">New Consignment Order</Button>
+    <Button size="sm" icon="add" onClick={() => openNewPo(false)} data-testid="po-new">New Purchase Order</Button>
+    <Button size="sm" icon="add" onClick={() => openNewPo(true)} data-testid="po-new-consignment">New Consignment Order</Button>
     {(overview || linesDisplay) && stateTabs}
   </>;
 
@@ -1369,6 +1384,8 @@ export default function PurchaseOrdersPage() {
           value={posQ.data ? String(allRows.filter((row) => PO_STATE_GROUPS.received.has(row.facts.group)).length) : null} />
       </div>
       <NewPurchaseOrderModal
+        key={newPoStart.key}
+        initial={newPoStart.draft}
         open={newPoOpen}
         onOpenChange={setNewPoOpen}
         suppliers={(suppliersQ.data?.suppliers ?? []).map((s) => ({ id: s.id, name: s.name }))}
