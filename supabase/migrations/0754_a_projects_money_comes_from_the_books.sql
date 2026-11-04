@@ -56,13 +56,14 @@ returns void
 language plpgsql
 as $rw$
 declare
-  v_def text := replace(pg_get_functiondef(p_fn), E'\r\n', E'\n');
+  -- Line ends are normalised on the body and on both texts: CRLF or a lone CR,
+  -- and spaces or tabs before a line end, from a Windows copy of this file or
+  -- an editor paste (0739). Only line-end whitespace changes; one hit is still required.
+  v_def text := regexp_replace(replace(replace(pg_get_functiondef(p_fn), E'\r\n', E'\n'), E'\r', E'\n'), E'[ \t]+\n', E'\n', 'g');
   v_n   integer;
 begin
-  -- A Windows copy of this file (autocrlf) carries CRLF inside a multi-line
-  -- needle; the body is normalised above, so both texts must be too (0739).
-  p_old := replace(p_old, E'\r\n', E'\n');
-  p_new := replace(p_new, E'\r\n', E'\n');
+  p_old := regexp_replace(replace(replace(p_old, E'\r\n', E'\n'), E'\r', E'\n'), E'[ \t]+\n', E'\n', 'g');
+  p_new := regexp_replace(replace(replace(p_new, E'\r\n', E'\n'), E'\r', E'\n'), E'[ \t]+\n', E'\n', 'g');
   v_n := (length(v_def) - length(replace(v_def, p_old, ''))) / greatest(length(p_old), 1);
   if v_n <> 1 then
     raise exception '0754: % holds the text to change % times, not once: %', p_fn, v_n, left(p_old, 90);
