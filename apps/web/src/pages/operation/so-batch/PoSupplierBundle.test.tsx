@@ -314,7 +314,7 @@ describe("the three send steps", () => {
     expect([...steps].map(step => step.getAttribute("data-testid"))).toEqual(["po-bundle-step-download", "po-bundle-step-send", "po-bundle-step-record"]);
     expect(steps[0]).toHaveAttribute("data-state", "current");
     expect(steps[0]).toHaveTextContent("0 of 2 downloaded");
-    expect(steps[1]).toHaveTextContent("Send by WhatsApp or Email");
+    expect(steps[1]).toHaveTextContent("WhatsApp or Email");
     fireEvent.click(screen.getByRole("button", { name: "Download PDFs" }));
     await waitFor(() => expect(steps[0]).toHaveAttribute("data-state", "done"));
     expect(steps[0]).toHaveTextContent("Downloaded");
