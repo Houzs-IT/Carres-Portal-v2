@@ -20,12 +20,14 @@
 
 -- ── 1 · target days on a stage ──────────────────────────────────────────────
 alter table public.service_case_statuses
-  add column if not exists target_days numeric(5,1);
+  add column if not exists target_days numeric;
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'scs_target_days_positive') then
+  -- Houzs stage_target_days is a plain REAL with no check; its input is min 0, no max
+  -- (ServiceLeadTimePortal.tsx:226-229). 0 is a target that never turns red.
+  if not exists (select 1 from pg_constraint where conname = 'scs_target_days_not_negative') then
     alter table public.service_case_statuses
-      add constraint scs_target_days_positive check (target_days is null or (target_days > 0 and target_days <= 365));
+      add constraint scs_target_days_not_negative check (target_days is null or target_days >= 0);
   end if;
 end $$;
 comment on column public.service_case_statuses.target_days is
@@ -38,7 +40,7 @@ create table if not exists public.service_case_stage_history (
   status_id   uuid references public.service_case_statuses(id),
   entered_at  timestamptz not null default now(),
   exited_at   timestamptz,
-  target_days numeric(5,1),
+  target_days numeric,
   changed_by  uuid
 );
 create index if not exists service_case_stage_history_case_idx
@@ -90,5 +92,5 @@ create trigger service_case_stage_history_log
 --   drop trigger if exists service_case_stage_history_log on public.service_cases;
 --   drop function if exists public.service_case_stage_history_log();
 --   drop table if exists public.service_case_stage_history;
---   alter table public.service_case_statuses drop constraint if exists scs_target_days_positive;
+--   alter table public.service_case_statuses drop constraint if exists scs_target_days_not_negative;
 --   alter table public.service_case_statuses drop column if exists target_days;

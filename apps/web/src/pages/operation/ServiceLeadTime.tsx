@@ -96,14 +96,14 @@ function TargetRow({ profileId, stage, days, canEdit, onSaved }: { profileId: st
     onSuccess: () => { setReason(""); onSaved(); },
   });
   const n = Number(value);
-  const changed = value.trim() !== "" && n > 0 && n <= 365 && n !== days;
+  const changed = value.trim() !== "" && n >= 0 && n !== days;
   return (
     <li className="grid gap-1">
       <div className="flex flex-wrap items-center gap-3">
         <span className="w-48 text-body">{stage.label}</span>
         <div className="w-28">
           <Input id={`service-lead-time-${stage.id}`} aria-label={`Target days for ${stage.label}`} placeholder="Target days" type="number"
-            min={0.5} max={365} step={0.5} value={value} disabled={!canEdit} onChange={(e) => setValue(e.target.value)} />
+            min={0} step={0.5} value={value} disabled={!canEdit} onChange={(e) => setValue(e.target.value)} />
         </div>
         {changed && (
           <>
