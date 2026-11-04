@@ -104,7 +104,7 @@ router.get("/orders", requireOperationOrPrincipal, async (c) => {
     created_by: string | null; customer_consignment_order_units: OrderLine[]; customer_consignment_order_payments: OrderPayment[];
   }>>(
     sb.from("customer_consignment_orders")
-      .select("id, order_no, customer_name, customer_phone, customer_address, note, created_at, created_by, customer_consignment_order_units(price, sold_at, ops_stock_items(id, unit_code, sku, status, reserved_ref)), customer_consignment_order_payments(id, paid_at, method, amount, reference, note, created_at)")
+      .select("id, order_no, dealer_id, customer_name, customer_phone, customer_address, note, created_at, created_by, customer_consignment_order_units(price, sold_at, ops_stock_items(id, unit_code, sku, status, reserved_ref)), customer_consignment_order_payments(id, paid_at, method, amount, reference, note, created_at)")
       .order("created_at", { ascending: false })
       .limit(500),
   );
