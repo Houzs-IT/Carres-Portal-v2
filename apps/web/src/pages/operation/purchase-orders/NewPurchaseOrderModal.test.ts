@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newPurchaseOrderBody, type NewPoDraft } from "./NewPurchaseOrderModal";
+import { draftFromCopy, newPurchaseOrderBody, type NewPoDraft } from "./NewPurchaseOrderModal";
 
 /** New Purchase Order (Weisiang's decision, Mr Lim, WhatsApp 2026-10-22): the draft becomes the request body only when complete. */
 const S = "00000000-0000-4000-8000-000000000a01";
@@ -35,5 +35,21 @@ describe("newPurchaseOrderBody", () => {
     expect(newPurchaseOrderBody(draft({ lines: [{ key: 1, sku: "SOFA-1", qty: "1.5", price: "" }] }))).toBeNull();
     expect(newPurchaseOrderBody(draft({ lines: [{ key: 1, sku: "SOFA-1", qty: "1", price: "-3" }] }))).toBeNull();
     expect(newPurchaseOrderBody(draft({ lines: [{ key: 1, sku: "SOFA-1", qty: "1", price: "0" }] }))).toBeNull();
+  });
+});
+
+describe("draftFromCopy (Copy as new, Houzs HC-0149)", () => {
+  it("keeps supplier, Deliver To, lines and price; the date is typed again; the copy issues as it stands", () => {
+    const d = draftFromCopy({ supplierId: S, destinationId: D, consignment: false, lines: [{ sku: "SOFA-1", qty: 2, price: 1150 }, { sku: "BED-1", qty: 1, price: null }] });
+    expect(d.etaDate).toBeNull();
+    expect(d.lines.map((l) => [l.sku, l.qty, l.price])).toEqual([["SOFA-1", "2", "1150"], ["BED-1", "1", ""]]);
+    expect(newPurchaseOrderBody(d)?.lines).toEqual([{ sku: "SOFA-1", qty: 2, price: 1150 }, { sku: "BED-1", qty: 1, price: null }]);
+  });
+
+  it("a source with no Deliver To or no lines still opens a form to finish", () => {
+    const d = draftFromCopy({ supplierId: S, destinationId: null, consignment: true, lines: [] });
+    expect(d.destinationId).toBe("");
+    expect(d.lines).toHaveLength(1);
+    expect(newPurchaseOrderBody(d)).toBeNull();
   });
 });

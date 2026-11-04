@@ -6,7 +6,8 @@
 import { lineName } from "../sales-order-facts";
 import { skuKey } from "../sales-order-register-readings";
 import type { RegisterRow } from "../sales-order-columns";
-import { CBtn, Drawer, KvRow } from "../so-detail/ui";
+import Drawer from "@/components/kit/Drawer";
+import { CBtn, KvRow } from "../so-detail/ui";
 import { COLUMNS, isDelivered, rm, type CellContext } from "./outright-columns";
 
 const ORDER_FACTS = ["agent", "salesLoc", "ref", "soDate", "processing", "reqDate", "payMethod"];
@@ -17,7 +18,6 @@ export function OrderQuickView({
   row,
   ctx,
   catalogNames,
-  right,
   onClose,
   onOpenFull,
   onPrint,
@@ -35,10 +35,11 @@ export function OrderQuickView({
   if (!row) return null;
   const facts = (keys: string[]) =>
     keys.map((k) => <KvRow key={k} label={COLUMNS[k]!.label} value={COLUMNS[k]!.cell(row, ctx).t} />);
-  const heading = (words: string) => <h3 className="pb-1 pt-3.5 text-[13px] font-medium text-c-ink first:pt-0">{words}</h3>;
+  const heading = (words: string) => <h3 className="pb-1 pt-3.5 text-[11px] font-bold uppercase tracking-[.08em] text-c-heading first:pt-0">{words}</h3>;
   const lines = (row.o.order_lines ?? []).filter((l) => Number(l.qty) > 0);
   return (
-    <Drawer open title={`SO-${row.so}`} onClose={onClose} width={440} right={right} testId="outright-quick-view">
+    <Drawer variant="quick-view" open title={`Sales Order · SO-${row.so}`} description={isDelivered(row) ? "Delivered" : "Open"} onOpenChange={open => { if (!open) onClose(); }}>
+      <div data-testid="outright-quick-view" className="min-w-0">
       <div className="flex flex-wrap gap-1.5 pb-3">
         <CBtn kind="normal" icon="open_in_full" onClick={() => onOpenFull(row)}>Open full page</CBtn>
         <CBtn kind="normal" icon="print" onClick={() => onPrint(row)}>Print SO</CBtn>
@@ -62,6 +63,7 @@ export function OrderQuickView({
       ))}
       {heading("Money")}
       {facts(MONEY_FACTS)}
+      </div>
     </Drawer>
   );
 }
@@ -76,13 +78,13 @@ export function OrderCards({ rows, onOpen }: { rows: RegisterRow[]; onOpen: (r: 
           type="button"
           onClick={() => onOpen(r)}
           data-testid={`outright-card-${r.so}`}
-          className="flex min-w-0 flex-col gap-1 rounded-[10px] border border-c-card-border bg-c-card px-3.5 py-3 text-left hover:bg-c-hover"
+          className="flex min-w-0 flex-col gap-1 rounded-lg border border-c-card-border bg-c-card px-3.5 py-3 text-left hover:bg-c-hover"
         >
           <span className="flex items-center justify-between gap-2">
             <span className="text-[13px] font-semibold text-c-ink">SO-{r.so}</span>
             <span className="text-[12px] text-c-secondary">{isDelivered(r) ? "Delivered" : "Open"}</span>
           </span>
-          <span className="truncate text-[15px] font-medium text-c-ink">{r.customer || "Not recorded"}</span>
+          <span className="truncate text-[13px] font-medium text-c-ink">{r.customer || ""}</span>
           <span className="truncate text-[12px] text-c-secondary">{COLUMNS.soDate!.cell(r, {} as CellContext).t} · {COLUMNS.salesLoc!.cell(r, {} as CellContext).t}</span>
           <span className="mt-1 flex items-end justify-between gap-2 border-t border-c-row-line pt-2">
             <span className="truncate text-[12px] text-c-secondary">{COLUMNS.ref!.cell(r, {} as CellContext).t}</span>

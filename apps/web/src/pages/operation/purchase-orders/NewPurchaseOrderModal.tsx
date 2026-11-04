@@ -56,6 +56,20 @@ export function newPurchaseOrderBody(draft: NewPoDraft, consignment = false): Ne
 
 let nextKey = 1;
 const blankLine = (): NewPoLineDraft => ({ key: nextKey++, sku: "", qty: "1", price: "" });
+const blankDraft = (): NewPoDraft => ({ supplierId: "", destinationId: "", etaDate: null, note: "", lines: [blankLine()] });
+
+/** What `GET /api/operation/pos/:id/copy-seed` answers. */
+export type PoCopySeed = { supplierId: string; destinationId: string | null; consignment: boolean; lines: Array<{ sku: string; qty: number; price: number | null }> };
+
+/**
+ * Copy as new (Houzs HC-0149, a77d49f25): supplier, Deliver To and the lines
+ * with their price. Dates, the Sales Order link, received qty and the number
+ * stay with the source; the PO Delivery Date is typed again.
+ */
+export function draftFromCopy(seed: PoCopySeed): NewPoDraft {
+  const lines = seed.lines.map((l) => ({ key: nextKey++, sku: l.sku, qty: String(l.qty), price: l.price == null ? "" : String(l.price) }));
+  return { supplierId: seed.supplierId, destinationId: seed.destinationId ?? "", etaDate: null, note: "", lines: lines.length ? lines : [blankLine()] };
+}
 
 export default function NewPurchaseOrderModal({
   open,
@@ -65,6 +79,7 @@ export default function NewPurchaseOrderModal({
   skus,
   onIssued,
   consignment = false,
+  initial,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,8 +89,10 @@ export default function NewPurchaseOrderModal({
   onIssued: (poId: string | null) => void;
   /** Open a Consignment Order (supplier-owned goods) instead of a Purchase Order. */
   consignment?: boolean;
+  /** The draft the form starts from (Copy as new). Remount with a new `key` to apply another. */
+  initial?: NewPoDraft;
 }) {
-  const [draft, setDraft] = useState<NewPoDraft>({ supplierId: "", destinationId: "", etaDate: null, note: "", lines: [blankLine()] });
+  const [draft, setDraft] = useState<NewPoDraft>(() => initial ?? blankDraft());
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const body = newPurchaseOrderBody(draft, consignment);
@@ -93,7 +110,7 @@ export default function NewPurchaseOrderModal({
     setProblem(null);
     try {
       const res = await apiFetch<{ poId: string | null }>("/api/operation/pos/new", { method: "POST", body: JSON.stringify(body) });
-      setDraft({ supplierId: "", destinationId: "", etaDate: null, note: "", lines: [blankLine()] });
+      setDraft(blankDraft());
       onIssued(res.poId);
     } catch (e) {
       const action = ((e as { body?: { action?: string } }).body)?.action;

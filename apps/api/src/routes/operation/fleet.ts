@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import {
   deliveryCharge, deliveryFacts, deliveryZoneInput, fleetCrewConfirmInput, fleetCrewLeaveInput, fleetHealthInput, fleetPositionInput,
-  rateCardFor, rateCardInput, zoneForPostcode, type RateCard,
+  rateCardFor, rateCardInput, zoneForPostcode, type FleetStopStatus, type RateCard,
 } from "@carres/shared/fleet";
+import type { PostgrestError } from "@supabase/supabase-js";
 import { deliveryGroupOf } from "@carres/shared/delivery-groups";
 import { requireOperation } from "../../lib/auth-guards";
 import { fail, parseJsonBody } from "../../lib/route-helpers";
@@ -66,6 +67,9 @@ router.get("/", async (c) => {
   for (const r of [lorriesR, crewR, leaveR, daysR, stopsR, posR]) if (r.error) return fail(c, r.error);
   type Row = Record<string, unknown>;
   const rows = (r: { data: unknown }) => (r.data ?? []) as Row[];
+  // The Last Mile board (one day) also shows each stop's DO and result.
+  const facts = from === to ? await stopFacts(sb, rows(stopsR), from) : null;
+  if (facts && "error" in facts) return fail(c, facts.error);
   return c.json({
     company,
     lorries: rows(lorriesR).map((r) => ({
@@ -82,12 +86,49 @@ router.get("/", async (c) => {
       so: r.so ?? null, customerName: r.customer_name, customerPhone: r.customer_phone ?? null,
       customerAddress: r.customer_address ?? null, confirmedTime: r.confirmed_time ?? null,
       expectedArrival: r.expected_arrival ? String(r.expected_arrival).slice(0, 5) : null, revenue: Number(r.revenue ?? 0),
+      ...(facts ? facts.get(`${r.order_id}|${Number(r.leg ?? 0)}`) ?? { doNumber: null, status: "scheduled" } : {}),
     })),
     positions: rows(posR).map((r) => ({
       vehicleId: r.vehicle_id, lat: Number(r.lat), lng: Number(r.lng), recordedAt: r.recorded_at, source: r.source,
     })),
   });
 });
+
+/**
+ * Each stop's live DO and its latest delivery attempt on or after the day
+ * (Houzs fleet-day stop status, #5094). One read each for the day's orders.
+ */
+export async function stopFacts(
+  sb: ReturnType<typeof userClient>,
+  stops: ReadonlyArray<Record<string, unknown>>,
+  day: string,
+): Promise<Map<string, { doNumber: string | null; status: FleetStopStatus }> | { error: PostgrestError }> {
+  const out = new Map<string, { doNumber: string | null; status: FleetStopStatus }>();
+  const ids = [...new Set(stops.map((s) => String(s.order_id)))];
+  if (ids.length === 0) return out;
+  const [dos, attempts] = await Promise.all([
+    sb.from("ops_delivery_orders").select("order_id, leg, do_number, issued_at").in("order_id", ids).is("voided_at", null),
+    sb.from("delivery_attempts").select("order_id, leg, result, recorded_at").in("order_id", ids).gte("recorded_at", `${day}T00:00:00+08:00`),
+  ]);
+  const error = dos.error ?? attempts.error;
+  if (error) return { error };
+  const key = (r: { order_id: unknown; leg: unknown }) => `${r.order_id}|${Number(r.leg ?? 0)}`;
+  const latest = <T extends Record<string, unknown>>(list: T[], at: keyof T) => {
+    const m = new Map<string, T>();
+    for (const r of list) {
+      const prev = m.get(key(r as never));
+      if (!prev || String(r[at]) > String(prev[at])) m.set(key(r as never), r);
+    }
+    return m;
+  };
+  const doOf = latest((dos.data ?? []) as Array<{ order_id: string; leg: number; do_number: string | null; issued_at: string }>, "issued_at");
+  const tryOf = latest((attempts.data ?? []) as Array<{ order_id: string; leg: number; result: FleetStopStatus; recorded_at: string }>, "recorded_at");
+  for (const s of stops) {
+    const k = key(s as never);
+    out.set(k, { doNumber: doOf.get(k)?.do_number ?? null, status: tryOf.get(k)?.result ?? "scheduled" });
+  }
+  return out;
+}
 
 router.post("/crew", async (c) => {
   const body = await parseJsonBody(c, fleetCrewConfirmInput);
