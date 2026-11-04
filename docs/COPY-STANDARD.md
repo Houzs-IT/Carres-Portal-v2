@@ -6274,3 +6274,22 @@ The row at the bottom of the side menu (above the person, beside `Settings`, on 
 | Procurement Overview empty and count words | `No goods received in this period.`, `{n} PIs` |
 | Supplier detail | `Open supplier` · `Back to Suppliers`; tabs `Details` · `Lead Times` · `Items` · `Purchase Orders`; `Production Days` · `Working days` · `Supplier work week` · `Change these on Purchasing Settings.` · `Set a number`; `Their code` · `Our code` · `Our name` |
 | New Supplier, Batch edit | `New Supplier` · `Name` · `Pickup` · `Own Logistics` · `Factory Pickup` · `Add Supplier`; `Batch edit` · `Payment Terms (days)` · `Channel` · `Leave as it is` · `Email` · `WhatsApp` · `Apply`; `{n} suppliers saved` · `{n} of {m} suppliers saved` |
+
+## Projects words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22; Jess was not part of this decision) · migration 0750 · BUILT ON BRANCH `houzs/projects-port`, NOT APPLIED
+
+Fairs, exhibitions and solo roadshows, following Houzs Projects. These words are admitted for the `Projects` side menu module and its `Project List` page.
+
+| Meaning | Use exactly |
+|---|---|
+| Module and page | `Projects` · `Project List` · `Project` |
+| List filters | `Live projects` · `Archived` · `All statuses` |
+| List and detail fields | `Code` · `Name` · `Status` · `Stage` · `Event type` · `Brand` · `State` · `Venue` · `Venue address` · `Organizer` · `Contractor` · `Booth no` · `Size (sqm)` · `Start` · `End` · `Days` · `PIC` · `Notes` · `None` |
+| Stages | `Draft` · `Setup` · `Live` · `Dismantle` · `Completed` |
+| Statuses | `Pending` · `Confirmed` · `Cancelled` |
+| Event types | `Exhibition` · `Solo` |
+| Buttons | `New project` · `Edit project` · `Save` · `Cancel` · `Archive` · `Unarchive` · `Add note` |
+| Form hints | `Leave empty to use STATE [BRAND] ORGANIZER @ VENUE.` · `Leave empty for a solo event.` |
+| Detail panels and activity | `Details` · `Activity` · `Write a note` · `No activity yet.` · activity rows `Created` · `Stage` · `Status` · `Archived` · `Unarchived` · `Note` |
+| Archived project | `This project is archived. Unarchive it to change its status.` |
+| Empty and failure | `No projects yet. Use New project to add the first fair or exhibition.` · `This page could not be loaded. Try again.` · `Not saved. Try again.` · `This project could not be found.` |
+| Refusals | `Unarchive the project to change its status.` · `That code is already used. Change the venue or date and save again.` |
