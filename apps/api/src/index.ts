@@ -33,6 +33,7 @@ import operationOrdersRouter from "./routes/operation/orders";
 import operationPartnersRouter from "./routes/operation/partners";
 import deliverySettingsRouter from "./routes/operation/delivery-settings";
 import fleetRouter from "./routes/operation/fleet";
+import projectsRouter from "./routes/operation/projects";
 import peopleWorkDaysRouter from "./routes/operation/people-work-days";
 import operationPosRouter from "./routes/operation/pos";
 import operationReceiveThreadsRouter from "./routes/operation/receive-threads";
@@ -298,6 +299,8 @@ api.route("/operation/partners", operationPartnersRouter);
 api.route("/operation/delivery-settings", deliverySettingsRouter);
 // 0724 · Carres own lorries (Weisiang's decision 2026-10-22, Houzs way).
 api.route("/operation/fleet", fleetRouter);
+// 0750 · Projects: fairs and exhibitions (Weisiang's decision 2026-10-22, Houzs way).
+api.route("/operation/projects", projectsRouter);
 // 0678 — the responsible person's recorded working week (People/HR), read-only.
 api.route("/operation/people", peopleWorkDaysRouter);
 api.route("/operation/pos", operationPosRouter);
