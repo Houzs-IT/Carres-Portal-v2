@@ -384,13 +384,14 @@ describe("Purchase Orders Register", () => {
     expect(within(dialog).getByRole("button", { name: "Issue consignment order" })).toBeDisabled();
   });
 
-  /* ONE ROW MENU — owner ruling 2026-10-05: `View · Print`. */
-  it("the row menu reads View · Print; View opens the read-first PO page", async () => {
+  /* ONE ROW MENU — owner ruling 2026-10-05: `View · Print`; Copy as new joins
+     it after the divider (Houzs HC-0149, Weisiang's decision 2026-10-22). */
+  it("the row menu reads View · Print · Copy as new; View opens the read-first PO page", async () => {
     useRealRegisterGrid = true;
     renderPage();
     fireEvent.contextMenu(await screen.findByTestId("grid-row-PO-20260828-4827"));
     const menu = screen.getByRole("menu", { name: "Row actions" });
-    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["View", "Print"]);
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["View", "Print", "Copy as new"]);
     expect(within(menu).queryByRole("menuitem", { name: "Download official PDF" })).not.toBeInTheDocument();
     fireEvent.click(within(menu).getByRole("menuitem", { name: "View" }));
     expect(await screen.findByTestId("purchase-order-object")).toBeInTheDocument();
@@ -427,7 +428,7 @@ describe("Purchase Orders Register", () => {
     renderPage();
     const cancelled = lastGridProps.rows.find((r: any) => r.id === "PO-LEGACY");
     expect(cancelled).toBeTruthy();
-    expect(lastGridProps.contextMenu(cancelled).map((i: any) => i.label)).toEqual(["View"]);
+    expect(lastGridProps.contextMenu(cancelled).map((i: any) => i.label)).toEqual(["View", undefined, "Copy as new"]);
   });
   it("real shared grid settles facet membership and opens an actual PO object", async () => {
     useRealRegisterGrid = true;
