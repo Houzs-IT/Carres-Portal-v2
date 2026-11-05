@@ -124,8 +124,21 @@ export const PJ = {
   noTransfers: "No stock transfers yet.",
   /* Slice 8: the Project List and Calendar views (Houzs). */
   projectViews: "Project views",
-  listView: "List",
   calendarView: "Calendar",
+  /* Houzs layout (Project List cards, tiles and rail; detail header and columns). */
+  cardsView: "Cards",
+  tableView: "Table",
+  allBrands: "All brands",
+  liveNow: "Live now",
+  liveNowHint: "Events running today",
+  upcoming30: "Upcoming (30 days)",
+  upcomingHint: "Starting in the next 30 days",
+  total: "Total",
+  shown: (n: number) => `${n} projects shown`,
+  upcoming: "Upcoming",
+  noUpcoming: "Nothing starts in the next 30 days.",
+  sectionDone: (done: number, total: number) => `${done}/${total}`,
+  otherTasks: "Other tasks",
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",
@@ -137,10 +150,10 @@ export const PJ = {
 /** Houzs status palette meaning: confirmed green, pending amber, cancelled red (projectStatus.tsx STATUS_TINT). */
 export const STATUS_TONE: Record<ProjectStatus, OrderActionTone> = { confirmed: "success", pending: "warning", cancelled: "danger" };
 
-export interface ProjectFilters { status: string; archived: boolean }
+export interface ProjectFilters { status: string; archived: boolean; brand?: string }
 
 export function useProjects(f: ProjectFilters) {
-  const qs = new URLSearchParams({ ...(f.status ? { status: f.status } : {}), ...(f.archived ? { archived: "1" } : {}) }).toString();
+  const qs = new URLSearchParams({ ...(f.status ? { status: f.status } : {}), ...(f.archived ? { archived: "1" } : {}), ...(f.brand ? { brand: f.brand } : {}) }).toString();
   return useQuery({
     queryKey: ["projects", "list", f],
     queryFn: () => apiFetch<{ projects: ProjectRow[] }>(`/api/operation/projects${qs ? `?${qs}` : ""}`),

@@ -142,6 +142,20 @@ export function projectDurationDays(startDate: string, endDate: string): number 
   return Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
+const plusDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Houzs Project List tiles and Upcoming rail (Projects.tsx ProjectsListView): "Live now" =
+ * running today, "Upcoming" = starting after today and within 30 days, soonest first.
+ * Cancelled projects count in neither.
+ */
+export function projectListSummary<T extends Pick<ProjectRow, "status" | "startDate" | "endDate">>(rows: readonly T[], today: string) {
+  const open = rows.filter((r) => r.status !== "cancelled");
+  const until = plusDays(today, 30);
+  const upcoming = open.filter((r) => r.startDate > today && r.startDate <= until).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  return { liveNow: open.filter((r) => r.startDate <= today && r.endDate >= today).length, upcoming };
+}
+
 /* ── Slice 2 (0751): Project Maintenance masters and the project team ──── */
 
 /** Houzs project_brands, project_venues, project_organizers, project_contractors,

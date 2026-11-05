@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, compareProjectsForCalendar, projectDateRange, projectDurationDays,
-  type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
+  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, compareProjectsForCalendar, projectDateRange, projectDurationDays, projectListSummary,
+  type ChecklistTask, type ProjectActivity, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
 import BarCalendar from "@/components/kit/BarCalendar";
@@ -13,6 +13,7 @@ import Drawer from "@/components/kit/Drawer";
 import Input from "@/components/kit/Input";
 import Loading from "@/components/kit/Loading";
 import Panel from "@/components/kit/Panel";
+import ScheduleCard from "@/components/kit/ScheduleCard";
 import Select from "@/components/kit/Select";
 import StatusPill from "@/components/kit/StatusPill";
 import { Step } from "@/components/kit/StepList";
@@ -23,6 +24,7 @@ import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
 import EvidenceUploadField from "@/components/EvidenceUploadField";
+import OperationKpiTile from "./components/OperationKpiTile";
 import { PJ, STATUS_TONE, openStockRecord, refusalOf, signStockRecord, useChecklistTemplates, useProject, useProjectMasters, useProjectSalesOrders, useProjectWrite, useProjects, useStaffOptions } from "./projects";
 
 /**
@@ -49,23 +51,28 @@ export function ProjectsPage() {
   );
 }
 
-/* ── Project List (Houzs Table view) ─────────────────────────────────────── */
+/* ── Project List (Houzs ProjectsListView: Cards, Table and Calendar) ────── */
+
+type ListView = "cards" | "table" | "calendar";
 
 function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   const [status, setStatus] = useState("");
   const [archived, setArchived] = useState(false);
+  const [brand, setBrand] = useState("");
   const [creating, setCreating] = useState(false);
-  // Houzs Project List and Calendar (slice 8): two views of one list, kept in the URL as Houzs
-  // keeps ?view and ?month, so opening a project and coming back lands on the same view.
+  // Houzs keeps ?view and ?month in the URL, so opening a project and coming back lands on
+  // the same view. Cards is Houzs's default; an unknown ?view falls back to it.
   const [params, setParams] = useSearchParams();
-  const calendar = params.get("view") === "calendar";
+  const raw = params.get("view");
+  const view: ListView = raw === "table" || raw === "calendar" ? raw : "cards";
   const month = params.get("month") ?? appTodayIso().slice(0, 7);
   const setParam = (key: string, value: string | null) => {
     const p = new URLSearchParams(params);
     if (value) p.set(key, value); else p.delete(key);
     setParams(p);
   };
-  const q = useProjects({ status, archived });
+  const q = useProjects({ status, archived, brand });
+  const brands = (useProjectMasters().data?.masters ?? []).filter((m) => m.kind === "brand" && m.active);
   if (q.isError) return <CouldNotLoad detail={PJ.failed} onRetry={() => void q.refetch()} />;
 
   const columns: DataGridColumn<ProjectRow>[] = [
@@ -84,10 +91,12 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   ];
   const toolbar = (
     <span className="flex items-center gap-2">
-      <Tabs variant="segmented" label={PJ.projectViews} value={calendar ? "calendar" : "list"} onValueChange={(v) => setParam("view", v === "calendar" ? v : null)}
-        tabs={[{ value: "list", label: PJ.listView }, { value: "calendar", label: PJ.calendarView }]} />
+      <Tabs variant="segmented" label={PJ.projectViews} value={view} onValueChange={(v) => setParam("view", v === "cards" ? null : v)}
+        tabs={[{ value: "cards", label: PJ.cardsView }, { value: "table", label: PJ.tableView }, { value: "calendar", label: PJ.calendarView }]} />
       <Select id="projects-archived" toolbar value={archived ? "archived" : "live"} onValueChange={(v) => setArchived(v === "archived")}
         options={[{ value: "live", label: PJ.live }, { value: "archived", label: PJ.archivedList }]} />
+      <Select id="projects-brand" toolbar value={brand || "all"} onValueChange={(v) => setBrand(v === "all" ? "" : v)}
+        options={[{ value: "all", label: PJ.allBrands }, ...brands.map((b) => ({ value: b.name, label: b.name }))]} />
       <Select id="projects-status" toolbar value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}
         options={[{ value: "all", label: PJ.allStatuses }, ...PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))]} />
       <Button size="sm" variant="primary" onClick={() => setCreating(true)}>{PJ.newProject}</Button>
@@ -95,7 +104,45 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   );
   const rows = q.data?.projects ?? [];
   const form = creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null;
-  if (calendar) {
+  if (view === "cards") {
+    const summary = projectListSummary(rows, appTodayIso());
+    return (
+      <ListPageShell toolbar={toolbar} testId="projects-cards">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <OperationKpiTile label={PJ.liveNow} value={summary.liveNow} hint={PJ.liveNowHint} accent={summary.liveNow ? "success" : "muted"} />
+            <OperationKpiTile label={PJ.upcoming30} value={summary.upcoming.length} hint={PJ.upcomingHint} accent={summary.upcoming.length ? "primary" : "muted"} />
+          </div>
+          <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            {!q.isSuccess ? <Loading variant="skeleton" /> : rows.length ? (
+              <ul className="flex min-w-0 flex-col gap-2" data-testid="projects-card-list">
+                {rows.map((p) => <li key={p.id}><ProjectCard p={p} onOpen={onOpen} /></li>)}
+              </ul>
+            ) : <p className="text-body text-c-secondary">{PJ.noProjects}</p>}
+            <div className="flex min-w-0 flex-col gap-3">
+              <Panel title={PJ.total}>
+                <p className="text-body text-c-secondary">{PJ.shown(rows.length)}</p>
+              </Panel>
+              <Panel title={PJ.upcoming}>
+                {summary.upcoming.length ? (
+                  <ul className="flex flex-col gap-2 text-body" data-testid="projects-upcoming">
+                    {summary.upcoming.slice(0, 6).map((p) => (
+                      <li key={p.id} className="flex gap-2">
+                        <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => onOpen(p.id)}>{p.name}</button>
+                        <span className="shrink-0 text-c-secondary">{fmtDate(p.startDate)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="text-body text-c-secondary">{PJ.noUpcoming}</p>}
+              </Panel>
+            </div>
+          </div>
+        </div>
+        {form}
+      </ListPageShell>
+    );
+  }
+  if (view === "calendar") {
     // Houzs ProjectsCalendarView: one bar per project, tinted by status, stacked in the Houzs order.
     const items = [...rows].sort(compareProjectsForCalendar).map((p) => ({
       id: p.id, start: p.startDate, end: p.endDate, label: p.name, tone: STATUS_TONE[p.status],
@@ -123,6 +170,23 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
         toolbarStart={toolbar} emptyMessage={PJ.noProjects} onRowClick={(r) => onOpen(r.id)} />
       {form}
     </ListPageShell>
+  );
+}
+
+/** Houzs ProjectsListParts card: code and status, the name, then brand, dates and PIC. */
+function ProjectCard({ p, onOpen }: { p: ProjectRow; onOpen: (id: string) => void }) {
+  return (
+    <ScheduleCard label={p.name} testId="project-card"
+      header={<>
+        <span className="min-w-0 truncate text-label text-c-secondary">{p.code}</span>
+        <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
+      </>}
+      footer={<span className="text-c-secondary">{PJ.stage}: {PJ.stages[p.stage]}</span>}>
+      <button type="button" className="min-w-0 break-words text-left text-strong text-c-ink" onClick={() => onOpen(p.id)}>{p.name}</button>
+      <span className="text-c-secondary">
+        {[p.brand, projectDateRange(p.startDate, p.endDate), p.picName ? `${PJ.pic} ${p.picName}` : ""].filter(Boolean).join(" · ")}
+      </span>
+    </ScheduleCard>
   );
 }
 
@@ -224,6 +288,15 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
     write.mutate({ path: own ? path : `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
   };
   const stageAt = PROJECT_STAGES.indexOf(p.stage);
+  const days = String(projectDurationDays(p.startDate, p.endDate));
+  // Houzs detail: the dates, size and booth sit in one strip above the columns; the rest below it.
+  const strip: Array<[string, string]> = [
+    [PJ.start, fmtDate(p.startDate)],
+    [PJ.end, fmtDate(p.endDate)],
+    [PJ.days, days],
+    [PJ.size, p.sizeSqm == null ? "" : String(p.sizeSqm)],
+    [PJ.boothNo, p.boothNo ?? ""],
+  ];
   const facts: Array<[string, string]> = [
     [PJ.code, p.code],
     [PJ.eventType, p.eventType ? PJ.eventTypes[p.eventType] : ""],
@@ -231,22 +304,24 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
     [PJ.organizer, p.organizer ?? ""],
     [PJ.venue, [p.venue, p.state].join(", ")],
     [PJ.venueAddress, p.venueAddress ?? ""],
-    [PJ.start, fmtDate(p.startDate)],
-    [PJ.end, fmtDate(p.endDate)],
-    [PJ.days, String(projectDurationDays(p.startDate, p.endDate))],
     [PJ.pic, p.picName ?? ""],
     [PJ.contractor, p.contractor ?? ""],
-    [PJ.boothNo, p.boothNo ?? ""],
-    [PJ.size, p.sizeSqm == null ? "" : String(p.sizeSqm)],
     [PJ.notes, p.notes ?? ""],
   ];
+  // Houzs subtitle under the title: stage · organizer · venue · N days.
+  const subtitle = [PJ.stages[p.stage], p.organizer, p.venue, `${days} ${PJ.days.toLowerCase()}`].filter(Boolean).join(" · ");
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4" data-testid="project-detail">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-start gap-3">
         <Button size="sm" onClick={onBack}>{PJ.back}</Button>
-        <span className="text-strong text-c-ink">{p.name}</span>
-        <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
-        <span className="ml-auto flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <h2 className="min-w-0 break-words text-title text-c-ink">{p.name}</h2>
+            <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
+          </span>
+          <p className="text-body text-c-secondary">{subtitle}</p>
+        </div>
+        <span className="flex flex-wrap items-center gap-2">
           <Select id="project-status" toolbar disabled={archived} value={p.status}
             onValueChange={(v) => act("", { status: v as ProjectStatus }, "PATCH")}
             options={PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))} />
@@ -259,7 +334,8 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
       {message ? <p role="alert" className="text-body">{message}</p> : null}
 
       <Panel title={PJ.stage}>
-        <div className="flex flex-col" data-testid="project-stages">
+        {/* Houzs stage stepper runs across the page, one step per stage. */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-5" data-testid="project-stages">
           {PROJECT_STAGES.map((s: ProjectStage, i) => (
             <Step key={s} n={i + 1} title={PJ.stages[s]} state={i < stageAt ? "done" : i === stageAt ? "current" : "pending"}
               action={i !== stageAt ? <Button size="sm" onClick={() => act("", { stage: s }, "PATCH")}>{PJ.stages[s]}</Button> : undefined} />
@@ -268,29 +344,49 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
       </Panel>
 
       <Panel title={PJ.details}>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-body md:grid-cols-2">
-          {facts.filter(([, v]) => v).map(([k, v]) => (
-            <div key={k} className="flex gap-2"><dt className="w-32 shrink-0 text-c-secondary">{k}</dt><dd className="min-w-0 break-words">{v}</dd></div>
-          ))}
-        </dl>
+        <div className="flex flex-col gap-3">
+          <dl className="grid grid-cols-2 gap-3 text-body md:grid-cols-5" data-testid="project-strip">
+            {strip.map(([k, v]) => (
+              <div key={k} className="flex min-w-0 flex-col"><dt className="text-label text-c-secondary">{k}</dt><dd className="break-words">{v || "—"}</dd></div>
+            ))}
+          </dl>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 border-t border-border pt-3 text-body md:grid-cols-2">
+            {facts.filter(([, v]) => v).map(([k, v]) => (
+              <div key={k} className="flex gap-2"><dt className="w-32 shrink-0 text-c-secondary">{k}</dt><dd className="min-w-0 break-words">{v}</dd></div>
+            ))}
+          </dl>
+        </div>
       </Panel>
 
-      <SalesOrdersPanel projectId={p.id} act={act} busy={write.isPending} />
+      {/* Houzs two columns: sales and the tasklist on the left, the team and the event's notes on the right. */}
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <SalesOrdersPanel projectId={p.id} act={act} busy={write.isPending} />
+          <StockTransfersPanel projectId={p.id} transfers={stockTransfers} act={act} busy={write.isPending} onFail={setMessage} />
+          <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <TeamPanel team={team} act={act} busy={write.isPending} />
+          <ActivityPanel activity={activity} note={note} setNote={setNote} busy={write.isPending}
+            onAdd={() => act("/notes", { note: note.trim() }, "POST", () => setNote(""))} />
+        </div>
+      </div>
+      {editing ? <ProjectForm project={p} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} /> : null}
+    </div>
+  );
+}
 
-      <StockTransfersPanel projectId={p.id} transfers={stockTransfers} act={act} busy={write.isPending} onFail={setMessage} />
-
-      <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
-
-      <TeamPanel team={team} act={act} busy={write.isPending} />
-
+function ActivityPanel({ activity, note, setNote, busy, onAdd }: {
+  activity: ProjectActivity[]; note: string; setNote: (v: string) => void; busy: boolean; onAdd: () => void;
+}) {
+  return (
       <Panel title={PJ.activity}>
         <div className="flex flex-col gap-3">
           <span className="flex items-end gap-2">
             <span className="flex-1">
               <Textarea id="project-note" rows={2} placeholder={PJ.notePlaceholder} value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
             </span>
-            <Button size="sm" variant="primary" disabled={!note.trim()} loading={write.isPending}
-              onClick={() => act("/notes", { note: note.trim() }, "POST", () => setNote(""))}>{PJ.addNote}</Button>
+            <Button size="sm" variant="primary" disabled={!note.trim()} loading={busy} onClick={onAdd}>{PJ.addNote}</Button>
           </span>
           {activity.length ? (
             <ul className="flex flex-col gap-2 text-body" data-testid="project-activity">
@@ -311,8 +407,6 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
           ) : <p className="text-body text-c-secondary">{PJ.noActivity}</p>}
         </div>
       </Panel>
-      {editing ? <ProjectForm project={p} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} /> : null}
-    </div>
   );
 }
 
@@ -424,11 +518,18 @@ function ChecklistPanel({ startDate, tasks, act, busy }: { startDate: string; ta
             <Button size="sm" disabled={!templateId} loading={busy} onClick={() => act("/checklist/apply", { templateId }, "POST", () => setTemplateId(""))}>{PJ.applyTemplate}</Button>
           </span>
         ) : null}
-        {sections.map((s) => (
-          <div key={s} className="flex flex-col gap-1">
-            {s ? <span className="text-strong text-c-ink">{s}</span> : null}
+        {sections.map((s) => {
+          const inSection = tasks.filter((t) => (t.section ?? "") === s);
+          const finished = inSection.filter((t) => t.status === "done" || t.status === "na").length;
+          return (
+          <div key={s} className="flex flex-col gap-1 rounded-card border border-border p-2">
+            {/* Houzs tasklist: each section is a block with its done count at the right. */}
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 break-words text-strong text-c-ink">{s || PJ.otherTasks}</span>
+              <span className="text-body text-c-secondary">{PJ.sectionDone(finished, inSection.length)}</span>
+            </span>
             <ul className="flex flex-col gap-1 text-body">
-              {tasks.filter((t) => (t.section ?? "") === s).map((t) => {
+              {inSection.map((t) => {
                 const due = checklistDueDate(startDate, t.dueOffsetDays);
                 return (
                   <li key={t.id} className="flex flex-wrap items-center gap-2">
@@ -443,7 +544,8 @@ function ChecklistPanel({ startDate, tasks, act, busy }: { startDate: string; ta
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
         {!tasks.length ? <p className="text-body text-c-secondary">{PJ.noChecklist}</p> : null}
         <span className="flex flex-wrap items-end gap-2">
           <Input id="project-task-section" label={PJ.section} maxLength={80} value={section} onChange={(e) => setSection(e.target.value)} />
