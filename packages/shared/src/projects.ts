@@ -297,3 +297,47 @@ export function compareProjectsForCalendar(
     (a.brand ?? "").localeCompare(b.brand ?? "")
   );
 }
+
+/* ── Slice 6 (0757): stock out to the fair and back (Houzs project_stock_transfers) ── */
+
+export const STOCK_TRANSFER_DIRECTIONS = ["out", "return"] as const;
+export type StockTransferDirection = (typeof STOCK_TRANSFER_DIRECTIONS)[number];
+
+/** The transfer sheet file: private bucket, 10 MB, a photo or a PDF (Houzs also takes xlsx). */
+export const PROJECT_STOCK_RECORD_BUCKET = "project-stock-records";
+export const PROJECT_STOCK_RECORD_MAX_BYTES = 10 * 1024 * 1024;
+export const PROJECT_STOCK_RECORD_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
+export const PROJECT_STOCK_RECORD_EXT: Record<(typeof PROJECT_STOCK_RECORD_MIME)[number], string> = {
+  "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+};
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+/** `{projectId}/{uuid}.{ext}`; the server names every key. */
+export const PROJECT_STOCK_RECORD_PATH = new RegExp(`^${UUID}/${UUID}\.(pdf|jpg|png|webp)$`);
+
+export const stockRecordSignInput = z.object({
+  mimeType: z.enum(PROJECT_STOCK_RECORD_MIME),
+  sizeBytes: z.number().int().positive().max(PROJECT_STOCK_RECORD_MAX_BYTES),
+});
+
+/** Houzs POST /:id/stock-transfers: direction required; an empty day means today in Malaysia. */
+export const stockTransferInput = z.object({
+  direction: z.enum(STOCK_TRANSFER_DIRECTIONS),
+  transferredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().transform((v) => v ?? null),
+  recordPath: z.string().regex(PROJECT_STOCK_RECORD_PATH).nullish().transform((v) => v ?? null),
+  fileName: optText(200),
+  mimeType: z.enum(PROJECT_STOCK_RECORD_MIME).nullish().transform((v) => v ?? null),
+  notes: optText(1000),
+}).refine((v) => !v.recordPath || v.mimeType, { message: "mimeType goes with recordPath", path: ["mimeType"] });
+
+export interface ProjectStockTransfer {
+  id: string;
+  direction: StockTransferDirection;
+  transferredAt: string;
+  recordPath: string | null;
+  fileName: string | null;
+  notes: string | null;
+  confirmedAt: string | null;
+  confirmedByName: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}

@@ -147,4 +147,41 @@ describe("/api/operation/projects", () => {
     expect((await post("/projects/p1/sales-orders", { so: "SO-1" })).status).toBe(201);
     expect(calls.find((c) => c.table === "rpc")).toEqual({ table: "rpc", op: "project_link_order", args: [{ p_order: "o1", p_project: "p1" }] });
   });
+
+  const PID = "11111111-2222-4333-8444-555555555555";
+  it("adds a stock transfer with today left to the database, and refuses a file from another project (0757)", async () => {
+    results.project_stock_transfers = [{ data: { id: "x1" }, error: null }];
+    const res = await post(`/projects/${PID}/stock-transfers`, { direction: "out", notes: "Sofa set" });
+    expect(res.status).toBe(201);
+    expect(calls.find((c) => c.op === "insert")!.args[0]).toEqual({
+      project_id: PID, direction: "out", record_path: null, file_name: null, mime_type: null, notes: "Sofa set",
+    });
+    const other = "99999999-2222-4333-8444-555555555555";
+    expect((await post(`/projects/${PID}/stock-transfers`, { direction: "return", recordPath: `${other}/${other}.pdf`, mimeType: "application/pdf" })).status).toBe(422);
+    expect((await post(`/projects/${PID}/stock-transfers`, { direction: "sideways" })).status).toBe(422);
+  });
+
+  it("confirms, unconfirms and archives only a live transfer (0757)", async () => {
+    results.project_stock_transfers = [{ data: { id: "x1" }, error: null }, { data: { id: "x1" }, error: null }, { data: null, error: null }];
+    expect((await post("/projects/stock-transfers/x1/confirm", {})).status).toBe(200);
+    expect(calls.find((c) => c.op === "update")!.args[0]).toMatchObject({ confirmed_at: expect.any(String) });
+    calls.length = 0;
+    expect((await post("/projects/stock-transfers/x1/unconfirm", {})).status).toBe(200);
+    expect(calls.find((c) => c.op === "update")!.args[0]).toEqual({ confirmed_at: null });
+    expect(calls).toContainEqual({ table: "project_stock_transfers", op: "is", args: ["archived_at", null] });
+    expect((await post("/projects/stock-transfers/x9", undefined, "DELETE")).status).toBe(404);
+    expect(calls.some((c) => c.table === "projects")).toBe(false);
+  });
+
+  it("lists a project's live transfers on its detail read (0757)", async () => {
+    results.projects = [{ data: row, error: null }];
+    results.project_stock_transfers = [{ data: [{ id: "x1", direction: "out", transferred_at: "2026-12-02", record_path: null, file_name: null, notes: null, confirmed_at: null, created_at: "2026-11-03T00:00:00Z", by: { name: "Ali" }, checker: null }], error: null }];
+    const res = await app().request("/projects/p1");
+    expect(await res.json()).toMatchObject({ stockTransfers: [{ id: "x1", direction: "out", transferredAt: "2026-12-02", createdByName: "Ali", confirmedByName: null }] });
+  });
+
+  it("names the record key itself and refuses a bad file path (0757)", async () => {
+    expect((await post(`/projects/${PID}/stock-transfers/sign`, { mimeType: "text/plain", sizeBytes: 10 })).status).toBe(422);
+    expect((await app().request("/projects/stock-transfers/file?path=../x.pdf")).status).toBe(422);
+  });
 });

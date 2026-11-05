@@ -54,7 +54,7 @@ dropped [code: docs/modules/projects-pms.md:120-131]. Row security replaces the 
 | `project_checklist_templates`, `_template_sections`, `_template_items`, `project_checklist_sections`, `project_checklist`, `project_checklist_comments` | Houzs checklist set [code: schema.pg.ts:541-631; migrations/024_pms_notion_parity.sql] | 3 |
 | `orders.project_id` (nullable FK) | `scm.mfg_sales_orders.project_id` [code: migrations-pg/0146_scm_so_project_id.sql] | 4 |
 | `project_finance`, `project_finance_lines`, `project_cost_rates` | Houzs finance [code: schema.pg.ts:531-539, 1169-1198] | 5 |
-| `project_stock_transfers` | `project_stock_transfers`, plus `warehouse_id` → Carres `warehouses` [code: migrations/026_payment_and_stock.sql] | 6 |
+| `project_stock_transfers` (0757), `project_checklist.stock_transfer_id` | `project_stock_transfers` as Houzs has it: no item, quantity or warehouse, so it moves no stock (YH 3 Nov 2026: all follow Houzs) [code: migrations/026_payment_and_stock.sql:32-55] | 6 |
 
 ## 3. Routes in `carres-portal-v2-api`
 
@@ -68,7 +68,7 @@ caller's own token reaches the tables (`userClient`), the same as `operation/fle
 | 3 | `GET/POST /checklist-templates`, `PATCH /checklist-templates/:tid`, `POST /checklist-templates/:tid/items`, `DELETE /checklist-template-items/:iid`, `POST /:id/checklist`, `POST /:id/checklist/apply`, `POST /checklist/:taskId/status`, `DELETE /checklist/:taskId` (sections are a text label on the task; no templates seeded, Houzs seed titles carry dashes) |
 | 4 | `GET /:id/sales-orders` (orders with `project_id`, money from the shared `orderMoney`, which reads `orders.paid`), `POST /:id/sales-orders {so}`, `DELETE /:id/sales-orders/:orderId`, both through `project_link_order` |
 | 5 | `PATCH /:id/finance`, `POST /:id/finance/lines`, `PATCH/DELETE /finance/lines/:lineId`, `GET /cost-rates`, `PUT /cost-rates/:brand` |
-| 6 | `POST /:id/stock-transfers`, `POST /stock-transfers/:tid/confirm`, `/unconfirm`, `DELETE /stock-transfers/:tid` |
+| 6 | `POST /:id/stock-transfers`, `POST /:id/stock-transfers/sign`, `GET /stock-transfers/file`, `POST /stock-transfers/:tid/confirm`, `/unconfirm`, `DELETE /stock-transfers/:tid` (archives) |
 | 7 | none: the sheet is drawn in the browser with the Carres PDF kit (`lib/pdf/project-sheet-template.tsx`) from the reads the project page already holds, so no second read can disagree with the screen |
 
 ## 4. Permissions (Houzs → Carres)
@@ -104,7 +104,7 @@ row security. Mapping:
    neither side of a reversal, plus vouchers checked and not yet approved), lets a row the books fill
    replace its typed lines, and shows the two P&Ls (By Total Sales, By Sales Orders) with brand rate
    cards. Money is visible to Finance and the principal only (gl_may_read).
-6. **Stock transfers.** Stock out to the fair / return, by Carres warehouse, confirm / unconfirm.
+6. **Stock transfers.** Stock out to the fair / return as a record with a day, a transfer sheet file and notes; confirm / unconfirm; each one mirrors into one checklist task. The goods themselves still move through the Stock Transfer door.
 7. **Print.** Project sheet.
 8. **Calendar view.** The Project List offers `List` · `Calendar`; Calendar is the Houzs bar grid, drawn
    by the kit `BarCalendar` admitted for it (bars tinted by status, Houzs state order, click opens the

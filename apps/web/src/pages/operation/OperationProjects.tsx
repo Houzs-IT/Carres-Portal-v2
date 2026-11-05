@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, compareProjectsForCalendar, projectDateRange, projectDurationDays,
-  type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectTeamMember,
+  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, compareProjectsForCalendar, projectDateRange, projectDurationDays,
+  type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
 import BarCalendar from "@/components/kit/BarCalendar";
@@ -22,7 +22,8 @@ import { appTodayIso, fmtDate } from "@/lib/fmt-date";
 import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
-import { PJ, STATUS_TONE, refusalOf, useChecklistTemplates, useProject, useProjectMasters, useProjectSalesOrders, useProjectWrite, useProjects, useStaffOptions } from "./projects";
+import EvidenceUploadField from "@/components/EvidenceUploadField";
+import { PJ, STATUS_TONE, openStockRecord, refusalOf, signStockRecord, useChecklistTemplates, useProject, useProjectMasters, useProjectSalesOrders, useProjectWrite, useProjects, useStaffOptions } from "./projects";
 
 /**
  * Projects (0750): Project List, create and detail. Follows Houzs
@@ -214,12 +215,12 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   if (q.isError) return <CouldNotLoad detail={(q.error as { status?: number })?.status === 404 ? PJ.notFound : PJ.failed} onRetry={() => void q.refetch()} />;
   if (!q.data) return null;
-  const { project: p, activity, team, checklist } = q.data;
+  const { project: p, activity, team, checklist, stockTransfers = [] } = q.data;
   const archived = !!p.archivedAt;
   const act: Act = (path, body, method = "POST", done) => {
     setMessage(null);
-    // `/team/<id>` and `/checklist/<id>/...` are not under the project; every other door is.
-    const own = path.startsWith("/team/") || (path.startsWith("/checklist/") && path !== "/checklist/apply");
+    // `/team/<id>`, `/checklist/<id>/...` and `/stock-transfers/<id>...` are not under the project; every other door is.
+    const own = path.startsWith("/team/") || path.startsWith("/stock-transfers/") || (path.startsWith("/checklist/") && path !== "/checklist/apply");
     write.mutate({ path: own ? path : `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
   };
   const stageAt = PROJECT_STAGES.indexOf(p.stage);
@@ -276,6 +277,8 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
       <SalesOrdersPanel projectId={p.id} act={act} busy={write.isPending} />
 
+      <StockTransfersPanel projectId={p.id} transfers={stockTransfers} act={act} busy={write.isPending} onFail={setMessage} />
+
       <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
 
       <TeamPanel team={team} act={act} busy={write.isPending} />
@@ -298,6 +301,7 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
                     {PJ.actions[a.action] ?? a.action}
                     {a.action === "stage_change" && a.toValue ? `: ${PJ.stages[a.toValue as ProjectStage] ?? a.toValue}` : ""}
                     {a.action === "status_change" && a.toValue ? `: ${PJ.statuses[a.toValue as ProjectStatus] ?? a.toValue}` : ""}
+                    {a.action.startsWith("stock_transfer_") && a.toValue ? `: ${PJ.directions[a.toValue as StockTransferDirection] ?? a.toValue}` : ""}
                     {a.note ? `: ${a.note}` : ""}
                     {a.byName ? <span className="text-c-secondary">{` · ${a.byName}`}</span> : null}
                   </span>
@@ -550,6 +554,62 @@ function SalesOrdersPanel({ projectId, act, busy }: { projectId: string; act: Ac
             ))}
           </ul>
         ) : <p className="text-body text-c-secondary">{PJ.noSalesOrders}</p>}
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Stock out to the fair and back (slice 6, Houzs project_stock_transfers: OUT and RETURN, confirm) ── */
+
+function StockTransfersPanel({ projectId, transfers, act, busy, onFail }: {
+  projectId: string; transfers: ProjectStockTransfer[]; act: Act; busy: boolean; onFail: (m: string | null) => void;
+}) {
+  const [direction, setDirection] = useState<StockTransferDirection>("out");
+  const [day, setDay] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [files, setFiles] = useState<Array<{ path: string; kind: string }>>([]);
+  // The field only knows the path; keep the picked file's name and type beside it for the record.
+  const picked = useRef<Record<string, { name: string; type: string }>>({}).current;
+  const sign = async (file: File) => {
+    const slot = await signStockRecord(projectId, file);
+    picked[slot.path] = { name: file.name, type: file.type };
+    return slot;
+  };
+  const file = files[0];
+  const add = () => act("/stock-transfers", {
+    direction, transferredAt: day, notes: notes.trim() || null,
+    recordPath: file?.path ?? null, fileName: file ? picked[file.path]?.name ?? null : null, mimeType: file ? picked[file.path]?.type ?? null : null,
+  }, "POST", () => { setDay(null); setNotes(""); setFiles([]); });
+  const open = (path: string) => { onFail(null); openStockRecord(path).catch(() => onFail(PJ.fileFailed)); };
+  return (
+    <Panel title={PJ.stockTransfers}>
+      <div className="flex flex-col gap-3" data-testid="project-stock-transfers">
+        <p className="text-body text-c-secondary">{PJ.recordOnly}</p>
+        <span className="flex flex-wrap items-end gap-2">
+          <Select id="project-transfer-direction" label={PJ.direction} value={direction} onValueChange={(v) => setDirection(v as StockTransferDirection)}
+            options={STOCK_TRANSFER_DIRECTIONS.map((d) => ({ value: d, label: PJ.directions[d] }))} />
+          <DatePicker id="project-transfer-date" label={PJ.transferDate} hint={PJ.transferDateHint} value={day} onChange={setDay} />
+          <Input id="project-transfer-notes" label={PJ.notes} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </span>
+        <EvidenceUploadField entries={files} onChange={setFiles} sign={sign} bucket={PROJECT_STOCK_RECORD_BUCKET}
+          imageMimes={["image/jpeg", "image/png", "image/webp"]} videoMimes={[]} pdfMimes={["application/pdf"]}
+          imageMaxBytes={PROJECT_STOCK_RECORD_MAX_BYTES} videoMaxBytes={PROJECT_STOCK_RECORD_MAX_BYTES} maxFiles={1} ariaLabel={PJ.transferSheet} disabled={busy} />
+        <span><Button size="sm" variant="primary" loading={busy} onClick={add}>{PJ.addTransfer}</Button></span>
+        {transfers.length ? (
+          <ul className="flex flex-col gap-2 text-body">
+            {transfers.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={t.direction === "out" ? "info" : "neutral"}>{PJ.directions[t.direction]}</StatusPill>
+                <span className="w-28 shrink-0">{fmtDate(t.transferredAt)}</span>
+                <span className="min-w-0 flex-1 break-words">{t.notes ?? ""}{t.createdByName ? <span className="text-c-secondary">{` · ${t.createdByName}`}</span> : null}</span>
+                {t.confirmedAt ? <StatusPill tone="success">{PJ.confirmedBy(t.confirmedByName)}</StatusPill> : <StatusPill tone="warning">{PJ.notConfirmed}</StatusPill>}
+                {t.recordPath ? <Button size="sm" onClick={() => open(t.recordPath!)}>{PJ.openFile}</Button> : null}
+                <Button size="sm" onClick={() => act(`/stock-transfers/${t.id}/${t.confirmedAt ? "unconfirm" : "confirm"}`)}>{t.confirmedAt ? PJ.unconfirm : PJ.confirm}</Button>
+                <Button size="sm" onClick={() => act(`/stock-transfers/${t.id}`, undefined, "DELETE")}>{PJ.remove}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-body text-c-secondary">{PJ.noTransfers}</p>}
       </div>
     </Panel>
   );
