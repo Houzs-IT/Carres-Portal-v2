@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, projectDurationDays,
+  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, projectDayCounts, projectDurationDays, projectRunsOn,
   type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectTeamMember,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
+import { SectionCard } from "@/components/SectionPanel";
+import MonthCalendar from "@/components/kit/MonthCalendar";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
 import DatePicker from "@/components/kit/DatePicker";
@@ -15,7 +17,7 @@ import Select from "@/components/kit/Select";
 import StatusPill from "@/components/kit/StatusPill";
 import { Step } from "@/components/kit/StepList";
 import Textarea from "@/components/kit/Textarea";
-import { fmtDate } from "@/lib/fmt-date";
+import { appTodayIso, fmtDate } from "@/lib/fmt-date";
 import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
@@ -51,6 +53,10 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   const [status, setStatus] = useState("");
   const [archived, setArchived] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Houzs calendar view, drawn with the kit month (slice 8): each day counts the projects
+  // running that day, and picking a day narrows the list to them. Picking it again clears.
+  const [month, setMonth] = useState(() => appTodayIso().slice(0, 7));
+  const [day, setDay] = useState<string | null>(null);
   const q = useProjects({ status, archived });
   if (q.isError) return <CouldNotLoad detail={PJ.failed} onRetry={() => void q.refetch()} />;
 
@@ -74,16 +80,29 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
         options={[{ value: "live", label: PJ.live }, { value: "archived", label: PJ.archivedList }]} />
       <Select id="projects-status" toolbar value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}
         options={[{ value: "all", label: PJ.allStatuses }, ...PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))]} />
+      {day ? <Button size="sm" onClick={() => setDay(null)}>{PJ.allDates}</Button> : null}
       <Button size="sm" variant="primary" onClick={() => setCreating(true)}>{PJ.newProject}</Button>
     </span>
   );
+  const all = q.data?.projects ?? [];
+  const rows = day ? all.filter((p) => projectRunsOn(p, day)) : all;
   return (
-    <ListPageShell register>
-      <DataGrid rows={q.data?.projects ?? []} columns={columns} rowKey={(r) => r.id} storageKey="carres.operation.projects.v1"
-        appearance="reference" exportName={PJ.projectList} groupBanner={false} isLoading={!q.isSuccess}
-        toolbarStart={toolbar} emptyMessage={PJ.noProjects} onRowClick={(r) => onOpen(r.id)} />
-      {creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null}
-    </ListPageShell>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row" data-testid="projects-with-calendar">
+      <div className="w-full shrink-0 px-4 pt-4 md:w-[240px] md:pr-0">
+        <SectionCard><div className="p-3" data-testid="projects-month">
+          <MonthCalendar month={month} onMonthChange={setMonth} selected={day} onSelect={setDay}
+            markers={projectDayCounts(all, month)} markerWord="project" testId="projects-month-grid" />
+        </div></SectionCard>
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <ListPageShell register>
+          <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} storageKey="carres.operation.projects.v1"
+            appearance="reference" exportName={PJ.projectList} groupBanner={false} isLoading={!q.isSuccess}
+            toolbarStart={toolbar} emptyMessage={PJ.noProjects} onRowClick={(r) => onOpen(r.id)} />
+          {creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null}
+        </ListPageShell>
+      </div>
+    </div>
   );
 }
 

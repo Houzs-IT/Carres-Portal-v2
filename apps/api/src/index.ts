@@ -156,6 +156,7 @@ import opsTasksRouter from "./routes/ops/tasks";
 import annotationsRouter, { escalationsRouter } from "./routes/operation/annotations";
 // Order activity history (P1) — the global cross-order activity feed.
 import activityRouter from "./routes/operation/activity";
+import priceAfterDoRouter from "./routes/operation/price-after-do";
 // Migration 0223 — Stripe online collection (POS checkout links + webhook).
 import stripeCheckoutRouter from "./routes/stripe-checkout";
 import stripeWebhookRouter from "./routes/stripe-webhook";
@@ -402,6 +403,7 @@ api.route("/operation/internal-tasks", internalTasksRouter);
 api.route("/operation/orders", annotationsRouter);
 api.route("/operation/escalations", escalationsRouter);
 api.route("/operation/activity", activityRouter);
+api.route("/operation/order-lines", priceAfterDoRouter);
 // 0247-0249 — Rental + Service Plan base (config CRUD + registry reads)
 api.route("/rental", rentalRouter);
 

@@ -101,7 +101,9 @@ row security. Mapping:
    principal and finance only.
 6. **Stock transfers.** Stock out to the fair / return, by Carres warehouse, confirm / unconfirm.
 7. **Print.** Project sheet.
-8. **Calendar view** (month grid, status colours) once slice 1 is in use.
+8. **Calendar view.** Built with the kit `MonthCalendar` beside the Project List: each day counts the
+   projects running that day and picking a day narrows the list. The Houzs bar grid with status colours
+   needs a new kit component, which the one kit law does not let a page draw inline.
 
 ## 6. Left out (does not fit Carres, not built)
 
