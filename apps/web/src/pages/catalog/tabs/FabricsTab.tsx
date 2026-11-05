@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Edit3, History, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import type { CatalogFabricDto, CatalogResponse, FabricTier, ProductModelDto } from "@carres/shared";
+import type { BedframeTier, CatalogFabricDto, CatalogResponse, FabricTier, ProductModelDto } from "@carres/shared";
 import { ApiError } from "@/lib/api";
 import {
   useBatchSaveCatalogFabrics,
@@ -39,7 +39,15 @@ import Loading from "@/components/kit/Loading";
 
 type FabricsKey = "fabrics" | "pricing";
 
-const TIER_CYCLE: Record<FabricTier, FabricTier> = {
+/* Sofa runs to Price 4 (Full Leather); bedframe stops at Price 3, as in Houzs
+   [Houzs-ERP frontend/src/vendor/scm/lib/fabric-csv.ts:69,136]. */
+const SOFA_CYCLE: Record<FabricTier, FabricTier> = {
+  PRICE_1: "PRICE_2",
+  PRICE_2: "PRICE_3",
+  PRICE_3: "PRICE_4",
+  PRICE_4: "PRICE_1",
+};
+const BEDFRAME_CYCLE: Record<BedframeTier, BedframeTier> = {
   PRICE_1: "PRICE_2",
   PRICE_2: "PRICE_3",
   PRICE_3: "PRICE_1",
@@ -62,7 +70,7 @@ interface DraftRow {
   description: string;
   supplierCode: string;
   sofaTier: FabricTier;
-  bedframeTier: FabricTier;
+  bedframeTier: BedframeTier;
   active: boolean;
   stock?: FabricCsvRow["stock"];
 }
@@ -628,7 +636,7 @@ function FabricsPanel({
               description: "",
               supplierCode: "",
               sofaTier: "PRICE_2" as FabricTier,
-              bedframeTier: "PRICE_2" as FabricTier,
+              bedframeTier: "PRICE_2" as BedframeTier,
               active: true,
             },
           ]
@@ -641,7 +649,9 @@ function FabricsPanel({
   // changed), stamping a descriptive history note.
   function cycleTier(f: CatalogFabricDto, field: "sofaTier" | "bedframeTier") {
     if (save.isPending) return;
-    const next = TIER_CYCLE[f[field]];
+    const nextSofa = field === "sofaTier" ? SOFA_CYCLE[f.sofaTier] : f.sofaTier;
+    const nextBedframe = field === "bedframeTier" ? BEDFRAME_CYCLE[f.bedframeTier] : f.bedframeTier;
+    const next = field === "sofaTier" ? nextSofa : nextBedframe;
     const side = field === "sofaTier" ? "Sofa" : "Bedframe";
     save.mutate(
       {
@@ -650,8 +660,8 @@ function FabricsPanel({
           series: x.series,
           description: x.description,
           supplierCode: x.supplierCode,
-          sofaTier: x.id === f.id && field === "sofaTier" ? next : x.sofaTier,
-          bedframeTier: x.id === f.id && field === "bedframeTier" ? next : x.bedframeTier,
+          sofaTier: x.id === f.id ? nextSofa : x.sofaTier,
+          bedframeTier: x.id === f.id ? nextBedframe : x.bedframeTier,
           active: x.active,
         })),
         notes: `${f.fabricCode} ${side} tier → ${tierLabel(next)}`,
@@ -939,16 +949,16 @@ function FabricsPanel({
               />
               <button
                 type="button"
-                onClick={() => patchRow(i, { sofaTier: TIER_CYCLE[r.sofaTier] })}
+                onClick={() => patchRow(i, { sofaTier: SOFA_CYCLE[r.sofaTier] })}
                 className="justify-self-start"
                 aria-label={`row ${i + 1} sofa tier — ${tierLabel(r.sofaTier)}, click to change`}
-                title="Click to cycle Price 1 → 2 → 3"
+                title="Click to cycle Price 1 → 2 → 3 → 4"
               >
                 <TierPill tier={r.sofaTier} />
               </button>
               <button
                 type="button"
-                onClick={() => patchRow(i, { bedframeTier: TIER_CYCLE[r.bedframeTier] })}
+                onClick={() => patchRow(i, { bedframeTier: BEDFRAME_CYCLE[r.bedframeTier] })}
                 className="justify-self-start"
                 aria-label={`row ${i + 1} bedframe tier — ${tierLabel(r.bedframeTier)}, click to change`}
                 title="Click to cycle Price 1 → 2 → 3"
