@@ -43,12 +43,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - name: Repeat authoritative checks on the deployed SHA
+      # The full test suite (about 15 minutes) already ran on the PR head in ci.yml, and the
+      # merge gate requires it green. The deploy keeps the fast gate on the exact merged SHA:
+      # migration law, design guards, type checks and the build that is uploaded below.
+      - name: Fast checks on the deployed SHA (tests ran on the PR)
         run: |
           pnpm ci:migrations
           pnpm lint
           pnpm typecheck
-          pnpm test
           pnpm build
       - name: Deploy both Pages projects from this SHA
         working-directory: apps/api
