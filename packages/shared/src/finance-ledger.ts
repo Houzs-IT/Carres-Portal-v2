@@ -90,6 +90,10 @@ export interface LedgerAccount {
   /** 0656: AutoCount's special account type (SFA, SAD, SBK ...), shown beside
    *  the name. Absent before 0656. */
   special?: string | null;
+  /** 0754 (Houzs needs_event): a bill or voucher line on it needs its project. Absent before 0754. */
+  needs_project?: boolean;
+  /** 0754 (Houzs pms_row): the project money row it fills. Absent before 0754. */
+  project_row?: string | null;
 }
 
 /** 0656: one of AutoCount's sections, in AutoCount's order. */

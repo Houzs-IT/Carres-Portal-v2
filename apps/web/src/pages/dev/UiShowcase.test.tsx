@@ -16,7 +16,7 @@ const render = (ui: ReactElement) =>
 describe("/ui — the one Carres UI kit", () => {
   it("shows the current kit without retired demos or migration notes", () => {
     render(<UiShowcase />);
-    for (const id of ["colours", "typography", "table", "cells", "order-lines", "pills", "toolbar", "side-panel", "icons", "buttons", "fields", "menus", "tabs-kit", "dialogs", "states", "documents", "task-parts"]) {
+    for (const id of ["colours", "typography", "table", "cells", "order-lines", "pills", "toolbar", "side-panel", "icons", "buttons", "fields", "calendars", "menus", "tabs-kit", "dialogs", "states", "documents", "task-parts"]) {
       expect(document.getElementById(id), id).toBeInTheDocument();
     }
     expect(screen.queryByRole("heading", { name: "Frozen decisions" })).not.toBeInTheDocument();
@@ -100,5 +100,14 @@ describe("/ui — the one Carres UI kit", () => {
     expect(within(toolbar).getByRole("button", { name: "More actions" })).toBeInTheDocument();
     /* the view button names the view (v12 Shell) */
     expect(within(toolbar).getByRole("button", { name: "View: Sales Order" })).toHaveTextContent("Sales Order");
+  });
+
+  it("the bar calendar is the kit BarCalendar: a bar opens its item, +N more opens the week", () => {
+    render(<UiShowcase />);
+    const cal = within(document.getElementById("calendars")!);
+    fireEvent.click(cal.getByRole("button", { name: "TEST Fair B, Pending" }));
+    expect(screen.getByRole("status", { name: "TEST action result" })).toHaveTextContent("TEST · TEST Fair B selected");
+    fireEvent.click(cal.getAllByRole("button", { name: /^1 more, / })[0]);
+    expect(cal.getByRole("button", { name: "TEST Fair D, Cancelled" })).toBeInTheDocument();
   });
 });
