@@ -1,5 +1,6 @@
 import type { CatalogResponse } from "@carres/shared";
 import type { SupplierRow } from "@/lib/queries";
+import { csvCell } from "@/lib/sku-csv";
 
 /**
  * SUPPLIER ITEMS — the identity chain Loo named, as ONE row.
@@ -119,4 +120,50 @@ export function buildSupplierItems(
  *  that says how much of the quotation is left to key in. */
 export function missingSupplierCodeCount(rows: readonly SupplierItemRow[]): number {
   return rows.filter((r) => !r.supplierCode?.trim()).length;
+}
+
+/* ── Price list CSV (Houzs SupplierBindingsCsv: export, then import with a preview) ── */
+
+export const PRICE_LIST_HEADER = ["Our code", "Their code", "Price", "PWP price"] as const;
+
+/** The supplier's items as a price list, ready to edit and import back. */
+export function priceListCsv(
+  items: readonly SupplierItemRow[],
+  offers: ReadonlyArray<{ skuId: string; price?: number | null; pwpPrice?: number | null }>,
+): string {
+  const bySku = new Map(offers.map((o) => [o.skuId, o]));
+  const lines = [PRICE_LIST_HEADER.join(",")];
+  for (const r of items) {
+    const o = bySku.get(r.key.split(":")[1] ?? "");
+    lines.push([r.sku, r.supplierCode, o?.price, o?.pwpPrice].map(csvCell).join(","));
+  }
+  return lines.join("\n");
+}
+
+export interface PriceListRow { sku: string; supplierCode?: string; price?: number; pwpPrice?: number }
+
+/** Read an edited price list. A blank cell is left out so the stored value stays. */
+export function readPriceList(records: ReadonlyArray<Record<string, string>>): { rows: PriceListRow[]; problems: string[] } {
+  const pick = (r: Record<string, string>, names: string[]) => {
+    const key = Object.keys(r).find((k) => names.includes(k.trim().toLowerCase().replace(/[_\s]+/g, " ")));
+    return key ? (r[key] ?? "").trim() : "";
+  };
+  const rows: PriceListRow[] = [];
+  const problems: string[] = [];
+  records.forEach((r, i) => {
+    const sku = pick(r, ["our code", "sku", "internal code"]);
+    if (!sku) return;
+    const row: PriceListRow = { sku };
+    const code = pick(r, ["their code", "supplier code", "supplier sku"]);
+    if (code) row.supplierCode = code;
+    for (const [field, names] of [["price", ["price", "price rm"]], ["pwpPrice", ["pwp price", "pwp price rm"]]] as const) {
+      const raw = pick(r, [...names]).replace(/^rm\s*/i, "").replace(/,/g, "");
+      if (!raw) continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) { problems.push(`Row ${i + 2}: ${field === "price" ? "Price" : "PWP price"} "${raw}" is not a number.`); continue; }
+      row[field] = n;
+    }
+    rows.push(row);
+  });
+  return { rows, problems };
 }

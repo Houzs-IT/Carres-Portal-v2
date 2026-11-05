@@ -10,7 +10,12 @@
  * exactly the way `fabric_surcharge` rides today in the DraftLine price.
  */
 
-export type FabricTier = "PRICE_1" | "PRICE_2" | "PRICE_3";
+/** PRICE_4 = Full Leather, PRICE_3 = Half Leather (Houzs port, ca0c384dc). Sofa
+ *  only; PRICE_4 adds no selling delta, as in Houzs
+ *  [Houzs-ERP backend/src/scm/shared/fabric-tier-addon.ts:27]. */
+export type FabricTier = "PRICE_1" | "PRICE_2" | "PRICE_3" | "PRICE_4";
+/** Bedframe stops at Price 3, as in Houzs. */
+export type BedframeTier = Exclude<FabricTier, "PRICE_4">;
 
 /**
  * Per-model tier delta override (mirrors `model_fabric_tier_overrides` row).
@@ -58,7 +63,7 @@ export function resolveFabricDelta(
   config: FabricTierGlobalConfig | null | undefined,
   compartmentSpecial?: FabricTierOverride | null,
 ): number {
-  if (tier === "PRICE_1") return 0;
+  if (tier === "PRICE_1" || tier === "PRICE_4") return 0;
 
   let raw: number;
   if (tier === "PRICE_2") {

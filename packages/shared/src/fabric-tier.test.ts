@@ -6,6 +6,9 @@ const OVERRIDE = { tier2Delta: 50, tier3Delta: 80 };
 const SPECIAL = { tier2Delta: 300, tier3Delta: 400 };
 
 describe("resolveFabricDelta", () => {
+  it("PRICE_4 (Full Leather) adds no selling delta, as in Houzs fabric-tier-addon.ts:27", () => {
+    expect(resolveFabricDelta("PRICE_4", OVERRIDE, CONFIG, SPECIAL)).toBe(0);
+  });
   it("PRICE_1 always returns 0 regardless of config/override", () => {
     expect(resolveFabricDelta("PRICE_1", OVERRIDE, CONFIG)).toBe(0);
     expect(resolveFabricDelta("PRICE_1", null, CONFIG)).toBe(0);

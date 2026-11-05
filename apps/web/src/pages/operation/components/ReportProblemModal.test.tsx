@@ -41,6 +41,18 @@ describe("ReportProblemModal", () => {
     expect(sent.app_version).toBeTruthy();
   });
 
+  it("sends the module of the page it was opened on", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ code: "CARRES-0008" });
+    window.history.pushState({}, "", "/operation/orders");
+    renderModal();
+    fireEvent.change(screen.getByLabelText(/What went wrong/), { target: { value: "Cannot save" } });
+    fireEvent.click(screen.getByTestId("report-problem-send"));
+    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    const [, init] = vi.mocked(apiFetch).mock.calls[0];
+    expect(JSON.parse(String((init as RequestInit).body)).module).toBe("Sales Order");
+    window.history.pushState({}, "", "/");
+  });
+
   it("shows the server's sentence when IT cannot be reached", async () => {
     vi.mocked(apiFetch).mockImplementation(async () => { throw new Error("IT Support could not be reached. Please try again in a moment."); });
     renderModal();
