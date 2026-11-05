@@ -372,6 +372,7 @@ export {
   type CatalogConfigHistoryDto,
   // 0202 — global fabric master schemas + input/Dto types.
   fabricTierValueSchema,
+  sofaTierValueSchema,
   catalogFabricSchema,
   FABRIC_STOCK_KEYS,
   catalogFabricEntryInput,
@@ -1744,6 +1745,7 @@ export {
 // Migration 0176 — fabric tier pricing resolver + types.
 export {
   resolveFabricDelta,
+  type BedframeTier,
   type FabricTier,
   type FabricTierOverride,
   type FabricTierGlobalConfig,
