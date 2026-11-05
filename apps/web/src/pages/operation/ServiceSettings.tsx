@@ -17,8 +17,8 @@ import PageShell from "@/components/kit/PageShell";
 import Select from "@/components/kit/Select";
 import { W } from "./settings-core/parts";
 
-type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null };
-type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[] };
+type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null; statusId?: string | null };
+type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[]; subStatuses?: PickItem[] };
 const KEY = ["ops", "service-cases", "settings"] as const;
 
 export default function ServiceSettings() {
@@ -62,14 +62,21 @@ export default function ServiceSettings() {
           </div>
         </section>
         <PickList list="statuses" title="Stages" help="The stages staff pick on a case. A stage that closes the case cannot be added here. Target days: how long a case should stay in the stage; a case past it shows red. A new target counts for cases that enter the stage after the change." items={q.data?.statuses ?? []} canEdit={canEdit} onChanged={refresh} />
+        {/* 0760 — Houzs assr-sub-statuses.ts: sub-statuses inside a stage, one list per open stage. */}
+        {(q.data?.statuses ?? []).filter((st) => st.active && !st.isClosed).map((st) => (
+          <PickList key={st.id} list="subStatuses" statusId={st.id} title={`Sub-statuses in ${st.label}`}
+            help="A case entering this stage starts on the first sub-status in use; staff switch it on the case."
+            items={(q.data?.subStatuses ?? []).filter((ss) => ss.statusId === st.id)} canEdit={canEdit} onChanged={refresh} />
+        ))}
         <PickList list="types" title="Case types" help="The case types staff pick on a case." items={q.data?.types ?? []} canEdit={canEdit} onChanged={refresh} />
       </div>
     </PageShell>
   );
 }
 
-function PickList({ list, title, help, items, canEdit, onChanged }: {
-  list: "types" | "statuses";
+function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
+  list: "types" | "statuses" | "subStatuses";
+  statusId?: string;
   title: string;
   help: string;
   items: PickItem[];
@@ -78,7 +85,7 @@ function PickList({ list, title, help, items, canEdit, onChanged }: {
 }) {
   const [label, setLabel] = useState("");
   const add = useMutation({
-    mutationFn: () => apiFetch(`/api/ops/service-cases/settings/${list}`, { method: "POST", body: JSON.stringify({ label }) }),
+    mutationFn: () => apiFetch(`/api/ops/service-cases/settings/${list}`, { method: "POST", body: JSON.stringify({ label, statusId }) }),
     onSuccess: () => { setLabel(""); onChanged(); },
   });
   const edit = useMutation({
@@ -89,8 +96,9 @@ function PickList({ list, title, help, items, canEdit, onChanged }: {
   // YH (chat, 2026-10-26): Close Case needs a closing stage, so the last one in
   // use stays in use (0711 §6 refuses it in the database too).
   const closingInUse = items.filter((i) => i.isClosed && i.active).length;
+  const key = statusId ? `${list}-${statusId}` : list;
   return (
-    <section className="grid gap-2" data-testid={`service-pick-${list}`}>
+    <section className="grid gap-2" data-testid={`service-pick-${key}`}>
       <h2 className="text-strong">{title}</h2>
       <p className="text-body text-kit-slate-11">{help}</p>
       {edit.isError && <p role="alert" className="text-body">{edit.error.message}</p>}
@@ -147,7 +155,7 @@ function PickList({ list, title, help, items, canEdit, onChanged }: {
       {canEdit && (
         <div className="flex items-end gap-3">
           <div className="flex-1">
-            <Input id={`service-${list}-new`} label={`New ${title.toLowerCase().replace(/s$/, "")}`} value={label} onChange={(e) => setLabel(e.target.value)} />
+            <Input id={`service-${key}-new`} label={list === "subStatuses" ? "New sub-status" : `New ${title.toLowerCase().replace(/s$/, "")}`} value={label} onChange={(e) => setLabel(e.target.value)} />
           </div>
           <Button variant="primary" disabled={!label.trim()} loading={add.isPending} onClick={() => add.mutate()}>Add</Button>
         </div>

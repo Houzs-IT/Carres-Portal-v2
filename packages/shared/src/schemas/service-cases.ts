@@ -46,9 +46,21 @@ export const caseStatusSchema = z.object({
 });
 export type CaseStatus = z.infer<typeof caseStatusSchema>;
 
+/** 0760 — a sub-status inside a stage (Houzs assr-sub-statuses.ts). */
+export const caseSubStatusSchema = z.object({
+  id:        z.string().uuid(),
+  statusId:  z.string().uuid(),
+  code:      z.string(),
+  label:     z.string(),
+  sortOrder: z.number().int(),
+  active:    z.boolean(),
+});
+export type CaseSubStatus = z.infer<typeof caseSubStatusSchema>;
+
 export const serviceCaseConfigSchema = z.object({
   types:    z.array(caseTypeSchema),
   statuses: z.array(caseStatusSchema),
+  subStatuses: z.array(caseSubStatusSchema).optional(),
 });
 export type ServiceCaseConfig = z.infer<typeof serviceCaseConfigSchema>;
 
@@ -352,6 +364,10 @@ export const serviceCaseSchema = z.object({
   })).optional(),
 
   ...caseLegFields,
+
+  /** 0760 — the sub-status inside the current stage; null when the stage has none. */
+  subStatusId:     z.string().uuid().nullable().optional(),
+  subStatusLabel:  z.string().nullable().optional(),
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -413,6 +429,7 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
     priority:    z.enum(["low", "normal", "high"]).nullable().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
     ...caseLegFields,
+    subStatusId: z.string().uuid().nullable().optional(),
   });
 export type UpdateServiceCaseInput = z.infer<typeof updateServiceCaseInputSchema>;
 
@@ -534,7 +551,7 @@ export function mayPickCaseOwner(args: {
 
 /** 0711 — Service settings (Houzs Service Maintenance): the default case owner
  *  and the two pick lists staff choose from on a case. */
-export const SERVICE_PICK_LISTS = ["types", "statuses"] as const;
+export const SERVICE_PICK_LISTS = ["types", "statuses", "subStatuses"] as const;
 export type ServicePickList = (typeof SERVICE_PICK_LISTS)[number];
 
 export const serviceSettingsPatchSchema = z.object({
@@ -542,6 +559,8 @@ export const serviceSettingsPatchSchema = z.object({
 });
 export const servicePickItemCreateSchema = z.object({
   label:    z.string().trim().min(1).max(60),
+  /** 0760 — sub-statuses only: the stage the new sub-status sits in. */
+  statusId: z.string().uuid().optional(),
 });
 export const servicePickItemPatchSchema = z.object({
   label:  z.string().trim().min(1).max(60).optional(),

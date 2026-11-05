@@ -73,7 +73,7 @@ scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
  * costs one extra column per row.
  */
 const CASE_SELECT =
-  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
+  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /config — config-driven Case Type + Status (active only, sorted)
@@ -81,14 +81,16 @@ const CASE_SELECT =
 scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
 
-  const [{ data: types, error: tErr }, { data: statuses, error: sErr }] =
+  const [{ data: types, error: tErr }, { data: statuses, error: sErr }, { data: subs, error: ssErr }] =
     await Promise.all([
       sb.from("service_case_types").select("*").eq("active", true).order("sort_order"),
       sb.from("service_case_statuses").select("*").eq("active", true).order("sort_order"),
+      sb.from("service_case_sub_statuses").select("*").eq("active", true).order("sort_order"),
     ]);
 
   if (tErr) throw new HTTPException(500, { message: tErr.message });
   if (sErr) throw new HTTPException(500, { message: sErr.message });
+  if (ssErr) throw new HTTPException(500, { message: ssErr.message });
 
   return c.json({
     types: (types ?? []).map((t) => ({
@@ -97,6 +99,9 @@ scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
     statuses: (statuses ?? []).map((s) => ({
       id: s.id, code: s.code, label: s.label, sortOrder: s.sort_order,
       active: s.active, isClosed: s.is_closed, targetDays: numOrNull(s.target_days),
+    })),
+    subStatuses: (subs ?? []).map((s) => ({
+      id: s.id, statusId: s.status_id, code: s.code, label: s.label, sortOrder: s.sort_order, active: s.active,
     })),
   });
 });
@@ -224,7 +229,11 @@ scRouter.get("/numbers", requireOperationOrPrincipal, async (c) => {
 // Follows Houzs backend/src/routes/assr.ts:327 (default assignee setting)
 // per Weisiang's ruling (2026-10-22): clear Carres rules, implement Houzs.
 // ─────────────────────────────────────────────────────────────────────────────
-const PICK_TABLE = { types: "service_case_types", statuses: "service_case_statuses" } as const;
+const PICK_TABLE = {
+  types: "service_case_types",
+  statuses: "service_case_statuses",
+  subStatuses: "service_case_sub_statuses",
+} as const;
 function pickTable(list: string) {
   const t = PICK_TABLE[list as keyof typeof PICK_TABLE];
   if (!t) throw new HTTPException(404, { message: "Unknown list" });
@@ -234,21 +243,24 @@ const pickRow = (r: Record<string, unknown>) => ({
   id: r.id, code: r.code, label: r.label, sortOrder: r.sort_order, active: r.active,
   isClosed: r.is_closed ?? false,
   targetDays: numOrNull(r.target_days),
+  statusId: r.status_id ?? null,
 });
 
 scRouter.get("/settings", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const [st, types, statuses] = await Promise.all([
+  const [st, types, statuses, subStatuses] = await Promise.all([
     sb.from("service_settings").select("default_owner_user_id").maybeSingle(),
     sb.from("service_case_types").select("*").order("sort_order"),
     sb.from("service_case_statuses").select("*").order("sort_order"),
+    sb.from("service_case_sub_statuses").select("*").order("sort_order"),
   ]);
-  const err = st.error ?? types.error ?? statuses.error;
+  const err = st.error ?? types.error ?? statuses.error ?? subStatuses.error;
   if (err) throw new HTTPException(500, { message: err.message });
   return c.json({
     defaultOwnerUserId: (st.data as { default_owner_user_id?: string | null } | null)?.default_owner_user_id ?? null,
     types: (types.data ?? []).map(pickRow),
     statuses: (statuses.data ?? []).map(pickRow),
+    subStatuses: (subStatuses.data ?? []).map(pickRow),
   });
 });
 
@@ -273,11 +285,16 @@ scRouter.patch("/settings", requireOperationOrPrincipal, requireSettingsEditor("
 scRouter.post("/settings/:list", requireOperationOrPrincipal, requireSettingsEditor("service"), async (c) => {
   const table = pickTable(c.req.param("list"));
   const parsed = await parseBody(c, servicePickItemCreateSchema);
+  // 0760 — a sub-status sits in one stage; nothing else takes a stage.
+  if ((table === "service_case_sub_statuses") !== (parsed.statusId !== undefined)) {
+    return c.json({ error: "invalid_input", code: "invalid_param", message: "Pick the stage this sub-status sits in." }, 422);
+  }
   const sb = userClient(c.env, c.var.auth.jwt);
   const code = `${parsed.label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}_${Date.now().toString(36)}`;
   const { data: last } = await sb.from(table).select("sort_order").order("sort_order", { ascending: false }).limit(1);
   const sortOrder = ((last?.[0] as { sort_order?: number } | undefined)?.sort_order ?? 0) + 10;
   const row: Record<string, unknown> = { code, label: parsed.label, sort_order: sortOrder };
+  if (parsed.statusId) row.status_id = parsed.statusId;
   const { error } = await sb.from(table).insert(row);
   if (error) throw new HTTPException(500, { message: error.message });
   return c.json({ ok: true }, 201);
@@ -720,8 +737,13 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   if (parsed.deliveryBy          !== undefined) patch.delivery_by           = parsed.deliveryBy;
   if (parsed.deliveryRequestedAt !== undefined) patch.delivery_requested_at = parsed.deliveryRequestedAt;
   if (parsed.deliveryConfirmedAt !== undefined) patch.delivery_confirmed_at = parsed.deliveryConfirmedAt;
+  // 0760 — the database seeds it on a stage change and refuses another stage's.
+  if (parsed.subStatusId         !== undefined) patch.sub_status_id         = parsed.subStatusId;
 
   const { error } = await sb.from("service_cases").update(patch).eq("id", id);
+  if (error?.details === "sub_status_not_in_stage") {
+    return c.json({ error: "invalid_input", code: "invalid_param", message: "This sub-status belongs to another stage." }, 422);
+  }
   if (error) throw new HTTPException(500, { message: error.message });
 
   return c.json({ id });
@@ -1104,6 +1126,9 @@ interface RawCase {
   delivery_by?: string | null;
   delivery_requested_at?: string | null;
   delivery_confirmed_at?: string | null;
+  /** 0760. Optional: absent before 0760. */
+  sub_status_id?: string | null;
+  service_case_sub_statuses?: { label: string } | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
   service_case_statuses: { label: string; is_closed: boolean; target_days?: number | string | null } | null;
@@ -1184,6 +1209,8 @@ function shapeCase(r: RawCase) {
     deliveryBy:          r.delivery_by ?? null,
     deliveryRequestedAt: r.delivery_requested_at ?? null,
     deliveryConfirmedAt: r.delivery_confirmed_at ?? null,
+    subStatusId:         r.sub_status_id ?? null,
+    subStatusLabel:      r.service_case_sub_statuses?.label ?? null,
 
     ...stageClock(r),
   };

@@ -123,6 +123,7 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
   const currentIndex = stages.findIndex((st) => st.id === d.statusId);
   const nextStage = d.statusIsClosed ? undefined : stages.slice(currentIndex + 1).find((st) => !st.isClosed);
   const stageBusy = stageMut.isPending || remedyBusy;
+  const subStatuses = (configQ.data?.subStatuses ?? []).filter((ss) => ss.statusId === d.statusId);
   const history = customerHistory(d, listQ.data?.items ?? []);
   const stageLabel = new Map(stages.map((st) => [st.id, st.label] as const));
   const timeline = caseTimeline(d, (u) => nameOf.get(u) ?? "", (id) => stageLabel.get(id) ?? "");
@@ -191,6 +192,13 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
               <span className="ml-auto"><Button variant="neutral" onClick={() => stageMut.mutate(nextStage.id)} disabled={stageBusy}>Move to {nextStage.label}</Button></span>
             )}
           </div>
+          {/* 0760 — Houzs WorkflowCard onSubChange: staff switch the sub-status directly. */}
+          {subStatuses.length > 0 && (
+            <div className="mt-3 max-w-xs">
+              <Select id="case-sub-status" label="Sub-status" value={d.subStatusId ?? undefined} onValueChange={(v) => saveSelect({ subStatusId: v })} placeholder="Sub-status"
+                options={subStatuses.map((ss) => ({ value: ss.id, label: ss.label }))} />
+            </div>
+          )}
         </section>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.62fr_1fr]">

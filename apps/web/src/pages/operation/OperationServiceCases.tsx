@@ -165,9 +165,13 @@ export default function OperationServiceCases() {
     {
       key: "stage", label: "Stage", width: W.status,
       accessor: (r) => (
-        <span className="inline-flex items-center gap-1.5">
-          <span className={`pill ${r.statusIsClosed ? "pill-confirmed" : "pill-neutral"}`}>{r.statusLabel ?? "Unset"}</span>
-          {clockOf(r).state === "late" && <span className="pill pill-overdue">SLA</span>}
+        <span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`pill ${r.statusIsClosed ? "pill-confirmed" : "pill-neutral"}`}>{r.statusLabel ?? "Unset"}</span>
+            {clockOf(r).state === "late" && <span className="pill pill-overdue">SLA</span>}
+          </span>
+          {/* 0760 — Houzs ServiceCases.tsx:625: the sub-status rides a muted second line. */}
+          {r.subStatusLabel && <span className="block text-meta text-base-500">{r.subStatusLabel}</span>}
         </span>
       ),
       searchValue: (r) => r.statusLabel ?? "Unset",
