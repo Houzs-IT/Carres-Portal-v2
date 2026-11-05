@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checklistDueDate, projectDayCounts, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode, stockRecordSignInput, stockTransferInput } from "./projects";
+import { checklistDueDate, compareProjectsForCalendar, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode, stockRecordSignInput, stockTransferInput } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -70,14 +70,13 @@ describe("project date range", () => {
   });
 });
 
-/** Houzs calendar: a project shows on every day it runs, both ends counted (slice 8). */
-describe("project day counts", () => {
-  it("counts each day a project runs, across a month end", () => {
-    const counts = projectDayCounts([
-      { startDate: "2026-11-30", endDate: "2026-12-02" },
-      { startDate: "2026-12-02", endDate: "2026-12-02" },
-    ], "2026-12");
-    expect(counts).toEqual({ "2026-12-01": 1, "2026-12-02": 2 });
+/** Houzs calendarSort.ts: the calendar stacks by state north to south, then venue, organizer, brand (slice 8). */
+describe("project calendar order", () => {
+  it("puts Penang before Johor, an unknown state last, and keeps one fair's brands together", () => {
+    const p = (state: string, venue: string, brand: string) => ({ state, venue, organizer: "ORG", brand });
+    const sorted = [p("Johor", "MID", "B"), p("Mars", "A", "A"), p("Penang", "SPICE", "B"), p("Penang", "SPICE", "A")]
+      .sort(compareProjectsForCalendar).map((x) => `${x.state} ${x.brand}`);
+    expect(sorted).toEqual(["Penang A", "Penang B", "Johor B", "Mars A"]);
   });
 });
 

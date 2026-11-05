@@ -38,7 +38,7 @@ export default function CSidePanel({
       style={{ width }}
     >
       <div className="flex h-9 shrink-0 items-center gap-1.5 pl-3.5 pr-2">
-        <span className="flex-1 text-strong text-c-ink">{title}</span>
+        <span className="flex-1 text-[11px] font-bold uppercase tracking-[.08em] text-c-heading">{title}</span>
         <button
           type="button"
           onClick={onHide}

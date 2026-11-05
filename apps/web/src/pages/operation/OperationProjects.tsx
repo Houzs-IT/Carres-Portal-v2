@@ -1,21 +1,22 @@
 import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, projectDayCounts, projectDurationDays, projectRunsOn,
+  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, compareProjectsForCalendar, projectDateRange, projectDurationDays,
   type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
-import { SectionCard } from "@/components/SectionPanel";
-import MonthCalendar from "@/components/kit/MonthCalendar";
+import BarCalendar from "@/components/kit/BarCalendar";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
 import DatePicker from "@/components/kit/DatePicker";
 import Drawer from "@/components/kit/Drawer";
 import Input from "@/components/kit/Input";
+import Loading from "@/components/kit/Loading";
 import Panel from "@/components/kit/Panel";
 import Select from "@/components/kit/Select";
 import StatusPill from "@/components/kit/StatusPill";
 import { Step } from "@/components/kit/StepList";
+import Tabs from "@/components/kit/Tabs";
 import Textarea from "@/components/kit/Textarea";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
 import { rm } from "@/lib/format-currency";
@@ -54,10 +55,16 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   const [status, setStatus] = useState("");
   const [archived, setArchived] = useState(false);
   const [creating, setCreating] = useState(false);
-  // Houzs calendar view, drawn with the kit month (slice 8): each day counts the projects
-  // running that day, and picking a day narrows the list to them. Picking it again clears.
-  const [month, setMonth] = useState(() => appTodayIso().slice(0, 7));
-  const [day, setDay] = useState<string | null>(null);
+  // Houzs Project List and Calendar (slice 8): two views of one list, kept in the URL as Houzs
+  // keeps ?view and ?month, so opening a project and coming back lands on the same view.
+  const [params, setParams] = useSearchParams();
+  const calendar = params.get("view") === "calendar";
+  const month = params.get("month") ?? appTodayIso().slice(0, 7);
+  const setParam = (key: string, value: string | null) => {
+    const p = new URLSearchParams(params);
+    if (value) p.set(key, value); else p.delete(key);
+    setParams(p);
+  };
   const q = useProjects({ status, archived });
   if (q.isError) return <CouldNotLoad detail={PJ.failed} onRetry={() => void q.refetch()} />;
 
@@ -77,33 +84,45 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   ];
   const toolbar = (
     <span className="flex items-center gap-2">
+      <Tabs variant="segmented" label={PJ.projectViews} value={calendar ? "calendar" : "list"} onValueChange={(v) => setParam("view", v === "calendar" ? v : null)}
+        tabs={[{ value: "list", label: PJ.listView }, { value: "calendar", label: PJ.calendarView }]} />
       <Select id="projects-archived" toolbar value={archived ? "archived" : "live"} onValueChange={(v) => setArchived(v === "archived")}
         options={[{ value: "live", label: PJ.live }, { value: "archived", label: PJ.archivedList }]} />
       <Select id="projects-status" toolbar value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}
         options={[{ value: "all", label: PJ.allStatuses }, ...PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))]} />
-      {day ? <Button size="sm" onClick={() => setDay(null)}>{PJ.allDates}</Button> : null}
       <Button size="sm" variant="primary" onClick={() => setCreating(true)}>{PJ.newProject}</Button>
     </span>
   );
-  const all = q.data?.projects ?? [];
-  const rows = day ? all.filter((p) => projectRunsOn(p, day)) : all;
+  const rows = q.data?.projects ?? [];
+  const form = creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null;
+  if (calendar) {
+    // Houzs ProjectsCalendarView: one bar per project, tinted by status, stacked in the Houzs order.
+    const items = [...rows].sort(compareProjectsForCalendar).map((p) => ({
+      id: p.id, start: p.startDate, end: p.endDate, label: p.name, tone: STATUS_TONE[p.status],
+      detail: `${PJ.statuses[p.status]}, ${projectDateRange(p.startDate, p.endDate)}`,
+    }));
+    return (
+      <ListPageShell toolbar={toolbar} testId="projects-calendar">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+          {/* Houzs ProjectsCalendarView.tsx:563-573: the status legend above the grid. */}
+          <span className="flex flex-wrap items-center gap-2" aria-hidden>
+            {PROJECT_STATUSES.map((st) => <StatusPill key={st} tone={STATUS_TONE[st]}>{PJ.statuses[st]}</StatusPill>)}
+          </span>
+          {q.isSuccess
+            ? <BarCalendar month={month} onMonthChange={(m) => setParam("month", m)} items={items} onItemClick={onOpen} label={PJ.calendarView} testId="projects-bar-calendar" />
+            : <Loading variant="skeleton" />}
+        </div>
+        {form}
+      </ListPageShell>
+    );
+  }
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 md:flex-row" data-testid="projects-with-calendar">
-      <div className="w-full shrink-0 px-4 pt-4 md:w-[240px] md:pr-0">
-        <SectionCard><div className="p-3" data-testid="projects-month">
-          <MonthCalendar month={month} onMonthChange={setMonth} selected={day} onSelect={setDay}
-            markers={projectDayCounts(all, month)} markerWord="project" testId="projects-month-grid" />
-        </div></SectionCard>
-      </div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <ListPageShell register>
-          <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} storageKey="carres.operation.projects.v1"
-            appearance="reference" exportName={PJ.projectList} groupBanner={false} isLoading={!q.isSuccess}
-            toolbarStart={toolbar} emptyMessage={PJ.noProjects} onRowClick={(r) => onOpen(r.id)} />
-          {creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null}
-        </ListPageShell>
-      </div>
-    </div>
+    <ListPageShell register>
+      <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} storageKey="carres.operation.projects.v1"
+        appearance="reference" exportName={PJ.projectList} groupBanner={false} isLoading={!q.isSuccess}
+        toolbarStart={toolbar} emptyMessage={PJ.noProjects} onRowClick={(r) => onOpen(r.id)} />
+      {form}
+    </ListPageShell>
   );
 }
 

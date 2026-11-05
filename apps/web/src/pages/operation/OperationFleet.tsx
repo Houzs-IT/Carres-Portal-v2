@@ -1,9 +1,17 @@
 import { useMemo, useState } from "react";
-import { groupRuns, isOnLeave, lorryCapacity, proposeCrew, type FleetCrew, type LorryCapacityRow } from "@carres/shared/fleet";
+import type { OrderActionTone } from "@carres/shared";
+import {
+  isOnLeave, lorryCapacity, lorryCards, proposeCrew, stopMatches,
+  type FleetCrew, type FleetStop, type FleetStopStatus, type LorryCapacityRow, type LorryRunStatus,
+} from "@carres/shared/fleet";
 import ListPageShell from "@/components/ListPageShell";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
+import ScheduleCard from "@/components/kit/ScheduleCard";
+import SearchInput from "@/components/kit/SearchInput";
 import Select from "@/components/kit/Select";
+import StatusPill from "@/components/kit/StatusPill";
+import Tabs from "@/components/kit/Tabs";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
 import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
@@ -40,9 +48,15 @@ function Page({ word, testId, payload, error, children }: {
   );
 }
 
-/* ── Fleet Day (Houzs FleetDay "Propose crew" + run sheets) ──────────────── */
+/* ── Last Mile Delivery: one card per lorry (Houzs FleetDay lorry cards, #5094 → #5107) ── */
 
-interface DayRow { vehicleId: string | null; plate: string; capacity: string | null; stops: number; revenue: number }
+type StopFilter = "all" | FleetStopStatus;
+const STOP_WORD: Record<FleetStopStatus, string> = {
+  scheduled: FL.scheduled, delivered: FL.delivered, partial: FL.partiallyDelivered, failed: FL.failedDelivery,
+};
+const STOP_TONE: Record<FleetStopStatus, OrderActionTone> = { scheduled: "neutral", delivered: "success", partial: "warning", failed: "danger" };
+const RUN_WORD: Record<LorryRunStatus, string> = { scheduled: FL.scheduled, on_the_way: FL.outForDelivery, completed: FL.completed };
+const RUN_TONE: Record<LorryRunStatus, OrderActionTone> = { scheduled: "neutral", on_the_way: "info", completed: "success" };
 
 export function FleetDayPage() {
   const [day, setDay] = useState(appTodayIso);
@@ -50,10 +64,12 @@ export function FleetDayPage() {
   const write = useFleetWrite();
   const [edits, setEdits] = useState<Record<string, { driverId: string | null; helperId: string | null }>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<StopFilter>("all");
   const data = q.data;
 
   const lorries = useMemo(() => (data?.lorries ?? []).filter((l) => l.active), [data]);
-  const runs = useMemo(() => groupRuns((data?.stops ?? []).filter((s) => s.day === day)), [data, day]);
+  const cards = useMemo(() => lorryCards(day, data?.lorries ?? [], data?.stops ?? []), [data, day]);
   const picks = useMemo(
     () => proposeCrew({
       day, lorries, crew: data?.crew ?? [], leave: data?.leave ?? [],
@@ -62,15 +78,6 @@ export function FleetDayPage() {
     }),
     [data, day, lorries],
   );
-  const rows = useMemo<DayRow[]>(() => {
-    const out: DayRow[] = lorries.map((l) => {
-      const run = runs.find((r) => r.vehicleId === l.id);
-      return { vehicleId: l.id, plate: l.plate, capacity: l.capacity, stops: run?.stops.length ?? 0, revenue: run?.revenue ?? 0 };
-    });
-    const loose = runs.find((r) => r.vehicleId === null);
-    if (loose) out.push({ vehicleId: null, plate: FL.noLorryMatched, capacity: null, stops: loose.stops.length, revenue: loose.revenue });
-    return out;
-  }, [lorries, runs]);
 
   const crewFor = (role: "driver" | "helper") =>
     (data?.crew ?? []).filter((c) => c.active && c.role === role && !isOnLeave(c.id, day, data?.leave ?? []));
@@ -91,57 +98,104 @@ export function FleetDayPage() {
     );
   };
 
-  const columns: DataGridColumn<DayRow>[] = [
-    { key: "lorry", label: FL.lorry, width: 160, accessor: (r) => r.plate },
-    { key: "capacity", label: FL.lorryCapacity, width: 110, accessor: (r) => r.capacity ?? "" },
-    { key: "stops", label: FL.stops, width: 80, align: "right", accessor: (r) => String(r.stops), numberValue: (r) => r.stops },
-    { key: "revenue", label: FL.revenue, width: 120, align: "right", accessor: (r) => rm(r.revenue), numberValue: (r) => r.revenue, exportValue: (r) => r.revenue },
-    { key: "driver", label: FL.driver, width: 180, sortable: false, filterable: false, accessor: (r) => r.vehicleId ? (
-      <Select id={`fleet-driver-${r.vehicleId}`} value={chosen(r.vehicleId).driverId ?? "none"} onValueChange={(v) => setPick(r.vehicleId!, "driverId", v)}
-        options={options(crewFor("driver"), FL.noDriver)} />
-    ) : "" , exportValue: (r) => (r.vehicleId ? nameOf(data, chosen(r.vehicleId).driverId) : "") },
-    { key: "helper", label: FL.helper, width: 180, sortable: false, filterable: false, accessor: (r) => r.vehicleId ? (
-      <Select id={`fleet-helper-${r.vehicleId}`} value={chosen(r.vehicleId).helperId ?? "none"} onValueChange={(v) => setPick(r.vehicleId!, "helperId", v)}
-        options={options(crewFor("helper"), FL.noHelper)} />
-    ) : "", exportValue: (r) => (r.vehicleId ? nameOf(data, chosen(r.vehicleId).helperId) : "") },
-    { key: "crew", label: FL.crew, width: 110, accessor: (r) =>
-      !r.vehicleId ? FL.noLorryMatchedNote : picks.get(r.vehicleId)?.confirmed && !edits[r.vehicleId] ? FL.confirmed : FL.proposed },
-    { key: "act", label: "", exportLabel: FL.confirmCrew, width: 240, sortable: false, filterable: false, accessor: (r) => (
-      <span className="flex gap-2">
-        {r.vehicleId ? (
-          <Button size="sm" variant="primary" loading={write.isPending && (write.variables?.body as { vehicleId?: string } | undefined)?.vehicleId === r.vehicleId}
-            onClick={(e) => { e.stopPropagation(); confirm(r.vehicleId!); }} data-testid={`fleet-confirm-${r.vehicleId}`}>{FL.confirmCrew}</Button>
-        ) : null}
-        {r.stops > 0 ? (
-          <a className="text-c-link underline" target="_blank" rel="noreferrer"
-            href={`/print/run-sheet?day=${day}${r.vehicleId ? `&lorry=${r.vehicleId}` : "&lorry=none"}`}>{FL.runSheet}</a>
-        ) : null}
-      </span>
-    ) },
-  ];
+  const allStops = cards.flatMap((c) => c.stops);
+  const shown = (stops: readonly FleetStop[]) =>
+    stops.filter((s) => (filter === "all" || (s.status ?? "scheduled") === filter) && stopMatches(s, query));
 
   return (
     <Page word={FL.fleetDay} testId="fleet-day" payload={data} error={q.isError}>
-      {message ? <p role="alert" className="px-4 pb-2 text-body" data-testid="fleet-day-refusal">{message}</p> : null}
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.vehicleId ?? "none"}
-        storageKey="carres.operation.fleet-day.v1"
-        appearance="reference"
-        exportName={`${FL.fleetDay} ${day}`}
-        groupBanner={false}
-        isLoading={!q.isSuccess && !q.isError}
-        toolbarStart={
-          <input type="date" aria-label={FL.day} className={dateInput} value={day} data-testid="fleet-day-date"
-            onChange={(e) => { if (e.target.value) { setDay(e.target.value); setEdits({}); } }} />
-        }
-        toolbarEnd={runs.length > 0 ? (
+      <div className="grid grid-cols-2 gap-2 px-4 pb-2 lg:grid-cols-4" data-testid="fleet-day-tiles">
+        <OperationKpiTile label={FL.lorriesOut} value={cards.filter((c) => c.vehicleId && c.stops.length > 0).length} hint="" accent="primary" />
+        <OperationKpiTile label={FL.stops} value={allStops.length} hint="" accent="primary" />
+        <OperationKpiTile label={FL.delivered} value={allStops.filter((s) => s.status === "delivered").length} hint="" accent="success" />
+        <OperationKpiTile label={FL.revenue} value={rm(cards.reduce((n, c) => n + c.revenue, 0))} hint="" accent="muted" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+        <input type="date" aria-label={FL.day} className={dateInput} value={day} data-testid="fleet-day-date"
+          onChange={(e) => { if (e.target.value) { setDay(e.target.value); setEdits({}); } }} />
+        <div className="w-72 max-md:w-full">
+          <SearchInput id="fleet-day-search" toolbar placeholder={FL.searchStops} value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        <Tabs variant="segmented" label={FL.status} value={filter} onValueChange={(v) => setFilter(v as StopFilter)} tabs={[
+          { value: "all", label: FL.all }, { value: "scheduled", label: FL.scheduled }, { value: "delivered", label: FL.delivered },
+          { value: "partial", label: FL.partiallyDelivered }, { value: "failed", label: FL.failedDelivery },
+        ]} />
+        <span className="flex-1" />
+        {allStops.length > 0 ? (
           <a className="text-c-link underline" target="_blank" rel="noreferrer" href={`/print/run-sheet?day=${day}`}>{FL.printRunSheets}</a>
-        ) : undefined}
-        emptyMessage={FL.noLorries}
-        statusSummary={(visible) => `${visible.reduce((n, r) => n + r.stops, 0)} ${FL.stops.toLowerCase()} · ${rm(visible.reduce((n, r) => n + r.revenue, 0))}`}
-      />
+        ) : null}
+      </div>
+      {message ? <p role="alert" className="px-4 pb-2 text-body" data-testid="fleet-day-refusal">{message}</p> : null}
+      {!q.isSuccess ? null : cards.length === 0 ? (
+        <p className="px-4 text-body" data-testid="fleet-day-empty">{FL.noLorries}</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 px-4 pb-4 md:grid-cols-2 xl:grid-cols-3" data-testid="fleet-day-cards">
+          {cards.map((card) => {
+            const id = card.vehicleId;
+            const stops = shown(card.stops);
+            const busy = write.isPending && (write.variables?.body as { vehicleId?: string } | undefined)?.vehicleId === id;
+            return (
+              <ScheduleCard key={id ?? "none"} label={card.plate ?? FL.noLorryMatched} testId={`fleet-card-${id ?? "none"}`}
+                header={<>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="font-medium">{card.plate ?? FL.noLorryMatched}</span>
+                    {card.capacity ? <span className="text-meta text-c-secondary">{card.capacity}</span> : null}
+                  </span>
+                  {card.stops.length > 0 ? <StatusPill tone={RUN_TONE[card.status]}>{RUN_WORD[card.status]}</StatusPill> : null}
+                </>}
+                footer={<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-meta">
+                  <span data-testid={`fleet-card-${id ?? "none"}-progress`}>{card.delivered} of {card.stops.length} {FL.delivered.toLowerCase()}</span>
+                  {card.failed > 0 ? <span>{card.failed} {FL.failedDelivery}</span> : null}
+                  <span className="flex-1" />
+                  <span className="tabular-nums">{rm(card.revenue)}</span>
+                  {card.stops.length > 0 ? (
+                    <a className="text-c-link underline" target="_blank" rel="noreferrer"
+                      href={`/print/run-sheet?day=${day}&lorry=${id ?? "none"}`}>{FL.runSheet}</a>
+                  ) : null}
+                </div>}>
+                {id ? (
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 pb-1">
+                    <Select id={`fleet-driver-${id}`} label={FL.driver} value={chosen(id).driverId ?? "none"} onValueChange={(v) => setPick(id, "driverId", v)}
+                      options={options(crewFor("driver"), FL.noDriver)} />
+                    <Select id={`fleet-helper-${id}`} label={FL.helper} value={chosen(id).helperId ?? "none"} onValueChange={(v) => setPick(id, "helperId", v)}
+                      options={options(crewFor("helper"), FL.noHelper)} />
+                    {picks.get(id)?.confirmed && !edits[id] ? (
+                      <span className="pb-2 text-meta text-c-secondary">{FL.confirmed}</span>
+                    ) : (
+                      <Button size="sm" variant="primary" loading={busy} onClick={() => confirm(id)} data-testid={`fleet-confirm-${id}`}>{FL.confirmCrew}</Button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-meta text-c-secondary">{FL.noLorryMatchedNote}</p>
+                )}
+                {stops.length === 0 ? (
+                  <p className="py-1 text-meta text-c-secondary">{card.stops.length > 0 ? FL.noStopMatches : FL.noStops}</p>
+                ) : (
+                  <ol className="flex flex-col">
+                    {stops.map((s) => {
+                      const status = s.status ?? "scheduled";
+                      return (
+                        <li key={`${s.orderId}|${s.leg}`} data-testid={`fleet-stop-${s.orderId}-${s.leg}`}
+                          className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-2 border-t border-kit-slate-4 py-1.5">
+                          <span className="text-meta tabular-nums text-c-secondary">{card.stops.indexOf(s) + 1}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{s.customerName}</span>
+                            <span className="block truncate text-meta text-c-secondary">
+                              {[s.so == null ? null : `SO-${s.so}`, s.doNumber, s.expectedArrival ?? s.confirmedTime].filter(Boolean).join(" · ")}
+                            </span>
+                            {s.customerAddress ? <span className="block truncate text-meta text-c-secondary">{s.customerAddress}</span> : null}
+                          </span>
+                          <StatusPill tone={STOP_TONE[status]}>{STOP_WORD[status]}</StatusPill>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </ScheduleCard>
+            );
+          })}
+        </div>
+      )}
     </Page>
   );
 }

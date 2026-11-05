@@ -122,8 +122,10 @@ export const PJ = {
   confirmedBy: (name: string | null) => (name ? `Confirmed · ${name}` : "Confirmed"),
   notConfirmed: "Not confirmed",
   noTransfers: "No stock transfers yet.",
-  /* Slice 8: the month beside the Project List. */
-  allDates: "All dates",
+  /* Slice 8: the Project List and Calendar views (Houzs). */
+  projectViews: "Project views",
+  listView: "List",
+  calendarView: "Calendar",
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",

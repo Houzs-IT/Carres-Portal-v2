@@ -12,6 +12,7 @@ import {
   caseSlaAction,
   caseSlaClock,
   caseSlaCountLabel,
+  caseStageDwell,
   myHolidaySet,
   type CasePriority,
   type CaseSlaClock,
@@ -104,8 +105,14 @@ export default function OperationServiceCases() {
       holidayOpts,
     ), [holidayOpts, todayIso]);
 
+  // 0745 — days in the current stage against its target (Houzs stage clock).
+  const now = useMemo(() => new Date(listQ.dataUpdatedAt || Date.now()), [listQ.dataUpdatedAt]);
+  const dwellOf = useCallback((r: ServiceCase) =>
+    r.stageSince && !r.statusIsClosed ? caseStageDwell(r.stageSince, r.stageTargetDays, now) : null, [now]);
+  const pastTarget = useCallback((r: ServiceCase) => dwellOf(r)?.overTarget ?? false, [dwellOf]);
+
   const allRows: ServiceCase[] = listQ.data?.items ?? [];
-  const stages = stageCounts(allRows, (r) => clockOf(r).state === "late");
+  const stages = stageCounts(allRows, (r) => clockOf(r).state === "late", pastTarget);
   // A picked stage with no cases left in this list has no card to un-press, so
   // it stops filtering instead of hiding every row.
   const stageShown = stageId !== null && stages.some((st) => st.id === stageId);
@@ -116,6 +123,7 @@ export default function OperationServiceCases() {
 
   const openCount = allRows.filter((r) => !r.statusIsClosed).length;
   const lateCount = allRows.filter((r) => clockOf(r).state === "late").length;
+  const pastTargetCount = allRows.filter(pastTarget).length;
 
   // An empty list under a filter is not an empty module: say which filter emptied it.
   const filtered = mine || hideCompleted || stageShown || !!creditorId;
@@ -152,7 +160,7 @@ export default function OperationServiceCases() {
 
 
   // Houzs ServiceCases.tsx:578-948 and serviceCaseStageColumns.tsx, same order
-  // and words. Houzs's stage-date columns need a stage date Carres does not keep.
+  // and words. Days in stage and In stage since read the 0745 stage history.
   const columns = useMemo<DataGridColumn<ServiceCase>[]>(() => [
     {
       key: "stage", label: "Stage", width: W.status,
@@ -179,6 +187,9 @@ export default function OperationServiceCases() {
     { key: "salesperson", label: "Salesperson", width: W.requestedBy, accessor: (r) => r.salespersonName ?? null, searchValue: (r) => r.salespersonName ?? "" },
     // S1 — the urgency a new case starts from, and staff edit it after (0711).
     { key: "priority", label: "Priority", width: W.status, accessor: (r) => <PriorityCell priority={r.priority ?? null} />, searchValue: (r) => r.priority ?? "" },
+    // 0745 — Houzs ServiceCases.tsx:773 (dwell in the current stage); red at or past the stage's target days.
+    { key: "dwell", label: "Days in stage", width: W.status, align: "right", accessor: (r) => <DwellCell dwell={dwellOf(r)} target={r.stageTargetDays ?? null} /> },
+    { key: "stageSince", label: "In stage since", width: W.date, defaultHidden: true, accessor: (r) => (r.stageSince ? fmtDate(r.stageSince) : null), dateValue: (r) => r.stageSince ?? "", filterType: "date" },
     { key: "owner", label: "Assigned To", width: W.requestedBy, accessor: (r) => ownerOf(r) || null, searchValue: ownerOf },
     { key: "item", label: "Item", width: W.documentNo, defaultHidden: true, accessor: (r) => (r.productSku ? <span className="font-mono">{r.productSku}</span> : null), searchValue: (r) => r.productSku ?? "" },
     { key: "what", label: "Complaint Issue", width: 260, accessor: (r) => <p className="line-clamp-2 whitespace-normal">{r.whatHappened || null}</p>, searchValue: (r) => r.whatHappened ?? "" },
@@ -195,7 +206,7 @@ export default function OperationServiceCases() {
     { key: "age", label: "Case age", width: W.status, align: "right", accessor: (r) => <span className="tabular-nums">{caseAgeDays(r.openedAt, todayIso)} days</span> },
     // S3 — what to DO next, derived from the case's own answers. Houzs has no such column.
     { key: "next", label: "Next step", width: 240, defaultHidden: true, accessor: (r) => <NextStepCell row={r} clock={clockOf(r)} /> },
-  ], [ownerOf, clockOf, todayIso, searchParams]);
+  ], [ownerOf, clockOf, dwellOf, todayIso, searchParams]);
 
   if (caseId) return <ServiceCaseDetail id={caseId} onBack={() => setParam("case", null)} />;
 
@@ -241,7 +252,7 @@ export default function OperationServiceCases() {
               </div>
               {/* 0711 — Stage funnel: click a stage to filter, click again (or All) to clear. */}
               <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {[{ id: null as string | null, label: "All", count: allRows.length, overdue: lateCount }, ...stages].map((st) => {
+                {[{ id: null as string | null, label: "All", count: allRows.length, overdue: lateCount, pastTarget: pastTargetCount }, ...stages].map((st) => {
                   const active = st.id === null ? !stageShown : stageId === st.id;
                   return (
                     <button key={st.id ?? "all"} type="button" aria-pressed={active} data-testid={`case-stage-card-${st.id ?? "all"}`}
@@ -250,6 +261,7 @@ export default function OperationServiceCases() {
                       <span className="flex items-center gap-1.5">
                         <span className="text-strong font-semibold t-num text-base-900">{st.count}</span>
                         {st.overdue > 0 && <span className="pill pill-overdue">{st.overdue} overdue</span>}
+                        {st.pastTarget > 0 && <span className="pill pill-overdue">{st.pastTarget} past target</span>}
                       </span>
                       <span className="label mt-1 text-base-500">{st.label}</span>
                       <span className="text-meta text-base-500">{st.id === null ? "Every case in this list" : caseStageDescription(st.label)}</span>
@@ -320,6 +332,16 @@ function caseLink(params: URLSearchParams, id: string): string {
 /** Calendar days since the case was reported (Houzs Case age). */
 export function caseAgeDays(openedAt: string, todayIso: string): number {
   return Math.max(0, Math.round((Date.parse(`${todayIso}T00:00:00Z`) - Date.parse(`${openedAt.slice(0, 10)}T00:00:00Z`)) / 86_400_000));
+}
+
+/** 0745 — "4 days", or "4 / 3 days" when the stage has a target; red at or past it. */
+function DwellCell({ dwell, target }: { dwell: { days: number; overTarget: boolean } | null; target: number | null }) {
+  if (!dwell) return null;
+  return (
+    <span className={dwell.overTarget ? "font-semibold tabular-nums text-error-700" : "tabular-nums"}>
+      {target != null ? `${dwell.days} / ${target}` : dwell.days} days
+    </span>
+  );
 }
 
 function SummaryCard({ label, value, note, alert = false }: { label: string; value: number; note: string; alert?: boolean }) {
@@ -456,13 +478,18 @@ function PriorityCell({ priority }: { priority: CasePriority | null }) {
 
 /** 0711 — how many cases sit in each stage, in the order stages first appear,
  *  and how many of them are overdue. A case with no stage counts under "Unset". */
-export function stageCounts(rows: readonly ServiceCase[], isLate: (r: ServiceCase) => boolean = () => false): { id: string; label: string; count: number; overdue: number }[] {
-  const out = new Map<string, { id: string; label: string; count: number; overdue: number }>();
+export function stageCounts(
+  rows: readonly ServiceCase[],
+  isLate: (r: ServiceCase) => boolean = () => false,
+  isPastTarget: (r: ServiceCase) => boolean = () => false,
+): { id: string; label: string; count: number; overdue: number; pastTarget: number }[] {
+  const out = new Map<string, { id: string; label: string; count: number; overdue: number; pastTarget: number }>();
   for (const r of rows) {
     const id = r.statusId ?? "";
-    const hit = out.get(id) ?? { id, label: r.statusLabel ?? "Unset", count: 0, overdue: 0 };
+    const hit = out.get(id) ?? { id, label: r.statusLabel ?? "Unset", count: 0, overdue: 0, pastTarget: 0 };
     hit.count += 1;
     if (isLate(r)) hit.overdue += 1;
+    if (isPastTarget(r)) hit.pastTarget += 1;
     out.set(id, hit);
   }
   return [...out.values()];

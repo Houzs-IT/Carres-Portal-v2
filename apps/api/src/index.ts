@@ -102,6 +102,7 @@ import collectionOwnerRouter from "./routes/finance/collection-owner";
 import paymentStorageRouter from "./routes/finance/payment-storage";
 import financeRefundsRouter from "./routes/finance/refunds";
 import financePayablesRouter from "./routes/finance/payables";
+import financeProjectMoneyRouter from "./routes/finance/project-money";
 import financePaymentRequestsRouter from "./routes/finance/payment-requests";
 import financeExceptionsRouter from "./routes/finance/exceptions";
 import financeReconciliationRouter from "./routes/finance/reconciliation";
@@ -156,6 +157,7 @@ import opsTasksRouter from "./routes/ops/tasks";
 import annotationsRouter, { escalationsRouter } from "./routes/operation/annotations";
 // Order activity history (P1) — the global cross-order activity feed.
 import activityRouter from "./routes/operation/activity";
+import priceAfterDoRouter from "./routes/operation/price-after-do";
 // Migration 0223 — Stripe online collection (POS checkout links + webhook).
 import stripeCheckoutRouter from "./routes/stripe-checkout";
 import stripeWebhookRouter from "./routes/stripe-webhook";
@@ -339,6 +341,8 @@ api.route("/finance/refunds", financeRefundsRouter);
 api.route("/finance/other-money-in", financeOtherMoneyInRouter);
 // Supplier bills and payment vouchers (0477). Before the `/finance` catch-all.
 api.route("/finance/payables", financePayablesRouter);
+// A project's money (0754, Houzs event-books). Before the catch-all.
+api.route("/finance/projects", financeProjectMoneyRouter);
 // Staff ask Finance to pay a bill (0645, Chew 2026-10-03). Before the catch-all.
 api.route("/finance/payment-requests", financePaymentRequestsRouter);
 // The one money blocker on a delivery order (0355, owner ruling 2026-08-16).
@@ -402,6 +406,7 @@ api.route("/operation/internal-tasks", internalTasksRouter);
 api.route("/operation/orders", annotationsRouter);
 api.route("/operation/escalations", escalationsRouter);
 api.route("/operation/activity", activityRouter);
+api.route("/operation/order-lines", priceAfterDoRouter);
 // 0247-0249 — Rental + Service Plan base (config CRUD + registry reads)
 api.route("/rental", rentalRouter);
 

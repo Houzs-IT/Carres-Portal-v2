@@ -271,24 +271,31 @@ export function projectDateRange(startDate: string, endDate: string): string {
   return `${sd} to ${one(ey, em, ed)}`;
 }
 
-/* ── Slice 8: the month calendar beside the Project List ─────────────── */
+/* ── Slice 8: the project calendar (kit BarCalendar) ─────────────────── */
 
-/** True when the project runs on that day, both ends counted (Houzs calendar bars). */
-export function projectRunsOn(p: { startDate: string; endDate: string }, day: string): boolean {
-  return p.startDate <= day && day <= p.endDate;
-}
+/** Houzs calendarSort.ts:17-36: states north to south, Penang first, East Malaysia last. */
+const CALENDAR_STATE_ORDER = [
+  "PENANG", "KEDAH", "PERLIS", "PERAK", "IPOH", "KELANTAN", "TERENGGANU", "PAHANG", "SELANGOR", "KL",
+  "KUALA LUMPUR", "PUTRAJAYA", "NEGERI SEMBILAN", "MELAKA", "JOHOR", "LABUAN", "SABAH", "SARAWAK",
+];
+const stateRank = (s: string | null) => {
+  const r = CALENDAR_STATE_ORDER.indexOf((s ?? "").trim().toUpperCase());
+  return r === -1 ? CALENDAR_STATE_ORDER.length : r;
+};
 
-/** `YYYY-MM-DD` → how many projects run that day, for every day of `month` (`YYYY-MM`). */
-export function projectDayCounts(projects: ReadonlyArray<{ startDate: string; endDate: string }>, month: string): Record<string, number> {
-  const [y, m] = month.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const out: Record<string, number> = {};
-  for (let d = 1; d <= last; d++) {
-    const day = `${month}-${String(d).padStart(2, "0")}`;
-    const n = projects.filter((p) => projectRunsOn(p, day)).length;
-    if (n) out[day] = n;
-  }
-  return out;
+/** Calendar order, Houzs compareCalendarEvents (calendarSort.ts:56-64): state in the fixed order,
+ *  then venue, organizer, brand, so one fair's brands stack together. */
+export function compareProjectsForCalendar(
+  a: { state: string | null; venue: string | null; organizer: string | null; brand: string | null },
+  b: { state: string | null; venue: string | null; organizer: string | null; brand: string | null },
+): number {
+  return (
+    stateRank(a.state) - stateRank(b.state) ||
+    (a.state ?? "").localeCompare(b.state ?? "") ||
+    (a.venue ?? "").localeCompare(b.venue ?? "") ||
+    (a.organizer ?? "").localeCompare(b.organizer ?? "") ||
+    (a.brand ?? "").localeCompare(b.brand ?? "")
+  );
 }
 
 /* ── Slice 6 (0757): stock out to the fair and back (Houzs project_stock_transfers) ── */

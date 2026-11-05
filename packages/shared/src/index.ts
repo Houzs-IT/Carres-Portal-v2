@@ -372,6 +372,7 @@ export {
   type CatalogConfigHistoryDto,
   // 0202 — global fabric master schemas + input/Dto types.
   fabricTierValueSchema,
+  sofaTierValueSchema,
   catalogFabricSchema,
   FABRIC_STOCK_KEYS,
   catalogFabricEntryInput,
@@ -457,8 +458,10 @@ export {
   // that quoted it; the supplier_id slot stays the routing truth.
   skuSupplierOfferSchema,
   skuSupplierOfferUpsertInput,
+  supplierOfferImportInput,
   type SkuSupplierOfferDto,
   type SkuSupplierOfferUpsertInput,
+  type SupplierOfferImportInput,
 } from "./schemas/catalog";
 
 // 0219 — Order Entry config (payment methods + form fields).
@@ -1742,6 +1745,7 @@ export {
 // Migration 0176 — fabric tier pricing resolver + types.
 export {
   resolveFabricDelta,
+  type BedframeTier,
   type FabricTier,
   type FabricTierOverride,
   type FabricTierGlobalConfig,
@@ -2113,6 +2117,8 @@ export {
   type CaseSlaClock,
   type CaseSlaRecordInput,
 } from "./service-case-sla";
+// 0745 — days in the current stage against its target days (Houzs stage clock).
+export { caseStageDwell, type CaseStageDwell } from "./service-case-stage-clock";
 // S5 — the monthly numbers. NO migration and no new table: the day a case ended
 // is the `customer_confirmed` entry S3's own close gate already demands, so the
 // review layer reads the cases exactly as the card asked.

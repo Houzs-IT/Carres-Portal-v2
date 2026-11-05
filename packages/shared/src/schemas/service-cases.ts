@@ -40,6 +40,8 @@ export const caseStatusSchema = z.object({
   sortOrder: z.number().int(),
   active:    z.boolean(),
   isClosed:  z.boolean(),
+  /** 0745 — days a case should stay in this stage; null = no target. */
+  targetDays: z.number().nullable().optional(),
 });
 export type CaseStatus = z.infer<typeof caseStatusSchema>;
 
@@ -316,6 +318,22 @@ export const serviceCaseSchema = z.object({
    */
   ownerUserId:     z.string().uuid().nullable().optional(),
   ownerPickable:   z.boolean().optional(),
+
+  /**
+   * 0745 — the stage clock (Houzs stage history). `stageSince` is when the case
+   * entered its current stage (created_at for a case filed before 0745);
+   * `stageTargetDays` is the target snapshotted at entry. `stageHistory` is
+   * every stage the case entered, oldest first.
+   */
+  stageSince:      z.string().optional(),
+  stageTargetDays: z.number().nullable().optional(),
+  stageHistory:    z.array(z.object({
+    statusId:   z.string().uuid().nullable(),
+    enteredAt:  z.string(),
+    exitedAt:   z.string().nullable(),
+    targetDays: z.number().nullable(),
+    changedBy:  z.string().uuid().nullable(),
+  })).optional(),
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -509,4 +527,6 @@ export const servicePickItemCreateSchema = z.object({
 export const servicePickItemPatchSchema = z.object({
   label:  z.string().trim().min(1).max(60).optional(),
   active: z.boolean().optional(),
+  /** 0745 — stages only: target days in the stage, null clears it. */
+  targetDays: z.number().min(0).nullable().optional(),
 });
