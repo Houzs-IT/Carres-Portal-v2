@@ -184,6 +184,22 @@ describe("PUT /api/catalog/skus/:id/supplier-offers", () => {
     expect(vi.mocked(userClient)).not.toHaveBeenCalled();
   });
 
+  it("the price-list import is PRINCIPAL only too", async () => {
+    for (const role of ["operation", "dealer"]) {
+      const jwt = await makeJwt(role);
+      const res = await app.fetch(
+        new Request(`http://t/api/catalog/supplier-offers/import`, {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ supplierId: HKI, rows: [{ sku: "BF-1", price: 1 }] }),
+        }),
+        env,
+      );
+      expect(res.status).toBe(403);
+    }
+    expect(vi.mocked(userClient)).not.toHaveBeenCalled();
+  });
+
   it("rejects an unknown key rather than dropping it (.strict)", async () => {
     mockSb({ upserted: ROW });
     const jwt = await makeJwt("principal");
