@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checklistDueDate, compareProjectsForCalendar, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, projectListSummary, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode, stockRecordSignInput, stockTransferInput } from "./projects";
+import { checklistDueDate, compareProjectsForCalendar, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, projectListSummary, projectChecklistCounts, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode, stockRecordSignInput, stockTransferInput } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -112,5 +112,20 @@ describe("project list summary", () => {
   it("lists projects starting after today and within 30 days, soonest first", () => {
     const rows = [r("2026-12-05", "2026-12-06"), r("2026-12-06", "2026-12-07"), r("2026-11-06", "2026-11-08"), r("2026-11-05", "2026-11-09"), r("2026-11-10", "2026-11-11", "cancelled")];
     expect(projectListSummary(rows, "2026-11-05").upcoming.map((x) => x.startDate)).toEqual(["2026-11-06", "2026-12-05"]);
+  });
+});
+
+/** Houzs Overdue Tasks and card progress. */
+describe("project checklist counts", () => {
+  const t = (status: "pending" | "done" | "na" | "blocked", dueOffsetDays: number | null) => ({ status, dueOffsetDays });
+
+  it("counts a pending task due before today as overdue, nothing else", () => {
+    // start 2026-11-10: -10 is due 31 Oct (overdue), -5 due 5 Nov (today, not yet), no offset never.
+    const tasks = [t("pending", -10), t("pending", -5), t("pending", null), t("blocked", -10), t("done", -10), t("na", -10)];
+    expect(projectChecklistCounts(tasks, "2026-11-10", "2026-11-05")).toEqual({ total: 6, percent: 33, overdue: 1 });
+  });
+
+  it("is empty for a project with no tasks", () => {
+    expect(projectChecklistCounts([], "2026-11-10", "2026-11-05")).toEqual({ total: 0, percent: 0, overdue: 0 });
   });
 });

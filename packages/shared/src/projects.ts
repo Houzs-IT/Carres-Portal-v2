@@ -245,6 +245,22 @@ export function checklistProgress(tasks: ReadonlyArray<{ status: ChecklistStatus
   return Math.round((tasks.filter((t) => t.status === "done" || t.status === "na").length / tasks.length) * 100);
 }
 
+/** One project's checklist on the Project List: card progress and the Overdue tasks tile. */
+export interface ProjectChecklistCounts { total: number; percent: number; overdue: number }
+export type ProjectListRow = ProjectRow & { checklist: ProjectChecklistCounts };
+
+/**
+ * Houzs Overdue Tasks (routes/projects.ts summary): a task still `pending` whose due day
+ * (start + offset) is before today. Blocked, done and not needed tasks are not overdue.
+ */
+export function projectChecklistCounts(tasks: ReadonlyArray<{ status: ChecklistStatus; dueOffsetDays: number | null }>, startDate: string, today: string): ProjectChecklistCounts {
+  const overdue = tasks.filter((t) => {
+    const due = t.status === "pending" ? checklistDueDate(startDate, t.dueOffsetDays) : null;
+    return due != null && due < today;
+  }).length;
+  return { total: tasks.length, percent: checklistProgress(tasks), overdue };
+}
+
 /* ── Slice 4 (0753): Sales Orders at the project ─────────────────────── */
 
 export const projectOrderLinkInput = z.object({ so: text(40) });

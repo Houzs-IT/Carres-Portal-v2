@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectSalesOrder, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectStockTransfer, ProjectTeamMember, StockTransferDirection,
+  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectSalesOrder, ProjectMaster, ProjectMasterKind, ProjectListRow, ProjectRow, ProjectStage, ProjectStatus, ProjectStockTransfer, ProjectTeamMember, StockTransferDirection,
 } from "@carres/shared/projects";
 import type { OrderActionTone } from "@carres/shared/order-actions";
 import { apiFetch } from "@/lib/api";
@@ -133,6 +133,8 @@ export const PJ = {
   liveNowHint: "Events running today",
   upcoming30: "Upcoming (30 days)",
   upcomingHint: "Starting in the next 30 days",
+  overdueTasks: "Overdue tasks",
+  overdueHint: "Checklist items past due",
   total: "Total",
   shown: (n: number) => `${n} projects shown`,
   upcoming: "Upcoming",
@@ -156,7 +158,7 @@ export function useProjects(f: ProjectFilters) {
   const qs = new URLSearchParams({ ...(f.status ? { status: f.status } : {}), ...(f.archived ? { archived: "1" } : {}), ...(f.brand ? { brand: f.brand } : {}) }).toString();
   return useQuery({
     queryKey: ["projects", "list", f],
-    queryFn: () => apiFetch<{ projects: ProjectRow[] }>(`/api/operation/projects${qs ? `?${qs}` : ""}`),
+    queryFn: () => apiFetch<{ projects: ProjectListRow[] }>(`/api/operation/projects${qs ? `?${qs}` : ""}`),
   });
 }
 
