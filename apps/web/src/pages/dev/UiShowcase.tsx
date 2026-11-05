@@ -25,6 +25,7 @@ import CSidePanel from "@/components/carres/CSidePanel";
 import { CChip, CIconButton, CShowPanelButton, CViewButton } from "@/components/carres/CToolbar";
 import { SEGMENT, SEGMENT_OFF, SEGMENT_ON, SEGMENTED_TRACK } from "@/components/kit/Tabs";
 import { TasksPill, useShellTasks } from "@/pages/operation/components/ShellTasks";
+import BarCalendar, { type BarCalendarItem } from "@/components/kit/BarCalendar";
 import Button from "@/components/kit/Button";
 import Checkbox from "@/components/kit/Checkbox";
 import DatePicker from "@/components/kit/DatePicker";
@@ -337,7 +338,17 @@ function SavedEvidenceSample() {
   </>;
 }
 
+/* TEST spans for the bar calendar: four on one day, so the fourth folds into +1 more. */
+const CALENDAR_SAMPLE: BarCalendarItem[] = [
+  { id: "t1", start: "2026-11-05", end: "2026-11-15", label: "TEST Fair A", detail: "Confirmed", tone: "success" },
+  { id: "t2", start: "2026-11-09", end: "2026-11-11", label: "TEST Fair B", detail: "Pending", tone: "warning" },
+  { id: "t3", start: "2026-11-10", end: "2026-11-12", label: "TEST Roadshow C", detail: "Confirmed", tone: "success" },
+  { id: "t4", start: "2026-11-10", end: "2026-11-10", label: "TEST Fair D", detail: "Cancelled", tone: "danger" },
+  { id: "t5", start: "2026-11-27", end: "2026-12-03", label: "TEST Fair E", detail: "Pending", tone: "warning" },
+];
+
 function SharedParts() {
+  const [calendarMonth, setCalendarMonth] = useState("2026-11");
   const [carrier, setCarrier] = useState<string | undefined>(undefined);
   const [picked, setPicked] = useState(true);
   const [date, setDate] = useState<string | null>("2026-10-19");
@@ -408,6 +419,13 @@ function SharedParts() {
             <Checkbox id="ui-k-cb" label="Owing" checked={picked} onCheckedChange={(v) => setPicked(v === true)} />
           </Panel2>
         </div>
+      </Section>
+
+      <Section id="calendars" title="Calendars" note="DatePicker is the date field. MonthCalendar is a rail filter that counts each day. BarCalendar shows dated items as one bar each, from the first day to the last, in the StatusPill colour of the item; Monday first; a month shows three lanes and folds the rest into +N more, which opens that week with every bar. Each bar is a button named by its words.">
+        <Panel2>
+          <BarCalendar month={calendarMonth} onMonthChange={setCalendarMonth} items={CALENDAR_SAMPLE}
+            onItemClick={(id) => setSampleAction(`TEST · ${CALENDAR_SAMPLE.find((i) => i.id === id)?.label} selected`)} label="TEST calendar" testId="ui-bar-calendar" />
+        </Panel2>
       </Section>
 
       <Section id="menus" title="Menus and pop-ups" note="One pop-up, CPopover: as a menu (CMenu, items as data: ↓, Enter or Space opens it on its first command, ↑ ↓ Home End move, Escape or Tab closes it and focus goes back to its button; a menu carries no colour) and as a small panel (a filter, a calendar, a list of links). Inside a dialog it opens within the dialog.">
@@ -549,7 +567,7 @@ export default function UiShowcase() {
       </header>
 
       <nav aria-label="Kit sections" className="grid grid-cols-3 gap-x-4 gap-y-1 sm:grid-cols-6 lg:grid-cols-9">
-        {[["colours", "Colours"], ["typography", "Typography"], ["measurements", "Dimensions"], ["ux-rules", "UX rules"], ["table", "Tables"], ["cells", "Table cells"], ["order-lines", "Order lines"], ["pills", "Pills"], ["toolbar", "Toolbar"], ["side-panel", "Side panel"], ["icons", "Icons"], ["complete-pages", "Complete pages"], ["buttons", "Buttons"], ["fields", "Fields"], ["menus", "Menus"], ["tabs-kit", "Tabs"], ["dialogs", "Dialogs"], ["states", "States"], ["documents", "Documents"], ["task-parts", "Tasks"]].map(([id, label]) => (
+        {[["colours", "Colours"], ["typography", "Typography"], ["measurements", "Dimensions"], ["ux-rules", "UX rules"], ["table", "Tables"], ["cells", "Table cells"], ["order-lines", "Order lines"], ["pills", "Pills"], ["toolbar", "Toolbar"], ["side-panel", "Side panel"], ["icons", "Icons"], ["complete-pages", "Complete pages"], ["buttons", "Buttons"], ["fields", "Fields"], ["calendars", "Calendars"], ["menus", "Menus"], ["tabs-kit", "Tabs"], ["dialogs", "Dialogs"], ["states", "States"], ["documents", "Documents"], ["task-parts", "Tasks"]].map(([id, label]) => (
           <a key={id} href={`#${id}`} className="inline-flex min-h-11 items-center text-body text-c-secondary underline decoration-c-chip-border underline-offset-2">{label}</a>
         ))}
       </nav>
