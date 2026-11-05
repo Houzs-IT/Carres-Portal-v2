@@ -39,6 +39,8 @@ const ticketInput = z.object({
   priority: z.enum(["high", "medium", "low"]).optional(),
   // http(s) only: the Hub shows it as a link, so `javascript:` must not get through.
   page_url: z.string().trim().max(1000).url().refine((u) => /^https?:\/\//i.test(u), "Page address must be a web address.").optional(),
+  // The rail module the page belongs to; the Hub's Reports group requests by it.
+  module: z.string().trim().max(60).optional(),
   app_version: z.string().trim().max(60).optional(),
 });
 
