@@ -142,6 +142,20 @@ export function projectDurationDays(startDate: string, endDate: string): number 
   return Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
+const plusDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Houzs Project List tiles and Upcoming rail (Projects.tsx ProjectsListView): "Live now" =
+ * running today, "Upcoming" = starting after today and within 30 days, soonest first.
+ * Cancelled projects count in neither.
+ */
+export function projectListSummary<T extends Pick<ProjectRow, "status" | "startDate" | "endDate">>(rows: readonly T[], today: string) {
+  const open = rows.filter((r) => r.status !== "cancelled");
+  const until = plusDays(today, 30);
+  const upcoming = open.filter((r) => r.startDate > today && r.startDate <= until).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  return { liveNow: open.filter((r) => r.startDate <= today && r.endDate >= today).length, upcoming };
+}
+
 /* ── Slice 2 (0751): Project Maintenance masters and the project team ──── */
 
 /** Houzs project_brands, project_venues, project_organizers, project_contractors,
@@ -269,4 +283,75 @@ export function projectDateRange(startDate: string, endDate: string): string {
   if (sy !== ey) return `${one(sy, sm, sd)} to ${one(ey, em, ed)}`;
   if (sm !== em) return `${sd} ${MONTHS[sm - 1]} to ${one(ey, em, ed)}`;
   return `${sd} to ${one(ey, em, ed)}`;
+}
+
+/* ── Slice 8: the project calendar (kit BarCalendar) ─────────────────── */
+
+/** Houzs calendarSort.ts:17-36: states north to south, Penang first, East Malaysia last. */
+const CALENDAR_STATE_ORDER = [
+  "PENANG", "KEDAH", "PERLIS", "PERAK", "IPOH", "KELANTAN", "TERENGGANU", "PAHANG", "SELANGOR", "KL",
+  "KUALA LUMPUR", "PUTRAJAYA", "NEGERI SEMBILAN", "MELAKA", "JOHOR", "LABUAN", "SABAH", "SARAWAK",
+];
+const stateRank = (s: string | null) => {
+  const r = CALENDAR_STATE_ORDER.indexOf((s ?? "").trim().toUpperCase());
+  return r === -1 ? CALENDAR_STATE_ORDER.length : r;
+};
+
+/** Calendar order, Houzs compareCalendarEvents (calendarSort.ts:56-64): state in the fixed order,
+ *  then venue, organizer, brand, so one fair's brands stack together. */
+export function compareProjectsForCalendar(
+  a: { state: string | null; venue: string | null; organizer: string | null; brand: string | null },
+  b: { state: string | null; venue: string | null; organizer: string | null; brand: string | null },
+): number {
+  return (
+    stateRank(a.state) - stateRank(b.state) ||
+    (a.state ?? "").localeCompare(b.state ?? "") ||
+    (a.venue ?? "").localeCompare(b.venue ?? "") ||
+    (a.organizer ?? "").localeCompare(b.organizer ?? "") ||
+    (a.brand ?? "").localeCompare(b.brand ?? "")
+  );
+}
+
+/* ── Slice 6 (0757): stock out to the fair and back (Houzs project_stock_transfers) ── */
+
+export const STOCK_TRANSFER_DIRECTIONS = ["out", "return"] as const;
+export type StockTransferDirection = (typeof STOCK_TRANSFER_DIRECTIONS)[number];
+
+/** The transfer sheet file: private bucket, 10 MB, a photo or a PDF (Houzs also takes xlsx). */
+export const PROJECT_STOCK_RECORD_BUCKET = "project-stock-records";
+export const PROJECT_STOCK_RECORD_MAX_BYTES = 10 * 1024 * 1024;
+export const PROJECT_STOCK_RECORD_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"] as const;
+export const PROJECT_STOCK_RECORD_EXT: Record<(typeof PROJECT_STOCK_RECORD_MIME)[number], string> = {
+  "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+};
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+/** `{projectId}/{uuid}.{ext}`; the server names every key. */
+export const PROJECT_STOCK_RECORD_PATH = new RegExp(`^${UUID}/${UUID}\.(pdf|jpg|png|webp)$`);
+
+export const stockRecordSignInput = z.object({
+  mimeType: z.enum(PROJECT_STOCK_RECORD_MIME),
+  sizeBytes: z.number().int().positive().max(PROJECT_STOCK_RECORD_MAX_BYTES),
+});
+
+/** Houzs POST /:id/stock-transfers: direction required; an empty day means today in Malaysia. */
+export const stockTransferInput = z.object({
+  direction: z.enum(STOCK_TRANSFER_DIRECTIONS),
+  transferredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish().transform((v) => v ?? null),
+  recordPath: z.string().regex(PROJECT_STOCK_RECORD_PATH).nullish().transform((v) => v ?? null),
+  fileName: optText(200),
+  mimeType: z.enum(PROJECT_STOCK_RECORD_MIME).nullish().transform((v) => v ?? null),
+  notes: optText(1000),
+}).refine((v) => !v.recordPath || v.mimeType, { message: "mimeType goes with recordPath", path: ["mimeType"] });
+
+export interface ProjectStockTransfer {
+  id: string;
+  direction: StockTransferDirection;
+  transferredAt: string;
+  recordPath: string | null;
+  fileName: string | null;
+  notes: string | null;
+  confirmedAt: string | null;
+  confirmedByName: string | null;
+  createdByName: string | null;
+  createdAt: string;
 }

@@ -46,6 +46,8 @@ export const EVENT_WORD: Record<string, string> = {
   rejected: "Returned to draft",
   cancelled: "Cancelled",
   file_added: "File added",
+  // A voucher's file removed before it was checked (migration 0773).
+  file_removed: "File removed",
   // Supplier advances (migration 0485).
   advance_applied: "Advance applied",
   advance_taken_off: "Advance taken off",

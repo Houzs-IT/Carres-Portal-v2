@@ -1,25 +1,31 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, projectDurationDays,
-  type ChecklistTask, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectTeamMember,
+  CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, compareProjectsForCalendar, projectDateRange, projectDurationDays, projectListSummary,
+  type ChecklistTask, type ProjectActivity, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
+import BarCalendar from "@/components/kit/BarCalendar";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
 import DatePicker from "@/components/kit/DatePicker";
 import Drawer from "@/components/kit/Drawer";
 import Input from "@/components/kit/Input";
+import Loading from "@/components/kit/Loading";
 import Panel from "@/components/kit/Panel";
+import ScheduleCard from "@/components/kit/ScheduleCard";
 import Select from "@/components/kit/Select";
 import StatusPill from "@/components/kit/StatusPill";
 import { Step } from "@/components/kit/StepList";
+import Tabs from "@/components/kit/Tabs";
 import Textarea from "@/components/kit/Textarea";
-import { fmtDate } from "@/lib/fmt-date";
+import { appTodayIso, fmtDate } from "@/lib/fmt-date";
 import { rm } from "@/lib/format-currency";
 import ModuleHeader from "./components/ModuleHeader";
 import CouldNotLoad from "./components/CouldNotLoad";
-import { PJ, STATUS_TONE, refusalOf, useChecklistTemplates, useProject, useProjectMasters, useProjectSalesOrders, useProjectWrite, useProjects, useStaffOptions } from "./projects";
+import EvidenceUploadField from "@/components/EvidenceUploadField";
+import OperationKpiTile from "./components/OperationKpiTile";
+import { PJ, STATUS_TONE, openStockRecord, refusalOf, signStockRecord, useChecklistTemplates, useProject, useProjectMasters, useProjectSalesOrders, useProjectWrite, useProjects, useStaffOptions } from "./projects";
 
 /**
  * Projects (0750): Project List, create and detail. Follows Houzs
@@ -45,13 +51,28 @@ export function ProjectsPage() {
   );
 }
 
-/* ── Project List (Houzs Table view) ─────────────────────────────────────── */
+/* ── Project List (Houzs ProjectsListView: Cards, Table and Calendar) ────── */
+
+type ListView = "cards" | "table" | "calendar";
 
 function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   const [status, setStatus] = useState("");
   const [archived, setArchived] = useState(false);
+  const [brand, setBrand] = useState("");
   const [creating, setCreating] = useState(false);
-  const q = useProjects({ status, archived });
+  // Houzs keeps ?view and ?month in the URL, so opening a project and coming back lands on
+  // the same view. Cards is Houzs's default; an unknown ?view falls back to it.
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("view");
+  const view: ListView = raw === "table" || raw === "calendar" ? raw : "cards";
+  const month = params.get("month") ?? appTodayIso().slice(0, 7);
+  const setParam = (key: string, value: string | null) => {
+    const p = new URLSearchParams(params);
+    if (value) p.set(key, value); else p.delete(key);
+    setParams(p);
+  };
+  const q = useProjects({ status, archived, brand });
+  const brands = (useProjectMasters().data?.masters ?? []).filter((m) => m.kind === "brand" && m.active);
   if (q.isError) return <CouldNotLoad detail={PJ.failed} onRetry={() => void q.refetch()} />;
 
   const columns: DataGridColumn<ProjectRow>[] = [
@@ -70,20 +91,102 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   ];
   const toolbar = (
     <span className="flex items-center gap-2">
+      <Tabs variant="segmented" label={PJ.projectViews} value={view} onValueChange={(v) => setParam("view", v === "cards" ? null : v)}
+        tabs={[{ value: "cards", label: PJ.cardsView }, { value: "table", label: PJ.tableView }, { value: "calendar", label: PJ.calendarView }]} />
       <Select id="projects-archived" toolbar value={archived ? "archived" : "live"} onValueChange={(v) => setArchived(v === "archived")}
         options={[{ value: "live", label: PJ.live }, { value: "archived", label: PJ.archivedList }]} />
+      <Select id="projects-brand" toolbar value={brand || "all"} onValueChange={(v) => setBrand(v === "all" ? "" : v)}
+        options={[{ value: "all", label: PJ.allBrands }, ...brands.map((b) => ({ value: b.name, label: b.name }))]} />
       <Select id="projects-status" toolbar value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : v)}
         options={[{ value: "all", label: PJ.allStatuses }, ...PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))]} />
       <Button size="sm" variant="primary" onClick={() => setCreating(true)}>{PJ.newProject}</Button>
     </span>
   );
+  const rows = q.data?.projects ?? [];
+  const form = creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null;
+  if (view === "cards") {
+    const summary = projectListSummary(rows, appTodayIso());
+    return (
+      <ListPageShell toolbar={toolbar} testId="projects-cards">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <OperationKpiTile label={PJ.liveNow} value={summary.liveNow} hint={PJ.liveNowHint} accent={summary.liveNow ? "success" : "muted"} />
+            <OperationKpiTile label={PJ.upcoming30} value={summary.upcoming.length} hint={PJ.upcomingHint} accent={summary.upcoming.length ? "primary" : "muted"} />
+          </div>
+          <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            {!q.isSuccess ? <Loading variant="skeleton" /> : rows.length ? (
+              <ul className="flex min-w-0 flex-col gap-2" data-testid="projects-card-list">
+                {rows.map((p) => <li key={p.id}><ProjectCard p={p} onOpen={onOpen} /></li>)}
+              </ul>
+            ) : <p className="text-body text-c-secondary">{PJ.noProjects}</p>}
+            <div className="flex min-w-0 flex-col gap-3">
+              <Panel title={PJ.total}>
+                <p className="text-body text-c-secondary">{PJ.shown(rows.length)}</p>
+              </Panel>
+              <Panel title={PJ.upcoming}>
+                {summary.upcoming.length ? (
+                  <ul className="flex flex-col gap-2 text-body" data-testid="projects-upcoming">
+                    {summary.upcoming.slice(0, 6).map((p) => (
+                      <li key={p.id} className="flex gap-2">
+                        <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => onOpen(p.id)}>{p.name}</button>
+                        <span className="shrink-0 text-c-secondary">{fmtDate(p.startDate)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : <p className="text-body text-c-secondary">{PJ.noUpcoming}</p>}
+              </Panel>
+            </div>
+          </div>
+        </div>
+        {form}
+      </ListPageShell>
+    );
+  }
+  if (view === "calendar") {
+    // Houzs ProjectsCalendarView: one bar per project, tinted by status, stacked in the Houzs order.
+    const items = [...rows].sort(compareProjectsForCalendar).map((p) => ({
+      id: p.id, start: p.startDate, end: p.endDate, label: p.name, tone: STATUS_TONE[p.status],
+      detail: `${PJ.statuses[p.status]}, ${projectDateRange(p.startDate, p.endDate)}`,
+    }));
+    return (
+      <ListPageShell toolbar={toolbar} testId="projects-calendar">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+          {/* Houzs ProjectsCalendarView.tsx:563-573: the status legend above the grid. */}
+          <span className="flex flex-wrap items-center gap-2" aria-hidden>
+            {PROJECT_STATUSES.map((st) => <StatusPill key={st} tone={STATUS_TONE[st]}>{PJ.statuses[st]}</StatusPill>)}
+          </span>
+          {q.isSuccess
+            ? <BarCalendar month={month} onMonthChange={(m) => setParam("month", m)} items={items} onItemClick={onOpen} label={PJ.calendarView} testId="projects-bar-calendar" />
+            : <Loading variant="skeleton" />}
+        </div>
+        {form}
+      </ListPageShell>
+    );
+  }
   return (
     <ListPageShell register>
-      <DataGrid rows={q.data?.projects ?? []} columns={columns} rowKey={(r) => r.id} storageKey="carres.operation.projects.v1"
+      <DataGrid rows={rows} columns={columns} rowKey={(r) => r.id} storageKey="carres.operation.projects.v1"
         appearance="reference" exportName={PJ.projectList} groupBanner={false} isLoading={!q.isSuccess}
         toolbarStart={toolbar} emptyMessage={PJ.noProjects} onRowClick={(r) => onOpen(r.id)} />
-      {creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null}
+      {form}
     </ListPageShell>
+  );
+}
+
+/** Houzs ProjectsListParts card: code and status, the name, then brand, dates and PIC. */
+function ProjectCard({ p, onOpen }: { p: ProjectRow; onOpen: (id: string) => void }) {
+  return (
+    <ScheduleCard label={p.name} testId="project-card"
+      header={<>
+        <span className="min-w-0 truncate text-label text-c-secondary">{p.code}</span>
+        <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
+      </>}
+      footer={<span className="text-c-secondary">{PJ.stage}: {PJ.stages[p.stage]}</span>}>
+      <button type="button" className="min-w-0 break-words text-left text-strong text-c-ink" onClick={() => onOpen(p.id)}>{p.name}</button>
+      <span className="text-c-secondary">
+        {[p.brand, projectDateRange(p.startDate, p.endDate), p.picName ? `${PJ.pic} ${p.picName}` : ""].filter(Boolean).join(" · ")}
+      </span>
+    </ScheduleCard>
   );
 }
 
@@ -176,15 +279,24 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [message, setMessage] = useState<string | null>(null);
   if (q.isError) return <CouldNotLoad detail={(q.error as { status?: number })?.status === 404 ? PJ.notFound : PJ.failed} onRetry={() => void q.refetch()} />;
   if (!q.data) return null;
-  const { project: p, activity, team, checklist } = q.data;
+  const { project: p, activity, team, checklist, stockTransfers = [] } = q.data;
   const archived = !!p.archivedAt;
   const act: Act = (path, body, method = "POST", done) => {
     setMessage(null);
-    // `/team/<id>` and `/checklist/<id>/...` are not under the project; every other door is.
-    const own = path.startsWith("/team/") || (path.startsWith("/checklist/") && path !== "/checklist/apply");
+    // `/team/<id>`, `/checklist/<id>/...` and `/stock-transfers/<id>...` are not under the project; every other door is.
+    const own = path.startsWith("/team/") || path.startsWith("/stock-transfers/") || (path.startsWith("/checklist/") && path !== "/checklist/apply");
     write.mutate({ path: own ? path : `/${p.id}${path}`, method, body }, { onSuccess: done, onError: (e) => setMessage(refusalOf(e)) });
   };
   const stageAt = PROJECT_STAGES.indexOf(p.stage);
+  const days = String(projectDurationDays(p.startDate, p.endDate));
+  // Houzs detail: the dates, size and booth sit in one strip above the columns; the rest below it.
+  const strip: Array<[string, string]> = [
+    [PJ.start, fmtDate(p.startDate)],
+    [PJ.end, fmtDate(p.endDate)],
+    [PJ.days, days],
+    [PJ.size, p.sizeSqm == null ? "" : String(p.sizeSqm)],
+    [PJ.boothNo, p.boothNo ?? ""],
+  ];
   const facts: Array<[string, string]> = [
     [PJ.code, p.code],
     [PJ.eventType, p.eventType ? PJ.eventTypes[p.eventType] : ""],
@@ -192,22 +304,24 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
     [PJ.organizer, p.organizer ?? ""],
     [PJ.venue, [p.venue, p.state].join(", ")],
     [PJ.venueAddress, p.venueAddress ?? ""],
-    [PJ.start, fmtDate(p.startDate)],
-    [PJ.end, fmtDate(p.endDate)],
-    [PJ.days, String(projectDurationDays(p.startDate, p.endDate))],
     [PJ.pic, p.picName ?? ""],
     [PJ.contractor, p.contractor ?? ""],
-    [PJ.boothNo, p.boothNo ?? ""],
-    [PJ.size, p.sizeSqm == null ? "" : String(p.sizeSqm)],
     [PJ.notes, p.notes ?? ""],
   ];
+  // Houzs subtitle under the title: stage · organizer · venue · N days.
+  const subtitle = [PJ.stages[p.stage], p.organizer, p.venue, `${days} ${PJ.days.toLowerCase()}`].filter(Boolean).join(" · ");
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4" data-testid="project-detail">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-start gap-3">
         <Button size="sm" onClick={onBack}>{PJ.back}</Button>
-        <span className="text-strong text-c-ink">{p.name}</span>
-        <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
-        <span className="ml-auto flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex flex-wrap items-center gap-2">
+            <h2 className="min-w-0 break-words text-title text-c-ink">{p.name}</h2>
+            <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
+          </span>
+          <p className="text-body text-c-secondary">{subtitle}</p>
+        </div>
+        <span className="flex flex-wrap items-center gap-2">
           <Select id="project-status" toolbar disabled={archived} value={p.status}
             onValueChange={(v) => act("", { status: v as ProjectStatus }, "PATCH")}
             options={PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))} />
@@ -220,7 +334,8 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
       {message ? <p role="alert" className="text-body">{message}</p> : null}
 
       <Panel title={PJ.stage}>
-        <div className="flex flex-col" data-testid="project-stages">
+        {/* Houzs stage stepper runs across the page, one step per stage. */}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-5" data-testid="project-stages">
           {PROJECT_STAGES.map((s: ProjectStage, i) => (
             <Step key={s} n={i + 1} title={PJ.stages[s]} state={i < stageAt ? "done" : i === stageAt ? "current" : "pending"}
               action={i !== stageAt ? <Button size="sm" onClick={() => act("", { stage: s }, "PATCH")}>{PJ.stages[s]}</Button> : undefined} />
@@ -229,27 +344,49 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
       </Panel>
 
       <Panel title={PJ.details}>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-body md:grid-cols-2">
-          {facts.filter(([, v]) => v).map(([k, v]) => (
-            <div key={k} className="flex gap-2"><dt className="w-32 shrink-0 text-c-secondary">{k}</dt><dd className="min-w-0 break-words">{v}</dd></div>
-          ))}
-        </dl>
+        <div className="flex flex-col gap-3">
+          <dl className="grid grid-cols-2 gap-3 text-body md:grid-cols-5" data-testid="project-strip">
+            {strip.map(([k, v]) => (
+              <div key={k} className="flex min-w-0 flex-col"><dt className="text-label text-c-secondary">{k}</dt><dd className="break-words">{v || "—"}</dd></div>
+            ))}
+          </dl>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 border-t border-border pt-3 text-body md:grid-cols-2">
+            {facts.filter(([, v]) => v).map(([k, v]) => (
+              <div key={k} className="flex gap-2"><dt className="w-32 shrink-0 text-c-secondary">{k}</dt><dd className="min-w-0 break-words">{v}</dd></div>
+            ))}
+          </dl>
+        </div>
       </Panel>
 
-      <SalesOrdersPanel projectId={p.id} act={act} busy={write.isPending} />
+      {/* Houzs two columns: sales and the tasklist on the left, the team and the event's notes on the right. */}
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <SalesOrdersPanel projectId={p.id} act={act} busy={write.isPending} />
+          <StockTransfersPanel projectId={p.id} transfers={stockTransfers} act={act} busy={write.isPending} onFail={setMessage} />
+          <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <TeamPanel team={team} act={act} busy={write.isPending} />
+          <ActivityPanel activity={activity} note={note} setNote={setNote} busy={write.isPending}
+            onAdd={() => act("/notes", { note: note.trim() }, "POST", () => setNote(""))} />
+        </div>
+      </div>
+      {editing ? <ProjectForm project={p} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} /> : null}
+    </div>
+  );
+}
 
-      <ChecklistPanel startDate={p.startDate} tasks={checklist} act={act} busy={write.isPending} />
-
-      <TeamPanel team={team} act={act} busy={write.isPending} />
-
+function ActivityPanel({ activity, note, setNote, busy, onAdd }: {
+  activity: ProjectActivity[]; note: string; setNote: (v: string) => void; busy: boolean; onAdd: () => void;
+}) {
+  return (
       <Panel title={PJ.activity}>
         <div className="flex flex-col gap-3">
           <span className="flex items-end gap-2">
             <span className="flex-1">
               <Textarea id="project-note" rows={2} placeholder={PJ.notePlaceholder} value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
             </span>
-            <Button size="sm" variant="primary" disabled={!note.trim()} loading={write.isPending}
-              onClick={() => act("/notes", { note: note.trim() }, "POST", () => setNote(""))}>{PJ.addNote}</Button>
+            <Button size="sm" variant="primary" disabled={!note.trim()} loading={busy} onClick={onAdd}>{PJ.addNote}</Button>
           </span>
           {activity.length ? (
             <ul className="flex flex-col gap-2 text-body" data-testid="project-activity">
@@ -260,6 +397,7 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
                     {PJ.actions[a.action] ?? a.action}
                     {a.action === "stage_change" && a.toValue ? `: ${PJ.stages[a.toValue as ProjectStage] ?? a.toValue}` : ""}
                     {a.action === "status_change" && a.toValue ? `: ${PJ.statuses[a.toValue as ProjectStatus] ?? a.toValue}` : ""}
+                    {a.action.startsWith("stock_transfer_") && a.toValue ? `: ${PJ.directions[a.toValue as StockTransferDirection] ?? a.toValue}` : ""}
                     {a.note ? `: ${a.note}` : ""}
                     {a.byName ? <span className="text-c-secondary">{` · ${a.byName}`}</span> : null}
                   </span>
@@ -269,8 +407,6 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
           ) : <p className="text-body text-c-secondary">{PJ.noActivity}</p>}
         </div>
       </Panel>
-      {editing ? <ProjectForm project={p} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} /> : null}
-    </div>
   );
 }
 
@@ -382,11 +518,18 @@ function ChecklistPanel({ startDate, tasks, act, busy }: { startDate: string; ta
             <Button size="sm" disabled={!templateId} loading={busy} onClick={() => act("/checklist/apply", { templateId }, "POST", () => setTemplateId(""))}>{PJ.applyTemplate}</Button>
           </span>
         ) : null}
-        {sections.map((s) => (
-          <div key={s} className="flex flex-col gap-1">
-            {s ? <span className="text-strong text-c-ink">{s}</span> : null}
+        {sections.map((s) => {
+          const inSection = tasks.filter((t) => (t.section ?? "") === s);
+          const finished = inSection.filter((t) => t.status === "done" || t.status === "na").length;
+          return (
+          <div key={s} className="flex flex-col gap-1 rounded-card border border-border p-2">
+            {/* Houzs tasklist: each section is a block with its done count at the right. */}
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 break-words text-strong text-c-ink">{s || PJ.otherTasks}</span>
+              <span className="text-body text-c-secondary">{PJ.sectionDone(finished, inSection.length)}</span>
+            </span>
             <ul className="flex flex-col gap-1 text-body">
-              {tasks.filter((t) => (t.section ?? "") === s).map((t) => {
+              {inSection.map((t) => {
                 const due = checklistDueDate(startDate, t.dueOffsetDays);
                 return (
                   <li key={t.id} className="flex flex-wrap items-center gap-2">
@@ -401,7 +544,8 @@ function ChecklistPanel({ startDate, tasks, act, busy }: { startDate: string; ta
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
         {!tasks.length ? <p className="text-body text-c-secondary">{PJ.noChecklist}</p> : null}
         <span className="flex flex-wrap items-end gap-2">
           <Input id="project-task-section" label={PJ.section} maxLength={80} value={section} onChange={(e) => setSection(e.target.value)} />
@@ -512,6 +656,62 @@ function SalesOrdersPanel({ projectId, act, busy }: { projectId: string; act: Ac
             ))}
           </ul>
         ) : <p className="text-body text-c-secondary">{PJ.noSalesOrders}</p>}
+      </div>
+    </Panel>
+  );
+}
+
+/* ── Stock out to the fair and back (slice 6, Houzs project_stock_transfers: OUT and RETURN, confirm) ── */
+
+function StockTransfersPanel({ projectId, transfers, act, busy, onFail }: {
+  projectId: string; transfers: ProjectStockTransfer[]; act: Act; busy: boolean; onFail: (m: string | null) => void;
+}) {
+  const [direction, setDirection] = useState<StockTransferDirection>("out");
+  const [day, setDay] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [files, setFiles] = useState<Array<{ path: string; kind: string }>>([]);
+  // The field only knows the path; keep the picked file's name and type beside it for the record.
+  const picked = useRef<Record<string, { name: string; type: string }>>({}).current;
+  const sign = async (file: File) => {
+    const slot = await signStockRecord(projectId, file);
+    picked[slot.path] = { name: file.name, type: file.type };
+    return slot;
+  };
+  const file = files[0];
+  const add = () => act("/stock-transfers", {
+    direction, transferredAt: day, notes: notes.trim() || null,
+    recordPath: file?.path ?? null, fileName: file ? picked[file.path]?.name ?? null : null, mimeType: file ? picked[file.path]?.type ?? null : null,
+  }, "POST", () => { setDay(null); setNotes(""); setFiles([]); });
+  const open = (path: string) => { onFail(null); openStockRecord(path).catch(() => onFail(PJ.fileFailed)); };
+  return (
+    <Panel title={PJ.stockTransfers}>
+      <div className="flex flex-col gap-3" data-testid="project-stock-transfers">
+        <p className="text-body text-c-secondary">{PJ.recordOnly}</p>
+        <span className="flex flex-wrap items-end gap-2">
+          <Select id="project-transfer-direction" label={PJ.direction} value={direction} onValueChange={(v) => setDirection(v as StockTransferDirection)}
+            options={STOCK_TRANSFER_DIRECTIONS.map((d) => ({ value: d, label: PJ.directions[d] }))} />
+          <DatePicker id="project-transfer-date" label={PJ.transferDate} hint={PJ.transferDateHint} value={day} onChange={setDay} />
+          <Input id="project-transfer-notes" label={PJ.notes} maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </span>
+        <EvidenceUploadField entries={files} onChange={setFiles} sign={sign} bucket={PROJECT_STOCK_RECORD_BUCKET}
+          imageMimes={["image/jpeg", "image/png", "image/webp"]} videoMimes={[]} pdfMimes={["application/pdf"]}
+          imageMaxBytes={PROJECT_STOCK_RECORD_MAX_BYTES} videoMaxBytes={PROJECT_STOCK_RECORD_MAX_BYTES} maxFiles={1} ariaLabel={PJ.transferSheet} disabled={busy} />
+        <span><Button size="sm" variant="primary" loading={busy} onClick={add}>{PJ.addTransfer}</Button></span>
+        {transfers.length ? (
+          <ul className="flex flex-col gap-2 text-body">
+            {transfers.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-2">
+                <StatusPill tone={t.direction === "out" ? "info" : "neutral"}>{PJ.directions[t.direction]}</StatusPill>
+                <span className="w-28 shrink-0">{fmtDate(t.transferredAt)}</span>
+                <span className="min-w-0 flex-1 break-words">{t.notes ?? ""}{t.createdByName ? <span className="text-c-secondary">{` · ${t.createdByName}`}</span> : null}</span>
+                {t.confirmedAt ? <StatusPill tone="success">{PJ.confirmedBy(t.confirmedByName)}</StatusPill> : <StatusPill tone="warning">{PJ.notConfirmed}</StatusPill>}
+                {t.recordPath ? <Button size="sm" onClick={() => open(t.recordPath!)}>{PJ.openFile}</Button> : null}
+                <Button size="sm" onClick={() => act(`/stock-transfers/${t.id}/${t.confirmedAt ? "unconfirm" : "confirm"}`)}>{t.confirmedAt ? PJ.unconfirm : PJ.confirm}</Button>
+                <Button size="sm" onClick={() => act(`/stock-transfers/${t.id}`, undefined, "DELETE")}>{PJ.remove}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-body text-c-secondary">{PJ.noTransfers}</p>}
       </div>
     </Panel>
   );
