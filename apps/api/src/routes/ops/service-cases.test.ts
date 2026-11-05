@@ -1400,4 +1400,38 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
     expect(body.items[0]).toMatchObject({ stageSince: CASE_ROW.created_at, stageTargetDays: 4, stageHistory: [] });
   });
+
+  // 0746 — the pickup leg and delivery-back leg (Houzs pickup tracking).
+  it("saves the legs to their own columns, and a blank PIC as none", async () => {
+    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
+    const res = await patchCase({
+      pickupBy: "own", pickupRequestedAt: "2026-11-10", pickupConfirmedAt: "2026-11-12",
+      pickupStatus: "scheduled", pickupPic: "", itemLocation: "customer",
+      deliveryBy: "supplier", deliveryRequestedAt: null,
+    }, sb);
+    expect(res.status).toBe(200);
+    expect(updates).toContainEqual(["service_cases", {
+      pickup_by: "own", pickup_requested_at: "2026-11-10", pickup_confirmed_at: "2026-11-12",
+      pickup_status: "scheduled", pickup_pic: null, item_location: "customer",
+      delivery_by: "supplier", delivery_requested_at: null,
+    }]);
+  });
+
+  it("refuses a leg value Houzs does not know, and a date that is not a date", async () => {
+    for (const body of [{ pickupStatus: "lost" }, { itemLocation: "moon" }, { pickupBy: "drone" }, { actualPickupAt: "soon" }, { pickupPic: "x".repeat(121) }]) {
+      const { sb, updates } = tableSb({ service_cases: { order_id: null } });
+      expect((await patchCase(body, sb)).status).toBe(400);
+      expect(updates).toHaveLength(0);
+    }
+  });
+
+  it("reads the legs back", async () => {
+    const row = { ...CASE_ROW, pickup_by: "own", pickup_requested_at: "2026-11-10", pickup_status: "pending", delivery_by: "own", delivery_confirmed_at: "2026-11-20" };
+    const { sb } = tableSb({ service_cases: [row] });
+    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
+    expect(body.items[0]).toMatchObject({
+      pickupBy: "own", pickupRequestedAt: "2026-11-10", pickupConfirmedAt: null, pickupStatus: "pending",
+      itemLocation: null, deliveryBy: "own", deliveryConfirmedAt: "2026-11-20",
+    });
+  });
 });

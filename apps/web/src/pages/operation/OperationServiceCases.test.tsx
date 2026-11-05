@@ -234,6 +234,16 @@ describe("Service Cases — the case page and the views", () => {
     expect(screen.getByRole("button", { name: "1. Pending" })).toHaveAttribute("aria-current", "step");
   });
 
+  it("shows the pickup and delivery-back legs with Logistics' answer (0746)", async () => {
+    answer([{ ...row, statusId: "s1", statusLabel: "Pending", pickupBy: "own", pickupRequestedAt: "2026-11-10", deliveryBy: "supplier" }]);
+    at("/operation?tab=service-notes&case=c1");
+    const pickup = await screen.findByRole("region", { name: "Pickup / Return" });
+    expect(pickup).toHaveTextContent("Waiting for Logistics to confirm this date.");
+    expect(screen.getByLabelText("Scheduled Pickup Date (ETA)")).toHaveValue("2026-11-10");
+    expect(screen.getByRole("region", { name: "Delivery Back" })).toHaveTextContent("The supplier delivers it back.");
+    expect(screen.queryByLabelText("Delivery Date")).not.toBeInTheDocument();
+  });
+
   it("hides closed cases on Hide completed, and shows them again when the closed stage is picked", async () => {
     answer([
       { ...row, id: "a", caseNo: "SC-A", statusId: "s1", statusLabel: "Pending" },

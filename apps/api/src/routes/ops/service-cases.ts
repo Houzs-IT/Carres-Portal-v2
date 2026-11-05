@@ -709,6 +709,17 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   // 0711 — staff edit the priority; the PIC-picked owner (checked above).
   if (parsed.priority        !== undefined) patch.priority         = parsed.priority;
   if (parsed.ownerUserId     !== undefined) patch.owner_user_id    = parsed.ownerUserId;
+  // 0746 — the pickup leg and delivery-back leg (Houzs pickup tracking).
+  if (parsed.pickupBy            !== undefined) patch.pickup_by             = parsed.pickupBy;
+  if (parsed.pickupRequestedAt   !== undefined) patch.pickup_requested_at   = parsed.pickupRequestedAt;
+  if (parsed.pickupConfirmedAt   !== undefined) patch.pickup_confirmed_at   = parsed.pickupConfirmedAt;
+  if (parsed.actualPickupAt      !== undefined) patch.actual_pickup_at      = parsed.actualPickupAt;
+  if (parsed.pickupStatus        !== undefined) patch.pickup_status         = parsed.pickupStatus;
+  if (parsed.pickupPic           !== undefined) patch.pickup_pic            = parsed.pickupPic || null;
+  if (parsed.itemLocation        !== undefined) patch.item_location         = parsed.itemLocation;
+  if (parsed.deliveryBy          !== undefined) patch.delivery_by           = parsed.deliveryBy;
+  if (parsed.deliveryRequestedAt !== undefined) patch.delivery_requested_at = parsed.deliveryRequestedAt;
+  if (parsed.deliveryConfirmedAt !== undefined) patch.delivery_confirmed_at = parsed.deliveryConfirmedAt;
 
   const { error } = await sb.from("service_cases").update(patch).eq("id", id);
   if (error) throw new HTTPException(500, { message: error.message });
@@ -1082,6 +1093,17 @@ interface RawCase {
   sla_events?: unknown;
   supplier_id?: string | null;
   owner_user_id?: string | null;
+  /** 0746 — the legs. Optional: absent before 0746. */
+  pickup_by?: string | null;
+  pickup_requested_at?: string | null;
+  pickup_confirmed_at?: string | null;
+  actual_pickup_at?: string | null;
+  pickup_status?: string | null;
+  pickup_pic?: string | null;
+  item_location?: string | null;
+  delivery_by?: string | null;
+  delivery_requested_at?: string | null;
+  delivery_confirmed_at?: string | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
   service_case_statuses: { label: string; is_closed: boolean; target_days?: number | string | null } | null;
@@ -1150,6 +1172,18 @@ function shapeCase(r: RawCase) {
 
     // 0711 — the case owner (Weisiang's decision, WhatsApp 2026-10-22).
     ownerUserId:     r.owner_user_id ?? null,
+
+    // 0746 — the pickup leg and delivery-back leg.
+    pickupBy:            r.pickup_by ?? null,
+    pickupRequestedAt:   r.pickup_requested_at ?? null,
+    pickupConfirmedAt:   r.pickup_confirmed_at ?? null,
+    actualPickupAt:      r.actual_pickup_at ?? null,
+    pickupStatus:        r.pickup_status ?? null,
+    pickupPic:           r.pickup_pic ?? null,
+    itemLocation:        r.item_location ?? null,
+    deliveryBy:          r.delivery_by ?? null,
+    deliveryRequestedAt: r.delivery_requested_at ?? null,
+    deliveryConfirmedAt: r.delivery_confirmed_at ?? null,
 
     ...stageClock(r),
   };

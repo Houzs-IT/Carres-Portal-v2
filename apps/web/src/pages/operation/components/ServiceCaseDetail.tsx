@@ -5,15 +5,20 @@ import { CASE_COPIES } from "@/pages/print/ServiceCasePrintPage";
 import { apiFetch } from "@/lib/api";
 import { fmtDate } from "@/lib/fmt-date";
 import {
+  CASE_ITEM_LOCATION_KEYS,
+  CASE_LEG_BY_KEYS,
+  CASE_PICKUP_STATUS_KEYS,
   CASE_REPORTERS,
   caseDelayReasonLabel,
   caseFollowUpPlan,
   caseIssueLabel,
+  caseLegLabel,
   caseNeedsManager,
   caseProductCategoryLabel,
   caseStageDwell,
   caseUsableLabel,
   caseWantLabel,
+  logisticsConfirmedText,
   type ServiceCase,
   type ServiceCaseConfig,
   type ServiceCaseListResponse,
@@ -230,6 +235,36 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
               progress={d.progress ?? []}
             />
 
+            {/* 0746 — Houzs PickupTrackingFields + DeliveryByCard. The date Service keys is a
+                request; until Delivery Planning reads cases, staff key the confirmed date here. */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Panel title="Pickup / Return">
+                <Select id="case-pickup-by" label="Pickup by" value={d.pickupBy ?? undefined} onValueChange={(v) => saveSelect({ pickupBy: v })} placeholder="Pickup by" options={legOptions(CASE_LEG_BY_KEYS)} />
+                <Select id="case-pickup-status" label="Pickup Status" value={d.pickupStatus ?? undefined} onValueChange={(v) => saveSelect({ pickupStatus: v })} placeholder="Pickup Status" options={legOptions(CASE_PICKUP_STATUS_KEYS)} />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <InlineField id="scm-pickup-eta" label="Scheduled Pickup Date (ETA)" type="date" value={d.pickupRequestedAt} onSave={(v) => save({ pickupRequestedAt: v || null })} />
+                  <InlineField id="scm-pickup-confirmed" label="Logistics Confirmed Date" type="date" value={d.pickupConfirmedAt} onSave={(v) => save({ pickupConfirmedAt: v || null })} />
+                  <InlineField id="scm-pickup-actual" label="Actual Pickup Date" type="date" value={d.actualPickupAt} onSave={(v) => save({ actualPickupAt: v || null })} />
+                </div>
+                {d.pickupBy === "own" && !d.actualPickupAt && <LegNote requested={d.pickupRequestedAt} confirmed={d.pickupConfirmedAt} />}
+                <InlineField id="scm-pickup-pic" label="Pickup PIC" value={d.pickupPic} onSave={(v) => save({ pickupPic: v || null })} />
+                <Select id="case-item-location" label="Current Item Location" value={d.itemLocation ?? undefined} onValueChange={(v) => saveSelect({ itemLocation: v })} placeholder="Current Item Location" options={legOptions(CASE_ITEM_LOCATION_KEYS)} />
+              </Panel>
+              <Panel title="Delivery Back">
+                <Select id="case-delivery-by" label="Delivery by" value={d.deliveryBy ?? undefined} onValueChange={(v) => saveSelect({ deliveryBy: v })} placeholder="Delivery by" options={legOptions(CASE_LEG_BY_KEYS)} />
+                {d.deliveryBy === "own" && (
+                  <>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <InlineField id="scm-delivery-date" label="Delivery Date" type="date" value={d.deliveryRequestedAt} onSave={(v) => save({ deliveryRequestedAt: v || null })} />
+                      <InlineField id="scm-delivery-confirmed" label="Logistics Confirmed Date" type="date" value={d.deliveryConfirmedAt} onSave={(v) => save({ deliveryConfirmedAt: v || null })} />
+                    </div>
+                    <LegNote requested={d.deliveryRequestedAt} confirmed={d.deliveryConfirmedAt} />
+                  </>
+                )}
+                {d.deliveryBy === "supplier" && <p className="text-meta text-base-600">The supplier delivers it back.</p>}
+              </Panel>
+            </div>
+
             <Panel title="Resolution">
               <div className="flex flex-wrap gap-4 text-body">
                 <Link className="text-kit-blue-11" to={`/operation?tab=arrival-source&kind=customer-return&case=${id}`}>Plan Customer Return</Link>
@@ -330,6 +365,16 @@ export function caseTimeline(
     })),
   ];
   return rows.sort((a, z) => z.on.localeCompare(a.on));
+}
+
+// shortcut: a leg select cannot be cleared once set (the kit Select has no blank option); add one if staff need it.
+function legOptions(keys: readonly string[]) {
+  return keys.map((k) => ({ value: k, label: caseLegLabel(k) }));
+}
+
+/** Houzs LogisticsConfirmedNote. */
+function LegNote({ requested, confirmed }: { requested: string | null | undefined; confirmed: string | null | undefined }) {
+  return <p className={`text-meta ${confirmed ? "font-semibold text-kit-blue-11" : "text-base-600"}`}>{logisticsConfirmedText(requested, confirmed, (iso) => fmtDate(iso))}</p>;
 }
 
 /** One field that saves itself when you leave it (Houzs InlineEdit). */
