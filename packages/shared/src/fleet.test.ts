@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fleetPositionInput, groupRuns, lorryCapacity, proposeCrew, workingDays, type FleetCrew, type FleetLorry, type FleetStop } from "./fleet";
+import { fleetPositionInput, groupRuns, lorryCapacity, lorryCards, proposeCrew, runStatusOf, stopMatches, workingDays, type FleetCrew, type FleetLorry, type FleetStop } from "./fleet";
 
 // Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): Houzs Fleet Day / Lorry Capacity.
 const lorry = (id: string, plate: string): FleetLorry => ({ id, plate, vehicleType: "Lorry", capacity: null, active: true });
@@ -66,6 +66,43 @@ describe("groupRuns and lorryCapacity", () => {
     expect(l1).toMatchObject({ trips: 2, stops: 3, revenue: 1000, revenuePerTrip: 500, stopsPerTrip: 1.5 });
     expect(l1.utilisation).toBeCloseTo(2 / 6);
     expect(l2).toMatchObject({ trips: 0, utilisation: 0, revenuePerTrip: null });
+  });
+});
+
+describe("Last Mile board: lorryCards, runStatusOf, stopMatches (Houzs #5094/#5107)", () => {
+  const day = "2026-11-02";
+  it("pins every active lorry, adds an unmatched card last, and rolls up each run", () => {
+    const off = { ...lorry("L3", "CCC 3"), active: false };
+    const stops: FleetStop[] = [
+      { ...stop(day, "L1", 11, 200, "10:00"), status: "delivered" },
+      { ...stop(day, "L1", 12, 300, "14:00"), status: "failed" },
+      { ...stop(day, "L3", 15, 50), status: "scheduled" },
+      stop(day, null, 14, 100),
+      stop("2026-11-03", "L2", 13, 500),
+    ];
+    const cards = lorryCards(day, [lorry("L1", "AAA 1"), lorry("L2", "BBB 2"), off], stops);
+    expect(cards.map((c) => [c.vehicleId, c.plate, c.stops.map((s) => s.so), c.status, c.delivered, c.failed, c.revenue])).toEqual([
+      ["L1", "AAA 1", [11, 12], "completed", 1, 1, 500],
+      ["L2", "BBB 2", [], "scheduled", 0, 0, 0],
+      ["L3", "CCC 3", [15], "scheduled", 0, 0, 50],
+      [null, null, [14], "scheduled", 0, 0, 100],
+    ]);
+  });
+
+  it("a run is On the way once one stop has an attempt, Completed when all have", () => {
+    expect(runStatusOf([])).toBe("scheduled");
+    expect(runStatusOf([{ status: "partial" }, {}])).toBe("on_the_way");
+    expect(runStatusOf([{ status: "partial" }, { status: "delivered" }])).toBe("completed");
+  });
+
+  it("finds a stop by customer, SO, DO or phone digits", () => {
+    const s: FleetStop = { ...stop(day, "L1", 1372, 0), customerName: "Tan Ah Kow", customerPhone: "012-345 6789", doNumber: "DO-20261102-0004" };
+    expect(stopMatches(s, "ah kow")).toBe(true);
+    expect(stopMatches(s, "SO-1372")).toBe(true);
+    expect(stopMatches(s, "0004")).toBe(true);
+    expect(stopMatches(s, "3456")).toBe(true);
+    expect(stopMatches(s, "lee")).toBe(false);
+    expect(stopMatches(s, "x")).toBe(true);
   });
 });
 
