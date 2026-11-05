@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSupplierItems, missingSupplierCodeCount } from "./supplier-items";
+import { buildSupplierItems, missingSupplierCodeCount, priceListCsv, readPriceList, type SupplierItemRow } from "./supplier-items";
 import type { CatalogResponse } from "@carres/shared";
 import type { SupplierRow } from "@/lib/queries";
 
@@ -154,5 +154,25 @@ describe("buildSupplierItems — offers (0388)", () => {
     const before = buildSupplierItems(catalog([SKU_SOFA, SKU_NO_CODE]), SUPPLIERS);
     expect(before.every((r) => r.source === "supplies")).toBe(true);
     expect(before).toHaveLength(2);
+  });
+});
+
+describe("price list CSV (Houzs SupplierBindingsCsv)", () => {
+  it("reads Our code, Their code, Price and PWP price, leaving blanks out", () => {
+    const { rows, problems } = readPriceList([
+      { "Our code": "BF-1", "Their code": "K-1", Price: "RM 1,200.50", "PWP price": "" },
+      { "our_code": "", "Their code": "x" },
+      { sku: "BF-2", price: "abc" },
+    ]);
+    expect(rows).toEqual([{ sku: "BF-1", supplierCode: "K-1", price: 1200.5 }, { sku: "BF-2" }]);
+    expect(problems).toEqual(['Row 4: Price "abc" is not a number.']);
+  });
+
+  it("writes the supplier's items with their stored prices", () => {
+    const csv = priceListCsv(
+      [{ key: "sup:s1", sku: "BF-1", supplierCode: "K,1" } as SupplierItemRow],
+      [{ skuId: "s1", price: 500, pwpPrice: null }],
+    );
+    expect(csv).toBe('Our code,Their code,Price,PWP price\nBF-1,"K,1",500,');
   });
 });

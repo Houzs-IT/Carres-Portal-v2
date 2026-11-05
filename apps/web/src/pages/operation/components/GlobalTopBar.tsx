@@ -198,7 +198,7 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
           aria-haspopup="menu"
           aria-expanded={open === "alerts"}
           className={inShell
-            ? "relative grid h-[34px] w-[34px] place-items-center rounded-full border border-c-head-line bg-white text-c-ink hover:bg-c-search-bg"
+            ? "relative grid h-8 w-8 place-items-center rounded-full border border-c-head-line bg-white text-c-ink hover:bg-c-search-bg"
             : "relative flex items-center justify-center h-10 w-10 min-[768px]:h-8 min-[768px]:w-8 rounded-md text-base-500 hover:text-base-900 hover:bg-hovertint transition-colors"}
         >
           {inShell ? <MIcon name="notifications" size={20} /> : <Bell size={16} aria-hidden />}
