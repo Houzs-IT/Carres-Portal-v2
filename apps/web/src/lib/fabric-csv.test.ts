@@ -40,9 +40,19 @@ describe("fabric csv (Houzs Fabric Converter export/import)", () => {
   });
 
   it("reports a blank code or a bad tier with its line number", () => {
-    const res = mergeFabricImport([], [{ fabric_code: "" }, { fabric_code: "X", sofa_tier: "4" }]);
-    expect(res.errors).toEqual(["Line 2: fabric code is blank.", 'Line 3: sofa_tier "4" is not Price 1, 2 or 3.']);
+    const res = mergeFabricImport([], [{ fabric_code: "" }, { fabric_code: "X", sofa_tier: "5" }, { fabric_code: "Y", bedframe_tier: "4" }]);
+    expect(res.errors).toEqual([
+      "Line 2: fabric code is blank.",
+      'Line 3: sofa_tier "5" is not Price 1, 2, 3 or 4.',
+      'Line 4: bedframe_tier "4" is not Price 1, 2 or 3.',
+    ]);
     expect(res.rows).toEqual([]);
+  });
+
+  it("takes Price 4 (Full Leather) on the sofa tier only", () => {
+    const res = mergeFabricImport([], [{ fabric_code: "FL-1", sofa_tier: "Price 4" }]);
+    expect(res.errors).toEqual([]);
+    expect(res.rows[0]).toMatchObject({ sofaTier: "PRICE_4" });
   });
 
   // Follows Houzs frontend/src/vendor/scm/lib/fabric-csv.ts:42-53 and

@@ -278,6 +278,10 @@ export type CatalogConfigHistoryDto = z.infer<typeof catalogConfigHistorySchema>
 // ---------------------------------------------------------------------------
 
 export const fabricTierValueSchema = z.enum(["PRICE_1", "PRICE_2", "PRICE_3"]);
+/** Sofa tier on a catalog fabric: adds PRICE_4 (Full Leather), as Houzs does
+ *  [Houzs-ERP backend/src/db/migrations-pg/20261028T1600_scm_fabric_price_tier_p4.sql:16].
+ *  Bedframe stays at three tiers. */
+export const sofaTierValueSchema = z.enum(["PRICE_1", "PRICE_2", "PRICE_3", "PRICE_4"]);
 
 /** 0721 — Houzs fabric_trackings stock columns (fabric-tracking.ts:264-275):
  *  whole numbers in sen / days, as Houzs stores them. */
@@ -306,7 +310,7 @@ export const catalogFabricSchema = z.object({
   series: z.string().nullable(),
   description: z.string().nullable(),
   supplierCode: z.string().nullable(),
-  sofaTier: fabricTierValueSchema,
+  sofaTier: sofaTierValueSchema,
   bedframeTier: fabricTierValueSchema,
   active: z.boolean(),
   sortOrder: z.number().int(),
@@ -326,7 +330,7 @@ export const catalogFabricEntryInput = z
     series: z.string().trim().max(120).nullable().optional(),
     description: z.string().trim().max(200).nullable().optional(),
     supplierCode: z.string().trim().max(120).nullable().optional(),
-    sofaTier: fabricTierValueSchema.optional(),
+    sofaTier: sofaTierValueSchema.optional(),
     bedframeTier: fabricTierValueSchema.optional(),
     active: z.boolean().optional(),
   })
@@ -364,7 +368,7 @@ export const catalogFabricsHistorySchema = z.object({
       series: z.string().nullable(),
       description: z.string().nullable(),
       supplierCode: z.string().nullable(),
-      sofaTier: fabricTierValueSchema,
+      sofaTier: sofaTierValueSchema,
       bedframeTier: fabricTierValueSchema,
       active: z.boolean(),
       sortOrder: z.number().int(),
@@ -1560,3 +1564,25 @@ export const skuSupplierOfferUpsertInput = z
   })
   .strict();
 export type SkuSupplierOfferUpsertInput = z.infer<typeof skuSupplierOfferUpsertInput>;
+
+/* Houzs Supplier Bindings CSV import: one supplier's price list in one write.
+ * A blank cell is ABSENT and leaves the stored value alone. */
+export const supplierOfferImportInput = z
+  .object({
+    supplierId: z.string().uuid(),
+    rows: z
+      .array(
+        z
+          .object({
+            sku: z.string().trim().min(1).max(80),
+            supplierCode: z.string().trim().max(60).optional(),
+            price: z.number().nonnegative().optional(),
+            pwpPrice: z.number().nonnegative().optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(2000),
+  })
+  .strict();
+export type SupplierOfferImportInput = z.infer<typeof supplierOfferImportInput>;
