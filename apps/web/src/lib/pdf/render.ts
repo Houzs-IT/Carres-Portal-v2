@@ -21,6 +21,7 @@ import { PoTemplate } from "./po-template";
 import { RepairOrderTemplate } from "./repair-order-template";
 import { PurchaseReturnTemplate } from "./purchase-return-template";
 import { PickupEventTemplate } from "./pickup-event-template";
+import { ProjectSheetTemplate, type ProjectSheetData } from "./project-sheet-template";
 import { ReceiptTemplate } from "./receipt-template";
 import { CreditNoteTemplate } from "./credit-note-template";
 import { ExtensionAgreementTemplate } from "./extension-agreement-template";
@@ -197,4 +198,9 @@ export function renderPickupEventPdf(
   data: PickupEventPrintPayload,
 ): Promise<Blob> {
   return toBlob(PickupEventTemplate(data));
+}
+
+/** One project on paper (Projects slice 7, Houzs Event Summary Report). */
+export function renderProjectSheetPdf(data: ProjectSheetData): Promise<Blob> {
+  return toBlob(ProjectSheetTemplate(data));
 }

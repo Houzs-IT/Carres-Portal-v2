@@ -2147,6 +2147,32 @@ operationPosRouter.post("/new", requireOperation, async (c) => {
   return c.json({ poId }, 201);
 });
 
+// ----- GET /:id/copy-seed — what "Copy as new" puts on the New PO form -----
+//
+// Follows Houzs frontend/src/pages/scm-v2/PurchaseOrderNew.tsx (HC-0149,
+// a77d49f25: ?copyFrom= seeds supplier, Purchase Location and lines with their
+// price; dates, the SO link, received qty and the number stay with the source)
+// per Weisiang's ruling (2026-10-22): clear Carres rules, implement Houzs.
+// It only reads: the copy is issued through POST /new like any other PO.
+operationPosRouter.get("/:id/copy-seed", requireOperation, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const { data, error } = await sb.from("purchase_orders")
+    .select("supplier_id, destination_id, is_consignment, purchase_order_lines(sku, qty, cost)")
+    .eq("id", c.req.param("id")).maybeSingle();
+  if (error) {
+    const m = mapPgError(error);
+    return c.json(m.body, m.status);
+  }
+  if (!data) return c.json({ error: "not_found" }, 404);
+  const po = data as { supplier_id: string; destination_id: string | null; is_consignment: boolean | null; purchase_order_lines: Array<{ sku: string; qty: number; cost: number | string | null }> | null };
+  return c.json({
+    supplierId: po.supplier_id,
+    destinationId: po.destination_id,
+    consignment: po.is_consignment === true,
+    lines: (po.purchase_order_lines ?? []).map((l) => ({ sku: l.sku, qty: Number(l.qty), price: l.cost == null ? null : Number(l.cost) })),
+  });
+});
+
 // ----- POST /:id/receive — RETIRED 2026-08-03 (Card C1, Jess) -----
 //
 // This was the Office's receiving door and it opened NO Receiving Session:

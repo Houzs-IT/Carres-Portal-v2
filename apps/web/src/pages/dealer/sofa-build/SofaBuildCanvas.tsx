@@ -18,7 +18,7 @@ import type {
   ModelFabricTierOverrideDto,
   GeoCell,
   Rot,
-  FabricTierValue,
+  FabricTier,
 } from "@carres/shared";
 import {
   SOFA_HEIGHTS,
@@ -65,7 +65,7 @@ import { useSeriesFabric, FABRIC_KIV } from "./use-series-fabric";
 export interface SofaBuildAddPayload {
   cells: { moduleCode: string; x: number; y: number; rot: Rot }[];
   height: string;
-  fabricTier: FabricTierValue;
+  fabricTier: FabricTier;
   fabricId: string | null;
   /** 0202-wiring — the master fabric code when the pick came from the Fabrics
    *  tab list (null for legacy per-model sofa_fabrics picks). */
@@ -348,7 +348,7 @@ export default function SofaBuildCanvas({
   // to cart, flagged for the customer to confirm the colour.
   const fabric = fab.fabric;
   const fabricDeferred = fab.deferred;
-  const fabricTier: FabricTierValue = fabric?.tier ?? "PRICE_1";
+  const fabricTier: FabricTier = fabric?.tier ?? "PRICE_1";
 
   // Live drag override — carries the in-flight translation for the dragging
   // cell(s); `cells` state is untouched mid-drag (committed on pointer-up).

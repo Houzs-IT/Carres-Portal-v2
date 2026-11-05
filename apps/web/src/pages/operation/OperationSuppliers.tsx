@@ -1,5 +1,5 @@
 import { GOODS_ABSENCE_WORDS } from "@carres/shared";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -24,7 +24,9 @@ import {
 import { useAuth } from "@/lib/auth";
 import Modal from "@/components/kit/Modal";
 import Select from "@/components/kit/Select";
-import { buildSupplierItems } from "./supplier-items";
+import { buildSupplierItems, priceListCsv, readPriceList, type PriceListRow } from "./supplier-items";
+import { parseCsv } from "@/lib/csv";
+import { downloadCsv } from "@/lib/sku-csv";
 import Input from "@/components/kit/Input";
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
@@ -422,6 +424,9 @@ function SupplierItemsTab({ supplierId }: { supplierId: string }) {
   const catalog = useCatalog({ admin: true });
   const roster = useOperationSuppliers();
   const offers = useAllSkuSupplierOffers();
+  const isPrincipal = useAuth((st) => st.role) === "principal";
+  const [importing, setImporting] = useState(false);
+  const supplierName = roster.data?.suppliers.find((x) => x.id === supplierId)?.name ?? "Supplier";
   const items = useMemo(
     () => buildSupplierItems(catalog.data, roster.data?.suppliers, offers.data?.offers).filter((r) => r.supplierId === supplierId),
     [catalog.data, roster.data?.suppliers, offers.data?.offers, supplierId],
@@ -431,13 +436,75 @@ function SupplierItemsTab({ supplierId }: { supplierId: string }) {
     return <div role="alert"><EmptyState title="Could not be loaded" action={<Button variant="neutral" onClick={() => { void catalog.refetch(); void roster.refetch(); }}>Try again</Button>} /></div>;
   }
   return (
+    <>
     <DataGrid rows={items} rowKey={(r) => `${r.sku}-${r.source}`} storageKey="carres.operation.supplier-detail-items.v1" appearance="reference"
       groupBanner={false} exportName="Supplier items" emptyMessage="No suppliers match." fillColumn="ourName"
+      toolbarEnd={isPrincipal ? (
+        <span className="flex gap-2">
+          <Button size="sm" variant="neutral" data-testid="price-list-download"
+            onClick={() => downloadCsv(`${supplierName} price list.csv`, /* the offers read carries price and pwpPrice since this change; queries.ts types it narrower */
+              priceListCsv(items, ((offers.data?.offers ?? []) as Array<{ skuId: string; supplierId: string; price?: number | null; pwpPrice?: number | null }>).filter((o) => o.supplierId === supplierId)))}>
+            Download price list
+          </Button>
+          <Button size="sm" variant="neutral" onClick={() => setImporting(true)} data-testid="price-list-import">Import price list</Button>
+        </span>
+      ) : undefined}
       columns={[
         { key: "theirCode", label: "Their code", width: 160, accessor: (r) => r.supplierCode ?? "" },
         { key: "sku", label: "Our code", width: 180, accessor: (r) => r.sku },
         { key: "ourName", label: "Our name", width: 260, wrap: true, accessor: (r) => r.ourName },
       ]} />
+    {importing ? <PriceListImport supplierId={supplierId} supplierName={supplierName} onClose={() => setImporting(false)} /> : null}
+    </>
+  );
+}
+
+/** Houzs Supplier Bindings CSV import: read the file, show what will be saved, then save in one write. */
+function PriceListImport({ supplierId, supplierName, onClose }: { supplierId: string; supplierName: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const save = useMutation({
+    mutationFn: (input: { supplierId: string; rows: PriceListRow[] }) =>
+      apiFetch<{ saved: number; unknown: string[] }>("/api/catalog/supplier-offers/import", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sku-supplier-offers"] }),
+  });
+  const [read, setRead] = useState<{ rows: PriceListRow[]; problems: string[] } | null>(null);
+  const [result, setResult] = useState<{ saved: number; unknown: string[] } | null>(null);
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setResult(null);
+    setRead(readPriceList(parseCsv(await file.text()).rows));
+  };
+  const ready = read && read.rows.length > 0 && read.problems.length === 0 && !result;
+  return (
+    <Modal open onOpenChange={(o) => { if (!o) onClose(); }} title={`Import price list · ${supplierName}`}
+      description="Columns: Our code, Their code, Price, PWP price. A blank cell keeps what is saved."
+      footer={<>
+        <Button variant="neutral" onClick={onClose}>{result ? "Close" : "Cancel"}</Button>
+        {result ? null : (
+          <Button variant="primary" disabled={!ready} loading={save.isPending} data-testid="price-list-save"
+            onClick={() => read && save.mutate({ supplierId, rows: read.rows }, {
+              onSuccess: (r) => setResult(r),
+              onError: (e) => toast.error(e instanceof Error ? e.message : "Not saved. Try again."),
+            })}>
+            {read ? `Save ${read.rows.length} ${read.rows.length === 1 ? "row" : "rows"}` : "Save"}
+          </Button>
+        )}
+      </>}>
+      <input type="file" accept=".csv,text/csv" aria-label="Price list file" data-testid="price-list-file"
+        onChange={(e) => void onFile(e.target.files?.[0])} className="text-body" />
+      {read && read.rows.length === 0 ? <p className="mt-3 text-body">No rows with an Our code in this file.</p> : null}
+      {read?.problems.length ? (
+        <ul role="alert" className="mt-3 list-disc pl-5 text-body">{read.problems.map((p) => <li key={p}>{p}</li>)}</ul>
+      ) : null}
+      {result ? (
+        <div className="mt-3 text-body" data-testid="price-list-result">
+          <p>{result.saved} saved.</p>
+          {result.unknown.length ? <p>Not in the catalog, skipped: {result.unknown.join(", ")}</p> : null}
+        </div>
+      ) : null}
+    </Modal>
   );
 }
 

@@ -50,6 +50,7 @@ import {
   Handshake,
   MapPin,
   Gauge,
+  FolderKanban,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
@@ -99,6 +100,8 @@ export type PortalSection =
   | "Warehouse"
   | "Payments"
   | "Customer Care"
+  /* Fairs, exhibitions and solo roadshows (0750, Houzs Projects). */
+  | "Projects"
   /* One page, so it draws as a plain row under SERVICE (Layout Standard §2,
    * owner-confirmed 2026-10-08). */
   | "Issue Tracker"
@@ -120,6 +123,7 @@ export type PortalSection =
 export const SECTION_ORDER: ReadonlyArray<PortalSection> = [
   "Workspace",
   "Customer Care",
+  "Projects",
   "Sales",
   "Consignment",
   "Purchasing",
@@ -200,6 +204,7 @@ export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   { section: "Warehouse", label: "Warehouse", icon: Warehouse, mIcon: "warehouse", landingKey: WAREHOUSE_LANDING_KEY },
   { section: "Payments", label: "Payments", icon: Banknote, mIcon: "payments", landingKey: PAYMENTS_LANDING_KEY },
   { section: "Customer Care", label: "Service Cases", icon: Headset, mIcon: "support_agent" },
+  { section: "Projects", label: "Projects", icon: FolderKanban, mIcon: "event" },
   /* Finance, Houzs words (Sidebar.tsx:740-853). */
   { section: "Receivables", label: "Money in", icon: ArrowDownLeft },
   { section: "Payables", label: "Money out", icon: ArrowUpRight },
@@ -330,6 +335,10 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "service-mine", label: "My Cases", icon: UserCheck, tab: "service-notes", query: "mine=1", section: "Customer Care" },
       // Carres-only (0261-0263): the claim desk, where a claim ends up.
       { key: "guarantees", label: "Guarantees", icon: ShieldCheck, section: "Customer Care" },
+
+      /* PROJECTS — Sidebar.tsx:367-404 (0750). Overview and Calendar come in later slices. */
+      { key: "projects", label: "Project List", icon: ClipboardList, section: "Projects" },
+      { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, section: "Projects" },
 
       /* SALES ORDER — Sidebar.tsx:533-546. */
       {
@@ -813,7 +822,7 @@ export interface MenuGroup {
 
 export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
   { label: "Workspace", sections: ["Workspace"] },
-  { label: "Operations", sections: ["Customer Care"] },
+  { label: "Operations", sections: ["Customer Care", "Projects"] },
   {
     label: null,
     row: { key: "supply-chain", label: "Supply Chain", icon: Boxes, mIcon: "inventory_2" },
@@ -853,6 +862,45 @@ export function menuGroups(
   return out;
 }
 
+/** The row of one area a URL stands on: its own path (or `financePath`), its
+ *  `activeFor` matchers, then the `?tab=` it links to. */
+function activeItem(group: PortalNavGroup, pathname: string, search: string): PortalNavItem | undefined {
+  const tab = new URLSearchParams(search).get("tab") ?? group.defaultTab;
+  const onPath = (prefix: string) => pathname.startsWith(prefix);
+  const pathItem = group.items.find(
+    (it) =>
+      (it.path && onPath(it.path)) ||
+      (it.financePath && onPath(it.financePath)) ||
+      it.activeFor?.some((m) => m.startsWith("path:") && onPath(m.slice(5))),
+  );
+  return (
+    pathItem ??
+    (pathname === group.base || pathname === `${group.base}/`
+      ? group.items.find(
+          (it) =>
+            !it.path &&
+            (rowMatchesTab(group, it, tab, search) ||
+              it.activeFor?.some((m) => m === `tab:${tab}`)),
+        )
+      : undefined)
+  );
+}
+
+/** The module a URL stands in, named as the rail names it, for an IT request:
+ *  the IT Hub's Reports group requests by it. Operations modules go by their own
+ *  word ("Sales Order", "Procurement"); another area carries its name
+ *  ("Finance · Money in"). "" when no row covers the URL. */
+export function activeNavModule(pathname: string, search: string): string {
+  for (const group of PORTAL_NAV) {
+    const item = activeItem(group, pathname, search);
+    if (!item) continue;
+    const name = PORTAL_MODULES.find((m) => m.section === item.section)?.label ?? item.section ?? "";
+    if (group.area === "operation") return name;
+    return name ? `${group.label} · ${name}` : group.label;
+  }
+  return "";
+}
+
 /** The menu item a URL stands on, for the shell header's `crumb / title`
  *  when a page does not name itself (Layout Standard §1). Same matching as the
  *  menu's selected row: an item's own path, its `activeFor` matchers, then the
@@ -863,23 +911,7 @@ export function activeNavTitle(
 ): { crumb: string | null; title: string } | null {
   const group = PORTAL_NAV.find((g) => g.area === "operation");
   if (!group) return null;
-  const tab = new URLSearchParams(search).get("tab") ?? group.defaultTab;
-  const onPath = (prefix: string) => pathname.startsWith(prefix);
-  const pathItem = group.items.find(
-    (it) =>
-      (it.path && onPath(it.path)) ||
-      it.activeFor?.some((m) => m.startsWith("path:") && onPath(m.slice(5))),
-  );
-  const item =
-    pathItem ??
-    (pathname === group.base || pathname === `${group.base}/`
-      ? group.items.find(
-          (it) =>
-            !it.path &&
-            (rowMatchesTab(group, it, tab, search) ||
-              it.activeFor?.some((m) => m === `tab:${tab}`)),
-        )
-      : undefined);
+  const item = activeItem(group, pathname, search);
   if (!item) return null;
   const moduleRow = PORTAL_MODULES.find((m) => m.section === item.section);
   const siblings = group.items.filter((it) => it.section === item.section).length;

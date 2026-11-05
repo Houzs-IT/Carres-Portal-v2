@@ -5,10 +5,11 @@ import {
   buyerDemographics,
   genderDistribution,
   monthlyRevenue,
-  productRollup,
   raceDistribution,
   spendBySegment,
   summarizeOverview,
+  productProfit,
+  shareSen,
   type AnalyticsLine,
   type AnalyticsOrder,
 } from "./sales-analysis";
@@ -120,18 +121,7 @@ describe("distributions + segments", () => {
   });
 });
 
-describe("productRollup + buyerDemographics", () => {
-  const lines = [
-    line({ model: "Carres Cloud", qty: 2, revenue: 2000, cost: 1200 }),
-    line({ model: "Carres Cloud", qty: 1, revenue: 1000, cost: 600 }),
-    line({ model: "Carres Breeze", category: "bedframe", qty: 1, revenue: 500, cost: null }),
-  ];
-  it("rolls up per model; margin only when EVERY contributing line has a cost", () => {
-    const rows = productRollup(lines);
-    expect(rows[0]).toMatchObject({ model: "Carres Cloud", units: 3, revenue: 3000 });
-    expect(rows[0].marginPct).toBeCloseTo(40); // (3000-1800)/3000
-    expect(rows[1].marginPct).toBeNull(); // Breeze has no cost
-  });
+describe("buyerDemographics", () => {
   it("buyerDemographics groups distributions per category", () => {
     const demo = buyerDemographics(
       [
@@ -143,5 +133,48 @@ describe("productRollup + buyerDemographics", () => {
     expect(demo).toHaveLength(1);
     expect(demo[0].category).toBe("mattress");
     expect(demo[0].gender.rows[0]).toMatchObject({ label: "Female", count: 2 });
+  });
+});
+
+describe("productProfit (Houzs Product Profit)", () => {
+  const line = (so: number, model: string, revenue: number, cost: number | null, over: Partial<AnalyticsLine> = {}): AnalyticsLine => ({
+    so, placedAt: "2026-10-10T02:00:00Z", sku: model, model, category: "mattress", qty: 1, revenue, cost,
+    race: null, gender: null, birthday: null, ...over,
+  });
+  const all = { month: null, categories: new Set<string>(), gifts: true, sort: "gp" as const };
+
+  it("shares an order's gifts among its paid products by sales and takes them off gross profit", () => {
+    const { rows } = productProfit([
+      line(1, "A", 300, 100), line(1, "B", 100, 50), line(1, "Pillow", 0, 40, { category: "other" }),
+    ], all);
+    const a = rows.find((r) => r.model === "A")!;
+    const b = rows.find((r) => r.model === "B")!;
+    expect(a.gift).toBe(30);
+    expect(b.gift).toBe(10);
+    expect(a.gp).toBe(170);
+    expect(rows.some((r) => r.model === "Pillow")).toBe(false);
+  });
+
+  it("keeps a price-0 line of a model the order also sells as that product's own cost", () => {
+    const { rows } = productProfit([line(1, "Sofa", 1000, 400), line(1, "Sofa", 0, 100)], all);
+    expect(rows[0]).toMatchObject({ units: 1, cost: 500, gift: 0, gp: 500 });
+  });
+
+  it("leaves gifts out when switched off, filters month and category, and counts no-cost lines", () => {
+    const ls = [line(1, "A", 300, 100), line(1, "G", 0, 30), line(2, "C", 500, null, { category: "sofa", placedAt: "2026-09-30T17:00:00Z" })];
+    expect(productProfit(ls, { ...all, gifts: false }).rows.find((r) => r.model === "A")!.gp).toBe(200);
+    expect(productProfit(ls, { ...all, month: "2026-09" }).rows.map((r) => r.model)).toEqual([]);
+    const oct = productProfit(ls, { ...all, month: "2026-10" }).rows;
+    expect(oct.map((r) => r.model)).toEqual(["C", "A"]);
+    expect(oct.find((r) => r.model === "C")!.noCostLines).toBe(1);
+    expect(productProfit(ls, { ...all, categories: new Set(["sofa"]) }).rows.map((r) => r.model)).toEqual(["C"]);
+  });
+
+  it("reports gifts on an order that paid for no product as unallocated", () => {
+    expect(productProfit([line(1, "G", 0, 25)], all).unallocatedGift).toBe(25);
+  });
+
+  it("shareSen adds back to the total", () => {
+    expect(shareSen(100, [1, 1, 1])).toEqual([34, 33, 33]);
   });
 });

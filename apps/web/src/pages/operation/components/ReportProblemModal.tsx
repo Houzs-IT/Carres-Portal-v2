@@ -6,12 +6,13 @@ import Modal from "@/components/kit/Modal";
 import Input from "@/components/kit/Input";
 import Select from "@/components/kit/Select";
 import Textarea from "@/components/kit/Textarea";
+import { activeNavModule } from "@/pages/portal/portal-nav";
 
 /**
  * Report a problem to IT. The request goes to the Houzs IT Hub through
  * POST /api/it-support/tickets (the Hub key stays on the Worker). The screen
- * address and the portal version are stamped here so IT can find the exact
- * page and build; who is asking is read from the session on the server.
+ * address, its module and the portal version are stamped here so IT can find
+ * the exact page and build; who is asking is read from the session on the server.
  */
 
 const URGENCY = [
@@ -42,6 +43,7 @@ export default function ReportProblemModal({ open, onClose }: { open: boolean; o
           description: description.trim(),
           priority,
           page_url: window.location.href,
+          module: activeNavModule(window.location.pathname, window.location.search) || undefined,
           app_version: shortCommit(buildInfo.commit),
         }),
       });
