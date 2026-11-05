@@ -31,6 +31,7 @@ import { printDeliveryOrder } from "./record-print";
 import WarehouseHandoverBlock from "./components/WarehouseHandoverBlock";
 import DeliveryResultAction from "./components/DeliveryResultAction";
 import DeliveryEvidencePanel from "./components/DeliveryEvidencePanel";
+import PriceAfterDoButton from "./components/PriceAfterDoButton";
 import { NO_PROOF_REVIEW, proofReviewOf } from "./delivery-orders-register";
 import { deliveryCost, deliveryFacts, rateCardFor, zoneForPostcode } from "@carres/shared/fleet";
 import { rm } from "@/lib/format-currency";
@@ -509,7 +510,13 @@ export default function DeliveryOrderPage() {
                         </span>
                         <span className="block truncate font-mono text-meta text-base-500">{l.sku}</span>
                       </span>
-                      <span className="shrink-0 text-body tabular-nums text-base-700">× {l.qty}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="text-body tabular-nums text-base-700">× {l.qty}</span>
+                        {/* Price after DO (Houzs port): a live DO only; the API returns unit_price on the line. */}
+                        {!d.voided_at && l.id && l.unit_price != null ? (
+                          <PriceAfterDoButton line={{ id: l.id, sku: l.sku, qty: l.qty, unit_price: l.unit_price }} />
+                        ) : null}
+                      </span>
                     </li>
                   ))}
                 </ul>
