@@ -42,7 +42,7 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
       "Money out: Payment Vouchers · AP Invoices · Payment Requests · Supplier Maintenance · Credit Notes · Debit Notes · Notes to follow up · AP · Payables",
       "Bank & cards: Daily Bank · Merchant Recon · Card money waiting · Money moves",
       "Books: Journal Entries · General Ledger · Trial Balance · Self-check",
-      "Reports: P&L · Balance Sheet · Cash Flow · AR Aging · AP Aging · Collection · Merchant charges · Dealer commission · Stock value · Stock drops · Corrections · Payment",
+      "Reports: P&L · Balance Sheet · Cash Flow · AR Aging · AP Aging · Collection · Merchant charges · Dealer commission · Stock value · Stock drops · Corrections · Payment · Project money",
       "Forecast P&L",
       "Opening Balance",
       "Rental Approver",
@@ -114,6 +114,7 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
       "dealer-commission": "/finance/reports/dealer-commission",
       "stock-value": "/finance/reports/stock-value",
       "stock-drops": "/finance/reports/stock-drops",
+      "project-money": "/finance/project-money",
       "payment-report": "/finance/reports/payment",
       forecast: "/finance/reports/forecast",
     });

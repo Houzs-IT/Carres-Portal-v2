@@ -62,6 +62,8 @@ import { useAddAccountInSection, useEditAccount, useMoneyAccounts, useSetAccount
 import { useSaveKey } from "../save-key";
 import ChartImport from "./ChartImport";
 import MoneyAccountModal from "./MoneyAccountModal";
+import { MONEY_ROWS, MONEY_ROW_LABELS, isMoneyRow } from "@carres/shared/project-money";
+import { useSetAccountProject } from "../project";
 import { useFinancePersonalLayouts } from "../finance-layouts";
 
 /** The group of a top account that has no section yet. */
@@ -483,6 +485,9 @@ export function accountSaveGap(f: { section: string | undefined; code: string; n
   return null;
 }
 
+/** The kit Select needs a value for "no row". */
+const NO_ROW = "none";
+
 function AccountModal({
   account,
   startWithRetire,
@@ -510,6 +515,11 @@ function AccountModal({
   const [under, setUnder] = useState<string>(atTop || !parent ? TOP_OF_SECTION : parent.code);
   const [confirmRetire, setConfirmRetire] = useState(startWithRetire && account.is_active);
   const [refusal, setRefusal] = useState<{ field: "name" | "code" | null; message: string } | null>(null);
+  // 0754 (Houzs event-accounts.ts): Needs project and the row it fills.
+  const setProject = useSetAccountProject();
+  const [needsProject, setNeedsProject] = useState(account.needs_project === true);
+  const [projectRow, setProjectRow] = useState<string>(account.project_row ?? NO_ROW);
+  const projectChanged = needsProject !== (account.needs_project === true) || projectRow !== (account.project_row ?? NO_ROW);
 
   const sectionOptions = sections
     .filter((s) => s.kind === account.kind)
@@ -535,7 +545,16 @@ function AccountModal({
         code: account.code,
         input: { name: name.trim(), code: shaped.data, section, under: under === TOP_OF_SECTION ? null : under },
       },
-      { onSuccess: onClose, onError: (e) => setRefusal(refusalOf(e)) },
+      {
+        onSuccess: (saved) => {
+          if (!projectChanged) return onClose();
+          setProject.mutate(
+            { code: saved?.code ?? shaped.data, needsProject, projectRow: isMoneyRow(projectRow) ? projectRow : null },
+            { onSuccess: onClose, onError: (e) => setRefusal({ field: null, message: e.message }) },
+          );
+        },
+        onError: (e) => setRefusal(refusalOf(e)),
+      },
     );
   };
   useSaveKey(submit, gap === null && !edit.isPending && account.is_active && !confirmRetire);
@@ -605,7 +624,7 @@ function AccountModal({
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={edit.isPending} disabled={gap !== null || !account.is_active} onClick={submit}>
+          <Button variant="primary" loading={edit.isPending || setProject.isPending} disabled={gap !== null || !account.is_active} onClick={submit}>
             {gap ?? "Save"}
           </Button>
         </>
@@ -628,6 +647,14 @@ function AccountModal({
           options={sectionOptions}
         />
         <Select id="account-under" label="Under" required value={under} onValueChange={setUnder} options={underOptions} />
+        {!account.is_header && (
+          <>
+            <Checkbox id="account-needs-project" label="Needs project" checked={needsProject} onCheckedChange={setNeedsProject} />
+            <Select id="account-project-row" label="Project money row" value={projectRow} onValueChange={setProjectRow}
+              options={[{ value: NO_ROW, label: account.kind === "EXPENSE" ? "Others Costing" : "None" },
+                ...MONEY_ROWS.filter((r) => r !== "others").map((r) => ({ value: r, label: MONEY_ROW_LABELS[r] }))]} />
+          </>
+        )}
         {refusal && refusal.field === null && <FieldError>{refusal.message}</FieldError>}
       </div>
     </Modal>

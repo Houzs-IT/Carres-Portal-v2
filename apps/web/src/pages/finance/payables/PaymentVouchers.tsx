@@ -24,6 +24,7 @@ import Modal from "@/components/kit/Modal";
 import { fieldCls } from "@/components/Field";
 import type { DepartmentType } from "@carres/shared";
 import { DepartmentFilter, DepartmentName, DepartmentPicker, useDepartmentParam } from "../department";
+import { ProjectName, ProjectPicker } from "../project";
 import ModuleHeader from "@/pages/operation/components/ModuleHeader";
 import SalesOrderTabs from "@/pages/operation/SalesOrderTabs";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
@@ -673,6 +674,7 @@ function VoucherLinesCard({ doc }: { doc: PaymentVoucherDocument }) {
           <p key={l.line_no}>
             {l.account_code} {l.account_name ?? ""} · {l.description ?? "No description"} · {money(l.amount)}
             {l.department_type && <> · <DepartmentName type={l.department_type} id={l.department_id} /></>}
+            {l.project_id && <> · <ProjectName id={l.project_id} /></>}
           </p>
         ))}
     </Facts>
@@ -689,10 +691,10 @@ type BillPick = { on: boolean; amount: string };
 const DN = "dn:";
 /** 0705: an opening bill's pick (Opening balances), counted the same way. */
 const OB = "ob:";
-type DirectLine = { key: string; accountCode: string; description: string; amount: string; departmentType: DepartmentType | null; departmentId: string | null };
+type DirectLine = { key: string; accountCode: string; description: string; amount: string; departmentType: DepartmentType | null; departmentId: string | null; projectId: string | null };
 
 let seq = 0;
-const newLine = (): DirectLine => { seq += 1; return { key: `d${seq}`, accountCode: "", description: "", amount: "", departmentType: null, departmentId: null }; };
+const newLine = (): DirectLine => { seq += 1; return { key: `d${seq}`, accountCode: "", description: "", amount: "", departmentType: null, departmentId: null, projectId: null }; };
 
 /** The voucher total is never typed: it is what the ticked bills, the
  *  advance and the direct lines add up to, and the database recomputes it the
@@ -818,7 +820,8 @@ function VoucherForm() {
       ...(d.opening_bills ?? []).map((o) => [`${OB}${o.opening_item_id}`, { on: true, amount: String(o.amount_applied) }] as const),
     ]));
     setLines(d.lines.map((l) => ({ ...newLine(), accountCode: l.account_code, description: l.description ?? "", amount: String(l.amount),
-      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null })));
+      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null,
+      projectId: l.project_id ?? null })));
     setAdvance((num(d.voucher.advance_amount) ?? 0) > 0 ? String(d.voucher.advance_amount) : "");
     setCopyState("picks");
   }, [copySource.data, copyState]);
@@ -843,7 +846,8 @@ function VoucherForm() {
       ...(d.opening_bills ?? []).map((o) => [`${OB}${o.opening_item_id}`, { on: true, amount: String(o.amount_applied) }] as const),
     ]));
     setLines(d.lines.map((l) => ({ ...newLine(), accountCode: l.account_code, description: l.description ?? "", amount: String(l.amount),
-      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null })));
+      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null,
+      projectId: l.project_id ?? null })));
     setAdvance((num(d.voucher.advance_amount) ?? 0) > 0 ? String(d.voucher.advance_amount) : "");
     setLoaded(true);
   }, [id, loaded, existing.data]);
@@ -984,6 +988,7 @@ function VoucherForm() {
         amount: Number(l.amount),
         departmentType: l.departmentType,
         departmentId: l.departmentId,
+        projectId: l.projectId,
       })),
       allocations: purpose === "SUPPLIER_BILLS"
         ? Object.entries(picks).filter(([, p]) => p.on).map(([key, p]) => (key.startsWith(DN)
@@ -1381,6 +1386,8 @@ function DirectLineRow({ line, n, accounts, onChange, onRemove }: {
       <DepartmentPicker label={`Line ${n} department`} className={`${fieldCls} w-48`}
         type={line.departmentType} id={line.departmentId}
         income={accounts.find((a) => a.code === line.accountCode)?.kind === "INCOME"} onChange={onChange} />
+      <ProjectPicker label={`Line ${n} project`} className={`${fieldCls} w-48`} id={line.projectId}
+        onChange={(projectId) => onChange({ projectId })} />
       <Button variant="ghost" size="sm" onClick={onRemove}>Remove</Button>
     </div>
   );

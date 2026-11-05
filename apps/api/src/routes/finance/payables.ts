@@ -179,6 +179,7 @@ function billLinesToJson(lines: SupplierBillDraftInput["lines"]) {
     amount: l.amount ?? null,
     department_type: l.departmentType ?? null,
     department_id: l.departmentId ?? null,
+    project_id: l.projectId ?? null,   // 0754
   }));
 }
 
@@ -209,6 +210,7 @@ function voucherArgs(voucherId: string | null, d: PaymentVoucherDraftInput) {
       amount: l.amount,
       department_type: l.departmentType ?? null,
       department_id: l.departmentId ?? null,
+      project_id: l.projectId ?? null,   // 0754
     })),
     // 0681: an allocation pays a bill or a supplier debit note.
     // 0705: or an opening bill (Opening balances).
