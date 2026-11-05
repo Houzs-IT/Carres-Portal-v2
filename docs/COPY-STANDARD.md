@@ -6283,3 +6283,28 @@ The row at the bottom of the side menu (above the person, beside `Settings`, on 
 | Procurement Overview empty and count words | `No goods received in this period.`, `{n} PIs` |
 | Supplier detail | `Open supplier` · `Back to Suppliers`; tabs `Details` · `Lead Times` · `Items` · `Purchase Orders`; `Production Days` · `Working days` · `Supplier work week` · `Change these on Purchasing Settings.` · `Set a number`; `Their code` · `Our code` · `Our name` |
 | New Supplier, Batch edit | `New Supplier` · `Name` · `Pickup` · `Own Logistics` · `Factory Pickup` · `Add Supplier`; `Batch edit` · `Payment Terms (days)` · `Channel` · `Leave as it is` · `Email` · `WhatsApp` · `Apply`; `{n} suppliers saved` · `{n} of {m} suppliers saved` |
+
+## Projects words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22; Jess was not part of this decision) · migration 0750 · BUILT ON BRANCH `houzs/projects-port`, NOT APPLIED
+
+Fairs, exhibitions and solo roadshows, following Houzs Projects. These words are admitted for the `Projects` side menu module and its `Project List` page.
+
+| Meaning | Use exactly |
+|---|---|
+| Module and page | `Projects` · `Project List` · `Project` |
+| List filters | `Live projects` · `Archived` · `All statuses` |
+| List and detail fields | `Code` · `Name` · `Status` · `Stage` · `Event type` · `Brand` · `State` · `Venue` · `Venue address` · `Organizer` · `Contractor` · `Booth no` · `Size (sqm)` · `Start` · `End` · `Days` · `PIC` · `Notes` · `None` |
+| Stages | `Draft` · `Setup` · `Live` · `Dismantle` · `Completed` |
+| Statuses | `Pending` · `Confirmed` · `Cancelled` |
+| Event types | `Exhibition` · `Solo` |
+| Buttons | `New project` · `Edit project` · `Save` · `Cancel` · `Archive` · `Unarchive` · `Add note` |
+| Form hints | `Leave empty to use STATE [BRAND] ORGANIZER @ VENUE.` · `Leave empty for a solo event.` |
+| Detail panels and activity | `Details` · `Activity` · `Write a note` · `No activity yet.` · activity rows `Created` · `Stage` · `Status` · `Archived` · `Unarchived` · `Note` |
+| Archived project | `This project is archived. Unarchive it to change its status.` |
+| Empty and failure | `No projects yet. Use New project to add the first fair or exhibition.` · `This page could not be loaded. Try again.` · `Not saved. Try again.` · `This project could not be found.` |
+| Refusals | `Unarchive the project to change its status.` · `That is already on the list.` |
+| Project Maintenance (0751) | `Project Maintenance` · lists `Brands` · `Venues` · `Organizers` · `Contractors` · `Contractor` · `Add` · `In use` · `Stop using` · `Use again` · `Nothing here yet. Add the first one above.` |
+| Project team (0751) | `Team` · `Role` · placeholder `For example onsite or sales` · `Add to team` · `Remove` · `No one on the team yet.` |
+| Checklist (0752) | `Checklist` · `N% done` · statuses `To do` · `Done` · `Not needed` · `Blocked` · `Section` · `Task` · `Due (days from start)` · hint `Use a minus number for days before the start.` · `Start day` · `N days before start` · `N days after start` · `Add task` · `No tasks yet.` |
+| Checklist templates (0752) | `Checklist template` · `Checklist templates` · `Add template tasks` · `New projects of this type` · `N tasks` |
+| Sales Orders at a project (0753) | `Sales Orders` · `SO No` · `Add Sales Order` · `No Sales Orders on this project yet.` · `No value` · `Cancelled` · `Paid RM · Balance RM` · `N orders · RM · Paid RM · Balance RM` · refusals `No Sales Order has that number.` · `This Sales Order is on another project. Remove it there first.` |
+| Project sheet (slice 7, PDF) | button `Print` · failure `The project sheet could not be made. Try again.` · on the paper: `PROJECT SHEET` · `Printed {date}` · `D to D Mon YYYY` · `PIC {name}` · `Overview` · `Event type` · `Brand` · `Venue` · `Venue address` · `State` · `Organizer` · `Contractor` · `Booth no` · `Size (sqm)` · `Days` · `Team` · `Sales Orders` · `SO No` · `Customer` · `Total (RM)` · `Paid (RM)` · `Balance (RM)` · `No value` · `Cancelled` · `TOTAL · 1 order, cancelled left out` · `TOTAL · N orders, cancelled left out` · `Checklist · N% done` · `Task` · `Due` · `Status` · `Finished` · `Notes` · `This is a computer generated document. No signature is required.` · `Page n of m` |
