@@ -1480,4 +1480,20 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
     expect(body.items[0]).toMatchObject({ subStatusId: SUB, subStatusLabel: "Pending Supplier Pickup" });
   });
+
+  // 0761 — resolution method from a settings list (Houzs 065_assr_lookups.sql).
+  it("adds a resolution method, saves it on a case and reads its label back", async () => {
+    const ok = tableSb({}, true);
+    expect((await postPick("resolutionMethods", { label: "Replace Unit" }, ok.sb)).status).toBe(201);
+    expect(ok.inserts[0]).toEqual(["service_case_resolution_methods", expect.objectContaining({ label: "Replace Unit" })]);
+
+    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
+    expect((await patchCase({ resolutionMethodId: SUB }, sb)).status).toBe(200);
+    expect(updates).toContainEqual(["service_cases", { resolution_method_id: SUB }]);
+
+    const row = { ...CASE_ROW, resolution_method_id: SUB, service_case_resolution_methods: { label: "Replace Unit" } };
+    const read = tableSb({ service_cases: [row] });
+    const body = (await (await get("/ops/service-cases", read.sb)).json()) as { items: Array<Record<string, unknown>> };
+    expect(body.items[0]).toMatchObject({ resolutionMethodId: SUB, resolutionMethodLabel: "Replace Unit" });
+  });
 });

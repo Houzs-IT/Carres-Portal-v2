@@ -61,6 +61,8 @@ export const serviceCaseConfigSchema = z.object({
   types:    z.array(caseTypeSchema),
   statuses: z.array(caseStatusSchema),
   subStatuses: z.array(caseSubStatusSchema).optional(),
+  /** 0761 — Houzs resolution methods; same shape as a case type. */
+  resolutionMethods: z.array(caseTypeSchema).optional(),
 });
 export type ServiceCaseConfig = z.infer<typeof serviceCaseConfigSchema>;
 
@@ -368,6 +370,10 @@ export const serviceCaseSchema = z.object({
   /** 0760 — the sub-status inside the current stage; null when the stage has none. */
   subStatusId:     z.string().uuid().nullable().optional(),
   subStatusLabel:  z.string().nullable().optional(),
+
+  /** 0761 — how the case is resolved (Houzs resolution method). */
+  resolutionMethodId:    z.string().uuid().nullable().optional(),
+  resolutionMethodLabel: z.string().nullable().optional(),
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -430,6 +436,7 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
     ownerUserId: z.string().uuid().nullable().optional(),
     ...caseLegFields,
     subStatusId: z.string().uuid().nullable().optional(),
+    resolutionMethodId: z.string().uuid().nullable().optional(),
   });
 export type UpdateServiceCaseInput = z.infer<typeof updateServiceCaseInputSchema>;
 
@@ -551,7 +558,7 @@ export function mayPickCaseOwner(args: {
 
 /** 0711 — Service settings (Houzs Service Maintenance): the default case owner
  *  and the two pick lists staff choose from on a case. */
-export const SERVICE_PICK_LISTS = ["types", "statuses", "subStatuses"] as const;
+export const SERVICE_PICK_LISTS = ["types", "statuses", "subStatuses", "resolutionMethods"] as const;
 export type ServicePickList = (typeof SERVICE_PICK_LISTS)[number];
 
 export const serviceSettingsPatchSchema = z.object({

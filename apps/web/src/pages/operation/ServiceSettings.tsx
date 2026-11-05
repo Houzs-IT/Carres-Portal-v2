@@ -18,7 +18,7 @@ import Select from "@/components/kit/Select";
 import { W } from "./settings-core/parts";
 
 type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null; statusId?: string | null };
-type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[]; subStatuses?: PickItem[] };
+type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[]; subStatuses?: PickItem[]; resolutionMethods?: PickItem[] };
 const KEY = ["ops", "service-cases", "settings"] as const;
 
 export default function ServiceSettings() {
@@ -69,13 +69,15 @@ export default function ServiceSettings() {
             items={(q.data?.subStatuses ?? []).filter((ss) => ss.statusId === st.id)} canEdit={canEdit} onChanged={refresh} />
         ))}
         <PickList list="types" title="Case types" help="The case types staff pick on a case." items={q.data?.types ?? []} canEdit={canEdit} onChanged={refresh} />
+        {/* 0761 — Houzs 065_assr_lookups.sql resolution methods. */}
+        <PickList list="resolutionMethods" title="Resolution methods" help="How a case is resolved. Staff pick one on the case." items={q.data?.resolutionMethods ?? []} canEdit={canEdit} onChanged={refresh} />
       </div>
     </PageShell>
   );
 }
 
 function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
-  list: "types" | "statuses" | "subStatuses";
+  list: "types" | "statuses" | "subStatuses" | "resolutionMethods";
   statusId?: string;
   title: string;
   help: string;

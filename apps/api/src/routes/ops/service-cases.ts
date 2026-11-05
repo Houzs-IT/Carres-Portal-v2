@@ -73,7 +73,7 @@ scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
  * costs one extra column per row.
  */
 const CASE_SELECT =
-  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
+  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_resolution_methods(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /config — config-driven Case Type + Status (active only, sorted)
@@ -81,16 +81,18 @@ const CASE_SELECT =
 scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
 
-  const [{ data: types, error: tErr }, { data: statuses, error: sErr }, { data: subs, error: ssErr }] =
+  const [{ data: types, error: tErr }, { data: statuses, error: sErr }, { data: subs, error: ssErr }, { data: methods, error: rmErr }] =
     await Promise.all([
       sb.from("service_case_types").select("*").eq("active", true).order("sort_order"),
       sb.from("service_case_statuses").select("*").eq("active", true).order("sort_order"),
       sb.from("service_case_sub_statuses").select("*").eq("active", true).order("sort_order"),
+      sb.from("service_case_resolution_methods").select("*").eq("active", true).order("sort_order"),
     ]);
 
   if (tErr) throw new HTTPException(500, { message: tErr.message });
   if (sErr) throw new HTTPException(500, { message: sErr.message });
   if (ssErr) throw new HTTPException(500, { message: ssErr.message });
+  if (rmErr) throw new HTTPException(500, { message: rmErr.message });
 
   return c.json({
     types: (types ?? []).map((t) => ({
@@ -102,6 +104,9 @@ scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
     })),
     subStatuses: (subs ?? []).map((s) => ({
       id: s.id, statusId: s.status_id, code: s.code, label: s.label, sortOrder: s.sort_order, active: s.active,
+    })),
+    resolutionMethods: (methods ?? []).map((m) => ({
+      id: m.id, code: m.code, label: m.label, sortOrder: m.sort_order, active: m.active,
     })),
   });
 });
@@ -233,6 +238,7 @@ const PICK_TABLE = {
   types: "service_case_types",
   statuses: "service_case_statuses",
   subStatuses: "service_case_sub_statuses",
+  resolutionMethods: "service_case_resolution_methods",
 } as const;
 function pickTable(list: string) {
   const t = PICK_TABLE[list as keyof typeof PICK_TABLE];
@@ -248,19 +254,21 @@ const pickRow = (r: Record<string, unknown>) => ({
 
 scRouter.get("/settings", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const [st, types, statuses, subStatuses] = await Promise.all([
+  const [st, types, statuses, subStatuses, resolutionMethods] = await Promise.all([
     sb.from("service_settings").select("default_owner_user_id").maybeSingle(),
     sb.from("service_case_types").select("*").order("sort_order"),
     sb.from("service_case_statuses").select("*").order("sort_order"),
     sb.from("service_case_sub_statuses").select("*").order("sort_order"),
+    sb.from("service_case_resolution_methods").select("*").order("sort_order"),
   ]);
-  const err = st.error ?? types.error ?? statuses.error ?? subStatuses.error;
+  const err = st.error ?? types.error ?? statuses.error ?? subStatuses.error ?? resolutionMethods.error;
   if (err) throw new HTTPException(500, { message: err.message });
   return c.json({
     defaultOwnerUserId: (st.data as { default_owner_user_id?: string | null } | null)?.default_owner_user_id ?? null,
     types: (types.data ?? []).map(pickRow),
     statuses: (statuses.data ?? []).map(pickRow),
     subStatuses: (subStatuses.data ?? []).map(pickRow),
+    resolutionMethods: (resolutionMethods.data ?? []).map(pickRow),
   });
 });
 
@@ -739,6 +747,7 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   if (parsed.deliveryConfirmedAt !== undefined) patch.delivery_confirmed_at = parsed.deliveryConfirmedAt;
   // 0760 — the database seeds it on a stage change and refuses another stage's.
   if (parsed.subStatusId         !== undefined) patch.sub_status_id         = parsed.subStatusId;
+  if (parsed.resolutionMethodId  !== undefined) patch.resolution_method_id  = parsed.resolutionMethodId;
 
   const { error } = await sb.from("service_cases").update(patch).eq("id", id);
   if (error?.details === "sub_status_not_in_stage") {
@@ -1129,6 +1138,9 @@ interface RawCase {
   /** 0760. Optional: absent before 0760. */
   sub_status_id?: string | null;
   service_case_sub_statuses?: { label: string } | null;
+  /** 0761. Optional: absent before 0761. */
+  resolution_method_id?: string | null;
+  service_case_resolution_methods?: { label: string } | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
   service_case_statuses: { label: string; is_closed: boolean; target_days?: number | string | null } | null;
@@ -1211,6 +1223,8 @@ function shapeCase(r: RawCase) {
     deliveryConfirmedAt: r.delivery_confirmed_at ?? null,
     subStatusId:         r.sub_status_id ?? null,
     subStatusLabel:      r.service_case_sub_statuses?.label ?? null,
+    resolutionMethodId:    r.resolution_method_id ?? null,
+    resolutionMethodLabel: r.service_case_resolution_methods?.label ?? null,
 
     ...stageClock(r),
   };
