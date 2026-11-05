@@ -41,6 +41,8 @@ export const manualJournalLineInput = z
     debit: journalAmount.nullable().optional(),
     credit: journalAmount.nullable().optional(),
     memo: z.string().trim().max(500, "A memo is at most 500 characters.").nullable().optional(),
+    /** 0754 (Houzs event-books): the project this line's money is for. */
+    project_id: z.string().uuid().nullable().optional(),
   })
   .strict()
   .superRefine((line, ctx) => {
