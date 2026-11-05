@@ -175,3 +175,33 @@ describe("POST /api/operation/pos/new — a Purchase Order with no source (Weisi
     expect(body.message).not.toBe("x");
   });
 });
+
+/** GET /:id/copy-seed — "Copy as new" (Houzs HC-0149) reads what the New PO form starts from. */
+describe("GET /api/operation/pos/:id/copy-seed", () => {
+  async function get(id: string, role = "operation") {
+    return app.fetch(new Request(`http://t/api/operation/pos/${id}/copy-seed`, {
+      headers: { authorization: `Bearer ${await jwt(role)}` },
+    }), env);
+  }
+
+  it("returns supplier, Deliver To, consignment and lines with their price, and no dates", async () => {
+    client({ purchase_orders: [{ supplier_id: SUPPLIER, destination_id: DEST, is_consignment: true,
+      purchase_order_lines: [{ sku: "SOFA-1", qty: 2, cost: "1150.00" }, { sku: "BED-1", qty: 1, cost: null }] }] }, { data: null, error: null });
+    const res = await get("PO-20261101-0001");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      supplierId: SUPPLIER, destinationId: DEST, consignment: true,
+      lines: [{ sku: "SOFA-1", qty: 2, price: 1150 }, { sku: "BED-1", qty: 1, price: null }],
+    });
+  });
+
+  it("an unknown PO is 404", async () => {
+    client({}, { data: null, error: null });
+    expect((await get("PO-NOPE")).status).toBe(404);
+  });
+
+  it("a dealer cannot read it", async () => {
+    client({}, { data: null, error: null });
+    expect((await get("PO-20261101-0001", "dealer")).status).toBe(403);
+  });
+});

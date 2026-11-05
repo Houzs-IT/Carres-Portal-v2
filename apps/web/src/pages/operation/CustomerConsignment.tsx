@@ -169,7 +169,7 @@ const WORD = { order: "Customer Consignment Order", note: "Consignment Note", re
 type OrderLine = UnitLink & { price: string | number; sold_at: string | null };
 type Payment = { id: string; paid_at: string; method: string; amount: string | number; reference: string | null; note: string | null };
 type OrderRow = {
-  id: string; order_no: string; customer_name: string; customer_phone: string | null; customer_address: string | null; note: string | null; created_at: string; performed_by: string | null;
+  id: string; order_no: string; dealer_id?: string | null; customer_name: string; customer_phone: string | null; customer_address: string | null; note: string | null; created_at: string; performed_by: string | null;
   customer_consignment_order_units: OrderLine[];
   customer_consignment_order_payments: Payment[];
   total: number; paid: number; balance: number;
@@ -268,6 +268,15 @@ export function CustomerConsignmentOrders() {
     }),
     onSuccess: () => { setOpen(false); setPicked([]); setPrices({}); setC(EMPTY); setNote(""); setDealerId(NO_DEALER); done(); },
   });
+  /* Copy as new (Houzs HC-0149, a77d49f25): dealer, customer and note. The
+     Units are not copied: a Unit is one physical piece, picked again. */
+  const copyAsNew = (o: OrderRow) => {
+    setDealerId(o.dealer_id ?? NO_DEALER);
+    setC({ name: o.customer_name, phone: o.customer_phone ?? "", address: o.customer_address ?? "" });
+    setNote(o.note ?? "");
+    setPicked([]); setPrices({});
+    setOpen(true);
+  };
   const send = useMutation({
     mutationFn: () => post("/notes", { orderId: sending?.id, unitIds: sendPicked, deliveryDate: date || undefined }),
     onSuccess: () => { setSending(null); setSendPicked([]); setDate(""); done(); },
@@ -300,7 +309,7 @@ export function CustomerConsignmentOrders() {
             storageKey="carres.delivery.customer-consignment-orders.v1" appearance="reference" exportName="Customer Consignment Orders"
             groupBanner={false} stickyIdentity isLoading={!list.isSuccess} searchPlaceholder="Search order, customer or Unit ID…"
             onRowClick={(r) => { setSending(r); setSendPicked([]); }}
-            contextMenu={(r) => documentRowMenu({ view: () => { setSending(r); setSendPicked([]); }, print: () => printIt(r) })}
+            contextMenu={(r) => documentRowMenu({ view: () => { setSending(r); setSendPicked([]); }, print: () => printIt(r), more: [{ label: "Copy as new", onClick: () => copyAsNew(r) }] })}
             {...cardsProps<OrderRow>(display, (r) => r.id, (r) => { setSending(r); setSendPicked([]); }, (r) => ({ title: r.order_no, facts: [
               ["Customer", r.customer_name], ["Date", fmtDate(r.created_at)], ["Local Total", rm(r.total)], ["Balance", rm(r.balance)],
             ] }))}

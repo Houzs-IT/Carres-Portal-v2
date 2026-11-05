@@ -1,4 +1,4 @@
-import { FABRIC_STOCK_KEYS, type FabricTier } from "@carres/shared";
+import { FABRIC_STOCK_KEYS, type BedframeTier, type FabricTier } from "@carres/shared";
 
 /**
  * Fabric master Export CSV / Import (CSV or Excel) for the Fabrics panel.
@@ -17,7 +17,7 @@ export interface FabricCsvRow {
   description: string;
   supplierCode: string;
   sofaTier: FabricTier;
-  bedframeTier: FabricTier;
+  bedframeTier: BedframeTier;
   active: boolean;
   /** Houzs stock columns (sen / days). Absent = not loaded or not changed. */
   stock?: Partial<Record<StockKey, number>>;
@@ -46,9 +46,10 @@ export function buildFabricCsv(rows: FabricCsvRow[]): string {
   return [COLUMNS.join(","), ...lines].join("\n");
 }
 
-/** "PRICE_2", "Price 2" or "2" → PRICE_2; anything else → null (an error). */
-function parseTier(v: string): FabricTier | null {
-  const m = /^(?:price[\s_]*)?([123])$/i.exec(v.trim());
+/** "PRICE_2", "Price 2" or "2" → PRICE_2; anything else → null (an error).
+ *  Sofa takes 1 to 4, bedframe 1 to 3 (Houzs fabric-csv.ts:69,136). */
+function parseTier(v: string, max: 3 | 4): FabricTier | null {
+  const m = (max === 4 ? /^(?:price[\s_]*)?([1234])$/i : /^(?:price[\s_]*)?([123])$/i).exec(v.trim());
   return m ? (`PRICE_${m[1]}` as FabricTier) : null;
 }
 
@@ -86,12 +87,13 @@ export function mergeFabricImport(current: FabricCsvRow[], records: Record<strin
     const tiers: Partial<Pick<FabricCsvRow, "sofaTier" | "bedframeTier">> = {};
     for (const [col, field] of [["sofa_tier", "sofaTier"], ["bedframe_tier", "bedframeTier"]] as const) {
       if (!rec[col]) continue;
-      const t = parseTier(rec[col]);
+      const t = parseTier(rec[col], col === "sofa_tier" ? 4 : 3);
       if (!t) {
-        errors.push(`Line ${line}: ${col} "${rec[col]}" is not Price 1, 2 or 3.`);
+        errors.push(`Line ${line}: ${col} "${rec[col]}" is not ${col === "sofa_tier" ? "Price 1, 2, 3 or 4" : "Price 1, 2 or 3"}.`);
         return;
       }
-      tiers[field] = t;
+      if (field === "bedframeTier") tiers.bedframeTier = t as BedframeTier; // parseTier(…, 3) never returns PRICE_4
+      else tiers.sofaTier = t;
     }
     // Houzs fabric-tracking.ts:300-308: whole numbers, a decimal is cut, a
     // non-number refuses the row. Blank keeps the stored value.

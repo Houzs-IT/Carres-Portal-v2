@@ -4,7 +4,7 @@
  */
 
 import type { CostSource, OperationStage, Role } from "./db-types";
-import type { FabricTier } from "./fabric-tier";
+import type { BedframeTier, FabricTier } from "./fabric-tier";
 import type { DefaultFreeGift } from "./free-gift";
 import type { FreeItemCampaign } from "./free-item-campaign";
 import type { BundleComponent, BundleSlot } from "./product-bundle";
@@ -17,7 +17,7 @@ import type { RuleTarget } from "./rule-target";
 export type { CostSource };
 
 // 0176 — fabric tier type re-exported for UI consumption.
-export type { FabricTier };
+export type { BedframeTier, FabricTier };
 
 // 0185 — Free Item Campaign is the camelCase domain shape (single source of
 // truth in free-item-campaign.ts); re-exported here so UI code can reach it via
@@ -240,7 +240,7 @@ export interface CatalogFabric {
   description: string | null;
   supplierCode: string | null;
   sofaTier: FabricTier;
-  bedframeTier: FabricTier;
+  bedframeTier: BedframeTier;
   active: boolean;
   sortOrder: number;
   /** 0226 — operation's recorded buying add-on (RM); null = not recorded. */
@@ -278,7 +278,7 @@ export interface CatalogFabricsHistory {
     description: string | null;
     supplierCode: string | null;
     sofaTier: FabricTier;
-    bedframeTier: FabricTier;
+    bedframeTier: BedframeTier;
     active: boolean;
     sortOrder: number;
   }[];
