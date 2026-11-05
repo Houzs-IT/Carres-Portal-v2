@@ -15,16 +15,24 @@ import type { AppEnv } from "../types";
  * Money semantics:
  *   - revenue     = order_lines Σ(unit_price×qty) + NON-delivery addons
  *   - deliveryFee = the DELIVERY / DELIVERY_CROSS / DELIVERY_ADD addons
- *   - cogs        = Σ(product_skus.cost×qty) over lines whose sku matched AND
- *                   carries a cost; `cogsComplete` says every line matched, so
- *                   margin is only quoted where it's real.
+ *   - cogs        = Σ(line cost×qty). The line cost is the one written when the
+ *                   line was priced (order_line_costs, 0770), as Houzs reads
+ *                   the SO line's own cost [Houzs-ERP backend/src/acc/
+ *                   performance-pnl.ts:137-142]; a line from before 0770 falls
+ *                   back to product_skus.cost. `cogsComplete` says every line
+ *                   had a cost.
  * Demographics come straight off the order row (0200) — null on rows placed
  * before the columns existed; the page surfaces coverage.
  */
 
 const DELIVERY_ADDON_KEYS = new Set(["DELIVERY", "DELIVERY_CROSS", "DELIVERY_ADD"]);
 
-type LineRow = { sku: string; qty: number; unit_price: string | number };
+type LineRow = {
+  sku: string;
+  qty: number;
+  unit_price: string | number;
+  order_line_costs: { unit_cost: string | number | null } | null;
+};
 type AddonRow = { addon_key: string; qty: number; unit_price: string | number };
 type OrderRow = {
   id: string;
@@ -50,6 +58,13 @@ const num = (v: string | number | null | undefined): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/** A line's unit cost: the one written when it was priced, else (a line from
+    before 0770) the catalog cost. A priced line with no cost stays null. */
+export const lineUnitCost = (
+  priced: { unit_cost: string | number | null } | null,
+  catalogCost: number | null,
+): number | null => (priced ? (priced.unit_cost == null ? null : num(priced.unit_cost)) : catalogCost);
+
 const analyticsRouter = new Hono<AppEnv>();
 
 analyticsRouter.get("/sales", async (c) => {
@@ -70,7 +85,7 @@ analyticsRouter.get("/sales", async (c) => {
     sb
       .from("orders")
       .select(
-        "id, so, status, channel, placed_at, paid, customer_race, customer_gender, customer_birthday, order_lines(sku, qty, unit_price), order_addons(addon_key, qty, unit_price)",
+        "id, so, status, channel, placed_at, paid, customer_race, customer_gender, customer_birthday, order_lines(sku, qty, unit_price, order_line_costs(unit_cost)), order_addons(addon_key, qty, unit_price)",
       )
       .neq("status", "cancelled")
       .gte("placed_at", fromIso)
@@ -107,7 +122,8 @@ analyticsRouter.get("/sales", async (c) => {
     let cogsComplete = oLines.length > 0;
     for (const l of oLines) {
       const info = skuIndex.get(l.sku);
-      if (info && info.cost !== null) cogs += info.cost * l.qty;
+      const unitCost = lineUnitCost(l.order_line_costs, info?.cost ?? null);
+      if (unitCost !== null) cogs += unitCost * l.qty;
       else cogsComplete = false;
 
       lines.push({
@@ -118,7 +134,7 @@ analyticsRouter.get("/sales", async (c) => {
         category: info?.category ?? "other",
         qty: l.qty,
         revenue: num(l.unit_price) * l.qty,
-        cost: info && info.cost !== null ? info.cost * l.qty : null,
+        cost: unitCost === null ? null : unitCost * l.qty,
         race: o.customer_race,
         gender: o.customer_gender,
         birthday: o.customer_birthday,

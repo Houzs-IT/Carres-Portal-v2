@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "../../types";
 vi.mock("../../lib/supabase", () => ({ userClient: vi.fn(), adminClient: vi.fn() }));
 import { userClient } from "../../lib/supabase";
-import router from "./fleet";
+import router, { stopFacts } from "./fleet";
 
 /** 0724 — Carres' own lorries (Weisiang's decision 2026-10-22). The router is
  *  thin: the SQL door decides; its refusal tag reaches the page as `code`. */
@@ -44,5 +44,37 @@ describe("/api/operation/fleet", () => {
     expect(res.status).toBe(422);
     expect(await res.json()).toMatchObject({ code: "on_leave" });
     expect(rpc).toHaveBeenCalledWith("fleet_confirm_crew", expect.objectContaining({ p_day: "2026-11-02", p_helper_id: null }));
+  });
+});
+
+describe("stopFacts — the Last Mile board's DO and result per stop (Houzs #5094)", () => {
+  /** A client whose `from(table)` chain answers `rows[table]` whatever the filters. */
+  const fake = (rows: Record<string, unknown[]>) => ({
+    from: (table: string) => {
+      const chain: Record<string, unknown> = { then: (ok: (v: unknown) => unknown) => Promise.resolve({ data: rows[table] ?? [], error: null }).then(ok) };
+      for (const m of ["select", "in", "is", "gte"]) chain[m] = () => chain;
+      return chain;
+    },
+  }) as never;
+
+  it("takes the newest live DO and the newest attempt per order and leg; no attempt reads Scheduled", async () => {
+    const facts = await stopFacts(fake({
+      ops_delivery_orders: [
+        { order_id: "o1", leg: 0, do_number: "DO-1", issued_at: "2026-10-30T01:00:00Z" },
+        { order_id: "o1", leg: 0, do_number: "DO-2", issued_at: "2026-11-01T01:00:00Z" },
+      ],
+      delivery_attempts: [
+        { order_id: "o1", leg: 0, result: "failed", recorded_at: "2026-11-02T03:00:00Z" },
+        { order_id: "o1", leg: 0, result: "delivered", recorded_at: "2026-11-02T06:00:00Z" },
+      ],
+    }), [{ order_id: "o1", leg: 0 }, { order_id: "o2", leg: 1 }], "2026-11-02");
+    expect(facts instanceof Map && [...facts.entries()]).toEqual([
+      ["o1|0", { doNumber: "DO-2", status: "delivered" }],
+      ["o2|1", { doNumber: null, status: "scheduled" }],
+    ]);
+  });
+
+  it("reads nothing for a day with no stops", async () => {
+    expect(await stopFacts(fake({}), [], "2026-11-02")).toEqual(new Map());
   });
 });
