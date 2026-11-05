@@ -48,6 +48,8 @@ export default function OperationServiceCases() {
   // My cases switch (mine + my downline, decided by the server) and a stage
   // card filter (click a card, click it again to clear).
   const mine = searchParams.get("mine") === "1";
+  // 0762 — Houzs Archived filter: the list shows archived cases only while it is on.
+  const archived = searchParams.get("archived") === "1";
   const [hideCompleted, setHideCompleted] = useState(false);
   const [stageId, setStageId] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -77,8 +79,13 @@ export default function OperationServiceCases() {
   const caseView = viewParam === "board" || viewParam === "calendar" ? viewParam : "list";
 
   const listQ = useQuery<ServiceCaseListResponse>({
-    queryKey: ["ops", "service-cases", "list", mine],
-    queryFn: () => apiFetch(`/api/ops/service-cases${mine ? "?mine=1" : ""}`),
+    queryKey: ["ops", "service-cases", "list", mine, archived],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (mine) params.set("mine", "1");
+      if (archived) params.set("archived", "1");
+      return apiFetch(`/api/ops/service-cases${params.size ? `?${params}` : ""}`);
+    },
     refetchInterval: 30_000,
     // The Quality Overview tab and the case page read their own endpoints.
     enabled: tab === "cases" && !caseId,
@@ -126,12 +133,13 @@ export default function OperationServiceCases() {
   const pastTargetCount = allRows.filter(pastTarget).length;
 
   // An empty list under a filter is not an empty module: say which filter emptied it.
-  const filtered = mine || hideCompleted || stageShown || !!creditorId;
-  const emptyFilteredSentence = `No ${hideCompleted ? "open " : ""}cases${mine ? " of yours" : ""}${stageShown ? " at this stage" : ""}${creditorId ? " for this creditor" : ""}.`;
+  const filtered = mine || archived || hideCompleted || stageShown || !!creditorId;
+  const emptyFilteredSentence = `No ${archived ? "archived " : ""}${hideCompleted ? "open " : ""}cases${mine ? " of yours" : ""}${stageShown ? " at this stage" : ""}${creditorId ? " for this creditor" : ""}.`;
   const resetFilters = () => {
     const params = new URLSearchParams(searchParams);
     params.delete("mine");
     params.delete("creditor");
+    params.delete("archived");
     setSearchParams(params, { replace: true });
     setHideCompleted(false);
     setStageId(null);
@@ -155,6 +163,22 @@ export default function OperationServiceCases() {
     setAssignNote(refused.length
       ? `${cases.length - refused.length} assigned to you. Not assigned: ${refused.join(", ")}. Only the sales order PIC can pick who owns a case.`
       : `${cases.length} assigned to you.`);
+    void qc.invalidateQueries({ queryKey: ["ops", "service-cases"] });
+  };
+
+  // 0762 — Houzs bulk archive / unarchive (assr.ts:1140), one PATCH per case like Assign to me.
+  const setArchived = async (cases: ServiceCase[], on: boolean) => {
+    const refused: string[] = [];
+    for (const c of cases) {
+      try {
+        await apiFetch(`/api/ops/service-cases/${c.id}`, { method: "PATCH", body: JSON.stringify({ archived: on }) });
+      } catch {
+        refused.push(c.caseNo);
+      }
+    }
+    setPicked(new Set());
+    const done = `${cases.length - refused.length} ${on ? "archived" : "unarchived"}.`;
+    setAssignNote(refused.length ? `${done} Not changed: ${refused.join(", ")}.` : done);
     void qc.invalidateQueries({ queryKey: ["ops", "service-cases"] });
   };
 
@@ -218,6 +242,7 @@ export default function OperationServiceCases() {
   const filters = (
     <CaseFilters view={caseView} onView={(v) => setParam("cases", v === "list" ? null : v)} mine={mine} onMine={setMine}
       hideCompleted={hideCompleted} onHideCompleted={setHideCompleted} filtered={filtered} onReset={resetFilters}
+      archived={archived} onArchived={(v) => setParam("archived", v ? "1" : null)}
       creditors={creditors} creditorId={creditorId} onCreditor={(v) => setParam("creditor", v)} />
   );
   // Export All ignores the stage, search and creditor filters; the grid's own Export takes the current view.
@@ -298,7 +323,10 @@ export default function OperationServiceCases() {
                 onToggle: (key) => setPicked((prev) => { const next = new Set(prev); if (!next.delete(key)) next.add(key); return next; }),
                 onToggleAll: (keys, all) => setPicked(all ? new Set() : new Set(keys)),
               }}
-              selectionActions={[{ label: () => "Assign to me", kind: "write", onClick: (selected) => void assignToMe(selected as unknown as ServiceCase[]) }]}
+              selectionActions={[
+                { label: () => "Assign to me", kind: "write", onClick: (selected) => void assignToMe(selected as unknown as ServiceCase[]) },
+                { label: () => (archived ? "Unarchive" : "Archive"), kind: "write", onClick: (selected) => void setArchived(selected as unknown as ServiceCase[], !archived) },
+              ]}
               searchPlaceholder="Search ASSR no, SO no, Ref no, customer, salesperson, phone…"
               exportName="Service Cases"
               emptyMessage={filtered ? emptyFilteredSentence : "No service cases"}
@@ -359,8 +387,9 @@ function SummaryCard({ label, value, note, alert = false }: { label: string; val
   );
 }
 
-function CaseFilters({ view, onView, mine, onMine, hideCompleted, onHideCompleted, filtered, onReset, creditors, creditorId, onCreditor }: {
+function CaseFilters({ view, onView, mine, onMine, hideCompleted, onHideCompleted, filtered, onReset, creditors, creditorId, onCreditor, archived, onArchived }: {
   view: string; onView: (v: string) => void; mine: boolean; onMine: (v: boolean) => void;
+  archived: boolean; onArchived: (v: boolean) => void;
   hideCompleted: boolean; onHideCompleted: (v: boolean) => void; filtered: boolean; onReset: () => void;
   creditors: (readonly [string, string])[]; creditorId: string | null; onCreditor: (id: string | null) => void;
 }) {
@@ -376,6 +405,7 @@ function CaseFilters({ view, onView, mine, onMine, hideCompleted, onHideComplete
       </div>
       <Checkbox id="service-cases-mine" label="My cases" checked={mine} onCheckedChange={onMine} />
       <Checkbox id="service-cases-hide-completed" label="Hide completed" checked={hideCompleted} onCheckedChange={onHideCompleted} />
+      <Checkbox id="service-cases-archived" label="Archived" checked={archived} onCheckedChange={onArchived} />
       <select aria-label="Creditor" value={creditorId ?? ""} onChange={(e) => onCreditor(e.target.value || null)}
         className="rounded border border-base-300 bg-white px-2 py-1.5 text-body">
         <option value="">All creditors</option>

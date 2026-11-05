@@ -521,6 +521,10 @@ scRouter.get("/", requireOperationOrPrincipal, async (c) => {
     .order("case_no",   { ascending: false });
 
   if (orderId) q = q.eq("order_id", orderId);
+  // 0762 — Houzs assr.ts:1140: the list hides archived cases unless the Archived
+  // filter asks for them. The order drawer (orderId) still sees every case.
+  else if (c.req.query("archived") === "1") q = q.not("archived_at", "is", null);
+  else q = q.is("archived_at", null);
 
   const { data, error } = await q;
 
@@ -758,6 +762,10 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   // 0760 — the database seeds it on a stage change and refuses another stage's.
   if (parsed.subStatusId         !== undefined) patch.sub_status_id         = parsed.subStatusId;
   if (parsed.resolutionMethodId  !== undefined) patch.resolution_method_id  = parsed.resolutionMethodId;
+  if (parsed.archived !== undefined) {
+    patch.archived_at = parsed.archived ? new Date().toISOString() : null;
+    patch.archived_by = parsed.archived ? c.var.auth.id : null;
+  }
 
   const { error } = await sb.from("service_cases").update(patch).eq("id", id);
   if (error?.details === "sub_status_not_in_stage") {
@@ -1157,6 +1165,8 @@ interface RawCase {
   service_case_sub_statuses?: { label: string } | null;
   /** 0761. Optional: absent before 0761. */
   resolution_method_id?: string | null;
+  /** 0762. Optional: absent before 0762. */
+  archived_at?: string | null;
   service_case_resolution_methods?: { label: string } | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
@@ -1242,6 +1252,7 @@ function shapeCase(r: RawCase) {
     subStatusLabel:      r.service_case_sub_statuses?.label ?? null,
     resolutionMethodId:    r.resolution_method_id ?? null,
     resolutionMethodLabel: r.service_case_resolution_methods?.label ?? null,
+    archivedAt:            r.archived_at ?? null,
 
     ...stageClock(r),
   };

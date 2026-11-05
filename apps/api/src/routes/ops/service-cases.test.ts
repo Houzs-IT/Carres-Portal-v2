@@ -1231,6 +1231,7 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
   function tableSb(tables: Record<string, unknown>, rpcData: unknown = null) {
     const updates: Array<[string, Record<string, unknown>]> = [];
     const inserts: Array<[string, Record<string, unknown>]> = [];
+    const filters: unknown[][] = [];
     const sb = {
       from: vi.fn((table: string) => {
         const chain: Record<string, unknown> = {
@@ -1242,6 +1243,9 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
         for (const m of ["select", "eq", "in", "single", "maybeSingle", "order", "limit", "gte", "contains"]) {
           chain[m] = () => chain;
         }
+        for (const m of ["is", "not"]) {
+          chain[m] = (...args: unknown[]) => { filters.push([m, ...args]); return chain; };
+        }
         return chain;
       }),
       rpc: vi.fn(async (name: string) =>
@@ -1249,7 +1253,7 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
       ),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
-    return { sb, updates, inserts };
+    return { sb, updates, inserts, filters };
   }
   async function patchCase(body: unknown, sb: unknown, role = "operation") {
     vi.mocked(userClient).mockReturnValue(sb as never);
@@ -1479,6 +1483,22 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     const { sb } = tableSb({ service_cases: [row] });
     const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
     expect(body.items[0]).toMatchObject({ subStatusId: SUB, subStatusLabel: "Pending Supplier Pickup" });
+  });
+
+  // 0762 — archive off the list (Houzs assr.ts:1140).
+  it("archives and unarchives a case, and the list hides archived cases unless asked", async () => {
+    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
+    expect((await patchCase({ archived: true }, sb)).status).toBe(200);
+    expect(updates).toContainEqual(["service_cases", expect.objectContaining({ archived_at: expect.any(String), archived_by: expect.any(String) })]);
+    expect((await patchCase({ archived: false }, sb)).status).toBe(200);
+    expect(updates).toContainEqual(["service_cases", { archived_at: null, archived_by: null }]);
+
+    const list = tableSb({ service_cases: [] });
+    await get("/ops/service-cases", list.sb);
+    expect(list.filters).toContainEqual(["is", "archived_at", null]);
+    const arch = tableSb({ service_cases: [] });
+    await get("/ops/service-cases?archived=1", arch.sb);
+    expect(arch.filters).toContainEqual(["not", "archived_at", "is", null]);
   });
 
   // 0761 — resolution method from a settings list (Houzs 065_assr_lookups.sql).
