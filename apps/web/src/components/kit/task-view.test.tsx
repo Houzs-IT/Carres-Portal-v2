@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import TaskView, { ownerInitials } from "./TaskView";
+import TaskView, { ownerInitials, SendTaskChannelDoor } from "./TaskView";
 import { TaskToast } from "./Toast";
 
 /**
@@ -31,6 +31,24 @@ function mount(onOpenRecord = vi.fn()) {
 }
 
 describe("TaskView", () => {
+  it("opens the shared MY-aware channel door and refuses an invalid recipient", () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    try {
+      const view = render(<SendTaskChannelDoor channel="whatsapp" recipient="012-345 6789" />);
+      fireEvent.click(screen.getByRole("button", { name: "Open WhatsApp" }));
+      expect(open).toHaveBeenLastCalledWith("https://wa.me/60123456789", "_blank", "noopener,noreferrer");
+      view.rerender(<SendTaskChannelDoor channel="whatsapp" recipient="https://chat.whatsapp.com/TESTgroup" />);
+      fireEvent.click(screen.getByRole("button", { name: "Open WhatsApp" }));
+      expect(open).toHaveBeenLastCalledWith("https://chat.whatsapp.com/TESTgroup", "_blank", "noopener,noreferrer");
+      view.rerender(<SendTaskChannelDoor channel="email" recipient="test@example.invalid" />);
+      fireEvent.click(screen.getByRole("button", { name: "Open Email" }));
+      expect(open).toHaveBeenLastCalledWith("mailto:test@example.invalid", "_blank", "noopener,noreferrer");
+      view.rerender(<SendTaskChannelDoor channel="whatsapp" recipient="not a recipient" />);
+      expect(screen.getByRole("button", { name: "Open WhatsApp" })).toBeDisabled();
+      expect(open).toHaveBeenCalledTimes(3);
+    } finally { open.mockRestore(); }
+  });
+
   it("says the task, then its page and record, with the owner's initials", () => {
     const open = mount();
     expect(screen.getByRole("article", { name: "Ask TEST Supplier A when the goods will arrive" })).toBeInTheDocument();

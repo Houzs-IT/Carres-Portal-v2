@@ -5,7 +5,7 @@ import Button from "@/components/kit/Button";
 import Checkbox from "@/components/kit/Checkbox";
 import Modal from "@/components/kit/Modal";
 import Select from "@/components/kit/Select";
-import StepList, { Step, type StepState } from "@/components/kit/StepList";
+import { SendTaskSteps as StepList, SendTaskStep as Step, type StepState } from "@/components/kit/TaskView";
 import Tabs from "@/components/kit/Tabs";
 import Input from "@/components/kit/Input";
 import Textarea from "@/components/kit/Textarea";
@@ -40,8 +40,9 @@ export function readPoSupplierPreparation(value: unknown): PoSupplierPreparation
 }
 
 /** Same issued POs, grouped for supplier preparation and human-triggered dispatch. */
-export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEvidenceChanged, onOpenObject, initialPreparation, title = "Purchase orders", onOpenSettings, reviewed }: {
+export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEvidenceChanged, onOpenObject, initialPreparation, title = "Purchase orders", onOpenSettings, reviewed, taskScoped = false }: {
   pos: readonly IssuedPo[];
+  taskScoped?: boolean;
   /** PO id to the version whose PDF the person has opened beside this area. It counts as held, like a download. */
   reviewed?: Readonly<Record<string, number>>;
   /** The Purchasing Settings door for a PDF blocked by a missing Supplier Deliver To address. */
@@ -71,7 +72,7 @@ export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEviden
   const [scopeUnavailable, setScopeUnavailable] = useState(false);
   const [roundUnavailable, setRoundUnavailable] = useState(false);
   const [roundRefresh, setRoundRefresh] = useState(0);
-  const activePos = scope === "today" ? todayPos : roundPos ?? returnedPos ?? pos;
+  const activePos = taskScoped ? pos : scope === "today" ? todayPos : roundPos ?? returnedPos ?? pos;
   const groups = useMemo(() => [...new Map(activePos.map(po => [po.supplierId, po.supplierName ?? "Supplier"])).entries()], [activePos]);
   const [supplier, setSupplier] = useState(initialPreparation?.supplierId ?? pos[0]?.supplierId ?? "");
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialPreparation
@@ -355,11 +356,11 @@ export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEviden
   }
 
   const supplierName = contact?.supplierName ?? "the supplier";
-  return <Block title={title}>
+  const content = <>
     <div className="flex flex-col gap-3" data-testid="po-supplier-bundle">
-      <Select id="po-bundle-scope" label="Purchase orders" value={scope} disabled={busy || scopeLoading} onValueChange={value => void changeScope(value === "today" ? "today" : "round")} options={[{ value: "round", label: roundWindow ? "This round" : "Purchase orders" }, { value: "today", label: "Today" }]} />
+      {!taskScoped && <><Select id="po-bundle-scope" label="Purchase orders" value={scope} disabled={busy || scopeLoading} onValueChange={value => void changeScope(value === "today" ? "today" : "round")} options={[{ value: "round", label: roundWindow ? "This round" : "Purchase orders" }, { value: "today", label: "Today" }]} />
       <Select id="po-bundle-supplier" label="Supplier" value={supplier} onValueChange={changeSupplier}
-        disabled={busy || scopeLoading} options={groups.map(([value, label]) => ({ value, label }))} />
+        disabled={busy || scopeLoading} options={groups.map(([value, label]) => ({ value, label }))} /></>}
       {scope === "round" && roundUnavailable && <div role="alert" className="flex flex-col gap-2">
         <div className="text-meta text-kit-red-11">Evidence could not be loaded</div>
         <Button disabled={scopeLoading} onClick={() => setRoundRefresh(value => value + 1)}>Try again</Button>
@@ -485,7 +486,7 @@ export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEviden
           <div className="text-body text-c-ink">{event.kind === "confirmed_sent" ? "PO sent to supplier" : `${CHANNEL_WORD[event.channel] ?? event.channel} opened`}</div>
           <div className="text-meta text-c-body">{documentDisplayNumber(`${po.id}${event.po_version ? `-V${event.po_version}` : ""}`)} · {CHANNEL_WORD[event.channel] ?? event.channel}</div>
           <div className="text-meta text-c-secondary">{fmtDate(event.sent_at, { time: true })}{event.sent_by_name ? ` · ${event.sent_by_name}` : ""}</div>
-          <PoSendEvidenceButton poId={po.id} note={event.note} context={`${po.id} · V${event.po_version} · ${event.recipient ?? "Not recorded"}`} />
+          <PoSendEvidenceButton poId={po.id} note={event.note} context={`${po.id} · V${event.po_version} · ${event.recipient ?? ""}`} />
         </div>))}
       </div>}
     </div>
@@ -497,5 +498,6 @@ export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEviden
         <span className="text-meta text-c-secondary">{channel === "email" ? "Email" : "WhatsApp"} · {recipient}</span>
       </div>
     </Modal>
-  </Block>;
+  </>;
+  return taskScoped ? content : <Block title={title}>{content}</Block>;
 }
