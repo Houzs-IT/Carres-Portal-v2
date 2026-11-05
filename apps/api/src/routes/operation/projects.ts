@@ -4,12 +4,14 @@ import {
   deriveProjectCode, deriveProjectName, projectCreateInput, projectOrderLinkInput, projectSalesTotals, projectMasterInput, projectMasterPatch, projectNoteInput,
   projectPatchInput, projectTeamInput, PROJECT_STAGES, PROJECT_STATUSES, uniqueProjectCode,
   PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_EXT, PROJECT_STOCK_RECORD_PATH, stockRecordSignInput, stockTransferInput,
+  projectChecklistCounts, type ChecklistStatus, type ProjectListRow,
   type ChecklistTask, type ProjectStockTransfer, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectRow, type ProjectTeamMember,
 } from "@carres/shared/projects";
 import { requireOperation } from "../../lib/auth-guards";
 import { readProjectOrders } from "../../lib/project-orders";
 import { fail, parseJsonBody } from "../../lib/route-helpers";
 import { userClient } from "../../lib/supabase";
+import { todayIsoMYT } from "../../lib/today";
 import type { AppEnv } from "../../types";
 
 /**
@@ -90,7 +92,27 @@ router.get("/", requireOperation, async (c) => {
   if (term) req = req.or(`name.ilike.%${term}%,code.ilike.%${term}%,venue.ilike.%${term}%,organizer.ilike.%${term}%`);
   const { data, error } = await req;
   if (error) return fail(c, error);
-  return c.json({ projects: ((data ?? []) as Row[]).map(toProject) });
+  const projects = ((data ?? []) as Row[]).map(toProject);
+  // Houzs list cards and the Overdue tasks tile need each project's checklist. PostgREST
+  // returns at most 1000 rows a call, so read in pages until a short page.
+  const tasks: Row[] = [];
+  const ids = projects.map((p) => p.id);
+  for (let from = 0; ids.length; from += 1000) {
+    const page = await userClient(c.env, c.var.auth.jwt).from("project_checklist")
+      .select("id, project_id, status, due_offset_days").in("project_id", ids).order("id").range(from, from + 999);
+    if (page.error) return fail(c, page.error);
+    tasks.push(...((page.data ?? []) as Row[]));
+    if ((page.data ?? []).length < 1000) break;
+  }
+  const today = todayIsoMYT();
+  const rows: ProjectListRow[] = projects.map((p) => ({
+    ...p,
+    checklist: projectChecklistCounts(
+      tasks.filter((t) => t.project_id === p.id).map((t) => ({ status: t.status as ChecklistStatus, dueOffsetDays: (t.due_offset_days as number | null) ?? null })),
+      p.startDate, today,
+    ),
+  }));
+  return c.json({ projects: rows });
 });
 
 /* ── Project Maintenance (0751, Houzs project masters) ── registered before /:id. */

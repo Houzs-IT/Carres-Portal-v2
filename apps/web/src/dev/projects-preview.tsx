@@ -50,12 +50,18 @@ const orders = [
   { id: "o1", so: "SO-2611-0012", status: "confirmed", customerName: "Tan Mei Ling", placedAt: "2026-11-04T05:00:00Z", total: 4890, paid: 1000, balance: 3890 },
   { id: "o2", so: "SO-2611-0015", status: "confirmed", customerName: "Kumar", placedAt: "2026-11-05T03:00:00Z", total: 2390, paid: 2390, balance: 0 },
 ];
+/** Checklist counts the list API adds per project: p1 is the checklist above, p2 has 2 overdue. */
+const COUNTS: Record<string, { total: number; percent: number; overdue: number }> = {
+  p1: { total: 7, percent: 71, overdue: 1 }, p2: { total: 10, percent: 20, overdue: 2 }, p3: { total: 4, percent: 0, overdue: 0 },
+};
 const ROUTES: Array<[RegExp, (m: RegExpMatchArray, q: URLSearchParams) => unknown]> = [
   [/\/projects\/masters$/, () => ({ masters: [{ id: "b1", kind: "brand", name: "Carres", state: null, address: null, notes: null, active: true }] })],
   [/\/projects\/checklist-templates$/, () => ({ templates: [] })],
   [/\/projects\/([^/?]+)\/sales-orders$/, () => ({ orders, totals: { count: 2, total: 7280, paid: 3390, balance: 3890 } })],
   [/\/projects\/([^/?]+)$/, (m) => detail(m[1])],
-  [/\/projects$/, (_m, q) => ({ projects: projects.filter((p) => (!q.get("status") || q.get("status") === p.status) && (!q.get("brand") || q.get("brand") === p.brand)) })],
+  [/\/projects$/, (_m, q) => ({ projects: projects
+    .filter((p) => (!q.get("status") || q.get("status") === p.status) && (!q.get("brand") || q.get("brand") === p.brand))
+    .map((p) => ({ ...p, checklist: COUNTS[p.id] ?? { total: 0, percent: 0, overdue: 0 } })) })],
   [/\/staff$/, () => ({ staff: [{ user_id: "u1", name: "Shasha" }, { user_id: "u2", name: "Adrian" }] })],
 ];
 

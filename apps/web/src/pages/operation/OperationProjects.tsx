@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CHECKLIST_STATUSES, checklistDueDate, checklistProgress, PROJECT_EVENT_TYPES, PROJECT_MASTER_KINDS, PROJECT_STAGES, PROJECT_STATUSES, PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_MAX_BYTES, STOCK_TRANSFER_DIRECTIONS, compareProjectsForCalendar, projectDateRange, projectDurationDays, projectListSummary,
-  type ChecklistTask, type ProjectActivity, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
+  type ChecklistTask, type ProjectActivity, type ProjectCreateInput, type ProjectMaster, type ProjectMasterKind, type ProjectListRow, type ProjectRow, type ProjectStage, type ProjectStatus, type ProjectStockTransfer, type ProjectTeamMember, type StockTransferDirection,
 } from "@carres/shared/projects";
 import ListPageShell from "@/components/ListPageShell";
 import BarCalendar from "@/components/kit/BarCalendar";
@@ -106,12 +106,14 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
   const form = creating ? <ProjectForm onClose={() => setCreating(false)} onSaved={(id) => { setCreating(false); onOpen(id); }} /> : null;
   if (view === "cards") {
     const summary = projectListSummary(rows, appTodayIso());
+    const overdue = rows.reduce((n, r) => n + (r.checklist?.overdue ?? 0), 0);
     return (
       <ListPageShell toolbar={toolbar} testId="projects-cards">
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <OperationKpiTile label={PJ.liveNow} value={summary.liveNow} hint={PJ.liveNowHint} accent={summary.liveNow ? "success" : "muted"} />
             <OperationKpiTile label={PJ.upcoming30} value={summary.upcoming.length} hint={PJ.upcomingHint} accent={summary.upcoming.length ? "primary" : "muted"} />
+            <OperationKpiTile label={PJ.overdueTasks} value={overdue} hint={PJ.overdueHint} accent={overdue ? "danger" : "muted"} />
           </div>
           <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
             {!q.isSuccess ? <Loading variant="skeleton" /> : rows.length ? (
@@ -174,14 +176,14 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
 }
 
 /** Houzs ProjectsListParts card: code and status, the name, then brand, dates and PIC. */
-function ProjectCard({ p, onOpen }: { p: ProjectRow; onOpen: (id: string) => void }) {
+function ProjectCard({ p, onOpen }: { p: ProjectListRow; onOpen: (id: string) => void }) {
   return (
     <ScheduleCard label={p.name} testId="project-card"
       header={<>
         <span className="min-w-0 truncate text-label text-c-secondary">{p.code}</span>
         <StatusPill tone={STATUS_TONE[p.status]}>{PJ.statuses[p.status]}</StatusPill>
       </>}
-      footer={<span className="text-c-secondary">{PJ.stage}: {PJ.stages[p.stage]}</span>}>
+      footer={<span className="text-c-secondary">{PJ.stage}: {PJ.stages[p.stage]}{p.checklist?.total ? ` · ${PJ.progress(p.checklist.percent)}` : ""}</span>}>
       <button type="button" className="min-w-0 break-words text-left text-strong text-c-ink" onClick={() => onOpen(p.id)}>{p.name}</button>
       <span className="text-c-secondary">
         {[p.brand, projectDateRange(p.startDate, p.endDate), p.picName ? `${PJ.pic} ${p.picName}` : ""].filter(Boolean).join(" · ")}

@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "../../types";
 vi.mock("../../lib/supabase", () => ({ userClient: vi.fn(), adminClient: vi.fn() }));
 import { userClient } from "../../lib/supabase";
+vi.mock("../../lib/today", async (orig) => ({ ...(await orig<typeof import("../../lib/today")>()), todayIsoMYT: vi.fn(() => "2026-11-05") }));
+import { todayIsoMYT } from "../../lib/today";
 import router from "./projects";
 
 /** 0750 — Projects, Houzs way (Weisiang's decision 2026-10-22). */
@@ -20,7 +22,7 @@ const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
 function from(table: string) {
   const next = () => (results[table] ?? []).shift() ?? { data: null, error: null };
   const q: Record<string, unknown> = {};
-  for (const op of ["select", "insert", "update", "delete", "eq", "is", "not", "in", "gte", "lte", "or", "like", "order", "limit"]) {
+  for (const op of ["select", "insert", "update", "delete", "eq", "is", "not", "in", "gte", "lte", "or", "like", "order", "limit", "range"]) {
     q[op] = (...args: unknown[]) => { calls.push({ table, op, args }); return q; };
   }
   q.single = async () => next();
@@ -60,6 +62,21 @@ describe("/api/operation/projects", () => {
       { table: "projects", op: "gte", args: ["end_date", "2026-12-01"] },
       { table: "projects", op: "lte", args: ["start_date", "2026-12-31"] },
     ]));
+  });
+
+  it("gives each listed project its checklist progress and overdue count", async () => {
+    vi.mocked(todayIsoMYT).mockReturnValue("2026-11-05");
+    results.projects = [{ data: [row], error: null }];
+    // start 2026-12-04: -40 is due 25 Oct (overdue), -10 due 24 Nov (not yet).
+    results.project_checklist = [{ data: [
+      { id: "k1", project_id: "p1", status: "pending", due_offset_days: -40 },
+      { id: "k2", project_id: "p1", status: "pending", due_offset_days: -10 },
+      { id: "k3", project_id: "p1", status: "done", due_offset_days: -40 },
+      { id: "k4", project_id: "other", status: "pending", due_offset_days: -40 },
+    ], error: null }];
+    const res = await app().request("/projects");
+    expect(await res.json()).toMatchObject({ projects: [{ id: "p1", checklist: { total: 3, percent: 33, overdue: 1 } }] });
+    expect(calls).toEqual(expect.arrayContaining([{ table: "project_checklist", op: "in", args: ["project_id", ["p1"]] }]));
   });
 
   it("mints the next free code and the derived name on create", async () => {
