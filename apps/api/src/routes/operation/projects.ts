@@ -3,10 +3,11 @@ import {
   checklistApplyInput, checklistItemInput, checklistStatusInput, checklistTemplateInput, checklistTemplatePatch,
   deriveProjectCode, deriveProjectName, projectCreateInput, projectOrderLinkInput, projectSalesTotals, projectMasterInput, projectMasterPatch, projectNoteInput,
   projectPatchInput, projectTeamInput, PROJECT_STAGES, PROJECT_STATUSES, uniqueProjectCode,
-  type ChecklistTask, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectSalesOrder, type ProjectRow, type ProjectTeamMember,
+  PROJECT_STOCK_RECORD_BUCKET, PROJECT_STOCK_RECORD_EXT, PROJECT_STOCK_RECORD_PATH, stockRecordSignInput, stockTransferInput,
+  type ChecklistTask, type ProjectStockTransfer, type ChecklistTemplate, type ProjectActivity, type ProjectMaster, type ProjectRow, type ProjectTeamMember,
 } from "@carres/shared/projects";
-import { orderMoney } from "@carres/shared/order-money";
 import { requireOperation } from "../../lib/auth-guards";
+import { readProjectOrders } from "../../lib/project-orders";
 import { fail, parseJsonBody } from "../../lib/route-helpers";
 import { userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
@@ -30,6 +31,8 @@ import type { AppEnv } from "../../types";
  *   DELETE /checklist-template-items/:iid · POST /:id/checklist · POST /:id/checklist/apply
  *   POST  /checklist/:taskId/status · DELETE /checklist/:taskId   checklists (0752)
  *   GET/POST /:id/sales-orders · DELETE /:id/sales-orders/:orderId  Sales Orders at the project (0753)
+ *   POST  /:id/stock-transfers · POST /:id/stock-transfers/sign · GET /stock-transfers/file?path=
+ *   POST  /stock-transfers/:tid/confirm · /unconfirm · DELETE /stock-transfers/:tid   stock to the fair (0757)
  *
  * Row security (0750) admits Operation and the principal; the caller's own
  * token reaches the tables.
@@ -221,19 +224,69 @@ router.delete("/checklist/:taskId", requireOperation, async (c) => {
   return c.json({ ok: true });
 });
 
+/* ── Stock out to the fair and back (0757, Houzs project_stock_transfers, routes/projects.ts:3501-3613) ──
+ * A record with a day, an optional sheet file and a confirmation; it moves no stock. The 0757
+ * trigger mirrors it into one checklist task and the activity, and stamps who confirmed. */
+const TRANSFER_COLS = "id, direction, transferred_at, record_path, file_name, notes, confirmed_at, created_at, by:app_users!project_stock_transfers_created_by_fkey(name), checker:app_users!project_stock_transfers_confirmed_by_fkey(name)";
+const toTransfer = (r: Row): ProjectStockTransfer => ({
+  id: String(r.id), direction: r.direction as ProjectStockTransfer["direction"], transferredAt: String(r.transferred_at),
+  recordPath: (r.record_path as string | null) ?? null, fileName: (r.file_name as string | null) ?? null, notes: (r.notes as string | null) ?? null,
+  confirmedAt: (r.confirmed_at as string | null) ?? null, confirmedByName: ((r.checker as { name?: string } | null)?.name) ?? null,
+  createdByName: ((r.by as { name?: string } | null)?.name) ?? null, createdAt: String(r.created_at),
+});
+
+router.get("/stock-transfers/file", requireOperation, async (c) => {
+  const path = c.req.query("path") ?? "";
+  if (!PROJECT_STOCK_RECORD_PATH.test(path)) return c.json({ error: "invalid_input", code: "invalid_param", message: "invalid_param" }, 422);
+  const { data, error } = await userClient(c.env, c.var.auth.jwt).storage.from(PROJECT_STOCK_RECORD_BUCKET).createSignedUrl(path, 300);
+  if (error || !data) return c.json({ error: "not_found", code: "file_missing", message: "file_missing" }, 404);
+  return c.json({ url: data.signedUrl });
+});
+
+for (const [path, confirmed] of [["confirm", true], ["unconfirm", false]] as const) {
+  router.post(`/stock-transfers/:tid/${path}`, requireOperation, async (c) => {
+    const { data, error } = await userClient(c.env, c.var.auth.jwt)
+      .from("project_stock_transfers")
+      .update({ confirmed_at: confirmed ? new Date().toISOString() : null })
+      .eq("id", c.req.param("tid"))
+      .is("archived_at", null)
+      .select("id")
+      .maybeSingle();
+    if (error) return fail(c, error);
+    if (!data) return c.json({ error: "not_found", code: "not_found", message: "Not found." }, 404);
+    return c.json({ ok: true });
+  });
+}
+
+/** Houzs DELETE archives the transfer; its mirrored task goes with it (0757 trigger). */
+router.delete("/stock-transfers/:tid", requireOperation, async (c) => {
+  const { data, error } = await userClient(c.env, c.var.auth.jwt)
+    .from("project_stock_transfers")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", c.req.param("tid"))
+    .is("archived_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) return fail(c, error);
+  if (!data) return c.json({ error: "not_found", code: "not_found", message: "Not found." }, 404);
+  return c.json({ ok: true });
+});
+
 router.get("/:id", requireOperation, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
   const id = c.req.param("id");
-  const [pR, aR, tR, kR] = await Promise.all([
+  const [pR, aR, tR, kR, xR] = await Promise.all([
     sb.from("projects").select(COLS).eq("id", id).maybeSingle(),
     sb.from("project_activity").select("id, action, from_value, to_value, note, created_at, by:app_users(name)").eq("project_id", id).order("created_at", { ascending: false }).limit(200),
     sb.from("project_team").select("id, user_id, role, who:app_users(name)").eq("project_id", id).order("created_at"),
     sb.from("project_checklist").select("id, section, seq, title, due_offset_days, status, notes, completed_at, by:app_users(name)").eq("project_id", id).order("seq"),
+    sb.from("project_stock_transfers").select(TRANSFER_COLS).eq("project_id", id).is("archived_at", null).order("direction").order("transferred_at", { ascending: false }),
   ]);
   if (pR.error) return fail(c, pR.error);
   if (aR.error) return fail(c, aR.error);
   if (tR.error) return fail(c, tR.error);
   if (kR.error) return fail(c, kR.error);
+  if (xR.error) return fail(c, xR.error);
   if (!pR.data) return c.json({ error: "not_found", code: "not_found", message: "Project not found." }, 404);
   const activity: ProjectActivity[] = ((aR.data ?? []) as Row[]).map((r) => ({
     id: String(r.id), action: String(r.action), fromValue: (r.from_value as string | null) ?? null, toValue: (r.to_value as string | null) ?? null,
@@ -247,7 +300,8 @@ router.get("/:id", requireOperation, async (c) => {
     dueOffsetDays: (r.due_offset_days as number | null) ?? null, status: r.status as ChecklistTask["status"], notes: (r.notes as string | null) ?? null,
     completedAt: (r.completed_at as string | null) ?? null, completedByName: ((r.by as { name?: string } | null)?.name) ?? null,
   }));
-  return c.json({ project: toProject(pR.data as Row), activity, team, checklist });
+  const stockTransfers = ((xR.data ?? []) as Row[]).map(toTransfer);
+  return c.json({ project: toProject(pR.data as Row), activity, team, checklist, stockTransfers });
 });
 
 router.post("/", requireOperation, async (c) => {
@@ -338,30 +392,9 @@ router.post("/:id/checklist/apply", requireOperation, async (c) => {
   return c.json({ ok: true }, 201);
 });
 
-/* ── Sales Orders at the project (0753, Houzs SO project_id) ──
- * Money comes from the shared orderMoney, which reads orders.paid; order_payments is
- * not summed because the raw-create door writes a deposit into both (order-money.ts:22-28). */
-type MoneyLine = { qty: number; unit_price: number | null };
-const sumLines = (ls: MoneyLine[] | null | undefined) => (ls ?? []).reduce((s, l) => s + Number(l.qty) * Number(l.unit_price ?? 0), 0);
-
 router.get("/:id/sales-orders", requireOperation, async (c) => {
-  const { data, error } = await userClient(c.env, c.var.auth.jwt)
-    .from("orders")
-    .select("id, so, status, customer_name, placed_at, paid, credited, order_lines(qty, unit_price), order_addons(qty, unit_price), ops_order_control(balance)")
-    .eq("project_id", c.req.param("id"))
-    .order("placed_at", { ascending: false });
+  const { error, orders } = await readProjectOrders(userClient(c.env, c.var.auth.jwt), c.req.param("id"));
   if (error) return fail(c, error);
-  const orders: ProjectSalesOrder[] = ((data ?? []) as Row[]).map((o) => {
-    const ctrl = (Array.isArray(o.ops_order_control) ? o.ops_order_control[0] : o.ops_order_control) as { balance?: number | null } | null;
-    const m = orderMoney({
-      lineSum: sumLines(o.order_lines as MoneyLine[]), addonSum: sumLines(o.order_addons as MoneyLine[]),
-      paid: o.paid as number | null, credited: o.credited as number | null, controlBalance: ctrl?.balance ?? null,
-    });
-    return {
-      id: String(o.id), so: String(o.so ?? ""), status: String(o.status), customerName: (o.customer_name as string | null) ?? null,
-      placedAt: (o.placed_at as string | null) ?? null, total: m.total, paid: m.paid, balance: m.goodsOwing,
-    };
-  });
   return c.json({ orders, totals: projectSalesTotals(orders) });
 });
 
@@ -400,6 +433,38 @@ router.post("/:id/team", requireOperation, async (c) => {
     .insert({ project_id: c.req.param("id"), user_id: body.data.userId, role: body.data.role });
   if (error) return fail(c, error);
   return c.json({ ok: true }, 201);
+});
+
+router.post("/:id/stock-transfers/sign", requireOperation, async (c) => {
+  const body = await parseJsonBody(c, stockRecordSignInput);
+  if (!body.ok) return c.json(body.body, body.status);
+  // The server names the key inside the project's folder; the bucket policy (0757) decides with the user token.
+  const pid = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/.test(pid)) return c.json({ error: "invalid_input", code: "invalid_param", message: "invalid_param" }, 422);
+  const path = `${pid}/${crypto.randomUUID()}.${PROJECT_STOCK_RECORD_EXT[body.data.mimeType]}`;
+  const { data, error } = await userClient(c.env, c.var.auth.jwt).storage.from(PROJECT_STOCK_RECORD_BUCKET).createSignedUploadUrl(path);
+  if (error || !data) return c.json({ error: "storage_failed", code: "storage_failed", message: "storage_failed" }, 500);
+  return c.json({ bucket: PROJECT_STOCK_RECORD_BUCKET, token: data.token, path: data.path });
+});
+
+router.post("/:id/stock-transfers", requireOperation, async (c) => {
+  const body = await parseJsonBody(c, stockTransferInput);
+  if (!body.ok) return c.json(body.body, body.status);
+  const d = body.data;
+  const pid = c.req.param("id");
+  if (d.recordPath && !d.recordPath.startsWith(`${pid}/`)) {
+    return c.json({ error: "invalid_input", code: "invalid_param", message: "The file belongs to another project." }, 422);
+  }
+  const { data, error } = await userClient(c.env, c.var.auth.jwt)
+    .from("project_stock_transfers")
+    .insert({
+      project_id: pid, direction: d.direction, ...(d.transferredAt ? { transferred_at: d.transferredAt } : {}),
+      record_path: d.recordPath, file_name: d.recordPath ? d.fileName : null, mime_type: d.recordPath ? d.mimeType : null, notes: d.notes,
+    })
+    .select("id")
+    .single();
+  if (error) return fail(c, error);
+  return c.json({ id: String((data as Row).id) }, 201);
 });
 
 for (const [path, archived] of [["archive", true], ["unarchive", false]] as const) {

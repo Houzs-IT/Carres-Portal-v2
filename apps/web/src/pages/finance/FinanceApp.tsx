@@ -49,6 +49,7 @@ import SupplierCreditNotes from "./payables/SupplierCreditNotes";
 import SupplierDebitNotes from "./payables/SupplierDebitNotes";
 import NotesToFollowUp from "./payables/NotesToFollowUp";
 import PaymentRequests from "./payment-requests/PaymentRequests";
+import ProjectMoney from "./projects/ProjectMoney";
 
 /** `/finance/reports` held both statements on one page. It now opens the Profit
  *  and Loss, or the Balance Sheet when the address asked for a day, keeping
@@ -126,6 +127,8 @@ export default function FinanceApp() {
           <Route path="notes-to-follow-up/*" element={financeOnly(<NotesToFollowUp />)} />
           {/* 0636 — Finance's own tax and bank details per supplier (Chew 2026-10-03). */}
           <Route path="suppliers"          element={financeOnly(<SupplierFinancePage />)} />
+          {/* 0754 — a project's money (Houzs event books; YH 3 Nov 2026, "all follow houzs"). */}
+          <Route path="project-money"      element={financeOnly(<ProjectMoney />)} />
           {/* PAYMENTS → Monitor · Payment Records (owner ruling 2026-09-12).
               Monitor is the SO-keyed collection control listing and opens the
               collection workspace (`?invoice=`); Payment Records is the
