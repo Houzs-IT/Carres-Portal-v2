@@ -82,6 +82,7 @@ import {
   type CaseSlaEvent,
 } from "./service-case-sla";
 import { countWorkingDays, type IsoDate, type WorkingDayOptions } from "./working-days";
+import { caseStageDwell } from "./service-case-stage-clock";
 
 // ── The window ───────────────────────────────────────────────────────────────
 
@@ -161,6 +162,33 @@ export interface CaseNumbersCase {
   supplierName?: string | null;
   progress?: readonly CaseProgressEntry[] | null;
   slaEvents?: readonly CaseSlaEvent[] | null;
+  /** 0761 — the resolution method's label, or null when none is picked. */
+  resolutionMethod?: string | null;
+  /** 0745 — every stage the case entered (Houzs assrQuality.ts time per stage). */
+  stageVisits?: readonly CaseStageVisit[] | null;
+}
+
+export interface CaseStageVisit {
+  stage: string;
+  sortOrder: number;
+  enteredAt: string;
+  /** Null while the case is still in the stage. */
+  exitedAt: string | null;
+  targetDays: number | null;
+}
+
+/** Time in each stage, in stage order (Houzs assrQuality.ts). */
+export interface CaseStageTimeRow {
+  stage: string;
+  visits: number;
+  avgDays: number;
+  /** Visits that reached or passed the stage's target days. */
+  pastTarget: number;
+}
+
+export interface CaseMethodRow {
+  label: string;
+  count: number;
 }
 
 /**
@@ -263,6 +291,9 @@ export interface CaseNumbers {
   delayReasonsRecorded: number;
   finish: CaseFinishReport;
   onTime: CaseOnTimeReport;
+  byStage: CaseStageTimeRow[];
+  byResolutionMethod: CaseMethodRow[];
+  resolutionMethodNotSet: number;
   /** The one line that answers the card's Done-when without reading a row. */
   headline: string;
 }
@@ -273,6 +304,8 @@ export interface CaseNumbersInput {
   /** Narrow to one month (`YYYY-MM`), or null for the whole window. */
   period?: string | null;
   months?: number;
+  /** The clock for a stage the case is still in; defaults to the start of `todayIso`. */
+  nowIso?: string;
 }
 
 /**
@@ -437,6 +470,37 @@ export function computeCaseNumbers(
         : `No case has both a report date and a confirmed finish date yet, so none can be measured against the ${CASE_SLA_WORKING_DAYS} working days.`,
   };
 
+  // ── Time in each stage (0745 history), Houzs assrQuality.ts ───────────────
+  const now = new Date(input.nowIso ?? input.todayIso);
+  const stageMap = new Map<string, CaseStageTimeRow & { sortOrder: number; totalDays: number }>();
+  for (const c of scoped) {
+    for (const v of c.stageVisits ?? []) {
+      const dwell = caseStageDwell(v.enteredAt, v.targetDays, v.exitedAt ? new Date(v.exitedAt) : now);
+      const row = stageMap.get(v.stage) ?? { stage: v.stage, sortOrder: v.sortOrder, visits: 0, avgDays: 0, pastTarget: 0, totalDays: 0 };
+      row.visits += 1;
+      row.totalDays += dwell.days;
+      if (dwell.overTarget) row.pastTarget += 1;
+      stageMap.set(v.stage, row);
+    }
+  }
+  const byStage: CaseStageTimeRow[] = [...stageMap.values()]
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.stage.localeCompare(b.stage))
+    .map(({ stage, visits, totalDays, pastTarget }) => ({
+      stage, visits, pastTarget, avgDays: Math.round((totalDays / visits) * 10) / 10,
+    }));
+
+  // ── Resolution method mix (0761), Houzs ServiceMetrics.tsx ───────────────
+  const methodMap = new Map<string, number>();
+  let resolutionMethodNotSet = 0;
+  for (const c of scoped) {
+    const label = c.resolutionMethod?.trim();
+    if (label) methodMap.set(label, (methodMap.get(label) ?? 0) + 1);
+    else resolutionMethodNotSet += 1;
+  }
+  const byResolutionMethod = [...methodMap.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
   const totals = {
     opened: scoped.length,
     finished: finishedCases.length,
@@ -456,6 +520,9 @@ export function computeCaseNumbers(
     delayReasonsRecorded,
     finish,
     onTime,
+    byStage,
+    byResolutionMethod,
+    resolutionMethodNotSet,
     headline: caseNumbersHeadline({ totals, byIssue, bySupplier }),
   };
 }

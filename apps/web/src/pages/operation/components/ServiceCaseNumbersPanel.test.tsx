@@ -179,6 +179,22 @@ describe("the rankings — the card's one glance", () => {
     expect(await screen.findByTestId("numbers-responsibility")).toHaveTextContent("factory");
   });
 
+  it("shows time in each stage with the visits past target, and the resolution method mix", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      ...ranked,
+      byStage: [{ stage: "Inspect", visits: 2, avgDays: 3.5, pastTarget: 1 }],
+      byResolutionMethod: [{ label: "Replace Unit", count: 3 }],
+      resolutionMethodNotSet: 1,
+    });
+    renderPanel();
+    const stage = await screen.findByTestId("numbers-stage-Inspect");
+    expect(stage).toHaveTextContent("3.5 days");
+    expect(stage).toHaveTextContent("1 past target");
+    const methods = screen.getByTestId("numbers-methods");
+    expect(methods).toHaveTextContent("Replace Unit");
+    expect(methods).toHaveTextContent("Not recorded");
+  });
+
   it("stays silent about delays when none was recorded", async () => {
     vi.mocked(apiFetch).mockResolvedValue(response());
     renderPanel();

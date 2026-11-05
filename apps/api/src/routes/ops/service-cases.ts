@@ -204,7 +204,9 @@ scRouter.get("/numbers", requireOperationOrPrincipal, async (c) => {
   const { data, error } = await sb
     .from("service_cases")
     .select(
-      "id, case_no, opened_at, product_category, issue_type, progress, sla_events, service_case_statuses(is_closed), suppliers(name)",
+      "id, case_no, opened_at, product_category, issue_type, progress, sla_events, service_case_statuses(is_closed), suppliers(name), " +
+        "service_case_resolution_methods(label), " +
+        "service_case_stage_history(entered_at, exited_at, target_days, service_case_statuses(label, sort_order))",
     )
     .gte("opened_at", from);
   if (error) throw new HTTPException(500, { message: error.message });
@@ -219,10 +221,18 @@ scRouter.get("/numbers", requireOperationOrPrincipal, async (c) => {
     supplierName:    embeddedSupplier(r.suppliers ?? null),
     progress:        shapeProgress(r.progress),
     slaEvents:       shapeSlaEvents(r.sla_events),
+    resolutionMethod: r.service_case_resolution_methods?.label ?? null,
+    stageVisits:     (r.service_case_stage_history ?? []).map((h) => ({
+      stage:      h.service_case_statuses?.label ?? "",
+      sortOrder:  h.service_case_statuses?.sort_order ?? 0,
+      enteredAt:  h.entered_at,
+      exitedAt:   h.exited_at,
+      targetDays: h.target_days == null ? null : Number(h.target_days),
+    })).filter((v) => v.stage),
   }));
 
   return c.json(
-    computeCaseNumbers({ cases, todayIso, period }, { holidays: myHolidaySet() }),
+    computeCaseNumbers({ cases, todayIso, period, nowIso: new Date().toISOString() }, { holidays: myHolidaySet() }),
   );
 });
 
@@ -1050,6 +1060,13 @@ interface NumbersRow {
   sla_events?: unknown;
   service_case_statuses: { is_closed: boolean } | null;
   suppliers?: { name: string } | { name: string }[] | null;
+  service_case_resolution_methods?: { label: string } | null;
+  service_case_stage_history?: Array<{
+    entered_at: string;
+    exited_at: string | null;
+    target_days: number | string | null;
+    service_case_statuses: { label: string; sort_order: number } | null;
+  }> | null;
 }
 
 interface OrderRow {
