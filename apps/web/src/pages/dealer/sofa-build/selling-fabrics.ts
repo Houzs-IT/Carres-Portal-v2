@@ -1,4 +1,4 @@
-import type { CatalogFabricDto, FabricTierValue, ProductModelDto, SofaFabricDto } from "@carres/shared";
+import type { CatalogFabricDto, FabricTier, ProductModelDto, SofaFabricDto } from "@carres/shared";
 import { allowedFabricsFor } from "@carres/shared";
 
 /**
@@ -17,7 +17,7 @@ import { allowedFabricsFor } from "@carres/shared";
 export interface SellingFabric {
   key: string;
   name: string;
-  tier: FabricTierValue;
+  tier: FabricTier;
   id: string | null;
   code: string | null;
   swatch: string | null;
