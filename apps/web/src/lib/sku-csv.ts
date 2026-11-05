@@ -36,7 +36,7 @@ export const SKU_EXPORT_COLUMNS = [
   "sku",
 ] as const;
 
-function csvCell(v: unknown): string {
+export function csvCell(v: unknown): string {
   if (v === null || v === undefined) return "";
   const s = String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
