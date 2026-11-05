@@ -69,7 +69,7 @@ caller's own token reaches the tables (`userClient`), the same as `operation/fle
 | 4 | `GET /:id/sales-orders` (orders with `project_id`, money from the shared `orderMoney`, which reads `orders.paid`), `POST /:id/sales-orders {so}`, `DELETE /:id/sales-orders/:orderId`, both through `project_link_order` |
 | 5 | `PATCH /:id/finance`, `POST /:id/finance/lines`, `PATCH/DELETE /finance/lines/:lineId`, `GET /cost-rates`, `PUT /cost-rates/:brand` |
 | 6 | `POST /:id/stock-transfers`, `POST /stock-transfers/:tid/confirm`, `/unconfirm`, `DELETE /stock-transfers/:tid` |
-| 7 | `GET /:id/print` (project sheet HTML, Carres PDF kit) |
+| 7 | none: the sheet is drawn in the browser with the Carres PDF kit (`lib/pdf/project-sheet-template.tsx`) from the reads the project page already holds, so no second read can disagree with the screen |
 
 ## 4. Permissions (Houzs → Carres)
 

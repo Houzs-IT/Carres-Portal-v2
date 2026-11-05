@@ -102,6 +102,9 @@ export const PJ = {
   cancelledSo: "Cancelled",
   paidBalance: (paid: string, balance: string) => `Paid ${paid} · Balance ${balance}`,
   salesTotals: (n: number, total: string, paid: string, balance: string) => `${n} orders · ${total} · Paid ${paid} · Balance ${balance}`,
+  /* Slice 7: the printed project sheet. */
+  print: "Print",
+  printFailed: "The project sheet could not be made. Try again.",
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checklistDueDate, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
+import { checklistDueDate, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -57,5 +57,15 @@ describe("project sales totals", () => {
     const o = (status: string, total: number | null, paid: number, balance: number) => ({ id: "x", so: "SO", status, customerName: null, placedAt: null, total, paid, balance });
     expect(projectSalesTotals([o("confirmed", 0.1, 0.1, 0), o("confirmed", 0.2, 0, 0.2), o("cancelled", 500, 0, 500), o("confirmed", null, 0, 0)]))
       .toEqual({ count: 3, total: 0.3, paid: 0.1, balance: 0.2 });
+  });
+});
+
+/** Houzs projects_print fmtRange, "to" in place of the dash (slice 7). */
+describe("project date range", () => {
+  it("prints one day, one month, two months and two years", () => {
+    expect(projectDateRange("2026-12-04", "2026-12-04")).toBe("4 Dec 2026");
+    expect(projectDateRange("2026-12-04", "2026-12-06")).toBe("4 to 6 Dec 2026");
+    expect(projectDateRange("2026-11-30", "2026-12-02")).toBe("30 Nov to 2 Dec 2026");
+    expect(projectDateRange("2026-12-30", "2027-01-02")).toBe("30 Dec 2026 to 2 Jan 2027");
   });
 });

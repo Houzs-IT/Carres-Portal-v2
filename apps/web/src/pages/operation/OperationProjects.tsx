@@ -211,6 +211,7 @@ function ProjectDetail({ id, onBack }: { id: string; onBack: () => void }) {
           <Select id="project-status" toolbar disabled={archived} value={p.status}
             onValueChange={(v) => act("", { status: v as ProjectStatus }, "PATCH")}
             options={PROJECT_STATUSES.map((s) => ({ value: s, label: PJ.statuses[s] }))} />
+          <PrintSheet projectId={p.id} data={q.data} onFail={setMessage} />
           <Button size="sm" onClick={() => setEditing(true)}>{PJ.editProject}</Button>
           <Button size="sm" loading={write.isPending} onClick={() => act(archived ? "/unarchive" : "/archive")}>{archived ? PJ.unarchive : PJ.archive}</Button>
         </span>
@@ -514,4 +515,38 @@ function SalesOrdersPanel({ projectId, act, busy }: { projectId: string; act: Ac
       </div>
     </Panel>
   );
+}
+
+/* ── Project sheet (slice 7, Houzs projects_print Event Summary Report) ── */
+
+function PrintSheet({ projectId, data, onFail }: {
+  projectId: string;
+  data: { project: ProjectRow; team: ProjectTeamMember[]; checklist: ChecklistTask[] };
+  onFail: (m: string | null) => void;
+}) {
+  const so = useProjectSalesOrders(projectId);
+  const [busy, setBusy] = useState(false);
+  const print = async () => {
+    setBusy(true);
+    onFail(null);
+    try {
+      const { renderProjectSheetPdf } = await import("@/lib/pdf/render");
+      const blob = await renderProjectSheetPdf({
+        ...data,
+        salesOrders: so.data ?? null,
+        printedAt: new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }),
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${data.project.code}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      onFail(PJ.printFailed);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <Button size="sm" loading={busy} onClick={() => void print()}>{PJ.print}</Button>;
 }

@@ -253,3 +253,20 @@ export function projectSalesTotals(orders: ReadonlyArray<ProjectSalesOrder>) {
   const sen = (f: (o: ProjectSalesOrder) => number) => live.reduce((s, o) => s + Math.round(f(o) * 100), 0) / 100;
   return { count: live.length, total: sen((o) => o.total ?? 0), paid: sen((o) => o.paid), balance: sen((o) => o.balance) };
 }
+
+/* ── Slice 7: the printed project sheet ──────────────────────────────── */
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Houzs projects_print fmtRange, with "to" for its dash: `4 to 6 Dec 2026`,
+ *  `30 Nov to 2 Dec 2026`, `30 Dec 2026 to 2 Jan 2027`, `4 Dec 2026`. */
+export function projectDateRange(startDate: string, endDate: string): string {
+  const p = (s: string) => s.slice(0, 10).split("-").map(Number) as [number, number, number];
+  const [sy, sm, sd] = p(startDate);
+  const [ey, em, ed] = p(endDate);
+  const one = (y: number, m: number, d: number) => `${d} ${MONTHS[m - 1]} ${y}`;
+  if (sy === ey && sm === em && sd === ed) return one(sy, sm, sd);
+  if (sy !== ey) return `${one(sy, sm, sd)} to ${one(ey, em, ed)}`;
+  if (sm !== em) return `${sd} ${MONTHS[sm - 1]} to ${one(ey, em, ed)}`;
+  return `${sd} to ${one(ey, em, ed)}`;
+}
