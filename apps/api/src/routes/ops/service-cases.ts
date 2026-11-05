@@ -73,7 +73,7 @@ scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
  * costs one extra column per row.
  */
 const CASE_SELECT =
-  "*, service_case_types(label), service_case_statuses(label,is_closed), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
+  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /config — config-driven Case Type + Status (active only, sorted)
@@ -96,7 +96,7 @@ scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
     })),
     statuses: (statuses ?? []).map((s) => ({
       id: s.id, code: s.code, label: s.label, sortOrder: s.sort_order,
-      active: s.active, isClosed: s.is_closed,
+      active: s.active, isClosed: s.is_closed, targetDays: numOrNull(s.target_days),
     })),
   });
 });
@@ -233,6 +233,7 @@ function pickTable(list: string) {
 const pickRow = (r: Record<string, unknown>) => ({
   id: r.id, code: r.code, label: r.label, sortOrder: r.sort_order, active: r.active,
   isClosed: r.is_closed ?? false,
+  targetDays: numOrNull(r.target_days),
 });
 
 scRouter.get("/settings", requireOperationOrPrincipal, async (c) => {
@@ -286,7 +287,13 @@ scRouter.patch("/settings/:list/:itemId", requireOperationOrPrincipal, requireSe
   const table = pickTable(c.req.param("list"));
   const parsed = await parseBody(c, servicePickItemPatchSchema);
   const sb = userClient(c.env, c.var.auth.jwt);
-  const { error } = await sb.from(table).update(parsed).eq("id", c.req.param("itemId"));
+  // 0745 — target days live on stages only.
+  const { targetDays, ...rest } = parsed;
+  if (targetDays !== undefined && table !== "service_case_statuses") {
+    return c.json({ error: "invalid_input", code: "invalid_param", message: "Only a stage has target days." }, 422);
+  }
+  const update = targetDays === undefined ? rest : { ...rest, target_days: targetDays };
+  const { error } = await sb.from(table).update(update).eq("id", c.req.param("itemId"));
   // 0711 §6 (YH, chat 2026-10-26): the database keeps one closing stage in use.
   if (error?.details === "last_closing_stage") {
     return c.json(
@@ -1020,6 +1027,21 @@ interface RawCaseOrder {
   order_supplier_threads?: { po_id: string | null }[] | null;
 }
 
+interface RawStageRow {
+  status_id: string | null;
+  entered_at: string;
+  exited_at: string | null;
+  target_days: number | string | null;
+  changed_by: string | null;
+}
+
+/** PostgREST hands `numeric` back as a number, or as a string for wide values. */
+function numOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 interface RawCase {
   id: string;
   case_no: string;
@@ -1062,7 +1084,9 @@ interface RawCase {
   owner_user_id?: string | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
-  service_case_statuses: { label: string; is_closed: boolean } | null;
+  service_case_statuses: { label: string; is_closed: boolean; target_days?: number | string | null } | null;
+  /** 0745 — every stage the case entered. Optional: absent before 0745. */
+  service_case_stage_history?: RawStageRow[] | null;
   /** J2 — embedded `orders(so)`. A to-one embed, but PostgREST has been seen
    *  to hand back an array shape, so both are tolerated. */
   orders: RawCaseOrder | RawCaseOrder[] | null;
@@ -1126,6 +1150,31 @@ function shapeCase(r: RawCase) {
 
     // 0711 — the case owner (Weisiang's decision, WhatsApp 2026-10-22).
     ownerUserId:     r.owner_user_id ?? null,
+
+    ...stageClock(r),
+  };
+}
+
+/**
+ * 0745 — the stage clock. Follows Houzs backend/src/services/assr.ts:2006
+ * (stage_since = the last entry into the current stage, else created_at) per
+ * Weisiang's ruling (2026-10-22): clear Carres rules, implement Houzs.
+ */
+function stageClock(r: RawCase) {
+  const history = [...(r.service_case_stage_history ?? [])]
+    .sort((a, z) => a.entered_at.localeCompare(z.entered_at))
+    .map((h) => ({
+      statusId:   h.status_id,
+      enteredAt:  h.entered_at,
+      exitedAt:   h.exited_at,
+      targetDays: numOrNull(h.target_days),
+      changedBy:  h.changed_by,
+    }));
+  const open = history.find((h) => h.exitedAt === null && h.statusId === r.status_id);
+  return {
+    stageSince:      open?.enteredAt ?? r.created_at,
+    stageTargetDays: open ? open.targetDays : numOrNull(r.service_case_statuses?.target_days),
+    stageHistory:    history,
   };
 }
 

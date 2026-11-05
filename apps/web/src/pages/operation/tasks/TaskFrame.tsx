@@ -44,11 +44,11 @@ function History({ events }: { events: readonly TaskHistoryEvent[] }) {
       {events.map((event) => (
         <li key={event.key} className="flex flex-col" data-testid={`task-history-${event.key}`}>
           <span className="break-words text-body text-c-ink">{event.text}</span>
-          {event.detail ? <span className="break-words text-meta text-c-secondary">{event.detail}</span> : null}
           <span className="text-meta text-c-secondary">
             <time dateTime={event.at}>{historyWhen(event.at)}</time>
             {event.by ? ` · ${event.by}` : ""}
           </span>
+          {event.detail ? <span className="break-words text-meta text-c-secondary">{event.detail}</span> : null}
         </li>
       ))}
     </ol>
@@ -107,7 +107,7 @@ export default function TaskFrame({ head, steps, facts = [], orders = [], salesO
 
   /* `Record as sent`: only for the opened open work of the Tasks area, where
      the desk can say the result and return to the list. */
-  const request = opened?.result && canRecordRequest(opened.row)
+  const request = opened?.result && canRecordRequest(opened.row) && !(opened.row.source.interaction?.mode === "embedded" && opened.row.source.interaction.actionKey === "purchasing.confirm_po_sent")
     ? <TaskRequest key={opened.row.id} row={opened.row} onRecorded={opened.result} />
     : null;
 
@@ -122,6 +122,7 @@ export default function TaskFrame({ head, steps, facts = [], orders = [], salesO
       openRecordLabel={shown.record ? W.open(shown.record) : undefined}
       onOpenRecord={shown.record && destination ? () => navigate(destination) : undefined}
       owner={shown.owner}
+      ownerKey={opened?.row.source.owner.acting?.userId}
       facts={allFacts}
       tabsLabel={W.sections}
       tabs={[

@@ -57,6 +57,14 @@ beforeEach(() => {
 });
 
 describe("Outright Summary source states", () => {
+  it.each([60, null])("uses only the server population for filtered footer count (%s)", (total) => {
+    testState.total = total;
+    testState.searchOrders = [testState.orders[0]!];
+    mount("/operation/orders?search=1001");
+    expect(footer()).toHaveTextContent(total === null ? "1 order" : "1 of 60 orders");
+    if (total === null) expect(footer()).not.toHaveTextContent(" of ");
+  });
+
   it.each([403, 500])("a %s read never becomes zero orders or zero money in Summary", (status) => {
     testState.error = new ApiError(status, "TEST secret transport detail", null);
     localStorage.setItem("carres.outright.summary", "1");
@@ -255,5 +263,22 @@ describe("Outright quick view and cards (Houzs, Weisiang 1 Nov)", () => {
     mount("/operation/orders?max.so=1&is.amendment=yes");
     expect(screen.getByRole("button", {name:/Sales order no\.: Any to 1/})).toBeVisible();
     expect(screen.queryAllByTestId(/^outright-row-/)).toHaveLength(0);
+  });
+});
+
+
+describe("current default view and retained explicit choices", () => {
+  it.each([
+    [null, "/operation/orders", "Overview"],
+    [{cols:"so",tab:"open"}, "/operation/orders", "Overview"],
+    [{cols:"so",tab:"open",layoutVersion:2}, "/operation/orders", "Sales Order"],
+    [{cols:"payment",tab:"open"}, "/operation/orders", "Payment"],
+    [{cols:"so",tab:"open"}, "/operation/orders?cols=so", "Sales Order"],
+  ] as const)("resolves saved %j and URL %s to %s without removing stored layouts", (saved, url, label) => {
+    const key = `carres.outright.view.${testState.user}`;
+    if(saved) localStorage.setItem(key,JSON.stringify(saved));
+    mount(url);
+    expect(screen.getByRole("button",{name:`View: ${label}`})).toBeInTheDocument();
+    expect(localStorage.getItem(key)).toBe(saved ? JSON.stringify(saved) : null);
   });
 });

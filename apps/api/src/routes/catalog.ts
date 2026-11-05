@@ -17,6 +17,8 @@ import {
   sizesActiveInput,
   generateSkusInput,
   skuSupplierOfferUpsertInput,
+  supplierOfferImportInput,
+  type SupplierOfferImportInput,
   floorConfigPatchInput,
   addonCreateInput,
   addonPatchInput,
@@ -1642,7 +1644,7 @@ catalogRouter.get("/supplier-offers", async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
   const { data, error } = await sb
     .from("sku_supplier_offers")
-    .select("sku_id, supplier_id, supplier_code");
+    .select("sku_id, supplier_id, supplier_code, price, pwp_price");
   if (error) return fail(c, error);
   return c.json({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1650,6 +1652,8 @@ catalogRouter.get("/supplier-offers", async (c) => {
       skuId: r.sku_id as string,
       supplierId: r.supplier_id as string,
       supplierCode: (r.supplier_code as string | null) ?? null,
+      price: (r.price as number | null) ?? null,
+      pwpPrice: (r.pwp_price as number | null) ?? null,
     })),
   });
 });
@@ -1689,6 +1693,66 @@ catalogRouter.put("/skus/:id/supplier-offers", async (c) => {
     return c.json({ error: "not_found", code: "not_found", message: "upsert returned no row" }, 404);
   }
   return c.json({ offer: offerFromRow(data) });
+});
+
+/* Houzs Supplier Bindings CSV import, as one write: a supplier's price list
+   is matched by OUR code, blanks keep what is stored, unknown codes are
+   reported and skipped. Three subrequests whatever the row count. */
+export function mergeOfferImport(
+  input: SupplierOfferImportInput,
+  skuIdByCode: Map<string, string>,
+  stored: Map<string, { supplier_code: string | null; price: number | null; pwp_price: number | null }>,
+  userId: string,
+  now: string,
+): { upserts: Array<Record<string, unknown>>; unknown: string[] } {
+  const unknown: string[] = [];
+  const bySku = new Map<string, Record<string, unknown>>();
+  for (const r of input.rows) {
+    const skuId = skuIdByCode.get(r.sku);
+    if (!skuId) { unknown.push(r.sku); continue; }
+    const was = bySku.get(skuId) ?? stored.get(skuId) ?? { supplier_code: null, price: null, pwp_price: null };
+    bySku.set(skuId, {
+      sku_id: skuId,
+      supplier_id: input.supplierId,
+      supplier_code: r.supplierCode || (was.supplier_code ?? null),
+      price: r.price ?? was.price ?? null,
+      pwp_price: r.pwpPrice ?? was.pwp_price ?? null,
+      updated_at: now,
+      updated_by: userId,
+    });
+  }
+  return { upserts: [...bySku.values()], unknown };
+}
+
+catalogRouter.put("/supplier-offers/import", async (c) => {
+  principalOnly(c, "Only the principal (Master Admin) can record supplier offers");
+  const parsed = await parseJsonBody(c, supplierOfferImportInput);
+  if (!parsed.ok) return c.json(parsed.body, parsed.status);
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const codes = [...new Set(parsed.data.rows.map((r) => r.sku))];
+  /* Chunked: a long `in` list overruns the URL. 2000 rows is 14 reads, inside the Worker's subrequest cap. */
+  const skuIdByCode = new Map<string, string>();
+  for (let i = 0; i < codes.length; i += 150) {
+    const skus = await sb.from("product_skus").select("id, sku").in("sku", codes.slice(i, i + 150));
+    if (skus.error) return fail(c, skus.error);
+    for (const r of (skus.data ?? []) as Array<{ id: string; sku: string }>) skuIdByCode.set(r.sku, r.id);
+  }
+  const stored = await sb.from("sku_supplier_offers")
+    .select("sku_id, supplier_code, price, pwp_price")
+    .eq("supplier_id", parsed.data.supplierId);
+  if (stored.error) return fail(c, stored.error);
+  const { upserts, unknown } = mergeOfferImport(
+    parsed.data,
+    skuIdByCode,
+    new Map((stored.data ?? []).map((r: { sku_id: string; supplier_code: string | null; price: number | null; pwp_price: number | null }) => [r.sku_id, r])),
+    c.var.auth.id,
+    new Date().toISOString(),
+  );
+  if (upserts.length > 0) {
+    const { error } = await sb.from("sku_supplier_offers").upsert(upserts, { onConflict: "sku_id,supplier_id" });
+    if (error) return fail(c, error);
+  }
+  return c.json({ saved: upserts.length, unknown });
 });
 
 catalogRouter.delete("/skus/:id/supplier-offers/:supplierId", async (c) => {

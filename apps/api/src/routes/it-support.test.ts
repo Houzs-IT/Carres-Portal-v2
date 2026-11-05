@@ -57,11 +57,13 @@ describe("POST /api/it-support/tickets", () => {
       description: "Button greyed out",
       priority: "high",
       page_url: "https://erp.carresofficial.com/operation/orders",
+      module: " Sales Order ",
       app_version: "abc12345",
       reporter_id: "someone-else",
     });
     expect(res.status).toBe(201);
     const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect((init.body as FormData).get("module")).toBe("Sales Order");
     expect(url).toBe("https://hub.test/api/v1/sys/tickets");
     const h = new Headers(init.headers);
     expect(h.get("Authorization")).toBe("Bearer hub_carres_secret");

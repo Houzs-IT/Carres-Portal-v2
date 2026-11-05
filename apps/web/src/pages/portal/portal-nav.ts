@@ -864,6 +864,45 @@ export function menuGroups(
   return out;
 }
 
+/** The row of one area a URL stands on: its own path (or `financePath`), its
+ *  `activeFor` matchers, then the `?tab=` it links to. */
+function activeItem(group: PortalNavGroup, pathname: string, search: string): PortalNavItem | undefined {
+  const tab = new URLSearchParams(search).get("tab") ?? group.defaultTab;
+  const onPath = (prefix: string) => pathname.startsWith(prefix);
+  const pathItem = group.items.find(
+    (it) =>
+      (it.path && onPath(it.path)) ||
+      (it.financePath && onPath(it.financePath)) ||
+      it.activeFor?.some((m) => m.startsWith("path:") && onPath(m.slice(5))),
+  );
+  return (
+    pathItem ??
+    (pathname === group.base || pathname === `${group.base}/`
+      ? group.items.find(
+          (it) =>
+            !it.path &&
+            (rowMatchesTab(group, it, tab, search) ||
+              it.activeFor?.some((m) => m === `tab:${tab}`)),
+        )
+      : undefined)
+  );
+}
+
+/** The module a URL stands in, named as the rail names it, for an IT request:
+ *  the IT Hub's Reports group requests by it. Operations modules go by their own
+ *  word ("Sales Order", "Procurement"); another area carries its name
+ *  ("Finance · Money in"). "" when no row covers the URL. */
+export function activeNavModule(pathname: string, search: string): string {
+  for (const group of PORTAL_NAV) {
+    const item = activeItem(group, pathname, search);
+    if (!item) continue;
+    const name = PORTAL_MODULES.find((m) => m.section === item.section)?.label ?? item.section ?? "";
+    if (group.area === "operation") return name;
+    return name ? `${group.label} · ${name}` : group.label;
+  }
+  return "";
+}
+
 /** The menu item a URL stands on, for the shell header's `crumb / title`
  *  when a page does not name itself (Layout Standard §1). Same matching as the
  *  menu's selected row: an item's own path, its `activeFor` matchers, then the
@@ -874,23 +913,7 @@ export function activeNavTitle(
 ): { crumb: string | null; title: string } | null {
   const group = PORTAL_NAV.find((g) => g.area === "operation");
   if (!group) return null;
-  const tab = new URLSearchParams(search).get("tab") ?? group.defaultTab;
-  const onPath = (prefix: string) => pathname.startsWith(prefix);
-  const pathItem = group.items.find(
-    (it) =>
-      (it.path && onPath(it.path)) ||
-      it.activeFor?.some((m) => m.startsWith("path:") && onPath(m.slice(5))),
-  );
-  const item =
-    pathItem ??
-    (pathname === group.base || pathname === `${group.base}/`
-      ? group.items.find(
-          (it) =>
-            !it.path &&
-            (rowMatchesTab(group, it, tab, search) ||
-              it.activeFor?.some((m) => m === `tab:${tab}`)),
-        )
-      : undefined);
+  const item = activeItem(group, pathname, search);
   if (!item) return null;
   const moduleRow = PORTAL_MODULES.find((m) => m.section === item.section);
   const siblings = group.items.filter((it) => it.section === item.section).length;

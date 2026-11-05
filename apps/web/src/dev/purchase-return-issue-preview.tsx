@@ -86,6 +86,16 @@ window.fetch = async (input, init) => {
   if (url.includes("/supplier-claims/claim-1/record")) return json(RECORD);
   if (url.includes("/supplier-claims")) return json({ claims: [CLAIM], counts: { open: 1, closed: 0, all: 1 } });
   if (url.includes("/purchase-returns/issue-source")) return json({ source: SOURCE });
+  const printId = url.match(/purchase-returns\/(pr-\d)\/print-data(?:\?|$)/)?.[1];
+  if (printId) {
+    const pr = RETURNS.find(row => row.id === printId);
+    return pr ? json({ pr_no: pr.pr_no, pr_doc_date: pr.pr_doc_date,
+      supplier: { name: pr.supplier_name, contact: null }, return_to: SOURCE.return_to,
+      claim_no: pr.claim_no, grn_no: pr.grn_no, confirmed_pickup_date: pr.confirmed_pickup_date,
+      units: pr.units.map(unit => ({ unit_id: unit.unit_id, po_no: unit.po_id, category: unit.category,
+        item: unit.item, item_spec: unit.item_spec, pickup_location: unit.pickup_location })), issued_by: null,
+    }) : json({ message: "TEST document is not seeded" }, 404);
+  }
   const one = url.match(/purchase-returns\/(pr-\d)(\?|$)/)?.[1];
   if (one) return json({ purchaseReturn: RETURNS.find((r) => r.id === one) });
   if (url.includes("/purchase-returns")) return json({ returns: RETURNS });
