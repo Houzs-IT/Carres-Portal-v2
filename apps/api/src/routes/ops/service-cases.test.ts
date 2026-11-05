@@ -1348,4 +1348,56 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(body.items.map((r) => r.id)).toEqual(["c2"]);
     expect(sb.rpc).toHaveBeenCalledWith("my_service_case_ids");
   });
+
+  // 0745 — the stage clock (Houzs stage history and stage targets).
+  async function patchStage(list: string, body: unknown, sb: unknown) {
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    return app.request(
+      `/api/ops/service-cases/settings/${list}/st-1`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${await makeJwt("principal")}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      env,
+    );
+  }
+
+  it("saves a stage's target days to its own column", async () => {
+    const { sb, updates } = tableSb({}, true);
+    const res = await patchStage("statuses", { targetDays: 3 }, sb);
+    expect(res.status).toBe(200);
+    expect(updates).toContainEqual(["service_case_statuses", { target_days: 3 }]);
+  });
+
+  it("refuses target days on a case type", async () => {
+    const { sb, updates } = tableSb({}, true);
+    const res = await patchStage("types", { targetDays: 3 }, sb);
+    expect(res.status).toBe(422);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("reads the stage as entered at the open history row, with the target snapshotted then", async () => {
+    const row = {
+      ...CASE_ROW,
+      status_id: "11111111-1111-4111-8111-111111111111",
+      service_case_statuses: { label: "In Progress", is_closed: false, target_days: 9 },
+      service_case_stage_history: [
+        { status_id: "11111111-1111-4111-8111-111111111111", entered_at: "2026-06-20T03:00:00Z", exited_at: null, target_days: "2.5", changed_by: null },
+        { status_id: null, entered_at: "2026-06-16T00:00:00Z", exited_at: "2026-06-20T03:00:00Z", target_days: null, changed_by: null },
+      ],
+    };
+    const { sb } = tableSb({ service_cases: [row] });
+    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
+    expect(body.items[0]).toMatchObject({ stageSince: "2026-06-20T03:00:00Z", stageTargetDays: 2.5 });
+    expect((body.items[0].stageHistory as Array<{ enteredAt: string }>).map((h) => h.enteredAt))
+      .toEqual(["2026-06-16T00:00:00Z", "2026-06-20T03:00:00Z"]);
+  });
+
+  it("reads a case filed before 0745 as in its stage since it was created, with the stage's target today", async () => {
+    const row = { ...CASE_ROW, service_case_statuses: { label: "In Progress", is_closed: false, target_days: 4 } };
+    const { sb } = tableSb({ service_cases: [row] });
+    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
+    expect(body.items[0]).toMatchObject({ stageSince: CASE_ROW.created_at, stageTargetDays: 4, stageHistory: [] });
+  });
 });

@@ -6247,6 +6247,8 @@ decision. These words are admitted for the Service Cases page, the case window a
 | Settings page and link | `Service Settings` · group `Service` |
 | Settings rows | `Default case owner` · `A new case goes to this person until the sales order PIC picks the case owner.` · `Stages` · `The stages staff pick on a case. A stage that closes the case cannot be added here.` · `Case types` · `The case types staff pick on a case.` · `In use` · `New stage` · `New case type` · `Add` |
 | Last closing stage, `In use` locked (YH, chat 2026-10-26) | hint `Close Case needs this stage.` · refused `Keep one stage that closes the case in use. Close Case needs it.` |
+| Stage clock (0745, Houzs stage history and stage targets) | list columns `Days in stage` (`{n} days` · `{n} / {target} days`) · `In stage since`; stage card pill `{n} past target`; case header `In stage {n} days` · `In stage {n} of {target} days`; Timeline row `Moved to {stage}` · `Moved to another stage` |
+| Stage target in Service Settings (0745) | placeholder `Target days` · label `Target days for {stage}` · help `Target days: how long a case should stay in the stage; a case past it shows red. A new target counts for cases that enter the stage after the change.` · refused `Only a stage has target days.` |
 
 ### Report a problem to IT (side menu bottom)
 

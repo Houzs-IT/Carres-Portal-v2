@@ -8,7 +8,7 @@ vi.mock("@/lib/auth", async (original) => ({
   ...(await original<typeof import("@/lib/auth")>()),
   useAuth: () => ({ user: { id: "me" } }),
 }));
-import { caseAgeDays } from "./OperationServiceCases";
+import { caseAgeDays, stageCounts } from "./OperationServiceCases";
 import { caseTimeline, customerHistory } from "./components/ServiceCaseDetail";
 import { casesCsv, caseStageDescription, caseUrgency } from "./components/serviceCaseViews";
 import { caseCopyRows } from "@/pages/print/ServiceCasePrintPage";
@@ -187,6 +187,24 @@ describe("Service Cases — the Houzs helpers", () => {
     const rows = caseTimeline({ ...row, createdBy: "u1", evidence: [{ slot: "s", path: "p", kind: "photo", at: "2026-07-07T01:00:00Z", by: "u1", byRole: "operation" }] }, () => "Shasha");
     expect(rows.map((r) => r.text)).toEqual(["Photo added", "Case opened"]);
     expect(rows[0].who).toBe("Shasha");
+  });
+  it("shows each stage move from the 0745 history, leaving out the row written at filing", () => {
+    const st = "22222222-2222-4222-8222-222222222222";
+    const rows = caseTimeline({
+      ...row,
+      createdAt: "2026-07-01T00:00:00Z",
+      stageHistory: [
+        { statusId: null, enteredAt: "2026-07-01T00:00:00Z", exitedAt: "2026-07-03T00:00:00Z", targetDays: null, changedBy: null },
+        { statusId: st, enteredAt: "2026-07-03T00:00:00Z", exitedAt: null, targetDays: 2, changedBy: "u1" },
+      ],
+    }, () => "Shasha", (id) => (id === st ? "In Progress" : ""));
+    expect(rows.filter((r) => r.text.startsWith("Moved")).map((r) => [r.text, r.who])).toEqual([["Moved to In Progress", "Shasha"]]);
+  });
+  it("counts the open cases past their stage's target on each stage card", () => {
+    const late = { ...row, id: "l", statusId: "s1", statusLabel: "Review" };
+    const fine = { ...row, id: "f", statusId: "s1", statusLabel: "Review" };
+    const cards = stageCounts([late, fine], () => false, (r) => r.id === "l");
+    expect(cards).toEqual([{ id: "s1", label: "Review", count: 2, overdue: 0, pastTarget: 1 }]);
   });
 });
 
