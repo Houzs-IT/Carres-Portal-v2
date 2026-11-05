@@ -7,11 +7,13 @@ import {
   buyerDemographics,
   genderDistribution,
   monthlyRevenue,
-  productRollup,
+  myMonthOf,
+  productProfit,
   raceDistribution,
   spendBySegment,
   summarizeOverview,
   type Distribution,
+  type ProfitSort,
 } from "@/lib/sales-analysis";
 import Loading from "@/components/kit/Loading";
 import ReadFailed from "./components/ReadFailed";
@@ -24,7 +26,8 @@ import ReadFailed from "./components/ReadFailed";
  *   Customer data — race / gender / age-band distributions (0200
  *                   demographics) + spend by segment, with coverage +
  *                   thin-sample warnings
- *   Products      — per-model units / revenue / margin + buyer demographics
+ *   Products      — Product Profit (Houzs port): per-model sales, cost, gifts,
+ *                   gross profit and margin for a month + buyer demographics
  *                   per category
  * All aggregation is pure client-side (lib/sales-analysis) over the
  * /api/analytics/sales flattened feed.
@@ -54,7 +57,20 @@ export default function PrincipalSalesAnalysis() {
   const gender = useMemo(() => genderDistribution(orders), [orders]);
   const age = useMemo(() => ageDistribution(orders, now), [orders, now]);
   const raceSpend = useMemo(() => spendBySegment(orders, "race"), [orders]);
-  const products = useMemo(() => productRollup(lines), [lines]);
+  const [profitMonth, setProfitMonth] = useState("");
+  const [cats, setCats] = useState<Set<string>>(() => new Set());
+  const [gifts, setGifts] = useState(true);
+  const [sort, setSort] = useState<ProfitSort>("gp");
+  const profitMonths = useMemo(() => [...new Set(lines.map((l) => myMonthOf(l.placedAt)))].sort().reverse(), [lines]);
+  const profitCategories = useMemo(() => [...new Set(lines.map((l) => l.category))].sort(), [lines]);
+  const profit = useMemo(
+    () => productProfit(lines, { month: profitMonth || null, categories: cats, gifts, sort }),
+    [lines, profitMonth, cats, gifts, sort],
+  );
+  const profitTotals = useMemo(() => profit.rows.reduce(
+    (t, r) => ({ sales: t.sales + r.sales, gp: t.gp + r.gp, gift: t.gift + r.gift }),
+    { sales: 0, gp: 0, gift: 0 },
+  ), [profit]);
   const demographics = useMemo(() => buyerDemographics(lines, now), [lines, now]);
 
   const maxBar = Math.max(1, ...bars.map((b) => b.revenue));
@@ -191,25 +207,84 @@ export default function PrincipalSalesAnalysis() {
         </>
       ) : (
         <>
-          <section className="bg-card border border-base-200 rounded-lg shadow-sm p-6">
-            <h2 className="text-strong mb-4">By model</h2>
+          <section className="bg-card border border-base-200 rounded-lg shadow-sm p-6" data-testid="sa-product-profit">
+            <h2 className="text-strong mb-1">Product Profit</h2>
+            <p className="text-meta text-base-500 mb-4">
+              One row per model, by order month. Free items on an order are shared among the products it paid for.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <select
+                value={profitMonth}
+                onChange={(e) => setProfitMonth(e.target.value)}
+                aria-label="Month"
+                data-testid="sa-profit-month"
+                className="rounded-md border border-base-300 bg-white px-3 py-2 text-body"
+              >
+                <option value="">Whole period</option>
+                {profitMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+              {profitCategories.map((c) => (
+                <label key={c} className="inline-flex items-center gap-1.5 text-body capitalize">
+                  <input type="checkbox" checked={cats.has(c)} data-testid={`sa-profit-cat-${c}`}
+                    onChange={() => setCats((prev) => { const next = new Set(prev); if (next.has(c)) next.delete(c); else next.add(c); return next; })} />
+                  {c}
+                </label>
+              ))}
+              <label className="inline-flex items-center gap-1.5 text-body">
+                <input type="checkbox" checked={gifts} onChange={(e) => setGifts(e.target.checked)} data-testid="sa-profit-gifts" />
+                Include gifts
+              </label>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as ProfitSort)}
+                aria-label="Rank by"
+                className="rounded-md border border-base-300 bg-white px-3 py-2 text-body"
+              >
+                <option value="gp">Rank by gross profit</option>
+                <option value="units">Rank by units sold</option>
+                <option value="sales">Rank by sales</option>
+                <option value="margin">Rank by margin</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <Kpi label="Sales" value={rm(profitTotals.sales)} />
+              <Kpi label="Gross profit" value={rm(profitTotals.gp)} />
+              <Kpi label="Margin" value={profitTotals.sales > 0 ? `${((profitTotals.gp / profitTotals.sales) * 100).toFixed(1)}%` : ""} />
+              <Kpi label={gifts ? "Gifts" : "Gifts (not counted)"} value={rm(profitTotals.gift)}
+                hint={profit.unallocatedGift > 0 ? `${rm(profit.unallocatedGift)} on orders with no paid product` : undefined} />
+            </div>
             <table className="w-full" data-testid="sa-products-table">
               <thead>
                 <tr className="text-left">
                   <th className="text-meta font-medium text-base-500 pb-2">Model</th>
                   <th className="text-meta font-medium text-base-500 pb-2">Category</th>
                   <th className="text-meta font-medium text-base-500 pb-2 text-right">Units</th>
-                  <th className="text-meta font-medium text-base-500 pb-2 text-right">Revenue</th>
+                  <th className="text-meta font-medium text-base-500 pb-2 text-right">Orders</th>
+                  <th className="text-meta font-medium text-base-500 pb-2 text-right">Sales</th>
+                  <th className="text-meta font-medium text-base-500 pb-2 text-right">Cost</th>
+                  <th className="text-meta font-medium text-base-500 pb-2 text-right">Gifts</th>
+                  <th className="text-meta font-medium text-base-500 pb-2 text-right">Gross profit</th>
                   <th className="text-meta font-medium text-base-500 pb-2 text-right">Margin</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p.model} className="border-t border-base-100">
-                    <td className="text-body py-2 font-semibold">{p.model}</td>
+                {profit.rows.map((p) => (
+                  <tr key={p.model} className="border-t border-base-100" data-testid={`sa-profit-row-${p.model}`}>
+                    <td className="text-body py-2 font-semibold">
+                      {p.model}
+                      {p.noCostLines > 0 ? (
+                        <span className="block text-meta font-normal text-base-500">
+                          {p.noCostLines} {p.noCostLines === 1 ? "line has" : "lines have"} no cost, margin reads high
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="text-body py-2 text-base-500 capitalize">{p.category}</td>
                     <td className="text-body py-2 text-right font-mono">{p.units}</td>
-                    <td className="text-body py-2 text-right font-mono">{rm(p.revenue)}</td>
+                    <td className="text-body py-2 text-right font-mono">{p.orders}</td>
+                    <td className="text-body py-2 text-right font-mono">{rm(p.sales)}</td>
+                    <td className="text-body py-2 text-right font-mono">{rm(p.cost)}</td>
+                    <td className={`text-body py-2 text-right font-mono ${gifts ? "" : "text-base-400"}`}>{p.gift > 0 ? rm(p.gift) : ""}</td>
+                    <td className="text-body py-2 text-right font-mono">{rm(p.gp)}</td>
                     <td className="text-body py-2 text-right font-mono">
                       {p.marginPct === null ? "" : `${p.marginPct.toFixed(1)}%`}
                     </td>
@@ -217,6 +292,7 @@ export default function PrincipalSalesAnalysis() {
                 ))}
               </tbody>
             </table>
+            {profit.rows.length === 0 ? <p className="text-body text-base-500 py-6 text-center">Nothing sold in this month.</p> : null}
           </section>
 
           <section className="bg-card border border-base-200 rounded-lg shadow-sm p-6">

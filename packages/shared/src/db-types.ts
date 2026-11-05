@@ -316,7 +316,7 @@ export interface CatalogFabricRow {
   series: string | null;
   description: string | null;
   supplier_code: string | null;
-  sofa_tier: "PRICE_1" | "PRICE_2" | "PRICE_3";
+  sofa_tier: "PRICE_1" | "PRICE_2" | "PRICE_3" | "PRICE_4";
   bedframe_tier: "PRICE_1" | "PRICE_2" | "PRICE_3";
   active: boolean;
   sort_order: number;

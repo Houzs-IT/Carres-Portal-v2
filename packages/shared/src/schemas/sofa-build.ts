@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { fabricTierSchema } from "./catalog";
+import { sofaTierValueSchema } from "./catalog";
 
 /**
  * Sofa-build line attrs schema (sofa engine Phase 4).
@@ -35,7 +35,7 @@ export const sofaBuildLineAttrsSchema = z
     }),
     /** Lookup tier for the combo + the fabric-tier delta. Absent/null → the
      *  engine prices at the default PRICE_1 tier. */
-    fabric_tier: fabricTierSchema.nullable().optional(),
+    fabric_tier: sofaTierValueSchema.nullable().optional(),
     /** 0201-wiring — the chosen `sofa_leg_height` pool VALUE. Absent/null → no
      *  leg surcharge. The recompute feeds it into `computeSofaPrice`, which
      *  prices an unknown/inactive value at 0 (a bad claim drifts + rejects). */
