@@ -32,9 +32,12 @@ const env = { ...process.env, CLOUDFLARE_ACCOUNT_ID: CARRES_ACCOUNT };
  *  connection string's & or % reaches wrangler as typed. */
 function run(cmd, args, cwd, { input, allowFail = false, quiet = false } = {}) {
   const r = spawnSync(cmd, args, { cwd, env, input, encoding: "utf8", shell: false });
-  const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  // Never show a connection string's user and password, in the command or in wrangler's own output.
+  const mask = (t) => t.replace(/(postgres(?:ql)?:\/\/)[^@\s]*@/g, "$1***@");
+  const out = mask(`${r.stdout ?? ""}${r.stderr ?? ""}`);
   if (r.status !== 0 && !allowFail) {
-    console.error(`\nStopped: ${cmd} ${args.filter((a) => !a.startsWith("postgres")).join(" ")} failed.\n${out.slice(-1500)}`);
+    const shown = args.filter((x) => !x.endsWith(".js")).map((x) => (x.includes("://") ? x.replace(/=.*/, "=***") : x)).join(" ");
+    console.error(`\nStopped: wrangler ${shown} failed.\n${out.slice(-1500)}`);
     process.exit(1);
   }
   if (!quiet && r.status === 0) console.log(`  ok: ${args.filter((a) => !a.endsWith(".js")).slice(0, 3).join(" ")}`);

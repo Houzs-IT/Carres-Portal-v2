@@ -45,7 +45,7 @@ bucket_name = "carres-scm"
 
 [[kv_namespaces]]
 binding = "SESSION_CACHE"
-id = "REPLACE_ME_CARRES_SCM_SESSION_KV"
+id = "f11f807086f14251bd6fcdad0193129a"
 
 [alias]
 zod = "./node_modules/zod"
