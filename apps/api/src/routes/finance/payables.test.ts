@@ -771,12 +771,12 @@ describe("bills", () => {
         {
           warehouse_receipt_id: RECEIPT_ID, po_line_id: PO_LINE_ID, delivery_order_id: null, account_code: null,
           description: null, sku: null, qty: 5, unit_price: 105, amount: null,
-          department_type: null, department_id: null,
+          department_type: null, department_id: null, project_id: null,
         },
         {
           warehouse_receipt_id: null, po_line_id: null, delivery_order_id: null, account_code: "6200",
           description: "Rent", sku: null, qty: null, unit_price: null, amount: 3000,
-          department_type: null, department_id: null,
+          department_type: null, department_id: null, project_id: null,
         },
       ],
       p_due_date: null,
@@ -890,7 +890,7 @@ describe("payment vouchers", () => {
       p_payee_name: null,
       p_voucher_date: "2026-09-11",
       p_pay_from_account_code: "1120",
-      p_lines: [{ account_code: "6500", description: "Bank charge", amount: 5, department_type: null, department_id: null }],
+      p_lines: [{ account_code: "6500", description: "Bank charge", amount: 5, department_type: null, department_id: null, project_id: null }],
       p_allocations: [{ bill_id: BILL_ID, amount: 1025 }],
       p_pay_method: "BANK_TRANSFER",
       p_pay_reference: "TT-1",
