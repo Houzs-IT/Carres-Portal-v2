@@ -37,7 +37,7 @@ const CSP_REPORT_ONLY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  "connect-src 'self' https://autocount-sync-api.houzs-erp.workers.dev",
+  "connect-src 'self' https://carres-scm-engine.wwch.workers.dev",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "object-src 'none'",
