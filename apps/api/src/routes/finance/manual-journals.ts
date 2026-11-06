@@ -197,6 +197,7 @@ financeManualJournalsRouter.post("/", requirePrincipal, async (c) => {
       debit: l.debit ?? null,
       credit: l.credit ?? null,
       memo: l.memo ? l.memo : null,
+      project_id: l.project_id ?? null,   // 0754
     })),
   };
 

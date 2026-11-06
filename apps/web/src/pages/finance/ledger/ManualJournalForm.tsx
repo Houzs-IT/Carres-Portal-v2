@@ -47,6 +47,7 @@ import { rm } from "@/lib/format-currency";
 import SalesOrderTabs from "@/pages/operation/SalesOrderTabs";
 import { toast } from "sonner";
 import { useLedgerChart } from "./ledger-queries";
+import { useProjectOptions } from "../project";
 import { useRecordManualJournal } from "./manual-journal-queries";
 import { FieldError } from "@/components/kit/FieldFrame";
 
@@ -58,12 +59,17 @@ interface TypedLine {
   debit: string;
   credit: string;
   memo: string;
+  /** 0754 (Houzs event-books): the project this line's money is for; "" = none. */
+  project_id: string;
 }
+
+/** The kit Select needs a value for "none". */
+const NO_PROJECT = "none";
 
 let lineSeq = 0;
 function blankLine(): TypedLine {
   lineSeq += 1;
-  return { key: `journal-line-${lineSeq}`, account_code: "", debit: "", credit: "", memo: "" };
+  return { key: `journal-line-${lineSeq}`, account_code: "", debit: "", credit: "", memo: "", project_id: "" };
 }
 
 const twoDecimals = (n: number) => Math.round(n * 100) / 100 === n;
@@ -181,6 +187,13 @@ export default function ManualJournalForm({ onBack, onRecorded }: {
     [chart.data],
   );
 
+  const projects = useProjectOptions();
+  const projectOptions = useMemo(
+    () => [{ value: NO_PROJECT, label: "No project" },
+      ...(projects.data ?? []).filter((p) => !p.archived).map((p) => ({ value: p.id, label: p.code }))],
+    [projects.data],
+  );
+
   const read = lines.map(readLine);
   const filled = read.filter((l) => !l.blank);
   const totals = manualJournalTotals(filled);
@@ -198,6 +211,7 @@ export default function ManualJournalForm({ onBack, onRecorded }: {
         debit: l.debit,
         credit: l.credit,
         memo: l.line.memo.trim() || null,
+        project_id: l.line.project_id || null,
       })),
       requestKey,
     });
@@ -278,7 +292,7 @@ export default function ManualJournalForm({ onBack, onRecorded }: {
           </p>
           {read.map((l, i) => (
             <div key={l.line.key} data-testid={`journal-line-${i + 1}`}
-              className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto] md:items-end">
+              className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)_auto] md:items-end">
               <Select id={`journal-account-${i + 1}`} label="Account" value={l.line.account_code || undefined}
                 onValueChange={(v) => set(l.line.key, { account_code: v })} options={accountOptions}
                 placeholder={chart.isLoading ? "Loading accounts…" : "Choose an account"} />
@@ -288,6 +302,8 @@ export default function ManualJournalForm({ onBack, onRecorded }: {
                 error={l.errors.credit} onChange={(e) => set(l.line.key, { credit: e.target.value })} />
               <Input id={`journal-memo-${i + 1}`} label="Memo" maxLength={500} value={l.line.memo}
                 onChange={(e) => set(l.line.key, { memo: e.target.value })} />
+              <Select id={`journal-project-${i + 1}`} label="Project" value={l.line.project_id || NO_PROJECT}
+                onValueChange={(v) => set(l.line.key, { project_id: v === NO_PROJECT ? "" : v })} options={projectOptions} />
               <Button variant="ghost" aria-label={`Remove, line ${i + 1}`} disabled={lines.length <= 2}
                 onClick={() => setLines((all) => all.filter((x) => x.key !== l.line.key))}>
                 Remove

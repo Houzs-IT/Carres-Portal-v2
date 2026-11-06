@@ -1,4 +1,5 @@
 import { purchaseRequestContextSchema, type PurchaseRequestIssue } from "@carres/shared";
+import RequestNewModels from "./components/RequestNewModels";
 import PurchaseRequestAllocations from "./purchase-request/PurchaseRequestAllocations";
 // design-standard: not-a-list-page — this is a governed PURCHASING REGISTER
 // destination, not a generic List page. Its frame is the module's own shell —
@@ -1839,6 +1840,7 @@ export default function OperationManualPurchase({ contextFlow = false }: { conte
             expandable={{
               flush: true,
               renderExpansion: (r) => (
+                <>
                 <RequestExpansion
                   row={r}
                   navigate={navigate}
@@ -1888,6 +1890,8 @@ export default function OperationManualPurchase({ contextFlow = false }: { conte
                     });
                   }}
                 />
+                <RequestNewModels requestId={r.id} />
+                </>
               ),
               testId: (r) => `mp-expand-${r.id}`,
             }}

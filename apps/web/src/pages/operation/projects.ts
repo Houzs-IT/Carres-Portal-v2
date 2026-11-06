@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectSalesOrder, ProjectMaster, ProjectMasterKind, ProjectRow, ProjectStage, ProjectStatus, ProjectTeamMember,
+  ChecklistStatus, ChecklistTask, ChecklistTemplate, ProjectActivity, ProjectSalesOrder, ProjectMaster, ProjectMasterKind, ProjectListRow, ProjectRow, ProjectStage, ProjectStatus, ProjectStockTransfer, ProjectTeamMember, StockTransferDirection,
 } from "@carres/shared/projects";
 import type { OrderActionTone } from "@carres/shared/order-actions";
 import { apiFetch } from "@/lib/api";
@@ -60,6 +60,7 @@ export const PJ = {
   eventTypes: { exhibition: "Exhibition", solo: "Solo" },
   actions: {
     created: "Created", stage_change: "Stage", status_change: "Status", archived: "Archived", unarchived: "Unarchived", note: "Note",
+    stock_transfer_add: "Stock transfer added", stock_transfer_confirm: "Stock transfer confirmed", stock_transfer_unconfirm: "Stock transfer unconfirmed",
   } as Record<string, string>,
   /* Slice 2 (0751): Project Maintenance and the team. */
   maintenance: "Project Maintenance",
@@ -105,6 +106,41 @@ export const PJ = {
   /* Slice 7: the printed project sheet. */
   print: "Print",
   printFailed: "The project sheet could not be made. Try again.",
+  /* Slice 6 (0757): stock out to the fair and back. */
+  stockTransfers: "Stock transfers",
+  direction: "Direction",
+  directions: { out: "Stock out", return: "Stock return" } satisfies Record<StockTransferDirection, string>,
+  transferDate: "Transfer date",
+  transferDateHint: "Leave empty for today.",
+  transferSheet: "Transfer sheet",
+  addTransfer: "Add transfer",
+  recordOnly: "A record of the move. It does not change stock.",
+  openFile: "Open file",
+  fileFailed: "The file could not be opened. Try again.",
+  confirm: "Confirm",
+  unconfirm: "Undo confirm",
+  confirmedBy: (name: string | null) => (name ? `Confirmed · ${name}` : "Confirmed"),
+  notConfirmed: "Not confirmed",
+  noTransfers: "No stock transfers yet.",
+  /* Slice 8: the Project List and Calendar views (Houzs). */
+  projectViews: "Project views",
+  calendarView: "Calendar",
+  /* Houzs layout (Project List cards, tiles and rail; detail header and columns). */
+  cardsView: "Cards",
+  tableView: "Table",
+  allBrands: "All brands",
+  liveNow: "Live now",
+  liveNowHint: "Events running today",
+  upcoming30: "Upcoming (30 days)",
+  upcomingHint: "Starting in the next 30 days",
+  overdueTasks: "Overdue tasks",
+  overdueHint: "Checklist items past due",
+  total: "Total",
+  shown: (n: number) => `${n} projects shown`,
+  upcoming: "Upcoming",
+  noUpcoming: "Nothing starts in the next 30 days.",
+  sectionDone: (done: number, total: number) => `${done}/${total}`,
+  otherTasks: "Other tasks",
   refusals: {
     archived: "Unarchive the project to change its status.",
     already_exists: "That is already on the list.",
@@ -116,13 +152,13 @@ export const PJ = {
 /** Houzs status palette meaning: confirmed green, pending amber, cancelled red (projectStatus.tsx STATUS_TINT). */
 export const STATUS_TONE: Record<ProjectStatus, OrderActionTone> = { confirmed: "success", pending: "warning", cancelled: "danger" };
 
-export interface ProjectFilters { status: string; archived: boolean }
+export interface ProjectFilters { status: string; archived: boolean; brand?: string }
 
 export function useProjects(f: ProjectFilters) {
-  const qs = new URLSearchParams({ ...(f.status ? { status: f.status } : {}), ...(f.archived ? { archived: "1" } : {}) }).toString();
+  const qs = new URLSearchParams({ ...(f.status ? { status: f.status } : {}), ...(f.archived ? { archived: "1" } : {}), ...(f.brand ? { brand: f.brand } : {}) }).toString();
   return useQuery({
     queryKey: ["projects", "list", f],
-    queryFn: () => apiFetch<{ projects: ProjectRow[] }>(`/api/operation/projects${qs ? `?${qs}` : ""}`),
+    queryFn: () => apiFetch<{ projects: ProjectListRow[] }>(`/api/operation/projects${qs ? `?${qs}` : ""}`),
   });
 }
 
@@ -130,7 +166,7 @@ export function useProject(id: string | null) {
   return useQuery({
     queryKey: ["projects", "one", id],
     enabled: !!id,
-    queryFn: () => apiFetch<{ project: ProjectRow; activity: ProjectActivity[]; team: ProjectTeamMember[]; checklist: ChecklistTask[] }>(`/api/operation/projects/${id}`),
+    queryFn: () => apiFetch<{ project: ProjectRow; activity: ProjectActivity[]; team: ProjectTeamMember[]; checklist: ChecklistTask[]; stockTransfers?: ProjectStockTransfer[] }>(`/api/operation/projects/${id}`),
   });
 }
 
@@ -184,4 +220,18 @@ export function useProjectSalesOrders(id: string) {
     queryKey: ["projects", "sales-orders", id],
     queryFn: () => apiFetch<{ orders: ProjectSalesOrder[]; totals: { count: number; total: number; paid: number; balance: number } }>(`/api/operation/projects/${id}/sales-orders`),
   });
+}
+
+/** A one-time upload slot in the project's folder of the private stock record bucket (0757). */
+export function signStockRecord(projectId: string, file: File) {
+  return apiFetch<{ token: string; path: string }>(`/api/operation/projects/${projectId}/stock-transfers/sign`, {
+    method: "POST",
+    body: JSON.stringify({ mimeType: file.type, sizeBytes: file.size }),
+  });
+}
+
+/** Opens a transfer sheet through a short-lived signed link. */
+export async function openStockRecord(path: string) {
+  const { url } = await apiFetch<{ url: string }>(`/api/operation/projects/stock-transfers/file?path=${encodeURIComponent(path)}`);
+  window.open(url, "_blank", "noopener");
 }
