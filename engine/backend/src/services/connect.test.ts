@@ -1,0 +1,490 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import {
+  buildDeliveryFollowUp,
+  buildServiceCaseReceived,
+  buildServiceCaseStatus,
+  buildSyncHeadline,
+  isConnectConfigured,
+  postConnectContact,
+  parseConnectCompanyProfiles,
+  CONNECT_DELIVERY_AUTOMATION,
+  CONNECT_SERVICE_CASE_AUTOMATION,
+  CONNECT_SERVICE_CASE_STATUS_AUTOMATION,
+  CONNECT_SYNC_AUTOMATION,
+  CONNECT_RESET_ATTRIBUTES,
+  chatCallbackUrl,
+  connectUntriggeredReason,
+  formatRm,
+  type ConnectCompanyProfile,
+} from './connect';
+
+const CTX = { callbackUrl: 'https://erp.houzscentury.com/api/chat-callback' };
+
+describe('isConnectConfigured', () => {
+  it('needs BOTH url and key', () => {
+    expect(isConnectConfigured({ CONNECT_WEBHOOK_URL: 'x', CONNECT_WEBHOOK_KEY: 'y' })).toBe(true);
+    expect(isConnectConfigured({ CONNECT_WEBHOOK_URL: 'x' })).toBe(false);
+    expect(isConnectConfigured({ CONNECT_WEBHOOK_KEY: 'y' })).toBe(false);
+    expect(isConnectConfigured({})).toBe(false);
+  });
+});
+
+describe('buildDeliveryFollowUp', () => {
+  it('single order → ref_1 + ref_no_1, order_total 1, automation by name', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'HC13234', orderRef: 'HC 11063', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, CTX);
+    expect(contact).toEqual({
+      phone: '+60123',
+      name: 'Wong',
+      automation: CONNECT_DELIVERY_AUTOMATION,
+      attributes: {
+        full_name: 'Wong',
+        order_total: '1',
+        button_status: '',
+        last_button: '',
+        amount: '',
+        order_amount: '',
+        company_code: '',
+        amended_delivery_date: '',
+        amend_date_reason: '',
+        date_amended: '',
+        ref_1: 'HC13234',
+        ref_no_1: 'HC 11063',
+        delivery_date_1: '2026/10/05',
+        brand_1: 'AKEMI',
+        refs_all: 'HC13234',
+        orders_json: '[{"so":"HC13234","ref":"HC 11063","amount":"0.00"}]',
+        callback_url: 'https://erp.houzscentury.com/api/chat-callback',
+      },
+    });
+  });
+
+  it('refs_all carries EVERY bundled order, including the 4th+ the lines do not show', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06' },
+      { ref: 'C3', orderRef: 'HC 11003', branding: 'GOODNITE', deliveryDate: '2026/10/07' },
+      { ref: 'D4', orderRef: 'HC 11004', branding: 'VONO', deliveryDate: '2026/10/08' },
+    ], null, CTX);
+    expect(contact.attributes.refs_all).toBe('A1,B2,C3,D4');
+    expect(contact.attributes.ref_4).toBeUndefined();
+  });
+
+  it('resets every attribute the flows read before they write, on every send', () => {
+    // Connect MERGES attributes over the contact's existing ones: without the
+    // reset the previous order's Confirm would lock this order's Amend tap and
+    // a settled balance would print again.
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, CTX);
+    for (const key of CONNECT_RESET_ATTRIBUTES) {
+      // orders_json carries the order list whenever there are orders; it is
+      // reset-listed only to clear a prior longer list on a 0-order send (below).
+      if (key === 'orders_json') continue;
+      expect(contact.attributes[key]).toBe('');
+    }
+    expect(CONNECT_RESET_ATTRIBUTES).toContain('button_status');
+    expect(CONNECT_RESET_ATTRIBUTES).toContain('amount');
+    expect(CONNECT_RESET_ATTRIBUTES).toContain('order_amount');
+    expect(CONNECT_RESET_ATTRIBUTES).toContain('orders_json');
+    // Reset so a prior order's company can't route this send's balance (merge).
+    expect(CONNECT_RESET_ATTRIBUTES).toContain('company_code');
+  });
+
+  it('amount = the owed sum over EVERY bundled order, formatted RM, only when > 0', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05', balanceSen: 150000 },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06', balanceSen: -5000 }, // over-paid: ignored
+      { ref: 'C3', orderRef: 'HC 11003', branding: 'GOODNITE', deliveryDate: '2026/10/07', balanceSen: null },
+      { ref: 'D4', orderRef: 'HC 11004', branding: 'VONO', deliveryDate: '2026/10/08', balanceSen: 2550 }, // 4th order still counts
+    ], null, CTX);
+    expect(contact.attributes.amount).toBe('1,525.50');
+  });
+
+  it('nothing owed → amount is the empty reset, so has_balance stays quiet', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05', balanceSen: 0 },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'AKEMI', deliveryDate: '2026/10/05', balanceSen: -100 },
+    ], null, CTX);
+    expect(contact.attributes.amount).toBe('');
+  });
+
+  it('order_amount = the gross-value sum over EVERY bundled order, a PLAIN decimal (no commas), only when > 0', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05', totalSen: 150000 },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06', totalSen: 357265 },
+    ], null, CTX);
+    // Panel-only, so no thousands separators (Connect's Number()/money() parses
+    // it) — unlike `amount`, which formatRm would render as '5,072.65'.
+    expect(contact.attributes.order_amount).toBe('5072.65');
+  });
+
+  it('no order total → order_amount is the empty reset, so the order card shows nothing', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, CTX);
+    expect(contact.attributes.order_amount).toBe('');
+  });
+
+  it('orders_json lists EVERY bundled order (so = doc_no, ref = customer Ref No., amount in RM), primary first, summing to order_amount', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05', totalSen: 150000 },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06', totalSen: 357265 },
+    ], null, CTX);
+    expect(JSON.parse(contact.attributes.orders_json)).toEqual([
+      { so: 'A1', ref: 'HC 11001', amount: '1500.00' },
+      { so: 'B2', ref: 'HC 11002', amount: '3572.65' },
+    ]);
+    // The per-order amounts sum to the grand total order_amount.
+    expect(contact.attributes.order_amount).toBe('5072.65');
+  });
+
+  it('orders_json is NOT capped at CONNECT_ORDER_LINES — it lists all 4 orders while the template shows only 3', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05', totalSen: 100000 },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06', totalSen: 200000 },
+      { ref: 'C3', orderRef: 'HC 11003', branding: 'GOODNITE', deliveryDate: '2026/10/07', totalSen: 300000 },
+      { ref: 'D4', orderRef: '', branding: 'VONO', deliveryDate: '2026/10/08', totalSen: 40000 },
+    ], null, CTX);
+    const list = JSON.parse(contact.attributes.orders_json);
+    expect(list).toHaveLength(4);
+    expect(list[3]).toEqual({ so: 'D4', ref: '', amount: '400.00' }); // blank customer ref → ""
+    expect(contact.attributes.ref_4).toBeUndefined(); // the template still carries only 3 lines
+  });
+
+  it('no bundled orders → orders_json is the empty reset, so a prior delivery list cannot leak', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [], null, CTX);
+    expect(contact.attributes.orders_json).toBe('');
+  });
+
+  it('a kind picks its automation by name and merges its extra variables last', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, { ...CTX, automation: 'Driver Info', extra: { drivers_name: 'Ali', car_plate: 'WXY 1234' } });
+    expect(contact.automation).toBe('Driver Info');
+    expect(contact.attributes.drivers_name).toBe('Ali');
+    expect(contact.attributes.car_plate).toBe('WXY 1234');
+    expect(contact.attributes.ref_1).toBe('A1');
+  });
+
+  it('resetConversation:false leaves the conversation state alone (a reminder must not unlock Delivery Lock)', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05', balanceSen: 1000 },
+    ], null, { ...CTX, automation: 'Balance Reminder', resetConversation: false });
+    expect(contact.attributes.button_status).toBeUndefined();
+    expect(contact.attributes.last_button).toBeUndefined();
+    expect(contact.attributes.amount).toBe('10.00');
+    // No order total supplied and no reset: order_amount is genuinely unset.
+    expect(contact.attributes.order_amount).toBeUndefined();
+  });
+
+  it('callback_url is the send context, verbatim', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, { callbackUrl: 'https://houzs-erp-staging.pages.dev/api/chat-callback' });
+    expect(contact.attributes.callback_url).toBe('https://houzs-erp-staging.pages.dev/api/chat-callback');
+  });
+
+  it('bundles multiple orders as 1-indexed ref_N / ref_no_N / delivery_date_N / brand_N', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06' },
+      { ref: 'C3', orderRef: 'HC 11003', branding: 'GOODNITE', deliveryDate: '2026/10/07' },
+    ], null, CTX);
+    expect(contact.attributes.order_total).toBe('3');
+    expect(contact.attributes.ref_1).toBe('A1');
+    expect(contact.attributes.ref_2).toBe('B2');
+    expect(contact.attributes.ref_3).toBe('C3');
+    expect(contact.attributes.ref_no_1).toBe('HC 11001');
+    expect(contact.attributes.ref_no_2).toBe('HC 11002');
+    expect(contact.attributes.ref_no_3).toBe('HC 11003');
+    expect(contact.attributes.delivery_date_2).toBe('2026/10/06');
+    expect(contact.attributes.brand_3).toBe('GOODNITE');
+  });
+
+  it('a blank customer Ref No. still pushes ref_no_N (Connect hides an empty field)', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: '', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, CTX);
+    expect(contact.attributes.ref_no_1).toBe('');
+  });
+
+  it('4+ orders → shows the first 3 lines but order_total carries the TRUE count', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+      { ref: 'B2', orderRef: 'HC 11002', branding: 'SLUMBERLAND', deliveryDate: '2026/10/06' },
+      { ref: 'C3', orderRef: 'HC 11003', branding: 'GOODNITE', deliveryDate: '2026/10/07' },
+      { ref: 'D4', orderRef: 'HC 11004', branding: 'VONO', deliveryDate: '2026/10/08' },
+      { ref: 'E5', orderRef: 'HC 11005', branding: 'DREAMLAND', deliveryDate: '2026/10/09' },
+    ], null, CTX);
+    expect(contact.attributes.order_total).toBe('5');
+    expect(contact.attributes.ref_1).toBe('A1');
+    expect(contact.attributes.ref_3).toBe('C3');
+    expect(contact.attributes.brand_3).toBe('GOODNITE');
+    expect(contact.attributes.ref_4).toBeUndefined();
+    expect(contact.attributes.ref_no_4).toBeUndefined();
+    expect(contact.attributes.delivery_date_4).toBeUndefined();
+    expect(contact.attributes.brand_4).toBeUndefined();
+  });
+
+  it('a company profile adds company_signature / bank_block / disposal_block', () => {
+    const profile: ConnectCompanyProfile = {
+      signature: '2990s Home',
+      bankBlock: 'Bank: Test\nAcc: 000',
+      disposalBlock: 'Disposal: sample',
+    };
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], profile, CTX);
+    expect(contact.attributes.company_signature).toBe('2990s Home');
+    expect(contact.attributes.bank_block).toBe('Bank: Test\nAcc: 000');
+    expect(contact.attributes.disposal_block).toBe('Disposal: sample');
+  });
+
+  it('a null profile adds no per-company attributes', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, CTX);
+    expect(contact.attributes.company_signature).toBeUndefined();
+    expect(contact.attributes.bank_block).toBeUndefined();
+    expect(contact.attributes.disposal_block).toBeUndefined();
+  });
+
+  it('company_code is the ORDER batch company — the signal Connect routes the balance send on', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: '2990-SO-001', orderRef: 'HM 22001', branding: 'AKEMI', deliveryDate: '2026/10/05', companyCode: '2990' },
+    ], null, CTX);
+    expect(contact.attributes.company_code).toBe('2990');
+  });
+
+  it('company_code + the per-company profile carry the SAME (order) company, never the sender', () => {
+    // A 2990 order sent by HOUZS staff: both the code and the bank/signature
+    // must be 2990's, or the balance paragraph bills the wrong account.
+    const profile2990: ConnectCompanyProfile = {
+      signature: "2990's Home",
+      bankBlock: '2990 bank\nAcc: 222',
+      disposalBlock: '2990 disposal',
+    };
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: '2990-SO-001', orderRef: 'HM 22001', branding: 'AKEMI', deliveryDate: '2026/10/05', companyCode: '2990' },
+    ], profile2990, CTX);
+    expect(contact.attributes.company_code).toBe('2990');
+    expect(contact.attributes.company_signature).toBe("2990's Home");
+    expect(contact.attributes.bank_block).toBe('2990 bank\nAcc: 222');
+  });
+
+  it('no company on the orders → company_code is the empty reset (Connect falls back to the doc_no prefix)', () => {
+    const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+      { ref: 'HC13234', orderRef: 'HC 11063', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+    ], null, CTX);
+    expect(contact.attributes.company_code).toBe('');
+  });
+});
+
+describe('buildServiceCaseReceived', () => {
+  it('maps name → full_name, SO → ref_1, case number → its own assr_no field, fires the automation by name', () => {
+    const contact = buildServiceCaseReceived('+60123', 'Wong', 'HC-SO-013133', 'ASSR/2610-038');
+    expect(contact).toEqual({
+      phone: '+60123',
+      name: 'Wong',
+      automation: CONNECT_SERVICE_CASE_AUTOMATION,
+      attributes: { full_name: 'Wong', ref_1: 'HC-SO-013133', assr_no: 'ASSR/2610-038' },
+    });
+  });
+
+  it('the automation name matches the Connect flow, byte-for-byte', () => {
+    // Connect matches the automation BY NAME; a drift here silently stops the
+    // acknowledgement (empty `triggered`), so pin the exact string.
+    expect(CONNECT_SERVICE_CASE_AUTOMATION).toBe('Service Case Received');
+  });
+
+  it('carries no delivery conversation state (button-less template, no callback)', () => {
+    const contact = buildServiceCaseReceived('+60123', 'Wong', 'HC-SO-013133', 'ASSR/2610-038');
+    expect(contact.attributes.callback_url).toBeUndefined();
+    expect(contact.attributes.button_status).toBeUndefined();
+    expect(contact.attributes.order_total).toBeUndefined();
+    expect(Object.keys(contact.attributes).sort()).toEqual(['assr_no', 'full_name', 'ref_1']);
+  });
+});
+
+describe('buildServiceCaseStatus', () => {
+  it('maps name/assr_no/case_status and fires the Service Case Status Update automation by name', () => {
+    const contact = buildServiceCaseStatus('+60123', 'Wong', 'ASSR/2610-038', 'Inspecting the item');
+    expect(contact).toEqual({
+      phone: '+60123',
+      name: 'Wong',
+      automation: CONNECT_SERVICE_CASE_STATUS_AUTOMATION,
+      attributes: { full_name: 'Wong', assr_no: 'ASSR/2610-038', case_status: 'Inspecting the item' },
+    });
+  });
+
+  it('the automation name matches the Connect flow, byte-for-byte', () => {
+    expect(CONNECT_SERVICE_CASE_STATUS_AUTOMATION).toBe('Service Case Status Update');
+  });
+
+  it('is button-less: no callback_url or conversation state', () => {
+    const contact = buildServiceCaseStatus('+60123', 'Wong', 'ASSR/2610-038', 'Reviewing your request');
+    expect(contact.attributes.callback_url).toBeUndefined();
+    expect(contact.attributes.button_status).toBeUndefined();
+    expect(Object.keys(contact.attributes).sort()).toEqual(['assr_no', 'case_status', 'full_name']);
+  });
+});
+
+describe('buildSyncHeadline', () => {
+  const FIRST = {
+    doc_no: 'HC-SO-2610-044',
+    ref: 'HC 11063',
+    branding: 'AKEMI',
+    venue: 'KL Showroom',
+    agent: 'Azza',
+    customer_state: 'Selangor',
+    house_type: 'Condominium',
+    disposal_request: 'Old mattress',
+    delivery_message_status: 'Done Send',
+  };
+
+  it('maps the SO header to the panel headline fields, customer phone as +digits', () => {
+    expect(buildSyncHeadline(FIRST, '+60126989616', '2026/11/02')).toEqual({
+      reference_no: 'HC 11063',
+      brand: 'AKEMI',
+      purchase_venue: 'KL Showroom',
+      sales_person: 'Azza',
+      delivery_state: 'Selangor',
+      house_type: 'Condominium',
+      disposal: 'Old mattress',
+      delivery_message_status: 'Done Send',
+      customer_phone: '+60126989616',
+      client_delivery_date: '2026/11/02',
+    });
+  });
+
+  it('reference_no falls back to the SO doc_no when the customer Ref No. is blank', () => {
+    expect(buildSyncHeadline({ doc_no: 'HC-SO-2610-044', ref: '' }, '+60123', '').reference_no).toBe('HC-SO-2610-044');
+  });
+
+  it('drops empty values so a sync FILLS a field and never blanks one already set', () => {
+    const out = buildSyncHeadline({ doc_no: 'X', ref: 'HC 1', branding: '', venue: null, agent: '   ' }, '', '');
+    expect(out).toEqual({ reference_no: 'HC 1' });
+    expect('brand' in out).toBe(false);
+    expect('purchase_venue' in out).toBe(false);
+    expect('sales_person' in out).toBe(false);
+    expect('customer_phone' in out).toBe(false);
+    expect('client_delivery_date' in out).toBe(false);
+  });
+
+  it('the sync sentinel matches no real Connect automation, so an upsert fires nothing', () => {
+    // A send names a real automation; the sync names this sentinel on purpose so
+    // handleErpWebhook (name-matched) triggers nothing and only stores the fields.
+    expect(CONNECT_SYNC_AUTOMATION).toBe('__erp_contact_sync__');
+    expect(CONNECT_SYNC_AUTOMATION).not.toBe(CONNECT_DELIVERY_AUTOMATION);
+  });
+});
+
+describe('chatCallbackUrl / formatRm', () => {
+  it('builds the callback URL off PUBLIC_APP_URL, trimming a trailing slash, prod as last resort', () => {
+    expect(chatCallbackUrl({ PUBLIC_APP_URL: 'https://houzs-erp-staging.pages.dev/' }))
+      .toBe('https://houzs-erp-staging.pages.dev/api/chat-callback');
+    expect(chatCallbackUrl({})).toBe('https://erp.houzscentury.com/api/chat-callback');
+  });
+
+  it('formats sen as the RM figure the message prints', () => {
+    expect(formatRm(150000)).toBe('1,500.00');
+    expect(formatRm(2550)).toBe('25.50');
+    expect(formatRm(123456789)).toBe('1,234,567.89');
+  });
+});
+
+describe('parseConnectCompanyProfiles', () => {
+  it('parses a company_id -> profile map', () => {
+    const raw = JSON.stringify({
+      '1': { signature: 'Houzs Century', bankBlock: 'B1', disposalBlock: 'D1' },
+      '2': { signature: '2990s Home', bankBlock: 'B2', disposalBlock: 'D2' },
+    });
+    const m = parseConnectCompanyProfiles(raw);
+    expect(m['1'].signature).toBe('Houzs Century');
+    expect(m['2'].bankBlock).toBe('B2');
+    expect(m['2'].disposalBlock).toBe('D2');
+  });
+
+  it('returns {} for null, empty or bad JSON', () => {
+    expect(parseConnectCompanyProfiles(null)).toEqual({});
+    expect(parseConnectCompanyProfiles('')).toEqual({});
+    expect(parseConnectCompanyProfiles('{not json')).toEqual({});
+    expect(parseConnectCompanyProfiles('[]')).toEqual({});
+  });
+
+  it('drops a row with no usable fields and coerces missing fields to empty strings', () => {
+    const raw = JSON.stringify({
+      '1': { signature: 'Houzs Century' },
+      '2': {},
+      '3': 'nope',
+    });
+    const m = parseConnectCompanyProfiles(raw);
+    expect(m['1']).toEqual({ signature: 'Houzs Century', bankBlock: '', disposalBlock: '' });
+    expect(m['2']).toBeUndefined();
+    expect(m['3']).toBeUndefined();
+  });
+});
+
+describe('postConnectContact', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const env = { CONNECT_WEBHOOK_URL: 'https://chat.houzscentury.com/', CONNECT_WEBHOOK_KEY: 'secret48' };
+  const contact = buildDeliveryFollowUp('+60123', 'Wong', [
+    { ref: 'A1', orderRef: 'HC 11001', branding: 'AKEMI', deliveryDate: '2026/10/05' },
+  ], null, CTX);
+
+  it('posts to /api/webhooks/erp with the X-Connect-Key header, trimming a trailing slash', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await postConnectContact(env, contact);
+
+    expect(r).toEqual({ ok: true, httpCode: 200, error: null });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://chat.houzscentury.com/api/webhooks/erp');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['x-connect-key']).toBe('secret48');
+  });
+
+  it('a 200 whose `triggered` list is empty is a FAILURE naming the automation (nothing was sent)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, contactId: 'c1', triggered: [], runs: [] }), { status: 200 })));
+    const r = await postConnectContact(env, { ...contact, automation: 'Balance Reminder' });
+    expect(r.ok).toBe(false);
+    expect(r.httpCode).toBe(200);
+    expect(r.error).toContain('Balance Reminder');
+    expect(r.error).toContain('enable');
+  });
+
+  it('a 200 that triggered a run is a success; a body without `triggered` is trusted', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, triggered: ['New Delivery Follow-up'] }), { status: 200 })));
+    expect((await postConnectContact(env, contact)).ok).toBe(true);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"ok":true}', { status: 200 })));
+    expect((await postConnectContact(env, contact)).ok).toBe(true);
+    expect(connectUntriggeredReason('not json', 'X')).toBeNull();
+    expect(connectUntriggeredReason('{"triggered":[]}', 'Driver Info')).toContain('Driver Info');
+  });
+
+  it('a SYNC (expectTrigger false) treats an empty `triggered` as SUCCESS — it upserted the fields, sent nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, contactId: 'c1', triggered: [], runs: [] }), { status: 200 })));
+    const r = await postConnectContact(env, { ...contact, automation: CONNECT_SYNC_AUTOMATION }, { expectTrigger: false });
+    expect(r).toEqual({ ok: true, httpCode: 200, error: null });
+  });
+
+  it('a non-2xx response is a failure carrying the body text', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unauthorized', { status: 401 })));
+    const r = await postConnectContact(env, contact);
+    expect(r.ok).toBe(false);
+    expect(r.httpCode).toBe(401);
+    expect(r.error).toContain('unauthorized');
+  });
+
+  it('a thrown fetch is a failure, not an exception', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('network down');
+    }));
+    const r = await postConnectContact(env, contact);
+    expect(r).toEqual({ ok: false, httpCode: null, error: 'network down' });
+  });
+});

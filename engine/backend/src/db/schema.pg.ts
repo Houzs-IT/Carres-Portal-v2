@@ -1,0 +1,1542 @@
+// ---------------------------------------------------------------------------
+// DRAFT - Postgres (pg-core) port of schema.ts. UNTESTED until validated with
+// `drizzle-kit` against the live Supabase DB (Phase 2 of the migration).
+//
+// Additive: this file does NOT replace schema.ts yet, so the D1 build stays
+// green. The cutover swaps client.ts to drizzle-orm/postgres-js + this schema
+// and renames it over schema.ts.
+//
+// Faithful mapping choices (deliberately low-churn so the 600+ snake_case
+// readers and 685 raw-SQL sites keep working):
+//   - integer("id").primaryKey({autoIncrement:true})  -> serial(...).primaryKey()
+//   - other integer(...)        -> integer(...)        (kept int4)
+//   - 0/1 flag columns          -> integer(...)        (NOT boolean — app r/w 0/1)
+//   - real(...)                 -> doublePrecision(...) (SQLite REAL is float8)
+//   - *_at / created_at columns -> text(...)           (app reads ISO strings,
+//                                  not Date objects; keep them text)
+//   - default (datetime('now')) -> `nowText` (UTC text, same 'YYYY-MM-DD HH:MM:SS' shape)
+//
+// REVIEW BEFORE IMPORT (Phase 4): SQLite INTEGER holds int64, Postgres
+// `integer` is int4 (max ~2.1e9). Money/amount columns stored in sen could
+// overflow. Promote these to `bigint({mode:"number"})` if a real value
+// exceeds int4 (the import will fail loudly otherwise — verify per table):
+//   sales_orders.local_total/balance, order_details.total_cost + freight cols,
+//   purchase_orders.amount/unit_price, purchase_order_docs.final_total/local_ex_tax,
+//   project_finance.*, project_finance_lines.amount, sales_entries.amount/deposit_amount,
+//   petty_cash_entries.amount_cents, project_cost_rates.boost_min_sales.
+// ---------------------------------------------------------------------------
+import {
+  pgTable,
+  pgEnum,
+  serial,
+  integer,
+  bigint,
+  text,
+  doublePrecision,
+  primaryKey,
+  uuid,
+  boolean,
+  jsonb,
+  timestamp,
+  date,
+  index,
+  uniqueIndex,
+  check,
+  numeric,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+// SQLite datetime('now') yields 'YYYY-MM-DD HH:MM:SS' (UTC). Reproduce the same
+// text shape so existing string parsing/sorting is unchanged.
+const nowText = sql`(to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'))`;
+
+// ── users ──────────────────────────────────────────────────
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  password_hash: text("password_hash"),
+  role_id: integer("role_id").notNull(),
+  status: text("status").notNull().default("invited"),
+  status_reason: text("status_reason"),
+  invited_by: integer("invited_by"),
+  invited_at: text("invited_at"),
+  joined_at: text("joined_at"),
+  last_login_at: text("last_login_at"),
+  created_at: text("created_at").default(nowText),
+  manager_id: integer("manager_id"),
+  department_id: integer("department_id"),
+  // Free-text sub-grouping within a department — drives the org chart's
+  // columns ("divisions"). Super-admin editable (mig 0021).
+  division: text("division"),
+  position_id: integer("position_id"),
+  points_balance: integer("points_balance").notNull().default(0),
+  gifting_balance: integer("gifting_balance").notNull().default(0),
+  gifting_reset_at: text("gifting_reset_at"),
+  current_streak: integer("current_streak").notNull().default(0),
+  profile_pic_r2_key: text("profile_pic_r2_key"),
+  phone: text("phone"),
+  // The member's outward Mail Center alias (e.g. lim@houzscentury.com). Surfaced
+  // in User Management; complements the email_addresses link (mig 0039+).
+  email_alias: text("email_alias"),
+  // Per-user opt-out of ASSR service-case digest/escalation emails. The user
+  // keeps service_cases.manage (can still view + manage cases) — this only
+  // mutes the outbound mail. 0 = receives, 1 = muted.
+  assr_email_muted: integer("assr_email_muted").notNull().default(0),
+});
+
+// ── roles ──────────────────────────────────────────────────
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  permissions: text("permissions").notNull().default("[]"),
+  is_system: integer("is_system").notNull().default(0),
+  scope_to_pic: integer("scope_to_pic").notNull().default(0),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── role_page_access (mig-pg 20261019T1300) ────────────────
+// Persistent per-role page visibility — one level per (role, page_key). Recreates
+// the old 073 table dropped on 2026-09-17; the RBAC rebuild (Option A) makes the
+// role the single source of page access, edited through PR2's matrix down to
+// sub-page granularity. `level` is free text (none/partial/view/edit/full) so the
+// resolver's whole vocabulary round-trips; the cascade/filter lives in
+// pageAccess.resolvePositionAccessFromRows, consumed by memberPageAccess.ts.
+export const role_page_access = pgTable(
+  "role_page_access",
+  {
+    role_id: integer("role_id").notNull(),
+    page_key: text("page_key").notNull(),
+    level: text("level").notNull(),
+    created_at: text("created_at").default(nowText),
+    updated_at: text("updated_at").default(nowText),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.role_id, t.page_key] }) }),
+);
+
+// ── push_devices (mig-pg 0266) — iOS push token registry ───
+export const push_devices = pgTable("push_devices", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").notNull(),
+  platform: text("platform").notNull().default("ios"),
+  token: text("token").notNull().unique(),
+  created_at: text("created_at").default(nowText),
+  last_seen_at: text("last_seen_at").default(nowText),
+  disabled_at: text("disabled_at"),
+  last_error: text("last_error"),
+  last_reminder_sent_on: text("last_reminder_sent_on"),
+});
+
+// ── departments ────────────────────────────────────────────
+export const departments = pgTable("departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  color: text("color").notNull().default("64748b"),
+  sort_order: integer("sort_order").notNull().default(0),
+  // The department's 2–4 letter code (mig 20260906T1417) — the [DEPT] segment
+  // of a document reference number (OPS-ANN-2609-0001). NULL = not assigned
+  // yet; unique case-insensitively (idx_departments_code_upper).
+  code: text("code"),
+  // The department's LEAD, an explicit choice (mig-pg 0331) rather than the
+  // derived one the Team screens inferred from manager_id. NULL = no lead yet
+  // (the red "No lead" state), which is the default. ON DELETE SET NULL so
+  // removing the person un-leads the department instead of blocking.
+  lead_user_id: integer("lead_user_id"),
+  // Optional planned headcount an HR lead fills in — the "N / target" the
+  // Departments cards show. NULL = no target set (show live count only).
+  headcount_target: integer("headcount_target"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── projects ───────────────────────────────────────────────
+export const projects = pgTable("projects", {
+  // Multi-company (mig-pg 0093). Declared for the Drizzle-based readers
+  // (events / notifications / finance rollups); raw-SQL paths reference the
+  // column by name. Nullable in the model — the PG DEFAULT backfills.
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  code: text("code").unique(),
+  name: text("name").notNull(),
+  stage: text("stage").notNull().default("draft"),
+  status: text("status").notNull().default("pending"),
+  start_date: text("start_date"),
+  end_date: text("end_date"),
+  venue: text("venue"),
+  venue_address: text("venue_address"),
+  brand: text("brand"),
+  // Booth setup/dismantle contractor (free text, mirrors organizer). Picker-backed
+  // by project_contractors; raw-SQL read/write paths reference it by name.
+  contractor: text("contractor"),
+  pic_id: integer("pic_id"),
+  created_by: integer("created_by"),
+  created_at: text("created_at").default(nowText),
+  updated_at: text("updated_at").default(nowText),
+  archived_at: text("archived_at"),
+  setup_start_at: text("setup_start_at"),
+  setup_end_at: text("setup_end_at"),
+  dismantle_start_at: text("dismantle_start_at"),
+  dismantle_end_at: text("dismantle_end_at"),
+  setup_driver_user_id: integer("setup_driver_user_id"),
+  setup_lorry_id: integer("setup_lorry_id"),
+  dismantle_driver_user_id: integer("dismantle_driver_user_id"),
+  dismantle_lorry_id: integer("dismantle_lorry_id"),
+  setup_helper_1_id: integer("setup_helper_1_id"),
+  setup_helper_2_id: integer("setup_helper_2_id"),
+  setup_helper_outsourced: integer("setup_helper_outsourced").notNull().default(0),
+  dismantle_helper_1_id: integer("dismantle_helper_1_id"),
+  dismantle_helper_2_id: integer("dismantle_helper_2_id"),
+  dismantle_helper_outsourced: integer("dismantle_helper_outsourced").notNull().default(0),
+});
+
+// ── project_phase_photos ───────────────────────────────────
+export const project_phase_photos = pgTable("project_phase_photos", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull(),
+  phase: text("phase").notNull(),
+  r2_key: text("r2_key").notNull(),
+  content_type: text("content_type"),
+  caption: text("caption"),
+  uploaded_by: integer("uploaded_by"),
+  uploaded_at: text("uploaded_at").notNull().default(nowText),
+});
+
+// ── project_brands ─────────────────────────────────────────
+export const project_brands = pgTable("project_brands", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().default("64748b"),
+  sort_order: integer("sort_order").notNull().default(0),
+  active: integer("active").notNull().default(1),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── user_brands (mig 049) ──────────────────────────────────
+export const user_brands = pgTable(
+  "user_brands",
+  {
+    user_id: integer("user_id").notNull(),
+    brand: text("brand").notNull(),
+    created_at: text("created_at").default(nowText),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.user_id, t.brand] }) }),
+);
+
+// ── user_departments (mig 0020) ────────────────────────────
+// Full set of departments a user belongs to. users.department_id stays the
+// PRIMARY; this carries the primary plus any extras (the primary is one row
+// here too). Replace-set on PATCH /api/users/:id, same shape as user_brands.
+export const user_departments = pgTable(
+  "user_departments",
+  {
+    user_id: integer("user_id").notNull(),
+    department_id: integer("department_id").notNull(),
+    created_at: text("created_at").default(nowText),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.user_id, t.department_id] }) }),
+);
+
+// ── project_activity ───────────────────────────────────────
+export const project_activity = pgTable("project_activity", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull(),
+  user_id: integer("user_id"),
+  action: text("action").notNull(),
+  from_value: text("from_value"),
+  to_value: text("to_value"),
+  note: text("note"),
+  created_at: text("created_at").default(nowText),
+  archived_at: text("archived_at"),
+});
+
+// ── project_reads (mig 045) ────────────────────────────────
+export const project_reads = pgTable(
+  "project_reads",
+  {
+    project_id: integer("project_id").notNull(),
+    user_id: integer("user_id").notNull(),
+    last_read_at: text("last_read_at").notNull(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.project_id, t.user_id] }) }),
+);
+
+// ── sessions ───────────────────────────────────────────────
+export const sessions = pgTable("sessions", {
+  token: text("token").primaryKey(),
+  user_id: integer("user_id").notNull(),
+  expires_at: text("expires_at").notNull(),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── invitations ────────────────────────────────────────────
+export const invitations = pgTable("invitations", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  role_id: integer("role_id").notNull(),
+  token: text("token").notNull().unique(),
+  invited_by: integer("invited_by").notNull(),
+  expires_at: text("expires_at").notNull(),
+  accepted_at: text("accepted_at"),
+  created_at: text("created_at").default(nowText),
+  // Org dimensions carried by the invite + applied on accept (mig 094).
+  position_id: integer("position_id"),
+  department_id: integer("department_id"),
+  manager_id: integer("manager_id"),
+});
+
+// ── positions (mig 094) — staff org unit (department × position) ──
+export const positions = pgTable("positions", {
+  id: serial("id").primaryKey(),
+  department_id: integer("department_id"),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  level: integer("level").notNull().default(100),
+  sort_order: integer("sort_order").notNull().default(100),
+  active: integer("active").notNull().default(1),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── password_resets (mig 027) ──────────────────────────────
+export const password_resets = pgTable("password_resets", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").notNull(),
+  token: text("token").notNull().unique(),
+  requested_by: integer("requested_by"),
+  expires_at: text("expires_at").notNull(),
+  consumed_at: text("consumed_at"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── events ─────────────────────────────────────────────────
+export const events = pgTable("events", {
+  // Multi-company (mig-pg 0093) — see projects.company_id above.
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  event_date: text("event_date").notNull(),
+  address: text("address"),
+  status: text("status"),
+  notes: text("notes"),
+  created_by: integer("created_by"),
+  created_at: text("created_at").default(nowText),
+  updated_at: text("updated_at").default(nowText),
+});
+
+// ── lorries ────────────────────────────────────────────────
+export const lorries = pgTable("lorries", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  plate: text("plate").notNull(),
+  size: text("size"),
+  default_driver_user_id: integer("default_driver_user_id"),
+});
+
+// ── warehouses ─────────────────────────────────────────────
+export const warehouses = pgTable("warehouses", {
+  code: text("code").primaryKey(),
+  name: text("name").notNull(),
+});
+
+// ── trips ──────────────────────────────────────────────────
+export const trips = pgTable("trips", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  driver_user_id: integer("driver_user_id"),
+  lorry_id: integer("lorry_id"),
+  warehouse: text("warehouse"),
+  trip_date: text("trip_date").notNull(),
+  status: text("status").notNull(),
+  started_at: text("started_at"),
+  completed_at: text("completed_at"),
+  // mig 20261101T0900 — planned departure for the office Last Mile board, beside
+  // the actual clock-in/out. timestamptz in pg; text here like the siblings.
+  planned_depart_at: text("planned_depart_at"),
+});
+
+// ── trip_stops ─────────────────────────────────────────────
+export const trip_stops = pgTable("trip_stops", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  trip_id: integer("trip_id").notNull(),
+  sequence: integer("sequence").notNull(),
+  status: text("status").notNull(),
+  pod_photo_r2_key: text("pod_photo_r2_key"),
+  signature_r2_key: text("signature_r2_key"),
+  updated_at: text("updated_at").default(nowText),
+});
+
+// ── trip_locations ─────────────────────────────────────────
+export const trip_locations = pgTable("trip_locations", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  trip_id: integer("trip_id").notNull(),
+  lat: integer("lat").notNull(),
+  lng: integer("lng").notNull(),
+  accuracy: integer("accuracy"),
+  recorded_at: text("recorded_at").notNull(),
+});
+
+// ── sales_orders ───────────────────────────────────────────
+export const sales_orders = pgTable("sales_orders", {
+  company_id: bigint("company_id", { mode: "number" }),
+  doc_no: text("doc_no").primaryKey(),
+  doc_date: text("doc_date"),
+  ref: text("ref"),
+  branding: text("branding"),
+  debtor_name: text("debtor_name"),
+  phone: text("phone"),
+  sales_location: text("sales_location"),
+  sales_agent: text("sales_agent"),
+  region: text("region"),
+  local_total: integer("local_total"),
+  balance: integer("balance"),
+  remark2: text("remark2"),
+  remark3: text("remark3"),
+  remark4: text("remark4"),
+  /* AutoCount's own UDF field SO.UDF_PDate, mirrored verbatim by
+     services/pull.ts. NOT the ERP's Processing Date — that is exactly ONE
+     column, scm.mfg_sales_orders.internal_expected_dd, on a different table for
+     a different document. Renamed from `processing_date` in mig 0285 so the two
+     can never be confused again. Read by nothing today; kept because the mirror's
+     job is to be a faithful local copy of AutoCount for reconciliation. */
+  ac_udf_pdate: text("ac_udf_pdate"),
+  expiry_date: text("expiry_date"),
+  po_doc_no: text("po_doc_no"),
+  venue: text("venue"),
+  attention: text("attention"),
+  last_modified: text("last_modified"),
+  sync_status: text("sync_status"),
+  updated_at: text("updated_at"),
+  // Houzs-side recipient for auto-sent DO/invoice email; AutoCount debtor sync
+  // carries no email, so this is maintained manually (mig 098/0009).
+  customer_email: text("customer_email"),
+});
+
+// ── order_details ──────────────────────────────────────────
+export const order_details = pgTable("order_details", {
+  company_id: bigint("company_id", { mode: "number" }),
+  doc_no: text("doc_no").primaryKey(),
+  delivery_date: text("delivery_date"),
+  time_range: text("time_range"),
+  time_confirmed: integer("time_confirmed"),
+  lorry_plate: text("lorry_plate"),
+  driver_name: text("driver_name"),
+  driver_contact: text("driver_contact"),
+  days_left: integer("days_left"),
+  internal_purchasing: text("internal_purchasing"),
+  property_type: text("property_type"),
+  new_house_replacement: text("new_house_replacement"),
+  item_details: text("item_details"),
+  done_delivery: integer("done_delivery"),
+  consignment_no: text("consignment_no"),
+  eta_port: text("eta_port"),
+  estimate_delivery: text("estimate_delivery"),
+  m3: integer("m3"),
+  vessel_voyage: text("vessel_voyage"),
+  etd_port_klang: text("etd_port_klang"),
+  eta_destination: text("eta_destination"),
+  transporter_remarks: text("transporter_remarks"),
+  seafreight: integer("seafreight"),
+  local_charges: integer("local_charges"),
+  inland: integer("inland"),
+  agent_fee: integer("agent_fee"),
+  insurance: integer("insurance"),
+  total_cost: integer("total_cost"),
+  shipout_date: text("shipout_date"),
+  warehouse: text("warehouse"),
+  state: text("state"),
+  lat: integer("lat"),
+  lng: integer("lng"),
+  order_type: text("order_type"),
+  proposed_delivery_date: text("proposed_delivery_date"),
+  updated_at: text("updated_at"),
+});
+
+// ── purchase_orders ────────────────────────────────────────
+export const purchase_orders = pgTable("purchase_orders", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  doc_no: text("doc_no").notNull(),
+  doc_date: text("doc_date"),
+  creditor_code: text("creditor_code"),
+  creditor_name: text("creditor_name"),
+  item_code: text("item_code"),
+  item_description: text("item_description"),
+  remaining_qty: integer("remaining_qty"),
+  delivery_date: text("delivery_date"),
+  supplier_date1: text("supplier_date1"),
+  supplier_date2: text("supplier_date2"),
+  supplier_date3: text("supplier_date3"),
+  overdue_days: text("overdue_days"),
+  amount: integer("amount"),
+  unit_price: integer("unit_price"),
+  amount_source: text("amount_source"),
+  amount_updated_at: text("amount_updated_at"),
+  amount_updated_by: integer("amount_updated_by"),
+  updated_at: text("updated_at"),
+});
+
+// ── creditors ──────────────────────────────────────────────
+export const creditors = pgTable("creditors", {
+  company_id: bigint("company_id", { mode: "number" }),
+  creditor_code: text("creditor_code").primaryKey(),
+  company_name: text("company_name"),
+  desc2: text("desc2"),
+  email: text("email"),
+  phone1: text("phone1"),
+  mobile: text("mobile"),
+  tax_register_no: text("tax_register_no"),
+  currency_code: text("currency_code"),
+  type: text("type"),
+  type_description: text("type_description"),
+  purchase_agent: text("purchase_agent"),
+  purchase_agent_description: text("purchase_agent_description"),
+  updated_at: text("updated_at"),
+});
+
+// ── overdue_history ────────────────────────────────────────
+export const overdue_history = pgTable("overdue_history", {
+  id: serial("id").primaryKey(),
+  pull_date: text("pull_date").notNull(),
+  doc_no: text("doc_no").notNull(),
+  debtor_name: text("debtor_name"),
+  location: text("location"),
+  region: text("region"),
+  balance: integer("balance"),
+  original_expiry_date: text("original_expiry_date"),
+  extended_to: text("extended_to"),
+  remark4: text("remark4"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── purchase_order_docs ────────────────────────────────────
+export const purchase_order_docs = pgTable("purchase_order_docs", {
+  company_id: bigint("company_id", { mode: "number" }),
+  doc_no: text("doc_no").primaryKey(),
+  doc_date: text("doc_date"),
+  ref: text("ref"),
+  creditor_code: text("creditor_code"),
+  creditor_name: text("creditor_name"),
+  cancelled: integer("cancelled"),
+  doc_status: text("doc_status"),
+  final_total: integer("final_total"),
+  local_ex_tax: integer("local_ex_tax"),
+  currency_code: text("currency_code"),
+  updated_at: text("updated_at"),
+});
+
+// ── project_finance ────────────────────────────────────────
+export const project_finance = pgTable("project_finance", {
+  project_id: integer("project_id").primaryKey(),
+  rental: integer("rental"),
+  total_sales: integer("total_sales"),
+  contractor_cost: integer("contractor_cost"),
+  license_fee: integer("license_fee"),
+  updated_at: text("updated_at"),
+});
+
+// ── project_checklist_sections (mig 050) ───────────────────
+export const project_checklist_sections = pgTable("project_checklist_sections", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull(),
+  name: text("name").notNull(),
+  sort_order: integer("sort_order").notNull().default(0),
+  display_mode: text("display_mode").notNull().default("list"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── project_checklist_template_sections (mig 050) ──────────
+export const project_checklist_template_sections = pgTable(
+  "project_checklist_template_sections",
+  {
+    id: serial("id").primaryKey(),
+    template_id: integer("template_id").notNull(),
+    name: text("name").notNull(),
+    sort_order: integer("sort_order").notNull().default(0),
+    display_mode: text("display_mode").notNull().default("list"),
+    created_at: text("created_at").default(nowText),
+  },
+);
+
+// ── project_checklist_attachments (mig 050) ────────────────
+export const project_checklist_attachments = pgTable(
+  "project_checklist_attachments",
+  {
+    id: serial("id").primaryKey(),
+    item_id: integer("item_id").notNull(),
+    r2_key: text("r2_key").notNull(),
+    file_name: text("file_name").notNull(),
+    content_type: text("content_type"),
+    size_bytes: integer("size_bytes"),
+    uploaded_by: integer("uploaded_by"),
+    uploaded_at: text("uploaded_at").default(nowText),
+    archived_at: text("archived_at"),
+    // Per-attachment remark (owner 2026-07-16): each uploaded photo can carry
+    // its own caption, editable from the Defect List / photo checklist rows.
+    caption: text("caption"),
+  },
+);
+
+// ── project_checklist ──────────────────────────────────────
+export const project_checklist = pgTable("project_checklist", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull(),
+  section_id: integer("section_id"),
+  seq: integer("seq").notNull().default(0),
+  title: text("title").notNull(),
+  description: text("description"),
+  required_perm: text("required_perm"),
+  role_label: text("role_label"),
+  crew_visible: integer("crew_visible").notNull().default(0),
+  due_date: text("due_date"),
+  due_offset_days: integer("due_offset_days"),
+  owner_user_id: integer("owner_user_id"),
+  status: text("status").notNull().default("pending"),
+  evidence_r2_key: text("evidence_r2_key"),
+  completed_by: integer("completed_by"),
+  completed_at: text("completed_at"),
+  notes: text("notes"),
+  review_status: text("review_status"),
+  rejection_reason: text("rejection_reason"),
+  created_at: text("created_at").default(nowText),
+  updated_at: text("updated_at").default(nowText),
+});
+
+// ── project_checklist_templates ────────────────────────────
+export const project_checklist_templates = pgTable("project_checklist_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  active: integer("active").notNull().default(1),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── project_checklist_template_items (mig 050) ─────────────
+export const project_checklist_template_items = pgTable(
+  "project_checklist_template_items",
+  {
+    id: serial("id").primaryKey(),
+    template_id: integer("template_id").notNull(),
+    section_id: integer("section_id"),
+    seq: integer("seq").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    required_perm: text("required_perm"),
+    role_label: text("role_label"),
+    crew_visible: integer("crew_visible").notNull().default(0),
+    due_offset_days: integer("due_offset_days"),
+    requires_review: integer("requires_review").notNull().default(0),
+  },
+);
+
+// ── project_sales_bills (mig 20261014T1600) ────────────────
+// The evening sales report pasted into a project's chat, one row per booklet
+// number: what the slip said and who sold it, so the project can say which
+// bills are still not opened as Sales Orders. Matching is done at read time
+// (routes/lib/sales-report-bills.ts); nothing about the match is stored.
+export const project_sales_bills = pgTable(
+  "project_sales_bills",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    project_id: bigint("project_id", { mode: "number" }).notNull(),
+    ref_token: text("ref_token").notNull(),
+    ref_raw: text("ref_raw").notNull(),
+    amount_sen: bigint("amount_sen", { mode: "number" }).notNull(),
+    salesperson_name: text("salesperson_name"),
+    report_date: text("report_date"),
+    source_activity_id: bigint("source_activity_id", { mode: "number" }),
+    created_by: bigint("created_by", { mode: "number" }),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_project_sales_bills_token").on(t.company_id, t.project_id, t.ref_token)],
+);
+
+// ── Houzs POS (mig 20261014T1147) ──────────────────────────
+// The cash & carry booth app's bills, synced from the device into the ERP's
+// own database. Money is integer sen. A bill is VOIDed, never deleted; its
+// lines and payments hang under it (ON DELETE CASCADE in the DDL).
+export const pos_sales = pgTable(
+  "pos_sales",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    uuid: uuid("uuid").notNull(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    project_id: bigint("project_id", { mode: "number" }).notNull(),
+    terminal_code: text("terminal_code").notNull(),
+    receipt_no: text("receipt_no").notNull(),
+    type: text("type").notNull().default("SALE"),
+    ref_sale_uuid: uuid("ref_sale_uuid"),
+    cashier_id: bigint("cashier_id", { mode: "number" }),
+    cashier_name: text("cashier_name"),
+    salesman_id: bigint("salesman_id", { mode: "number" }),
+    salesman_name: text("salesman_name"),
+    customer_name: text("customer_name"),
+    customer_phone: text("customer_phone"),
+    sold_at: timestamp("sold_at", { withTimezone: true, mode: "string" }).notNull(),
+    subtotal_sen: bigint("subtotal_sen", { mode: "number" }).notNull().default(0),
+    item_discount_sen: bigint("item_discount_sen", { mode: "number" }).notNull().default(0),
+    bill_discount_sen: bigint("bill_discount_sen", { mode: "number" }).notNull().default(0),
+    // Mig 20261014T1711: the supervisor who passed a bill discount above the cap.
+    bill_discount_by: text("bill_discount_by"),
+    sst_applied: boolean("sst_applied").notNull().default(false),
+    sst_rate: numeric("sst_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+    sst_amount_sen: bigint("sst_amount_sen", { mode: "number" }).notNull().default(0),
+    rounding_sen: bigint("rounding_sen", { mode: "number" }).notNull().default(0),
+    total_sen: bigint("total_sen", { mode: "number" }).notNull().default(0),
+    status: text("status").notNull().default("PAID"),
+    void_reason: text("void_reason"),
+    void_by: text("void_by"),
+    voided_at: timestamp("voided_at", { withTimezone: true, mode: "string" }),
+    is_test: boolean("is_test").notNull().default(false),
+    source: text("source").notNull().default("NORMAL"),
+    local_seq: integer("local_seq"),
+    // Mig 20261014T1445: why the stock deduction was not clean (no location,
+    // location went negative); NULL = deducted without a remark.
+    stock_warning: text("stock_warning"),
+    synced_at: timestamp("synced_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("uq_pos_sales_uuid").on(t.uuid),
+    uniqueIndex("uq_pos_sales_receipt").on(t.company_id, t.terminal_code, t.receipt_no),
+    index("idx_pos_sales_project_sold").on(t.project_id, t.sold_at),
+  ],
+);
+
+export const pos_sale_lines = pgTable(
+  "pos_sale_lines",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    sale_id: bigint("sale_id", { mode: "number" }).notNull(),
+    line_no: integer("line_no").notNull(),
+    item_id: bigint("item_id", { mode: "number" }),
+    item_code: text("item_code").notNull(),
+    description: text("description").notNull(),
+    uom: text("uom").notNull().default("UNIT"),
+    qty: numeric("qty", { precision: 12, scale: 3 }).notNull(),
+    unit_price_sen: bigint("unit_price_sen", { mode: "number" }).notNull(),
+    original_price_sen: bigint("original_price_sen", { mode: "number" }),
+    override_by: text("override_by"),
+    override_reason: text("override_reason"),
+    discount_source: text("discount_source"),
+    discount_type: text("discount_type"),
+    discount_value: numeric("discount_value", { precision: 12, scale: 2 }),
+    // Mig 20261014T1711: the supervisor who passed a manual discount above the cap.
+    discount_by: text("discount_by"),
+    discount_amount_sen: bigint("discount_amount_sen", { mode: "number" }).notNull().default(0),
+    is_foc: boolean("is_foc").notNull().default(false),
+    amount_sen: bigint("amount_sen", { mode: "number" }).notNull(),
+  },
+  (t) => [uniqueIndex("uq_pos_sale_lines_no").on(t.sale_id, t.line_no)],
+);
+
+export const pos_payments = pgTable(
+  "pos_payments",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    sale_id: bigint("sale_id", { mode: "number" }).notNull(),
+    method: text("method").notNull(),
+    amount_sen: bigint("amount_sen", { mode: "number" }).notNull(),
+    reference: text("reference"),
+    last4: text("last4"),
+    tendered_sen: bigint("tendered_sen", { mode: "number" }),
+    change_sen: bigint("change_sen", { mode: "number" }),
+  },
+  (t) => [index("idx_pos_payments_sale").on(t.sale_id)],
+);
+
+// ── Houzs POS Admin masters (mig 20261014T1304) ────────────
+export const pos_settings = pgTable(
+  "pos_settings",
+  {
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    group: text("group").notNull(),
+    value: jsonb("value").notNull().default({}),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_by: bigint("updated_by", { mode: "number" }),
+  },
+  (t) => [primaryKey({ columns: [t.company_id, t.group] })],
+);
+
+export const pos_items = pgTable(
+  "pos_items",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    product_id: text("product_id").notNull(),
+    item_code: text("item_code").notNull(),
+    name: text("name").notNull(),
+    uom: text("uom").notNull().default("UNIT"),
+    price_sen: bigint("price_sen", { mode: "number" }).notNull().default(0),
+    cost_sen: bigint("cost_sen", { mode: "number" }),
+    preset_discount_type: text("preset_discount_type"),
+    preset_discount_value: numeric("preset_discount_value", { precision: 12, scale: 2 }),
+    foc_allowed: boolean("foc_allowed").notNull().default(false),
+    max_manual_disc_pct: numeric("max_manual_disc_pct", { precision: 5, scale: 2 }),
+    stock_source_warehouse_id: text("stock_source_warehouse_id"),
+    receipt_name: text("receipt_name"),
+    active: boolean("active").notNull().default(true),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_pos_items_product").on(t.company_id, t.product_id), index("idx_pos_items_company_code").on(t.company_id, t.item_code)],
+);
+
+export const pos_item_barcodes = pgTable(
+  "pos_item_barcodes",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    pos_item_id: bigint("pos_item_id", { mode: "number" }).notNull(),
+    barcode: text("barcode").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_pos_item_barcodes").on(t.company_id, t.barcode)],
+);
+
+export const pos_generated_barcodes = pgTable(
+  "pos_generated_barcodes",
+  {
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    product_id: text("product_id").notNull(),
+    barcode: text("barcode").notNull(),
+    generated_at: timestamp("generated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    generated_by: bigint("generated_by", { mode: "number" }),
+  },
+  (t) => [primaryKey({ columns: [t.company_id, t.product_id] }), uniqueIndex("uq_pos_generated_barcode").on(t.barcode)],
+);
+
+export const pos_cashiers = pgTable(
+  "pos_cashiers",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    pin_hash: text("pin_hash").notNull(),
+    role: text("role").notNull().default("PARTTIME"),
+    max_discount_pct: numeric("max_discount_pct", { precision: 5, scale: 2 }).notNull().default("0"),
+    working_hours_note: text("working_hours_note"),
+    bank_note: text("bank_note"),
+    active: boolean("active").notNull().default(true),
+    last_login_at: timestamp("last_login_at", { withTimezone: true, mode: "string" }),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_pos_cashiers_code").on(t.company_id, t.code)],
+);
+
+export const pos_terminals = pgTable(
+  "pos_terminals",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    code: text("code").notNull(),
+    device_name: text("device_name"),
+    platform: text("platform"),
+    project_id: bigint("project_id", { mode: "number" }),
+    printer: text("printer"),
+    prepared_at: timestamp("prepared_at", { withTimezone: true, mode: "string" }),
+    last_seen_at: timestamp("last_seen_at", { withTimezone: true, mode: "string" }),
+    last_sync_at: timestamp("last_sync_at", { withTimezone: true, mode: "string" }),
+    pending_count: integer("pending_count").notNull().default(0),
+    pending_amount_sen: bigint("pending_amount_sen", { mode: "number" }).notNull().default(0),
+    receipt_counter: integer("receipt_counter").notNull().default(0),
+    app_version: text("app_version"),
+    status: text("status").notNull().default("NEW"),
+    active: boolean("active").notNull().default(true),
+    token_hash: text("token_hash"),
+    // Mig 20261022T0533: the one-time pairing code (hash) and when it dies.
+    pairing_code_hash: text("pairing_code_hash"),
+    pairing_expires_at: timestamp("pairing_expires_at", { withTimezone: true, mode: "string" }),
+    // Mig 20261014T1445: the last heartbeat that still reported pending bills,
+    // so an empty device reconnecting is recognised as DATA LOST.
+    last_known_pending_count: integer("last_known_pending_count").notNull().default(0),
+    last_known_pending_sen: bigint("last_known_pending_sen", { mode: "number" }).notNull().default(0),
+    db_empty_at: timestamp("db_empty_at", { withTimezone: true, mode: "string" }),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_pos_terminals_code").on(t.company_id, t.code)],
+);
+
+export const pos_event_links = pgTable(
+  "pos_event_links",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    project_id: bigint("project_id", { mode: "number" }).notNull(),
+    catalog_scope: text("catalog_scope").notNull().default("ALL"),
+    stock_source_warehouse_id: text("stock_source_warehouse_id"),
+    sst_default: boolean("sst_default").notNull().default(false),
+    receipt_header: text("receipt_header"),
+    catalog_version: integer("catalog_version").notNull().default(1),
+    pushed_at: timestamp("pushed_at", { withTimezone: true, mode: "string" }),
+    // Mig 20261014T1530: the end-of-event summary email went out (once).
+    summary_sent_at: timestamp("summary_sent_at", { withTimezone: true, mode: "string" }),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_pos_event_links_project").on(t.company_id, t.project_id)],
+);
+
+export const pos_event_cashiers = pgTable(
+  "pos_event_cashiers",
+  {
+    link_id: bigint("link_id", { mode: "number" }).notNull(),
+    cashier_id: bigint("cashier_id", { mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.link_id, t.cashier_id] })],
+);
+
+export const pos_event_items = pgTable(
+  "pos_event_items",
+  {
+    link_id: bigint("link_id", { mode: "number" }).notNull(),
+    pos_item_id: bigint("pos_item_id", { mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.link_id, t.pos_item_id] })],
+);
+
+export const pos_event_prices = pgTable(
+  "pos_event_prices",
+  {
+    link_id: bigint("link_id", { mode: "number" }).notNull(),
+    pos_item_id: bigint("pos_item_id", { mode: "number" }).notNull(),
+    price_sen: bigint("price_sen", { mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.link_id, t.pos_item_id] })],
+);
+
+export const pos_heartbeats = pgTable(
+  "pos_heartbeats",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    terminal_id: bigint("terminal_id", { mode: "number" }).notNull(),
+    at: timestamp("at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    payload: jsonb("payload").notNull().default({}),
+  },
+  (t) => [index("idx_pos_heartbeats_terminal_at").on(t.terminal_id, t.at)],
+);
+
+export const pos_alerts = pgTable("pos_alerts", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  company_id: bigint("company_id", { mode: "number" }).notNull(),
+  type: text("type").notNull(),
+  terminal_id: bigint("terminal_id", { mode: "number" }),
+  project_id: bigint("project_id", { mode: "number" }),
+  detail: jsonb("detail").notNull().default({}),
+  email_sent_at: timestamp("email_sent_at", { withTimezone: true, mode: "string" }),
+  last_resent_at: timestamp("last_resent_at", { withTimezone: true, mode: "string" }),
+  resolved_at: timestamp("resolved_at", { withTimezone: true, mode: "string" }),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const pos_audit = pgTable(
+  "pos_audit",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    entity: text("entity").notNull(),
+    entity_id: text("entity_id").notNull(),
+    field: text("field").notNull(),
+    from_value: text("from_value"),
+    to_value: text("to_value"),
+    by_user_id: bigint("by_user_id", { mode: "number" }),
+    by_name: text("by_name"),
+    at: timestamp("at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_pos_audit_entity").on(t.entity, t.entity_id)],
+);
+
+// ── HR: Employees & Attendance, phase 1 (mig-pg 20261021T0300, HC-0125) ──
+export const hr_employees = pgTable("hr_employees", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  company_id: bigint("company_id", { mode: "number" }).notNull(),
+  emp_no: text("emp_no").notNull(),
+  name: text("name").notNull(),
+  user_id: integer("user_id"),
+  department_id: integer("department_id"),
+  position: text("position"),
+  phone: text("phone"),
+  status: text("status").notNull().default("ACTIVE"),
+  resigned_on: date("resigned_on", { mode: "string" }),
+  join_date: date("join_date", { mode: "string" }),
+  nationality: text("nationality"),
+  ic_number: text("ic_number"),
+  passport_number: text("passport_number"),
+  is_outsource: boolean("is_outsource").notNull().default(false),
+  pay_mode: text("pay_mode").notNull().default("MONTHLY"),
+  basic_salary_sen: bigint("basic_salary_sen", { mode: "number" }).notNull().default(0),
+  daily_rate_sen: bigint("daily_rate_sen", { mode: "number" }).notNull().default(0),
+  working_hours_per_day: numeric("working_hours_per_day", { precision: 4, scale: 1 }).notNull().default("9"),
+  working_days_per_month: integer("working_days_per_month").notNull().default(26),
+  ot_multiplier: numeric("ot_multiplier", { precision: 4, scale: 2 }).notNull().default("1.5"),
+  payment_method: text("payment_method").notNull().default("TRANSFER"),
+  bank_name: text("bank_name"),
+  bank_account: text("bank_account"),
+  epf_enabled: boolean("epf_enabled").notNull().default(false),
+  socso_enabled: boolean("socso_enabled").notNull().default(false),
+  eis_enabled: boolean("eis_enabled").notNull().default(false),
+  pcb_enabled: boolean("pcb_enabled").notNull().default(false),
+  tax_residency: text("tax_residency"),
+  tax_category: text("tax_category"),
+  tax_child_relief_sen: bigint("tax_child_relief_sen", { mode: "number" }),
+  trip_names: text("trip_names"),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  created_by: integer("created_by"),
+  updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updated_by: integer("updated_by"),
+});
+
+export const hr_employee_salary_history = pgTable(
+  "hr_employee_salary_history",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+    basic_salary_sen: bigint("basic_salary_sen", { mode: "number" }).notNull(),
+    effective_from: date("effective_from", { mode: "string" }).notNull(),
+    note: text("note"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+  },
+  (t) => [uniqueIndex("uq_hr_salary_history_date").on(t.employee_id, t.effective_from)],
+);
+
+export const hr_public_holidays = pgTable(
+  "hr_public_holidays",
+  {
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    holiday_date: date("holiday_date", { mode: "string" }).notNull(),
+    name: text("name"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+  },
+  (t) => [primaryKey({ columns: [t.company_id, t.holiday_date] })],
+);
+
+export const hr_pay_rule_versions = pgTable(
+  "hr_pay_rule_versions",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    effective_from: date("effective_from", { mode: "string" }).notNull(),
+    rules: jsonb("rules").notNull(),
+    note: text("note"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+  },
+  (t) => [uniqueIndex("uq_hr_pay_rule_versions_date").on(t.company_id, t.effective_from)],
+);
+
+// ── HR: punch sites + attendance, phase 2 (mig-pg 20261022T0300, HC-0125) ──
+export const hr_punch_sites = pgTable("hr_punch_sites", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  company_id: bigint("company_id", { mode: "number" }).notNull(),
+  name: text("name").notNull(),
+  lat: doublePrecision("lat").notNull(),
+  lng: doublePrecision("lng").notNull(),
+  radius_m: integer("radius_m").notNull().default(200),
+  active: boolean("active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  created_by: integer("created_by"),
+  updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updated_by: integer("updated_by"),
+});
+
+export const hr_attendance = pgTable(
+  "hr_attendance",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+    work_date: date("work_date", { mode: "string" }).notNull(),
+    status: text("status").notNull().default("PRESENT"),
+    clock_in_at: timestamp("clock_in_at", { withTimezone: true, mode: "string" }),
+    clock_out_at: timestamp("clock_out_at", { withTimezone: true, mode: "string" }),
+    in_source: text("in_source"),
+    out_source: text("out_source"),
+    in_lat: doublePrecision("in_lat"),
+    in_lng: doublePrecision("in_lng"),
+    in_accuracy_m: integer("in_accuracy_m"),
+    in_geo: text("in_geo"),
+    in_site_id: bigint("in_site_id", { mode: "number" }),
+    in_distance_m: integer("in_distance_m"),
+    in_photo_key: text("in_photo_key"),
+    out_lat: doublePrecision("out_lat"),
+    out_lng: doublePrecision("out_lng"),
+    out_accuracy_m: integer("out_accuracy_m"),
+    out_geo: text("out_geo"),
+    out_site_id: bigint("out_site_id", { mode: "number" }),
+    out_distance_m: integer("out_distance_m"),
+    out_photo_key: text("out_photo_key"),
+    notes: text("notes"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_by: integer("updated_by"),
+  },
+  (t) => [uniqueIndex("uq_hr_attendance_day").on(t.employee_id, t.work_date), index("idx_hr_attendance_company_date").on(t.company_id, t.work_date)],
+);
+
+// ── HR: working hours + short-hour docks, phase 3 (mig-pg 20261022T0600, HC-0125) ──
+export const hr_working_hours = pgTable("hr_working_hours", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  company_id: bigint("company_id", { mode: "number" }).notNull(),
+  attendance_id: bigint("attendance_id", { mode: "number" }).notNull(),
+  employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+  work_date: date("work_date", { mode: "string" }).notNull(),
+  department_id: integer("department_id"),
+  hours: numeric("hours", { precision: 5, scale: 2 }).notNull(),
+  source: text("source").notNull().default("MANUAL"),
+  notes: text("notes"),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  created_by: integer("created_by"),
+  updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updated_by: integer("updated_by"),
+});
+
+export const hr_hour_deductions = pgTable(
+  "hr_hour_deductions",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+    work_date: date("work_date", { mode: "string" }).notNull(),
+    hours: numeric("hours", { precision: 5, scale: 2 }).notNull(),
+    source: text("source").notNull().default("MANUAL"),
+    note: text("note"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_hr_hour_deductions_day").on(t.employee_id, t.work_date)],
+);
+
+// ── HR: payroll, advances, penalties, phase 4 (mig-pg 20261022T0900, HC-0125) ──
+const sen = (name: string) => bigint(name, { mode: "number" }).notNull().default(0);
+export const hr_payslips = pgTable(
+  "hr_payslips",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+    period: text("period").notNull(),
+    status: text("status").notNull().default("DRAFT"),
+    emp_no: text("emp_no").notNull(),
+    employee_name: text("employee_name").notNull(),
+    department_name: text("department_name"),
+    pay_mode: text("pay_mode").notNull(),
+    full_salary_sen: sen("full_salary_sen"),
+    day_rate_sen: sen("day_rate_sen"),
+    hour_rate_sen: sen("hour_rate_sen"),
+    days_worked: integer("days_worked").notNull().default(0),
+    absent_days: integer("absent_days").notNull().default(0),
+    absence_deduction_sen: sen("absence_deduction_sen"),
+    short_hours: numeric("short_hours", { precision: 6, scale: 2 }).notNull().default("0"),
+    short_hour_deduction_sen: sen("short_hour_deduction_sen"),
+    basic_earned_sen: sen("basic_earned_sen"),
+    ot_weekday_hours: numeric("ot_weekday_hours", { precision: 6, scale: 2 }).notNull().default("0"),
+    ot_sunday_hours: numeric("ot_sunday_hours", { precision: 6, scale: 2 }).notNull().default("0"),
+    ot_holiday_hours: numeric("ot_holiday_hours", { precision: 6, scale: 2 }).notNull().default("0"),
+    ot_weekday_pay_sen: sen("ot_weekday_pay_sen"),
+    ot_sunday_pay_sen: sen("ot_sunday_pay_sen"),
+    ot_holiday_pay_sen: sen("ot_holiday_pay_sen"),
+    ot_pay_sen: sen("ot_pay_sen"),
+    allowances_sen: sen("allowances_sen"),
+    commission_sen: sen("commission_sen"),
+    trip_allowance_sen: sen("trip_allowance_sen"),
+    backpay_sen: sen("backpay_sen"),
+    gross_sen: sen("gross_sen"),
+    epf_employee_sen: sen("epf_employee_sen"),
+    epf_employer_sen: sen("epf_employer_sen"),
+    socso_employee_sen: sen("socso_employee_sen"),
+    socso_employer_sen: sen("socso_employer_sen"),
+    eis_employee_sen: sen("eis_employee_sen"),
+    eis_employer_sen: sen("eis_employer_sen"),
+    pcb_sen: sen("pcb_sen"),
+    pcb_status: text("pcb_status").notNull(),
+    statutory_employee_sen: sen("statutory_employee_sen"),
+    advance_sen: sen("advance_sen"),
+    penalty_sen: sen("penalty_sen"),
+    net_sen: sen("net_sen"),
+    payment_method: text("payment_method").notNull().default("TRANSFER"),
+    bank_name: text("bank_name"),
+    bank_account: text("bank_account"),
+    detail: jsonb("detail").notNull().default({}),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    approved_at: timestamp("approved_at", { withTimezone: true, mode: "string" }),
+    approved_by: integer("approved_by"),
+    paid_at: timestamp("paid_at", { withTimezone: true, mode: "string" }),
+    paid_by: integer("paid_by"),
+  },
+  (t) => [uniqueIndex("uq_hr_payslips_period").on(t.employee_id, t.period), index("idx_hr_payslips_company_period").on(t.company_id, t.period)],
+);
+
+export const hr_advances = pgTable("hr_advances", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  company_id: bigint("company_id", { mode: "number" }).notNull(),
+  employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+  advance_date: date("advance_date", { mode: "string" }).notNull(),
+  amount_sen: bigint("amount_sen", { mode: "number" }).notNull(),
+  note: text("note"),
+  status: text("status").notNull().default("UNSETTLED"),
+  settled_period: text("settled_period"),
+  created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  created_by: integer("created_by"),
+  updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
+export const hr_penalties = pgTable(
+  "hr_penalties",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    penalty_no: text("penalty_no").notNull(),
+    penalty_date: date("penalty_date", { mode: "string" }).notNull(),
+    reference: text("reference"),
+    reason: text("reason").notNull(),
+    remarks: text("remarks"),
+    status: text("status").notNull().default("DRAFT"),
+    created_by: integer("created_by"),
+    created_by_name: text("created_by_name"),
+    submitted_at: timestamp("submitted_at", { withTimezone: true, mode: "string" }),
+    approved_by: integer("approved_by"),
+    approved_by_name: text("approved_by_name"),
+    approved_at: timestamp("approved_at", { withTimezone: true, mode: "string" }),
+    rejected_reason: text("rejected_reason"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("uq_hr_penalties_no").on(t.company_id, t.penalty_no)],
+);
+
+export const hr_penalty_lines = pgTable("hr_penalty_lines", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  company_id: bigint("company_id", { mode: "number" }).notNull(),
+  penalty_id: bigint("penalty_id", { mode: "number" }).notNull(),
+  employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+  amount_sen: bigint("amount_sen", { mode: "number" }).notNull(),
+  payroll_period: text("payroll_period"),
+  payslip_id: bigint("payslip_id", { mode: "number" }),
+  posted_at: timestamp("posted_at", { withTimezone: true, mode: "string" }),
+});
+
+// ── HR: trip pay, allowances, phase 5 (mig-pg 20261022T1500, HC-0125) ──
+export const hr_trip_rows = pgTable(
+  "hr_trip_rows",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    trip_month: text("trip_month").notNull(),
+    source: text("source").notNull(),
+    source_ref: text("source_ref"),
+    trip_date: date("trip_date", { mode: "string" }).notNull(),
+    doc_no: text("doc_no").notNull().default(""),
+    transfer_to: text("transfer_to").notNull().default(""),
+    ref_no: text("ref_no").notNull().default(""),
+    kind: text("kind").notNull(),
+    local_total_sen: bigint("local_total_sen", { mode: "number" }).notNull().default(0),
+    state: text("state").notNull().default(""),
+    lorry_plate: text("lorry_plate").notNull().default(""),
+    driver_1_name: text("driver_1_name").notNull().default(""),
+    driver_2_name: text("driver_2_name").notNull().default(""),
+    helper_1_name: text("helper_1_name").notNull().default(""),
+    helper_2_name: text("helper_2_name").notNull().default(""),
+    driver_1_employee_id: bigint("driver_1_employee_id", { mode: "number" }),
+    driver_2_employee_id: bigint("driver_2_employee_id", { mode: "number" }),
+    helper_1_employee_id: bigint("helper_1_employee_id", { mode: "number" }),
+    helper_2_employee_id: bigint("helper_2_employee_id", { mode: "number" }),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_hr_trip_rows_month").on(t.company_id, t.trip_month, t.trip_date)],
+);
+
+export const hr_trip_rate_versions = pgTable(
+  "hr_trip_rate_versions",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    effective_from: date("effective_from", { mode: "string" }).notNull(),
+    rates: jsonb("rates").notNull(),
+    note: text("note"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+  },
+  (t) => [uniqueIndex("uq_hr_trip_rate_versions_date").on(t.company_id, t.effective_from)],
+);
+
+export const hr_trip_missed_days = pgTable(
+  "hr_trip_missed_days",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+    trip_month: text("trip_month").notNull(),
+    missed_days: integer("missed_days").notNull(),
+    note: text("note"),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    updated_by: integer("updated_by"),
+  },
+  (t) => [uniqueIndex("uq_hr_trip_missed_days").on(t.employee_id, t.trip_month)],
+);
+
+export const hr_allowances = pgTable(
+  "hr_allowances",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    company_id: bigint("company_id", { mode: "number" }).notNull(),
+    employee_id: bigint("employee_id", { mode: "number" }).notNull(),
+    kind: text("kind").notNull(),
+    amount_sen: bigint("amount_sen", { mode: "number" }).notNull(),
+    from_period: text("from_period").notNull(),
+    until_period: text("until_period"),
+    note: text("note"),
+    created_at: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    created_by: integer("created_by"),
+    updated_at: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_hr_allowances_employee").on(t.company_id, t.employee_id)],
+);
+
+// ── sales_entries (mig 041 / 051) ──────────────────────────
+export const sales_entries = pgTable("sales_entries", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  doc_no: text("doc_no"),
+  project_id: integer("project_id"),
+  ref_no: text("ref_no"),
+  customer_name: text("customer_name").notNull(),
+  customer_code: text("customer_code"),
+  customer_address: text("customer_address"),
+  customer_address_2: text("customer_address_2"),
+  customer_postcode: text("customer_postcode"),
+  customer_state: text("customer_state"),
+  customer_phone: text("customer_phone"),
+  customer_phone_2: text("customer_phone_2"),
+  customer_email: text("customer_email"),
+  amount: integer("amount").notNull(),
+  deposit_amount: integer("deposit_amount"),
+  deposit_payment_type: text("deposit_payment_type"),
+  currency: text("currency").notNull().default("MYR"),
+  occurred_at: text("occurred_at").notNull(),
+  /* Legacy native Sales module's own date (mig 070). NOT the SCM Sales Order's
+     Processing Date — a sales_entry has no SO row and none of the SO gates/locks.
+     The SO's Processing Date is scm.mfg_sales_orders.internal_expected_dd, and
+     that is the only column that concept may live in. Kept under this name
+     because a rename would silently drop the field from queued sales change
+     requests; see SO_FORM_TEXT_FIELDS in src/routes/sales.ts. */
+  processing_date: text("processing_date"),
+  delivery_date: text("delivery_date"),
+  status_2: text("status_2"),
+  venue: text("venue"),
+  warehouse: text("warehouse"),
+  branding: text("branding"),
+  po_doc_no: text("po_doc_no"),
+  payment_status: text("payment_status"),
+  source: text("source"),
+  remarks: text("remarks"),
+  notes: text("notes"),
+  status: text("status").notNull().default("draft"),
+  autocount_doc_no: text("autocount_doc_no"),
+  autocount_doc_type: text("autocount_doc_type"),
+  pushed_at: text("pushed_at"),
+  push_error: text("push_error"),
+  sales_person_id: integer("sales_person_id"),
+  created_by: integer("created_by").notNull(),
+  created_at: text("created_at").default(nowText),
+  updated_at: text("updated_at").default(nowText),
+  archived_at: text("archived_at"),
+});
+
+// ── sales_entry_items ──────────────────────────────────────
+export const sales_entry_items = pgTable("sales_entry_items", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  entry_id: integer("entry_id").notNull(),
+  line_no: integer("line_no").notNull().default(0),
+  item_code: text("item_code"),
+  item_description: text("item_description"),
+  remarks: text("remarks"),
+  qty: doublePrecision("qty").notNull().default(1),
+  unit_price: doublePrecision("unit_price").notNull().default(0),
+  amount: doublePrecision("amount").notNull().default(0),
+  group_tag: text("group_tag"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── sales_entry_payments ───────────────────────────────────
+export const sales_entry_payments = pgTable("sales_entry_payments", {
+  company_id: bigint("company_id", { mode: "number" }),
+  id: serial("id").primaryKey(),
+  entry_id: integer("entry_id").notNull(),
+  paid_at: text("paid_at").notNull(),
+  payment_method: text("payment_method").notNull(),
+  amount: doublePrecision("amount").notNull(),
+  account_sheet: text("account_sheet"),
+  approval_code: text("approval_code"),
+  collected_by: text("collected_by"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── project_finance_lines ──────────────────────────────────
+export const project_finance_lines = pgTable("project_finance_lines", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull(),
+  kind: text("kind").notNull(),
+  category: text("category"),
+  description: text("description"),
+  amount: integer("amount"),
+  occurred_at: text("occurred_at"),
+  notes: text("notes"),
+  r2_key: text("r2_key"),
+  file_name: text("file_name"),
+  created_at: text("created_at").default(nowText),
+  created_by: integer("created_by"),
+  archived_at: text("archived_at"),
+  auto_source: text("auto_source"),
+});
+
+// ── project_cost_rates (mig 063) ───────────────────────────
+export const project_cost_rates = pgTable("project_cost_rates", {
+  id: serial("id").primaryKey(),
+  brand: text("brand").notNull().unique(),
+  transport_pct: integer("transport_pct").notNull().default(0),
+  merchandise_pct: integer("merchandise_pct").notNull().default(0),
+  commission_normal_pct: integer("commission_normal_pct").notNull().default(0),
+  commission_boost_pct: integer("commission_boost_pct"),
+  boost_min_gp_pct: integer("boost_min_gp_pct"),
+  boost_min_sales: integer("boost_min_sales"),
+  updated_at: text("updated_at").default(nowText),
+  updated_by: integer("updated_by"),
+});
+
+// ── sales_positions / tiers / reps (mig 067) ───────────────
+export const sales_positions = pgTable("sales_positions", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  level: integer("level").notNull().default(20),
+  sort_order: integer("sort_order").notNull().default(0),
+  active: integer("active").notNull().default(1),
+  created_at: text("created_at").default(nowText),
+});
+
+export const sales_commission_tiers = pgTable("sales_commission_tiers", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  rate: integer("rate").notNull().default(0),
+  active: integer("active").notNull().default(1),
+  created_at: text("created_at").default(nowText),
+});
+
+export const sales_reps = pgTable("sales_reps", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  nric: text("nric"),
+  position_id: integer("position_id"),
+  upline_id: integer("upline_id"),
+  upline_secondary_id: integer("upline_secondary_id"),
+  user_id: integer("user_id").unique(),
+  status: text("status").notNull().default("active"),
+  is_admin: integer("is_admin").notNull().default(0),
+  commission_rate: integer("commission_rate"),
+  commission_tier_id: integer("commission_tier_id"),
+  commission_min_rate: integer("commission_min_rate").notNull().default(0),
+  joined_on: text("joined_on"),
+  notes: text("notes"),
+  created_at: text("created_at").default(nowText),
+  updated_at: text("updated_at").default(nowText),
+  archived_at: text("archived_at"),
+  archived_by: integer("archived_by"),
+});
+
+export const sales_rep_commission_tiers = pgTable(
+  "sales_rep_commission_tiers",
+  {
+    id: serial("id").primaryKey(),
+    rep_id: integer("rep_id").notNull(),
+    threshold: integer("threshold").notNull().default(0),
+    rate: integer("rate").notNull().default(0),
+    sort_order: integer("sort_order").notNull().default(0),
+    created_at: text("created_at").default(nowText),
+  },
+);
+
+export const sales_rep_brands = pgTable(
+  "sales_rep_brands",
+  {
+    rep_id: integer("rep_id").notNull(),
+    brand: text("brand").notNull(),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.rep_id, t.brand] }) }),
+);
+
+export const sales_team_activity = pgTable("sales_team_activity", {
+  id: serial("id").primaryKey(),
+  rep_id: integer("rep_id").notNull(),
+  action: text("action").notNull(),
+  from_value: text("from_value"),
+  to_value: text("to_value"),
+  note: text("note"),
+  user_id: integer("user_id"),
+  created_at: text("created_at").default(nowText),
+});
+
+// ── project_sales_attendees (mig 087) ──────────────────────
+export const project_sales_attendees = pgTable(
+  "project_sales_attendees",
+  {
+    project_id: integer("project_id").notNull(),
+    sales_rep_id: integer("sales_rep_id").notNull(),
+    created_at: text("created_at").default(nowText),
+    created_by: integer("created_by"),
+  },
+  (t) => ({ pk: primaryKey({ columns: [t.project_id, t.sales_rep_id] }) }),
+);
+
+// ── companies (multi-company master; Phase 0a) ─────────
+export const companies = pgTable("companies", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  is_active: integer("is_active").notNull().default(1),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── auth_failed_logins (mig 20261016T0910; DEV-35) ─────────
+// One row per failed sign-in. Never holds the attempted password or code.
+export const auth_failed_logins = pgTable("auth_failed_logins", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  email: text("email"),
+  user_id: bigint("user_id", { mode: "number" }),
+  ip: text("ip"),
+  reason: text("reason").notNull(),
+});
+
+// ── job_runs (mig 20261016T0900): one row per scheduled job run ──
+export const job_runs = pgTable("job_runs", {
+  id: uuid("id").primaryKey(),
+  job: text("job").notNull(),
+  started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finished_at: timestamp("finished_at", { withTimezone: true }),
+  status: text("status").notNull().default("running"),
+  error: text("error"),
+  duration_ms: integer("duration_ms"),
+});
