@@ -2024,6 +2024,7 @@ export {
   caseIssueLabel,
   casePriorityFor,
   caseNeedsManager,
+  caseResolutionRoute,
   caseUsableLabel,
   caseWantLabel,
   composeCaseSummary,

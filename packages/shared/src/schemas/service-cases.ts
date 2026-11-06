@@ -385,6 +385,8 @@ export const serviceCaseSchema = z.object({
   /** 0761 — how the case is resolved (Houzs resolution method). */
   resolutionMethodId:    z.string().uuid().nullable().optional(),
   resolutionMethodLabel: z.string().nullable().optional(),
+  /** Houzs resolutionRoute reads the method code. */
+  resolutionMethodCode:  z.string().nullable().optional(),
 
   /** 0762 — set while the case is archived off the list (Houzs assr.ts:1140). */
   archivedAt: z.string().nullable().optional(),

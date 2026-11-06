@@ -184,6 +184,13 @@ export function caseNeedsManager(priority: string | null | undefined): boolean {
   return priority === "high" || priority === "urgent";
 }
 
+/** Houzs vendor/scm/lib/assr/stages.ts:87-94: which side a resolution method routes to.
+ *  Own team or a return visit is internal; any other method is the supplier's. */
+export function caseResolutionRoute(code: string | null | undefined): "supplier" | "internal" | null {
+  if (!code) return null;
+  return code === "field_service_own" || code === "return_visit" ? "internal" : "supplier";
+}
+
 export function caseUsableLabel(key: string | null | undefined): string {
   if (!key) return "";
   return CASE_USABLE_OPTIONS.find((o) => o.key === key)?.label ?? key;
