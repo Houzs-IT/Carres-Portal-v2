@@ -9,7 +9,7 @@ import type { Env } from "../types";
 import { createSession, mintSessionPass } from "../services/auth";
 
 type CarresEnv = Env & { CARRES_SSO_SECRET?: string };
-interface Assertion { email: string; name?: string; role: string; exp: number }
+interface Assertion { email: string; role: string; exp: number }
 
 const MAX_AGE_MS = 60_000;
 /** Carres portal roles that open Supply Chain and Service Cases. Kept in step with the portal's own gate
@@ -62,7 +62,7 @@ app.post("/", async (c) => {
   const email = a.email.toLowerCase().trim();
   let user = await c.env.DB.prepare(`SELECT id, status, role_id FROM users WHERE email = ?`).bind(email).first<{ id: number; status: string; role_id: number }>();
   if (!user) {
-    await c.env.DB.prepare(`INSERT INTO users (email, name, role_id, status) VALUES (?, ?, ?, 'active')`).bind(email, a.name || email, roleId).run();
+    await c.env.DB.prepare(`INSERT INTO users (email, name, role_id, status) VALUES (?, ?, ?, 'active')`).bind(email, email, roleId).run();
     user = await c.env.DB.prepare(`SELECT id, status, role_id FROM users WHERE email = ?`).bind(email).first<{ id: number; status: string; role_id: number }>();
   }
   if (!user) return c.json({ error: "The account could not be prepared." }, 500);

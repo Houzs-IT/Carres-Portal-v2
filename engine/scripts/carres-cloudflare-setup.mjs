@@ -66,48 +66,44 @@ function askHidden(question) {
   });
 }
 const secret = () => randomBytes(32).toString("base64url");
-const setToml = (placeholder, id) => {
-  const s = readFileSync(TOML, "utf8");
-  if (s.includes(placeholder)) writeFileSync(TOML, s.replace(placeholder, id));
-};
+const stop = (message) => { console.error(message); process.exit(1); };
+
+/** Creates a resource once: while wrangler.toml still holds its placeholder, runs the create command and writes the
+ *  new id in place of the placeholder. Its output is never shown, since it can echo a connection string. */
+function createOnce(placeholder, args, label) {
+  if (!readFileSync(TOML, "utf8").includes(placeholder)) return;
+  const id = wrangler(args, BACKEND, { quiet: true }).out.match(/"?id"?\s*[=:]\s*"([0-9a-f]{32})"/)?.[1];
+  if (!id) stop(`Stopped: could not read the ${label} id.`);
+  writeFileSync(TOML, readFileSync(TOML, "utf8").replace(placeholder, id));
+  console.log(`  ok: ${label}`);
+}
 
 // 0. The right account, or nothing.
-const who = wrangler(["whoami"], BACKEND, { quiet: true });
-if (!who.out.includes(CARRES_ACCOUNT)) {
-  console.error("Wrangler is not signed in to the Carres Cloudflare account. Run `npx wrangler login` with the Carres login, then run this again. Nothing was changed.");
-  process.exit(1);
+if (!wrangler(["whoami"], BACKEND, { quiet: true }).out.includes(CARRES_ACCOUNT)) {
+  stop("Wrangler is not signed in to the Carres Cloudflare account. Run `npx wrangler login` with the Carres login, then run this again. Nothing was changed.");
 }
 console.log("Carres Cloudflare account found.");
 
 // 1. File bucket and session store.
 const bucket = wrangler(["r2", "bucket", "create", "carres-scm"], BACKEND, { allowFail: true, quiet: true });
-console.log(bucket.ok || /already exists|already own/i.test(bucket.out) ? "  ok: file bucket carres-scm" : `Stopped: bucket.\n${bucket.out}`);
-if (!bucket.ok && !/already exists|already own/i.test(bucket.out)) process.exit(1);
-if (readFileSync(TOML, "utf8").includes("REPLACE_ME_CARRES_SCM_SESSION_KV")) {
-  const kv = wrangler(["kv", "namespace", "create", "carres-scm-sessions"], BACKEND, { quiet: true });
-  const id = kv.out.match(/id\s*=\s*"([0-9a-f]{32})"|"id":\s*"([0-9a-f]{32})"/);
-  if (!id) { console.error(`Stopped: could not read the session store id.\n${kv.out}`); process.exit(1); }
-  setToml("REPLACE_ME_CARRES_SCM_SESSION_KV", id[1] ?? id[2]);
-  console.log("  ok: session store");
-}
+if (!bucket.ok && !/already exists|already own/i.test(bucket.out)) stop(`Stopped: file bucket.
+${bucket.out}`);
+console.log("  ok: file bucket carres-scm");
+createOnce("REPLACE_ME_CARRES_SCM_SESSION_KV", ["kv", "namespace", "create", "carres-scm-sessions"], "session store");
 
-// 2. Database link.
+// 2. Database link. Never the portal's own database (kfprgpjpaffedghytstl): its tables share names with these.
 if (readFileSync(TOML, "utf8").includes("REPLACE_ME_CARRES_SCM_HYPERDRIVE")) {
   const conn = await askHidden("Paste the engine database connection string for the scm_engine role (nothing will show): ");
-  if (!/^postgres(ql)?:\/\//.test(conn)) { console.error("That is not a postgres connection string. Nothing more was changed."); process.exit(1); }
-  if (conn.includes("kfprgpjpaffedghytstl")) { console.error("That is the Carres portal's own database. Use the engine's project."); process.exit(1); }
-  const hd = wrangler(["hyperdrive", "create", "carres-scm-db", `--connection-string=${conn}`, "--caching-disabled"], BACKEND, { quiet: true });
-  const id = hd.out.match(/id\s*=\s*"([0-9a-f]{32})"|"id":\s*"([0-9a-f]{32})"/);
-  if (!id) { console.error("Stopped: could not read the database link id (output withheld: it may show the connection string)."); process.exit(1); }
-  setToml("REPLACE_ME_CARRES_SCM_HYPERDRIVE", id[1] ?? id[2]);
-  console.log("  ok: database link");
+  if (!/^postgres(ql)?:\/\//.test(conn)) stop("That is not a postgres connection string. Nothing more was changed.");
+  if (conn.includes("kfprgpjpaffedghytstl")) stop("That is the Carres portal's own database. Use the engine's project.");
+  createOnce("REPLACE_ME_CARRES_SCM_HYPERDRIVE", ["hyperdrive", "create", "carres-scm-db", `--connection-string=${conn}`, "--caching-disabled"], "database link");
 }
 
 // 3. Engine server online, then its secrets.
 const supabaseUrl = await askHidden("Engine Supabase project URL (https://<ref>.supabase.co): ");
 const anonKey = await askHidden("Engine Supabase anon key (nothing will show): ");
 const serviceKey = await askHidden("Engine Supabase service_role key (nothing will show): ");
-if (supabaseUrl.includes("kfprgpjpaffedghytstl")) { console.error("That is the Carres portal's own project. Use the engine's."); process.exit(1); }
+if (supabaseUrl.includes("kfprgpjpaffedghytstl")) stop("That is the Carres portal's own project. Use the engine's.");
 wrangler(["deploy"], BACKEND);
 const sso = secret();
 wrangler(["secret", "bulk"], BACKEND, {
