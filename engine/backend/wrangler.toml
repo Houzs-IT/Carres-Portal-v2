@@ -25,7 +25,7 @@ SENTRY_ENVIRONMENT = "production"
 # The engine's own Supabase project, connected as its own role (scm_engine). Caching off.
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "REPLACE_ME_CARRES_SCM_HYPERDRIVE"
+id = "5051c7e20a9b44afaa3523d296b651f0"
 
 [[r2_buckets]]
 binding = "POD_BUCKET"
