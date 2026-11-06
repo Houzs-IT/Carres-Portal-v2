@@ -43,6 +43,15 @@ describe("POST /api/operation/scm-engine/session", () => {
     expect(claims).toMatchObject({ email: "ops@carres.com", role: "operation" });
   });
 
+  it("calls the engine through the service binding when there is one", async () => {
+    const global = vi.spyOn(globalThis, "fetch");
+    const bound = vi.fn(async () => new Response(JSON.stringify({ token: "tok" }), { status: 200 }));
+    const res = await post({ ...engineEnv, SCM_ENGINE: { fetch: bound } });
+    expect(res.status).toBe(200);
+    expect(bound).toHaveBeenCalledOnce();
+    expect(global).not.toHaveBeenCalled();
+  });
+
   it("502 when the engine cannot be reached", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("down"));
     expect((await post(engineEnv)).status).toBe(502);

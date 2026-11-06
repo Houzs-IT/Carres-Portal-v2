@@ -42,6 +42,12 @@ routes = [
 [env.production.vars]
 PUBLIC_WEB_URL = "https://pos.carresofficial.com"
 
+# The supply chain engine, called Worker to Worker (routes/operation/scm-engine.ts). Cloudflare refuses a
+# Worker fetching another Worker of the same account through its public workers.dev address.
+[[env.production.services]]
+binding = "SCM_ENGINE"
+service = "carres-scm-engine"
+
 [env.production.observability]
 enabled = true
 
