@@ -265,6 +265,21 @@ describe("Service Cases — the case page and the views", () => {
     expect(workflow).not.toHaveTextContent("Other stage");
   });
 
+  it("shows the gross margin from the two cost amounts, and a loss without a minus sign (0763)", async () => {
+    vi.mocked(apiFetch).mockReset();
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path.endsWith("/remedy")) return { requests: [], proposals: [], evidence: [], units: [], approver: null, canPropose: false, canDecide: false };
+      if (path.endsWith("/config")) return { types: [], statuses: [{ id: "s1", label: "Pending", isClosed: false }] };
+      const one = { ...row, statusId: "s1", statusLabel: "Pending", customerAmount: 100, supplierCostAmount: 150, supplierInvoiceRef: "INV-9" };
+      if (path.includes("/api/ops/service-cases/")) return one;
+      return { items: [one], total: 1, staff: [] };
+    });
+    at("/operation?tab=service-notes&case=c1");
+    const cost = await screen.findByRole("region", { name: "Cost" });
+    await waitFor(() => expect(cost).toHaveTextContent("Loss RM 50.00"));
+    expect(screen.getByLabelText("Supplier Invoice Ref")).toHaveValue("INV-9");
+  });
+
   it("offers the resolution methods from Service Settings on the case (0761)", async () => {
     vi.mocked(apiFetch).mockReset();
     vi.mocked(apiFetch).mockImplementation(async (path: string) => {

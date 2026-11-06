@@ -762,6 +762,9 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   // 0760 — the database seeds it on a stage change and refuses another stage's.
   if (parsed.subStatusId         !== undefined) patch.sub_status_id         = parsed.subStatusId;
   if (parsed.resolutionMethodId  !== undefined) patch.resolution_method_id  = parsed.resolutionMethodId;
+  if (parsed.customerAmount      !== undefined) patch.customer_amount       = parsed.customerAmount;
+  if (parsed.supplierCostAmount  !== undefined) patch.supplier_cost_amount  = parsed.supplierCostAmount;
+  if (parsed.supplierInvoiceRef  !== undefined) patch.supplier_invoice_ref  = parsed.supplierInvoiceRef || null;
   if (parsed.archived !== undefined) {
     patch.archived_at = parsed.archived ? new Date().toISOString() : null;
     patch.archived_by = parsed.archived ? c.var.auth.id : null;
@@ -1167,6 +1170,10 @@ interface RawCase {
   resolution_method_id?: string | null;
   /** 0762. Optional: absent before 0762. */
   archived_at?: string | null;
+  /** 0763. numeric comes back from PostgREST as a number or a string. */
+  customer_amount?: number | string | null;
+  supplier_cost_amount?: number | string | null;
+  supplier_invoice_ref?: string | null;
   service_case_resolution_methods?: { label: string } | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
@@ -1253,6 +1260,9 @@ function shapeCase(r: RawCase) {
     resolutionMethodId:    r.resolution_method_id ?? null,
     resolutionMethodLabel: r.service_case_resolution_methods?.label ?? null,
     archivedAt:            r.archived_at ?? null,
+    customerAmount:        r.customer_amount == null ? null : Number(r.customer_amount),
+    supplierCostAmount:    r.supplier_cost_amount == null ? null : Number(r.supplier_cost_amount),
+    supplierInvoiceRef:    r.supplier_invoice_ref ?? null,
 
     ...stageClock(r),
   };

@@ -16,6 +16,7 @@ import {
   caseNeedsManager,
   caseProductCategoryLabel,
   caseStageDwell,
+  fmtMoney,
   caseUsableLabel,
   caseWantLabel,
   logisticsConfirmedText,
@@ -291,6 +292,16 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
               </div>
             </Panel>
 
+            {/* 0763 — Houzs ServiceCases.tsx:7253 Cost tracking. Records only: nothing posts to the ledger. */}
+            <Panel title="Cost">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <InlineField id="scm-customer-amount" label="Customer Amount (RM)" type="number" value={d.customerAmount?.toString()} onSave={(v) => save({ customerAmount: v ? Number(v) : null })} />
+                <InlineField id="scm-supplier-cost" label="Supplier Cost (RM)" type="number" value={d.supplierCostAmount?.toString()} onSave={(v) => save({ supplierCostAmount: v ? Number(v) : null })} />
+                <InlineField id="scm-supplier-invoice" label="Supplier Invoice Ref" mono value={d.supplierInvoiceRef} onSave={(v) => save({ supplierInvoiceRef: v || null })} />
+              </div>
+              {d.customerAmount != null && d.supplierCostAmount != null && <MarginLine margin={d.customerAmount - d.supplierCostAmount} />}
+            </Panel>
+
             <CaseRemedyApproval caseId={id} onDirtyChange={setRemedyDirty} onBusyChange={setRemedyBusy} />
           </div>
 
@@ -393,7 +404,7 @@ function LegNote({ requested, confirmed }: { requested: string | null | undefine
 /** One field that saves itself when you leave it (Houzs InlineEdit). */
 function InlineField({ id, label, value, onSave, textarea, type = "text", required, mono }: {
   id: string; label: string; value: string | null | undefined; onSave: (value: string) => Promise<void>;
-  textarea?: boolean; type?: "text" | "date"; required?: boolean; mono?: boolean;
+  textarea?: boolean; type?: "text" | "date" | "number"; required?: boolean; mono?: boolean;
 }) {
   const saved = value ?? "";
   const [draft, setDraft] = useState(saved);
@@ -428,6 +439,16 @@ function InlineField({ id, label, value, onSave, textarea, type = "text", requir
       </div>
       {problem && <p role="alert" className="mt-1 text-meta text-error-700 break-words">{problem}</p>}
     </div>
+  );
+}
+
+/** Houzs shows the margin in red when negative; no minus sign on screen, so a loss says Loss. */
+function MarginLine({ margin }: { margin: number }) {
+  return (
+    <p className="flex items-baseline justify-between text-body">
+      <span className="text-meta text-base-500 uppercase tracking-wider">Gross margin</span>
+      <span className={`font-mono tabular-nums ${margin < 0 ? "text-error-700" : "text-base-900"}`}>{margin < 0 ? `Loss ${fmtMoney(-margin)}` : fmtMoney(margin)}</span>
+    </p>
   );
 }
 
