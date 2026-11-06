@@ -150,7 +150,7 @@ It uses its own concurrency group so diagnostics do not block production deliver
 payloads and credentials are not printed or uploaded. No observed event means execution remains
 unverified; an unsuccessful scheduled event fails the diagnostic. Run during the trigger's hours.
 
-`.github/workflows/deploy-production.yml` owns the post-merge proof. `carres-portal` and
+`.github/workflows/deploy-production.yml` owns the post-merge proof. Its gate on the merged SHA is the fast set (migration law, design guards, type checks, build); the unit and integration tests run on the PR head in `ci.yml` and are not repeated after merge (5 Nov 2026: they made each deploy take about 19 minutes). `carres-portal` and
 `carres-pos` are direct-upload Pages projects, so GitHub Actions builds the exact `main` SHA once
 and uploads that same artifact to both. The web build writes `/__carres_deploy.json` from
 `GITHUB_SHA`. The same workflow deploys the Worker with `DEPLOY_SHA`, then polls both Pages

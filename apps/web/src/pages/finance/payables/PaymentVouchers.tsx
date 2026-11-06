@@ -24,6 +24,7 @@ import Modal from "@/components/kit/Modal";
 import { fieldCls } from "@/components/Field";
 import type { DepartmentType } from "@carres/shared";
 import { DepartmentFilter, DepartmentName, DepartmentPicker, useDepartmentParam } from "../department";
+import { ProjectName, ProjectPicker } from "../project";
 import ModuleHeader from "@/pages/operation/components/ModuleHeader";
 import SalesOrderTabs from "@/pages/operation/SalesOrderTabs";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
@@ -57,6 +58,8 @@ import {
 import { FactRow, Facts, FilesCard, HistoryCard, ReadFailed, ReasonModal } from "./PayablesParts";
 import { VoucherAdvanceCard } from "./VoucherAdvance";
 import { NotesOwedHint } from "./NoteFollowUpParts";
+import { attachPages, formLines, ReadPaperButton, readPaperNotes } from "./ReadPaper";
+import type { BillReadAnswer } from "@carres/shared/bill-reading";
 import { paymentVoucherPrint } from "./voucher-print";
 import { printVoucher, printVoucherById } from "../preview/row-print";
 import { documentRowMenu } from "@/components/register/row-menu";
@@ -511,7 +514,8 @@ function VoucherDetail() {
           {(doc.opening_bills ?? []).length > 0 && <VoucherOpeningBillsCard doc={doc} />}
           <VoucherAdvanceCard doc={doc} />
           <VoucherLinesCard doc={doc} />
-          <FilesCard kind="vouchers" id={id} files={doc.files} canAdd={doc.can.add_file} />
+          <FilesCard kind="vouchers" id={id} files={doc.files} canAdd={doc.can.add_file}
+            canRemove={doc.can.add_file && (v.status === "draft" || v.status === "prepared")} />
           <HistoryCard events={doc.events} />
         </div>
       </div>
@@ -670,6 +674,7 @@ function VoucherLinesCard({ doc }: { doc: PaymentVoucherDocument }) {
           <p key={l.line_no}>
             {l.account_code} {l.account_name ?? ""} · {l.description ?? "No description"} · {money(l.amount)}
             {l.department_type && <> · <DepartmentName type={l.department_type} id={l.department_id} /></>}
+            {l.project_id && <> · <ProjectName id={l.project_id} /></>}
           </p>
         ))}
     </Facts>
@@ -686,10 +691,10 @@ type BillPick = { on: boolean; amount: string };
 const DN = "dn:";
 /** 0705: an opening bill's pick (Opening balances), counted the same way. */
 const OB = "ob:";
-type DirectLine = { key: string; accountCode: string; description: string; amount: string; departmentType: DepartmentType | null; departmentId: string | null };
+type DirectLine = { key: string; accountCode: string; description: string; amount: string; departmentType: DepartmentType | null; departmentId: string | null; projectId: string | null };
 
 let seq = 0;
-const newLine = (): DirectLine => { seq += 1; return { key: `d${seq}`, accountCode: "", description: "", amount: "", departmentType: null, departmentId: null }; };
+const newLine = (): DirectLine => { seq += 1; return { key: `d${seq}`, accountCode: "", description: "", amount: "", departmentType: null, departmentId: null, projectId: null }; };
 
 /** The voucher total is never typed: it is what the ticked bills, the
  *  advance and the direct lines add up to, and the database recomputes it the
@@ -771,6 +776,9 @@ function VoucherForm() {
   const [lines, setLines] = useState<DirectLine[]>([]);
   const [advance, setAdvance] = useState("");
   const [loaded, setLoaded] = useState(!id);
+  // Houzs PaymentVoucherScan.tsx:55 + PaymentVoucherNew.tsx:256: a bill with no bill record (rent, a utility) is
+  // read onto a direct voucher, and its pages are attached once it is saved.
+  const [read, setRead] = useState<{ files: File[]; notes: string[] } | null>(null);
   const formPayTo = useSupplierPayTo(supplierId || null);
   // 0645 (Chew 2026-10-03): a voucher made for a payment request starts from
   // what was asked, and answers the request once it is saved.
@@ -812,7 +820,8 @@ function VoucherForm() {
       ...(d.opening_bills ?? []).map((o) => [`${OB}${o.opening_item_id}`, { on: true, amount: String(o.amount_applied) }] as const),
     ]));
     setLines(d.lines.map((l) => ({ ...newLine(), accountCode: l.account_code, description: l.description ?? "", amount: String(l.amount),
-      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null })));
+      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null,
+      projectId: l.project_id ?? null })));
     setAdvance((num(d.voucher.advance_amount) ?? 0) > 0 ? String(d.voucher.advance_amount) : "");
     setCopyState("picks");
   }, [copySource.data, copyState]);
@@ -837,7 +846,8 @@ function VoucherForm() {
       ...(d.opening_bills ?? []).map((o) => [`${OB}${o.opening_item_id}`, { on: true, amount: String(o.amount_applied) }] as const),
     ]));
     setLines(d.lines.map((l) => ({ ...newLine(), accountCode: l.account_code, description: l.description ?? "", amount: String(l.amount),
-      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null })));
+      departmentType: (l.department_type ?? null) as DepartmentType | null, departmentId: l.department_id ?? null,
+      projectId: l.project_id ?? null })));
     setAdvance((num(d.voucher.advance_amount) ?? 0) > 0 ? String(d.voucher.advance_amount) : "");
     setLoaded(true);
   }, [id, loaded, existing.data]);
@@ -978,6 +988,7 @@ function VoucherForm() {
         amount: Number(l.amount),
         departmentType: l.departmentType,
         departmentId: l.departmentId,
+        projectId: l.projectId,
       })),
       allocations: purpose === "SUPPLIER_BILLS"
         ? Object.entries(picks).filter(([, p]) => p.on).map(([key, p]) => (key.startsWith(DN)
@@ -990,6 +1001,9 @@ function VoucherForm() {
     save.mutate({ id, input }, {
       onSuccess: async (out) => {
         toast.success(id ? "Voucher saved" : "Draft voucher saved");
+        if (read && !(await attachPages("vouchers", out.id, read.files))) {
+          toast.error("The voucher is saved, but a page that was read could not be attached. Attach it on the voucher.");
+        }
         if (requestId && fromRequest.data) {
           try {
             await answerPaymentRequest(requestId, { voucherId: out.id });
@@ -1002,6 +1016,17 @@ function VoucherForm() {
       },
       onError: (e) => toast.error(refusal(e)),
     });
+  };
+
+  /** What "Read the bill" found fills only what the form does not have yet. */
+  const applyReading = (answer: BillReadAnswer, files: File[]) => {
+    const r = answer.reading;
+    if (supplierId === "" && answer.supplier) setSupplierId(answer.supplier.id);
+    if (payee.trim() === "" && !answer.supplier && r.vendorName) setPayee(r.vendorName.slice(0, 160));
+    if (narration.trim() === "" && r.invoiceNumber) setNarration(`Bill ${r.invoiceNumber}`.slice(0, 500));
+    const linesKept = lines.length > 0;
+    if (!linesKept) setLines(formLines(answer).map((l) => ({ ...newLine(), ...l })));
+    setRead({ files, notes: readPaperNotes(answer, { pages: files.length, expect: "bill", linesKept }) });
   };
 
   const gap = voucherSaveGap({ purpose, supplierId, payee, voucherDate, payFrom, picks, advance, lines, total });
@@ -1039,7 +1064,13 @@ function VoucherForm() {
       />
       <div className="flex-1 overflow-auto p-4" data-testid="voucher-form">
         <div className="flex max-w-[1100px] flex-col gap-4">
-          <Facts title="Who is paid, and from where">
+          <Facts title="Who is paid, and from where"
+            right={purpose === "DIRECT" ? <ReadPaperButton label="Read the bill" testId="voucher-read-bill" onRead={applyReading} /> : undefined}>
+            {read && (
+              <ul className="mb-3 list-disc pl-5 text-body" data-testid="voucher-read-notes">
+                {read.notes.map((n) => <li key={n}>{n}</li>)}
+              </ul>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block">
                 Purpose
@@ -1355,6 +1386,8 @@ function DirectLineRow({ line, n, accounts, onChange, onRemove }: {
       <DepartmentPicker label={`Line ${n} department`} className={`${fieldCls} w-48`}
         type={line.departmentType} id={line.departmentId}
         income={accounts.find((a) => a.code === line.accountCode)?.kind === "INCOME"} onChange={onChange} />
+      <ProjectPicker label={`Line ${n} project`} className={`${fieldCls} w-48`} id={line.projectId}
+        onChange={(projectId) => onChange({ projectId })} />
       <Button variant="ghost" size="sm" onClick={onRemove}>Remove</Button>
     </div>
   );
