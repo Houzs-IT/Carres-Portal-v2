@@ -28,3 +28,11 @@ export function logisticsConfirmedText(
     ? "Waiting for Logistics to confirm this date."
     : "Set the date you want; Logistics confirms it.";
 }
+
+/** Houzs PickupTrackingFields.tsx:31-58: Pickup PIC options are the case's supplier first, then
+ *  the active drivers. A PIC typed before the dropdown stays selectable. */
+export function casePickupPicOptions(drivers: string[], supplier: string | null, current: string | null): { value: string; label: string }[] {
+  const choices = [...new Set([...(supplier ? [supplier] : []), ...drivers])];
+  if (current && !choices.includes(current)) choices.unshift(current);
+  return choices.map((v) => ({ value: v, label: v === supplier ? `${v} (Supplier)` : v }));
+}

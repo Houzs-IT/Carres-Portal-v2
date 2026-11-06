@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caseLegLabel, logisticsConfirmedText } from "./service-case-legs";
+import { caseLegLabel, casePickupPicOptions, logisticsConfirmedText } from "./service-case-legs";
 
 describe("logisticsConfirmedText", () => {
   const fmt = (iso: string) => `[${iso}]`;
@@ -21,5 +21,15 @@ describe("caseLegLabel", () => {
   it("labels own team and passes an unknown key through", () => {
     expect(caseLegLabel("own")).toBe("Own team");
     expect(caseLegLabel("drone")).toBe("drone");
+  });
+});
+
+describe("casePickupPicOptions", () => {
+  it("puts the supplier first, then drivers, and keeps a typed PIC", () => {
+    expect(casePickupPicOptions(["Ali", "Factory A"], "Factory A", "Mr Tan")).toEqual([
+      { value: "Mr Tan", label: "Mr Tan" },
+      { value: "Factory A", label: "Factory A (Supplier)" },
+      { value: "Ali", label: "Ali" },
+    ]);
   });
 });

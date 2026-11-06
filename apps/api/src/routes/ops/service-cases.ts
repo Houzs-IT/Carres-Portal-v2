@@ -745,6 +745,15 @@ scRouter.post("/", requireOperationOrPrincipal, async (c) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /:id — detail
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /pickup-pic-drivers — Houzs backend/src/routes/assr.ts:438-446: active drivers' names
+// for the Pickup PIC dropdown.
+scRouter.get("/pickup-pic-drivers", requireOperationOrPrincipal, async (c) => {
+  const sb = userClient(c.env, c.var.auth.jwt);
+  const { data, error } = await sb.from("partner_drivers").select("name").eq("active", true).eq("role", "driver").order("name");
+  if (error) throw new HTTPException(500, { message: error.message });
+  return c.json({ data: data ?? [] });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /:id/cost-suggestion — Houzs backend/src/routes/assr.ts:562-651. A
 // suggestion, not a write: the customer amount from the case's Sales Order line

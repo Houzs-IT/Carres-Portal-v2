@@ -22,6 +22,7 @@ import {
   type ServiceCase,
   type ServiceCaseConfig,
   type ServiceCaseListResponse,
+  casePickupPicOptions,
 } from "@carres/shared";
 import { ArrowLeft } from "lucide-react";
 import CaseOrderLink from "./CaseOrderLink";
@@ -53,6 +54,12 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
     staleTime: 5 * 60_000,
   });
 
+  // Houzs PickupTrackingFields.tsx:31-39: the drivers for the Pickup PIC dropdown.
+  const driversQ = useQuery<{ data: Array<{ name: string }> }>({
+    queryKey: ["ops", "service-cases", "pickup-pic-drivers"],
+    queryFn: () => apiFetch("/api/ops/service-cases/pickup-pic-drivers"),
+    staleTime: 5 * 60_000,
+  });
   const existingQ = useQuery<ServiceCase>({
     queryKey: ["ops", "service-cases", id],
     queryFn: () => apiFetch(`/api/ops/service-cases/${id}`),
@@ -262,7 +269,8 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
                   <InlineField id="scm-pickup-actual" label="Actual Pickup Date" type="date" value={d.actualPickupAt} onSave={(v) => save({ actualPickupAt: v || null })} />
                 </div>
                 {d.pickupBy === "own" && !d.actualPickupAt && <LegNote requested={d.pickupRequestedAt} confirmed={d.pickupConfirmedAt} />}
-                <InlineField id="scm-pickup-pic" label="Pickup PIC" value={d.pickupPic} onSave={(v) => save({ pickupPic: v || null })} />
+                <Select id="case-pickup-pic" label="Pickup PIC" value={d.pickupPic ?? undefined} onValueChange={(v) => saveSelect({ pickupPic: v })} placeholder="Pickup PIC"
+                  options={casePickupPicOptions((driversQ.data?.data ?? []).map((r) => r.name), d.supplierName ?? null, d.pickupPic ?? null)} />
                 <Select id="case-item-location" label="Current Item Location" value={d.itemLocation ?? undefined} onValueChange={(v) => saveSelect({ itemLocation: v })} placeholder="Current Item Location" options={legOptions(CASE_ITEM_LOCATION_KEYS)} />
               </Panel>
               <Panel title="Delivery Back">

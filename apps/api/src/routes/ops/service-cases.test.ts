@@ -1268,6 +1268,14 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(filters).toContainEqual(["is", "void_at", null]);
   });
 
+  // Houzs assr.ts:438-446: active drivers' names for the Pickup PIC dropdown.
+  it("lists active drivers for the Pickup PIC", async () => {
+    const { sb } = tableSb({ partner_drivers: [{ name: "Ali" }] });
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    const res = await app.request("/api/ops/service-cases/pickup-pic-drivers", { headers: { Authorization: `Bearer ${await makeJwt("operation")}` } }, env);
+    expect(await res.json()).toEqual({ data: [{ name: "Ali" }] });
+  });
+
   // Houzs assr.ts:562-651: suggest the customer amount from the SO line and the supplier cost from its PO line.
   it("suggests the cost from the case's Sales Order and Purchase Order lines", async () => {
     const { sb } = tableSb({

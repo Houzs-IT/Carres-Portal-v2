@@ -2126,6 +2126,7 @@ export {
   CASE_PICKUP_PIC_MAX,
   CASE_PICKUP_STATUS_KEYS,
   caseLegLabel,
+  casePickupPicOptions,
   logisticsConfirmedText,
 } from "./service-case-legs";
 // S5 — the monthly numbers. NO migration and no new table: the day a case ended
