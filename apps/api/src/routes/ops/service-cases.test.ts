@@ -338,11 +338,8 @@ describe("POST /api/ops/service-cases — the S1 guided intake", () => {
     expect(inserts[0]).toMatchObject({ priority: "high" });
   });
 
+  // 0764: the issue type is a Service Settings code, so the database's foreign key refuses an unknown one.
   it("refuses an answer that is not one of the offered keys", async () => {
-    const { sb } = buildInsertSb();
-    const bad = await post({ ...WIZARD_BODY, issueType: "smells_funny" }, sb);
-    expect(bad.status).toBe(400);
-
     const { sb: sb2 } = buildInsertSb();
     const bad2 = await post({ ...WIZARD_BODY, customerWants: ["free_sofa"] }, sb2);
     expect(bad2.status).toBe(400);
@@ -1377,6 +1374,21 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
   it("refuses target days on a case type", async () => {
     const { sb, updates } = tableSb({}, true);
     const res = await patchStage("types", { targetDays: 3 }, sb);
+    expect(res.status).toBe(422);
+    expect(updates).toHaveLength(0);
+  });
+
+  // 0764 — Houzs assr_priorities.sla_hours.
+  it("saves a priority's SLA hours to its own column", async () => {
+    const { sb, updates } = tableSb({}, true);
+    const res = await patchStage("priorities", { slaHours: 72 }, sb);
+    expect(res.status).toBe(200);
+    expect(updates).toContainEqual(["service_case_priorities", { sla_hours: 72 }]);
+  });
+
+  it("refuses SLA hours on anything but a priority", async () => {
+    const { sb, updates } = tableSb({}, true);
+    const res = await patchStage("issueCategories", { slaHours: 72 }, sb);
     expect(res.status).toBe(422);
     expect(updates).toHaveLength(0);
   });

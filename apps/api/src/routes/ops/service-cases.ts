@@ -73,7 +73,7 @@ scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
  * costs one extra column per row.
  */
 const CASE_SELECT =
-  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_resolution_methods(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
+  "*, service_case_types(label), service_case_statuses(label,is_closed,target_days), service_case_sub_statuses(label), service_case_resolution_methods(label), service_case_issue_categories(label), service_case_product_categories(label), service_case_priorities(label,sla_hours), service_case_root_causes(label), service_case_stage_history(status_id,entered_at,exited_at,target_days,changed_by), orders(so, salespersons(name), ops_delivery_orders(do_number,voided_at), order_supplier_threads(po_id)), suppliers(name)";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /config — config-driven Case Type + Status (active only, sorted)
@@ -81,18 +81,22 @@ const CASE_SELECT =
 scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
 
-  const [{ data: types, error: tErr }, { data: statuses, error: sErr }, { data: subs, error: ssErr }, { data: methods, error: rmErr }] =
+  const [{ data: types, error: tErr }, { data: statuses, error: sErr }, { data: subs, error: ssErr }, { data: methods, error: rmErr }, ...lists] =
     await Promise.all([
       sb.from("service_case_types").select("*").eq("active", true).order("sort_order"),
       sb.from("service_case_statuses").select("*").eq("active", true).order("sort_order"),
       sb.from("service_case_sub_statuses").select("*").eq("active", true).order("sort_order"),
       sb.from("service_case_resolution_methods").select("*").eq("active", true).order("sort_order"),
+      // 0764 — Houzs lookups (065_assr_lookups.sql).
+      ...LOOKUP_LISTS.map((l) => sb.from(PICK_TABLE[l]).select("*").eq("active", true).order("sort_order")),
     ]);
 
   if (tErr) throw new HTTPException(500, { message: tErr.message });
   if (sErr) throw new HTTPException(500, { message: sErr.message });
   if (ssErr) throw new HTTPException(500, { message: ssErr.message });
   if (rmErr) throw new HTTPException(500, { message: rmErr.message });
+  const listErr = lists.find((l) => l.error)?.error;
+  if (listErr) throw new HTTPException(500, { message: listErr.message });
 
   return c.json({
     types: (types ?? []).map((t) => ({
@@ -108,6 +112,13 @@ scRouter.get("/config", requireOperationOrPrincipal, async (c) => {
     resolutionMethods: (methods ?? []).map((m) => ({
       id: m.id, code: m.code, label: m.label, sortOrder: m.sort_order, active: m.active,
     })),
+    ...Object.fromEntries(LOOKUP_LISTS.map((l, i) => [
+      l,
+      (lists[i].data ?? []).map((m) => ({
+        id: m.id, code: m.code, label: m.label, sortOrder: m.sort_order, active: m.active,
+        ...(l === "priorities" ? { slaHours: numOrNull(m.sla_hours) } : {}),
+      })),
+    ])),
   });
 });
 
@@ -249,7 +260,13 @@ const PICK_TABLE = {
   statuses: "service_case_statuses",
   subStatuses: "service_case_sub_statuses",
   resolutionMethods: "service_case_resolution_methods",
+  issueCategories: "service_case_issue_categories",
+  productCategories: "service_case_product_categories",
+  priorities: "service_case_priorities",
+  rootCauses: "service_case_root_causes",
 } as const;
+/** 0764 — the Houzs lookup lists a case stores by `code`. */
+const LOOKUP_LISTS = ["issueCategories", "productCategories", "priorities", "rootCauses"] as const;
 function pickTable(list: string) {
   const t = PICK_TABLE[list as keyof typeof PICK_TABLE];
   if (!t) throw new HTTPException(404, { message: "Unknown list" });
@@ -259,19 +276,22 @@ const pickRow = (r: Record<string, unknown>) => ({
   id: r.id, code: r.code, label: r.label, sortOrder: r.sort_order, active: r.active,
   isClosed: r.is_closed ?? false,
   targetDays: numOrNull(r.target_days),
+  slaHours: numOrNull(r.sla_hours),
   statusId: r.status_id ?? null,
 });
 
 scRouter.get("/settings", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const [st, types, statuses, subStatuses, resolutionMethods] = await Promise.all([
+  const [st, types, statuses, subStatuses, resolutionMethods, ...lists] = await Promise.all([
     sb.from("service_settings").select("default_owner_user_id").maybeSingle(),
     sb.from("service_case_types").select("*").order("sort_order"),
     sb.from("service_case_statuses").select("*").order("sort_order"),
     sb.from("service_case_sub_statuses").select("*").order("sort_order"),
     sb.from("service_case_resolution_methods").select("*").order("sort_order"),
+    ...LOOKUP_LISTS.map((l) => sb.from(PICK_TABLE[l]).select("*").order("sort_order")),
   ]);
-  const err = st.error ?? types.error ?? statuses.error ?? subStatuses.error ?? resolutionMethods.error;
+  const err = st.error ?? types.error ?? statuses.error ?? subStatuses.error ?? resolutionMethods.error
+    ?? lists.find((l) => l.error)?.error;
   if (err) throw new HTTPException(500, { message: err.message });
   return c.json({
     defaultOwnerUserId: (st.data as { default_owner_user_id?: string | null } | null)?.default_owner_user_id ?? null,
@@ -279,6 +299,7 @@ scRouter.get("/settings", requireOperationOrPrincipal, async (c) => {
     statuses: (statuses.data ?? []).map(pickRow),
     subStatuses: (subStatuses.data ?? []).map(pickRow),
     resolutionMethods: (resolutionMethods.data ?? []).map(pickRow),
+    ...Object.fromEntries(LOOKUP_LISTS.map((l, i) => [l, (lists[i].data ?? []).map(pickRow)])),
   });
 });
 
@@ -323,11 +344,19 @@ scRouter.patch("/settings/:list/:itemId", requireOperationOrPrincipal, requireSe
   const parsed = await parseBody(c, servicePickItemPatchSchema);
   const sb = userClient(c.env, c.var.auth.jwt);
   // 0745 — target days live on stages only.
-  const { targetDays, ...rest } = parsed;
+  const { targetDays, slaHours, ...rest } = parsed;
   if (targetDays !== undefined && table !== "service_case_statuses") {
     return c.json({ error: "invalid_input", code: "invalid_param", message: "Only a stage has target days." }, 422);
   }
-  const update = targetDays === undefined ? rest : { ...rest, target_days: targetDays };
+  // 0764 — SLA hours live on priorities only (Houzs assr_priorities.sla_hours).
+  if (slaHours !== undefined && table !== "service_case_priorities") {
+    return c.json({ error: "invalid_input", code: "invalid_param", message: "Only a priority has SLA hours." }, 422);
+  }
+  const update = {
+    ...rest,
+    ...(targetDays === undefined ? {} : { target_days: targetDays }),
+    ...(slaHours === undefined ? {} : { sla_hours: slaHours }),
+  };
   const { error } = await sb.from(table).update(update).eq("id", c.req.param("itemId"));
   // 0711 §6 (YH, chat 2026-10-26): the database keeps one closing stage in use.
   if (error?.details === "last_closing_stage") {
@@ -747,6 +776,7 @@ scRouter.patch("/:id", requireOperationOrPrincipal, async (c) => {
   if (parsed.customerWants   !== undefined) patch.customer_wants   = parsed.customerWants;
   // 0711 — staff edit the priority; the PIC-picked owner (checked above).
   if (parsed.priority        !== undefined) patch.priority         = parsed.priority;
+  if (parsed.rootCause       !== undefined) patch.root_cause       = parsed.rootCause;
   if (parsed.ownerUserId     !== undefined) patch.owner_user_id    = parsed.ownerUserId;
   // 0746 — the pickup leg and delivery-back leg (Houzs pickup tracking).
   if (parsed.pickupBy            !== undefined) patch.pickup_by             = parsed.pickupBy;
@@ -971,6 +1001,7 @@ scRouter.post("/:id/sla", requireOperationOrPrincipal, async (c) => {
       events:       shapeSlaEvents(cur.sla_events),
       closed:       cur.service_case_statuses?.is_closed ?? false,
       customerName: cur.customer_name,
+      slaHours:     numOrNull(cur.service_case_priorities?.sla_hours),
     },
     opts,
   );
@@ -1175,6 +1206,12 @@ interface RawCase {
   supplier_cost_amount?: number | string | null;
   supplier_invoice_ref?: string | null;
   service_case_resolution_methods?: { label: string } | null;
+  /** 0764 — the lookup lists, embedded by code. */
+  root_cause?: string | null;
+  service_case_issue_categories?: { label: string } | null;
+  service_case_product_categories?: { label: string } | null;
+  service_case_priorities?: { label: string; sla_hours: number | string | null } | null;
+  service_case_root_causes?: { label: string } | null;
   suppliers?: { name: string } | { name: string }[] | null;
   service_case_types:    { label: string } | null;
   service_case_statuses: { label: string; is_closed: boolean; target_days?: number | string | null } | null;
@@ -1259,6 +1296,12 @@ function shapeCase(r: RawCase) {
     subStatusLabel:      r.service_case_sub_statuses?.label ?? null,
     resolutionMethodId:    r.resolution_method_id ?? null,
     resolutionMethodLabel: r.service_case_resolution_methods?.label ?? null,
+    issueTypeLabel:        r.service_case_issue_categories?.label ?? null,
+    productCategoryLabel:  r.service_case_product_categories?.label ?? null,
+    priorityLabel:         r.service_case_priorities?.label ?? null,
+    slaHours:              numOrNull(r.service_case_priorities?.sla_hours),
+    rootCause:             r.root_cause ?? null,
+    rootCauseLabel:        r.service_case_root_causes?.label ?? null,
     archivedAt:            r.archived_at ?? null,
     customerAmount:        r.customer_amount == null ? null : Number(r.customer_amount),
     supplierCostAmount:    r.supplier_cost_amount == null ? null : Number(r.supplier_cost_amount),

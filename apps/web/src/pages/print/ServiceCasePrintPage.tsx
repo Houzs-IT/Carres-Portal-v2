@@ -95,7 +95,7 @@ export default function ServiceCasePrintPage() {
 
   const c = q.data;
   const clock = caseSlaClock(
-    { openedAt: c.openedAt, todayIso: appTodayIso(), events: c.slaEvents ?? [], closed: c.statusIsClosed, customerName: c.customerName },
+    { openedAt: c.openedAt, todayIso: appTodayIso(), events: c.slaEvents ?? [], closed: c.statusIsClosed, customerName: c.customerName, slaHours: c.slaHours },
     holidayOpts,
   );
   const owner = staffQ.data?.staff?.find((p) => p.user_id === c.ownerUserId)?.name ?? "";

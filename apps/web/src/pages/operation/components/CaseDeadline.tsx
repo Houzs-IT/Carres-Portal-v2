@@ -40,18 +40,21 @@ export default function CaseDeadline({
   closed,
   customerName,
   events,
+  slaHours = null,
 }: {
   caseId: string;
   openedAt: string | null;
   closed: boolean;
   customerName: string | null;
   events: CaseSlaEvent[];
+  /** 0764 — the priority's SLA hours. */
+  slaHours?: number | null;
 }) {
   const [form, setForm] = useState<"customer_told" | "extension" | null>(null);
   const holidayOpts = useMemo(() => ({ holidays: myHolidaySet() }), []);
 
   const clock = caseSlaClock(
-    { openedAt, todayIso: appTodayIso(), events, closed, customerName },
+    { openedAt, todayIso: appTodayIso(), events, closed, customerName, slaHours },
     holidayOpts,
   );
   const action = caseSlaAction(clock, customerName);

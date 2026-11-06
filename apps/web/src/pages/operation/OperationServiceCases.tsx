@@ -14,7 +14,6 @@ import {
   caseSlaCountLabel,
   caseStageDwell,
   myHolidaySet,
-  type CasePriority,
   type CaseSlaClock,
   type ServiceCase,
   type ServiceCaseListResponse,
@@ -108,7 +107,7 @@ export default function OperationServiceCases() {
   const todayIso = appTodayIso();
   const clockOf = useCallback((r: ServiceCase) =>
     caseSlaClock(
-      { openedAt: r.openedAt, todayIso, events: r.slaEvents ?? [], closed: r.statusIsClosed, customerName: r.customerName },
+      { openedAt: r.openedAt, todayIso, events: r.slaEvents ?? [], closed: r.statusIsClosed, customerName: r.customerName, slaHours: r.slaHours },
       holidayOpts,
     ), [holidayOpts, todayIso]);
 
@@ -214,7 +213,7 @@ export default function OperationServiceCases() {
     { key: "customer", label: "Customer", width: W.customer, accessor: (r) => r.customerName || null, searchValue: (r) => r.customerName ?? "" },
     { key: "salesperson", label: "Salesperson", width: W.requestedBy, accessor: (r) => r.salespersonName ?? null, searchValue: (r) => r.salespersonName ?? "" },
     // S1 — the urgency a new case starts from, and staff edit it after (0711).
-    { key: "priority", label: "Priority", width: W.status, accessor: (r) => <PriorityCell priority={r.priority ?? null} />, searchValue: (r) => r.priority ?? "" },
+    { key: "priority", label: "Priority", width: W.status, accessor: (r) => <PriorityCell priority={r.priority ?? null} label={r.priorityLabel ?? null} />, searchValue: (r) => r.priorityLabel ?? r.priority ?? "" },
     // 0745 — Houzs ServiceCases.tsx:773 (dwell in the current stage); red at or past the stage's target days.
     { key: "dwell", label: "Days in stage", width: W.status, align: "right", accessor: (r) => <DwellCell dwell={dwellOf(r)} target={r.stageTargetDays ?? null} /> },
     { key: "stageSince", label: "In stage since", width: W.date, defaultHidden: true, accessor: (r) => (r.stageSince ? fmtDate(r.stageSince) : null), dateValue: (r) => r.stageSince ?? "", filterType: "date" },
@@ -494,21 +493,18 @@ function DeadlineCell({ clock }: { clock: CaseSlaClock }) {
 /** Urgency, derived — never typed. A case filed before the wizard (or through
  *  the edit modal, which asks no usability question) has none, and says so
  *  rather than inventing a middle value. */
-function PriorityCell({ priority }: { priority: CasePriority | null }) {
+function PriorityCell({ priority, label }: { priority: string | null; label: string | null }) {
   if (!priority) return null;
-  if (priority === "high") {
+  // 0764 — labels come from Service Settings; high and urgent still need a manager.
+  if (caseNeedsManager(priority)) {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <span className="pill pill-overdue">Urgent</span>
-        {caseNeedsManager(priority) && (
-          <span className="text-meta text-base-600">tell manager</span>
-        )}
+        <span className="pill pill-overdue">{label ?? priority}</span>
+        <span className="text-meta text-base-600">tell manager</span>
       </span>
     );
   }
-  return (
-    <span className="pill pill-neutral">{priority === "normal" ? "Normal" : "Low"}</span>
-  );
+  return <span className="pill pill-neutral">{label ?? priority}</span>;
 }
 
 /** 0711 — how many cases sit in each stage, in the order stages first appear,
