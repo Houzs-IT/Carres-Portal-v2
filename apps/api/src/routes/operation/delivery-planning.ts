@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { deliveryDayRefusal } from "@carres/shared";
+import { caseBoardLegs, deliveryDayRefusal, type CaseBoardCase } from "@carres/shared";
 import { requireOperationOrPrincipal } from "../../lib/auth-guards";
 import { readDeliveryCalendar } from "../../lib/delivery-calendar";
 import { deliveryOrderLookup } from "../../lib/delivery-order-lookup";
@@ -31,7 +31,7 @@ const text = (max: number) => z.string().trim().max(max).nullish();
 /** Everything the four pages read, in one round trip. */
 router.get("/", requireOperationOrPrincipal, async (c) => {
   const sb = userClient(c.env, c.var.auth.jwt);
-  const [orders, regions, rules, companies, cancelled] = await Promise.all([
+  const [orders, regions, rules, companies, cancelled, cases] = await Promise.all([
     sb
       .from("orders")
       .select(
@@ -50,8 +50,15 @@ router.get("/", requireOperationOrPrincipal, async (c) => {
       .eq("event", "job_cancelled")
       .order("recorded_at", { ascending: false })
       .limit(500),
+    // Houzs delivery-planning.ts:1075-1076: open Service Case legs ride the board too.
+    sb
+      .from("service_cases")
+      .select("id, case_no, customer_name, customer_phone, customer_address, pickup_by, pickup_requested_at, pickup_confirmed_at, actual_pickup_at, delivery_by, delivery_requested_at, delivery_confirmed_at, service_case_statuses(is_closed)")
+      .is("archived_at", null)
+      .or("pickup_by.eq.own,delivery_by.eq.own,pickup_requested_at.not.is.null,delivery_requested_at.not.is.null")
+      .limit(2000),
   ]);
-  for (const r of [orders, regions, rules, companies, cancelled]) if (r.error) return fail(c, r.error);
+  for (const r of [orders, regions, rules, companies, cancelled, cases]) if (r.error) return fail(c, r.error);
   const ids = (orders.data ?? []).map((o) => o.id as string);
   const cancelledIds = [...new Set((cancelled.data ?? []).map((e) => e.order_id as string))];
   const scopeIds = [...new Set([...ids, ...cancelledIds])];
@@ -88,6 +95,11 @@ router.get("/", requireOperationOrPrincipal, async (c) => {
     residenceRules: rules.data ?? [],
     companies: companies.data ?? [],
     cancelled: cancelled.data ?? [],
+    serviceJobs: ((cases.data ?? []) as unknown as Array<CaseBoardCase & { id: string; case_no: string; customer_name: string | null; customer_phone: string | null; customer_address: string | null; service_case_statuses: { is_closed: boolean } | null }>)
+      .flatMap((k) => caseBoardLegs(k, k.service_case_statuses?.is_closed ?? false).map((l) => ({
+        caseId: k.id, caseNo: k.case_no, leg: l.leg, requested: l.requested, confirmed: l.confirmed,
+        customer: k.customer_name, phone: k.customer_phone, address: k.customer_address,
+      }))),
   });
 });
 
@@ -128,6 +140,19 @@ router.post("/date", requireOperationOrPrincipal, async (c) => {
   const { data, error } = await planDate(c, body.orderId, body.leg, body);
   if (error) return fail(c, error);
   return c.json(data);
+});
+
+/** Houzs assr-board-scope.ts:66-70 ("Set job date"): the board confirms a Service Case leg's date
+ *  on the case itself. The case keeps the request; RLS (sc_op_principal_all) guards the write. */
+router.post("/service-date", requireOperationOrPrincipal, async (c) => {
+  const body = await parseBody(c, z.object({ caseId: uuid, leg: z.enum(["pickup", "delivery"]), date: isoDate }));
+  await refuseHoliday(c, body.date);
+  const col = body.leg === "pickup" ? "pickup_confirmed_at" : "delivery_confirmed_at";
+  const { data, error } = await userClient(c.env, c.var.auth.jwt)
+    .from("service_cases").update({ [col]: body.date }).eq("id", body.caseId).select("id").maybeSingle();
+  if (error) return fail(c, error);
+  if (!data) return c.json({ error: "not_found", message: "Service case not found" }, 404);
+  return c.json({ ok: true });
 });
 
 /** DP Orders: a delivery job against a Delivery Order. */
