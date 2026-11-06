@@ -365,6 +365,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only: My Work / Team Work and a person's own leave (0670).
       { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
       { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
+      // Carres-only: the supply chain engine (engine/), one row that opens its own menu in a frame. Its own
+      // name while the older Supply Chain pages above are still in use.
+      { key: "engine", label: "New Supply Chain", icon: Boxes, mIcon: "inventory_2", section: "Workspace" },
       // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order.
       { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
       { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/amendments", section: "Sales" },

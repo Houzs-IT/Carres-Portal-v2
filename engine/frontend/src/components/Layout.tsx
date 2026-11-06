@@ -1,3 +1,4 @@
+import { CARRES_EMBEDDED } from "../carres/embed";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
@@ -60,13 +61,14 @@ export function Layout({ children }: Props) {
 
       <main className="paper-grain thin-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         {/* Mobile top bar — brand + topbar chrome only. Hidden on lg+. */}
-        <MobileTopBar />
+        {/* Carres: inside the portal its own top bar is the one drawn; the engine keeps only its menu. */}
+        {!CARRES_EMBEDDED && <MobileTopBar />}
 
         {/* Desktop top chrome — ONE 52px bar (2b): workspace tabs inline +
             search / company / bell / avatar. No breadcrumb, no second row.
             Every lg+ sticky below parks at top-[52px]: PageHeader here,
             DetailLayout, the two SCM V2 doc bars. Hidden below lg. */}
-        <TopNavbar />
+        {!CARRES_EMBEDDED && <TopNavbar />}
 
         {writesDisabled && <ReadOnlyBanner />}
 

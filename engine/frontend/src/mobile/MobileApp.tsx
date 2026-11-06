@@ -1300,7 +1300,7 @@ function MobileNotFound({ path, onHome }: { path: string; onHome: () => void }) 
   return (
     <UrlDeadEnd
       title="Page not found"
-      body={`${path} isn't a page in Houzs ERP. Check the link or return to the app.`}
+      body={`${path} isn't a page here. Check the link or return to the app.`}
       onHome={onHome}
     />
   );

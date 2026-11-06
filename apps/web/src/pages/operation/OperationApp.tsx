@@ -64,6 +64,7 @@ import OperationDeliveryReport from "./OperationDeliveryReport";
 import { CrewLeavePage, FleetDayPage, FleetLiveMapPage, LorryCapacityPage } from "./OperationFleet";
 import { DeliveryZonesPage, FleetHealthPage, FleetPage, RateCardsPage } from "./OperationFleetSetup";
 import { ProjectMaintenancePage, ProjectsPage } from "./OperationProjects";
+import SupplyChainEngine from "./SupplyChainEngine";
 import { DeliveryOrderLinesReport, SalesInvoiceLinesReport, SalesOrderLinesReport } from "./DocumentLinesReport";
 // R2 (0288) — the supplier-claim queue, fourth tab of the Purchasing module.
 import OperationSupplierClaims from "./OperationSupplierClaims";
@@ -582,6 +583,8 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             {/* 0725 — Fleet, Fleet Health, Delivery Zones, Rate Cards (same decision). */}
             {/* 0750 — Projects: fairs, exhibitions and solo roadshows (same decision). */}
             {tab === "projects" && <ProjectsPage />}
+            {/* Supply Chain and Service Cases, the Houzs screens run as their own site (engine/). */}
+            {tab === "engine" && <SupplyChainEngine />}
             {tab === "project-maintenance" && <ProjectMaintenancePage />}
             {tab === "fleet" && <FleetPage />}
             {tab === "fleet-health" && <FleetHealthPage />}

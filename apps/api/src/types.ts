@@ -28,6 +28,11 @@ export type Bindings = {
   // the route answers 501. Never reach the browser bundle.
   IT_HUB_URL?: string;
   IT_HUB_API_KEY?: string;
+  // Supply Chain engine (routes/operation/scm-engine.ts): its API and site, and the sign-on secret it shares
+  // with this Worker. Worker secrets; any unset => the route answers 501.
+  SCM_ENGINE_API?: string;
+  SCM_ENGINE_SITE?: string;
+  SCM_ENGINE_SSO_SECRET?: string;
 };
 
 export type AuthContext = {

@@ -91,7 +91,7 @@ app.post("/email/test", requirePermission("settings.manage"), async (c) => {
   const { sendEmail } = await import("../services/email");
   const result = await sendEmail(c.env, {
     to,
-    subject: "Houzs ERP — email test",
+    subject: "Carres — email test",
     html: `<p>This is a test email from Houzs ERP at ${new Date().toISOString()}.</p>
            <p>If you're reading this, Resend is wired up correctly.</p>`,
     purpose: "generic",

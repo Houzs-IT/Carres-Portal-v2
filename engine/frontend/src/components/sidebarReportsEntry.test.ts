@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NAV_TABS, type NavTab } from "./Sidebar";
 import { collapsedEntryIsLit, collapsedEntryTo, makeNavFilter, navToIsActive, type NavFilterCtx } from "./navFilter";
 import { REPORT_CATALOG, REPORT_NAV_MEMBERS } from "../pages/scm-v2/reports-catalog";
 import type { AccessLevel, AuthUser } from "../types";
+
+// Carres: these pin Houzs's whole menu and its gates; the Carres trim is tested in carres/navOnly.test.ts.
+vi.mock("./Sidebar", async (importOriginal) => {
+  const m = await importOriginal<typeof import("./Sidebar")>();
+  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
+});
 
 /**
  * FINANCE › REPORTS IS ONE ENTRY (the owner's Claude Design, batch 6 §1.1:

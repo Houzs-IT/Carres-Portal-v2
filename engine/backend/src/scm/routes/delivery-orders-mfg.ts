@@ -2503,7 +2503,7 @@ deliveryOrdersMfg.get('/', async (c) => {
   if (!canViewAll && houzsUserId == null) {
     // No Houzs identity to scope by — say so plainly instead of silently
     // returning an empty list (the match-nothing scope hides the real cause).
-    return c.json({ error: 'Your account is not linked to a Houzs user, so delivery orders cannot be shown — please contact IT.' }, 403);
+    return c.json({ error: 'Your account is not linked to a staff account, so delivery orders cannot be shown — please contact IT.' }, 403);
   }
   const scopeIds = await resolveSalesScopeIds(sb, c.env, houzsUserId, canViewAll);
 

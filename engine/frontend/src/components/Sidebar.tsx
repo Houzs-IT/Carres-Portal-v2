@@ -1,3 +1,4 @@
+import { carresNavOnly } from "../carres/navOnly";
 import { NavLink, useLocation } from "react-router-dom";
 import { BACKDATE_DECIDER_PERMS } from "../vendor/scm/lib/payment-backdate-perms";
 import { markWorkspaceOpenIntent } from "../lib/workspaceTabs";
@@ -249,7 +250,8 @@ export interface NavTab {
  * Management). Tabs declare permission via `perm` / `anyPerm`; the
  * filter recurses so groups with no visible kids hide entirely.
  */
-export const NAV_TABS: NavTab[] = [
+/** Houzs's whole registry, before Carres trims it (carres/navOnly.ts). Exported for the tests that pin its shape. */
+export const ALL_NAV_TABS: NavTab[] = [
   // ══ WORKSPACE ════════════════════════════════════════════════
   {
     section: "workspace",
@@ -1104,6 +1106,9 @@ export const NAV_TABS: NavTab[] = [
     anyPerm: ["*", "pos.manage"],
   },
 ];
+
+// Carres: Supply Chain and Service Cases only (see src/carres/navOnly.ts).
+export const NAV_TABS: NavTab[] = carresNavOnly(ALL_NAV_TABS);
 
 // Accordion sibling map — each expandable group's same-level peers. Opening a
 // group collapses its siblings (top-level groups are mutually exclusive; so are

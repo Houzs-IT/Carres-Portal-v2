@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BACKDATE_DECIDER_PERMS } from "./vendor/scm/lib/payment-backdate-perms";
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import { CARRES_HOME, CARRES_EXTRAS, isCarresHiddenPath } from "./carres/navOnly";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./auth/AuthContext";
 import { canUseAssistant } from "./auth/assistantAccess";
@@ -506,6 +507,14 @@ function FairReportGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Carres: an address of a switched-off module opens the home page instead, whether typed, bookmarked,
+ *  or sent by the portal's frame (carres/embed.ts). */
+function CarresModuleGate({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  if (isCarresHiddenPath(pathname)) return <Navigate to={CARRES_HOME} replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <GlobalSearchProvider>
@@ -514,11 +523,12 @@ export default function App() {
       <BrowserPushSink />
       <AnnouncementBanner />
       <LazySlot resetKey="pending-reminder" fallback={null}><PendingTasksReminder /></LazySlot>
-      <QuickActionsFAB />
+      {/* Carres: the quick-add button and the assistant serve areas not used here. */}
+      {CARRES_EXTRAS && <QuickActionsFAB />}
       <BackToTopFAB />
       <LineGridNav />
       <AssistantPanelProvider>
-        <AssistantLauncher />
+        {CARRES_EXTRAS && <AssistantLauncher />}
         <AssistantPanel />
       </AssistantPanelProvider>
       <IosInstallGuide />
@@ -526,9 +536,10 @@ export default function App() {
       <Layout>
         <RouteCrashBoundary>
         <Suspense fallback={<PageSkeleton />}>
+        <CarresModuleGate>
         <Routes>
-        {/* Landing → Overview workspace home (P1). */}
-        <Route path="/" element={<Overview />} />
+        {/* Carres: the landing page is the Sales Orders list (carres/navOnly.ts). */}
+        <Route path="/" element={<Navigate to={CARRES_HOME} replace />} />
         <Route
           path="/assr"
           element={
@@ -1071,6 +1082,7 @@ export default function App() {
         ))}
         <Route path="*" element={<Forbidden kind="not-found" />} />
         </Routes>
+        </CarresModuleGate>
         </Suspense>
         </RouteCrashBoundary>
       </Layout>

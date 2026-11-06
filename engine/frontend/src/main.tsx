@@ -24,6 +24,7 @@ import { consumeCompanyUrlSeed } from "./lib/activeCompany";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { tokenStore } from "./api/client";
+import { consumeCarresSignIn, listenForCarresNavigation } from "./carres/embed";
 import { restoreNativeSession } from "./lib/nativeSession";
 import { registerNativePush } from "./lib/nativePush";
 import { readAuthToken } from "./lib/authToken";
@@ -52,6 +53,10 @@ import { useAppSurface } from "./routing/appSurface";
 // to the canonical origin — which is itself in LOGIN_AS_HOSTS below.
 const canonicalTarget = canonicalRedirectUrl(window.location.href);
 if (canonicalTarget) window.location.replace(canonicalTarget);
+
+// Carres: the portal's sign-in hand-over and menu (src/carres/embed.ts).
+consumeCarresSignIn();
+listenForCarresNavigation();
 
 // The public surfaces (survey, customer/supplier portal, password reset)
 // are split out of the staff bundle — staff never download them, and the

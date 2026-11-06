@@ -58,7 +58,7 @@ type Ctx = Context<{ Bindings: Env }>;
 // switch exists to withhold, so both collapse to the same 404.
 function unknownLink(c: Ctx) {
   return c.json(
-    { error: "unknown_link", message: "This link is not valid. Please ask Houzs for a current link." },
+    { error: "unknown_link", message: "This link is not valid. Please ask Carres for a current link." },
     404
   );
 }

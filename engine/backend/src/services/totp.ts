@@ -125,7 +125,7 @@ export async function verifyTotp(
 }
 
 /** The otpauth:// URI an authenticator app scans / imports. */
-export function otpauthUri(secret: string, account: string, issuer = "Houzs ERP"): string {
+export function otpauthUri(secret: string, account: string, issuer = "Carres"): string {
   const label = encodeURIComponent(`${issuer}:${account}`);
   const params = new URLSearchParams({
     secret,

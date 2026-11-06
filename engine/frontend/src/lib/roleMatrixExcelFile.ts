@@ -86,5 +86,5 @@ function downloadBytes(bytes: ArrayBuffer, fileName: string): void {
 export async function exportRoleMatrix(snap: MatrixSnapshot): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   const bytes = await workbookToXlsx(buildWorkbook(snap));
-  downloadBytes(bytes, `Houzs-RBAC-角色权限矩阵-${today}.xlsx`);
+  downloadBytes(bytes, `Carres-RBAC-角色权限矩阵-${today}.xlsx`);
 }

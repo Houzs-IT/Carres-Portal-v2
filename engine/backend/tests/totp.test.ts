@@ -50,7 +50,7 @@ describe("totp crypto (RFC 6238 vectors)", () => {
     const uri = otpauthUri("ABC234", "a@test.local");
     expect(uri).toContain("otpauth://totp/");
     expect(uri).toContain("secret=ABC234");
-    expect(uri).toContain("issuer=Houzs+ERP");
+    expect(uri).toContain("issuer=Carres");
   });
 
   test("backup codes are single-use and normalize case/format", async () => {
