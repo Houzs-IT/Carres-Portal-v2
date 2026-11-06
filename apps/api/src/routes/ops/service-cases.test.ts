@@ -79,7 +79,7 @@ function buildSb(rows: unknown[]) {
       return chain;
     },
   };
-  for (const m of ["order", "limit", "in", "is", "or", "contains", "single", "gte"]) {
+  for (const m of ["order", "limit", "in", "is", "not", "or", "contains", "single", "gte", "lte"]) {
     chain[m] = () => chain;
   }
   const sb = {
@@ -1237,7 +1237,7 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
           then: (res: (v: { data: unknown; error: null }) => unknown) =>
             Promise.resolve({ data: tables[table] ?? null, error: null }).then(res),
         };
-        for (const m of ["select", "eq", "in", "single", "maybeSingle", "order", "limit", "gte", "contains"]) {
+        for (const m of ["select", "eq", "in", "single", "maybeSingle", "order", "limit", "gte", "lte", "contains"]) {
           chain[m] = () => chain;
         }
         for (const m of ["is", "not"]) {
@@ -1252,6 +1252,22 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     } as any;
     return { sb, updates, inserts, filters };
   }
+  // Houzs assrQuality.ts:62-71: goods received on posted, not voided GRNs, by the PO's supplier.
+  it("counts cases against goods received on posted GRNs", async () => {
+    const { sb, filters } = tableSb({
+      service_cases: [{ id: "c1", case_no: "SC2607-01", service_case_statuses: { is_closed: false }, opened_at: new Date().toISOString().slice(0, 10), supplier_id: "s1", suppliers: { name: "Factory A" } }],
+      warehouse_receipts: [{ po_id: "PO-1", goods_received_at: new Date().toISOString().slice(0, 10), lines: [{ received_now: 20 }] }],
+      purchase_orders: [{ id: "PO-1", supplier_id: "s1", suppliers: { name: "Factory A" } }],
+    });
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    const res = await app.request("/api/ops/service-cases/numbers", { headers: { Authorization: `Bearer ${await makeJwt("operation")}` } }, env);
+    const body = (await res.json()) as { returnRate: { rows: Array<{ name: string; cases: number; receivedQty: number; ratePct: number | null }> } };
+    expect(res.status).toBe(200);
+    expect(body.returnRate.rows).toEqual([expect.objectContaining({ name: "Factory A", cases: 1, receivedQty: 20, ratePct: 5 })]);
+    expect(filters).toContainEqual(["not", "posted_at", "is", null]);
+    expect(filters).toContainEqual(["is", "void_at", null]);
+  });
+
   async function patchCase(body: unknown, sb: unknown, role = "operation") {
     vi.mocked(userClient).mockReturnValue(sb as never);
     return app.request(

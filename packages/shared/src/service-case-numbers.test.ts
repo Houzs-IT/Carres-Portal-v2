@@ -10,6 +10,8 @@ import {
   caseNumbersMonths,
   computeCaseNumbers,
   type CaseNumbersCase,
+  caseReturnRateFrom,
+  caseSupplierReturnRates,
 } from "./service-case-numbers";
 import type { CaseProgressEntry } from "./service-case-plan";
 import type { CaseSlaEvent } from "./service-case-sla";
@@ -400,5 +402,41 @@ describe("COPY-STANDARD", () => {
     for (const s of strings) {
       for (const b of banned) expect(s.toLowerCase()).not.toContain(b);
     }
+  });
+});
+
+describe("caseSupplierReturnRates (Houzs assr-quality.ts)", () => {
+  it("starts at least three months before the period end", () => {
+    expect(caseReturnRateFrom("2026-10-01", "2026-10-31")).toBe("2026-08-03");
+    expect(caseReturnRateFrom("2026-01-01", "2026-10-31")).toBe("2026-01-01");
+  });
+
+  it("counts cases against goods received, over the window and per month", () => {
+    const out = caseSupplierReturnRates({
+      rateFrom: "2026-08-01",
+      to: "2026-10-31",
+      cases: [
+        { supplierId: "s1", supplierName: "Factory A", openedAt: "2026-09-10" },
+        { supplierId: "s1", supplierName: "Factory A", openedAt: "2026-10-02" },
+        { supplierId: "s1", supplierName: "Factory A", openedAt: "2026-07-30" },
+        { supplierId: "s2", supplierName: "Factory B", openedAt: "2026-10-05" },
+        { supplierId: null, supplierName: null, openedAt: "2026-10-05" },
+      ],
+      received: [
+        { supplierId: "s1", supplierName: "Factory A", day: "2026-08-20", qty: 30 },
+        { supplierId: "s1", supplierName: "Factory A", day: "2026-09-20", qty: 10 },
+        { supplierId: "s3", supplierName: "Factory C", day: "2026-09-20", qty: 99 },
+      ],
+    });
+    expect(out.noSupplier).toBe(1);
+    expect(out.rows.map((r) => [r.name, r.cases, r.receivedQty, r.ratePct])).toEqual([
+      ["Factory A", 2, 40, 5],
+      ["Factory B", 1, 0, null],
+    ]);
+    expect(out.rows[0]!.months).toEqual([
+      { month: "2026-08", receivedQty: 30, cases: 0, ratePct: 0 },
+      { month: "2026-09", receivedQty: 10, cases: 1, ratePct: 10 },
+      { month: "2026-10", receivedQty: 0, cases: 1, ratePct: null },
+    ]);
   });
 });

@@ -595,3 +595,76 @@ function isAre(n: number): string {
 function wasWere(n: number): string {
   return n === 1 ? "was" : "were";
 }
+
+// ── Return rate by supplier (Houzs routes/lib/assr-quality.ts:41-148) ────────
+
+/** One posted, not voided goods receipt's quantity, by its PO's supplier. */
+export interface CaseReceivedQty {
+  supplierId: string;
+  supplierName: string;
+  /** The goods received date, YYYY-MM-DD. */
+  day: string;
+  qty: number;
+}
+
+export interface CaseReturnRateCase {
+  supplierId: string | null;
+  supplierName: string | null;
+  openedAt: string | null;
+}
+
+export interface CaseReturnRateMonth { month: string; receivedQty: number; cases: number; ratePct: number | null }
+export interface CaseReturnRateRow {
+  name: string;
+  receivedQty: number;
+  cases: number;
+  /** cases ÷ received, one decimal; null when nothing was received. */
+  ratePct: number | null;
+  months: CaseReturnRateMonth[];
+}
+
+/** Houzs assrQuality.ts:31-33: supplier figures cover at least the three months
+ *  up to the period end, since a defect shows weeks after the goods arrive. */
+export function caseReturnRateFrom(from: string, to: string): string {
+  const threeMonths = new Date(Date.parse(`${to}T00:00:00Z`) - 89 * 86_400_000).toISOString().slice(0, 10);
+  return from < threeMonths ? from : threeMonths;
+}
+
+const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : null);
+
+/** Cases opened against goods received from that supplier, both over
+ *  [rateFrom, to], and month by month. A Carres case names one product, so
+ *  each case counts one item (Houzs counts a case's item quantity, at least 1).
+ *  Only suppliers with a case are listed, most cases first. */
+export function caseSupplierReturnRates(input: {
+  cases: readonly CaseReturnRateCase[];
+  received: readonly CaseReceivedQty[];
+  rateFrom: string;
+  to: string;
+}): { rows: CaseReturnRateRow[]; noSupplier: number } {
+  const inRate = (d: string | null) => !!d && d.slice(0, 10) >= input.rateFrom && d.slice(0, 10) <= input.to;
+  const cases = input.cases.filter((c) => inRate(c.openedAt));
+  const received = input.received.filter((r) => inRate(r.day));
+  const months: string[] = [];
+  for (let d = new Date(`${input.rateFrom.slice(0, 7)}-01T00:00:00Z`); d.toISOString().slice(0, 7) <= input.to.slice(0, 7); d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
+    months.push(d.toISOString().slice(0, 7));
+  }
+  const ids = [...new Set(cases.map((c) => c.supplierId).filter((x): x is string => !!x))];
+  const rows = ids.map((id) => {
+    const cs = cases.filter((c) => c.supplierId === id);
+    const rs = received.filter((r) => r.supplierId === id);
+    const receivedQty = rs.reduce((a, r) => a + r.qty, 0);
+    return {
+      name: cs[0]?.supplierName ?? rs[0]?.supplierName ?? "",
+      receivedQty,
+      cases: cs.length,
+      ratePct: pct(cs.length, receivedQty),
+      months: months.map((month) => {
+        const q = rs.filter((r) => r.day.slice(0, 7) === month).reduce((a, r) => a + r.qty, 0);
+        const n = cs.filter((c) => (c.openedAt ?? "").slice(0, 7) === month).length;
+        return { month, receivedQty: q, cases: n, ratePct: pct(n, q) };
+      }),
+    };
+  }).sort((a, b) => b.cases - a.cases);
+  return { rows, noSupplier: cases.filter((c) => !c.supplierId).length };
+}

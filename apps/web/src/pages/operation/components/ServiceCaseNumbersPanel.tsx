@@ -310,6 +310,40 @@ export default function ServiceCaseNumbersPanel() {
             )}
           </div>
         </section>
+
+        {/* Houzs routes/lib/assr-quality.ts:113-148: cases against goods received, per supplier. */}
+        {d.returnRate && (
+          <section className="rounded border border-base-200 bg-white" data-testid="numbers-return-rate">
+            <header className="px-4 py-3 border-b border-base-100">
+              <span className="text-strong text-base-900">Return rate by supplier</span>
+              <p className="text-meta text-base-600">Cases against goods received, {d.returnRate.rateFrom} to {d.returnRate.to}.</p>
+            </header>
+            <div className="px-4 py-2">
+              {d.returnRate.rows.length === 0 ? (
+                <Empty>No case names a supplier in this period.</Empty>
+              ) : (
+                d.returnRate.rows.map((r) => (
+                  <div key={r.name} className="py-1.5 border-t border-base-100 first:border-t-0">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-body text-base-900 truncate">{r.name}</span>
+                      <span className="font-mono tabular-nums text-body text-base-900 shrink-0">
+                        {r.ratePct == null ? "No goods received" : `${r.ratePct}%`}
+                      </span>
+                    </div>
+                    <p className="text-meta text-base-600">
+                      {r.cases} {r.cases === 1 ? "case" : "cases"} · {r.receivedQty} received
+                      {" · "}
+                      {r.months.map((m) => `${m.month}: ${m.cases} of ${m.receivedQty}`).join(" · ")}
+                    </p>
+                  </div>
+                ))
+              )}
+              {d.returnRate.noSupplier > 0 && (
+                <p className="text-meta text-base-600 py-1.5">{d.returnRate.noSupplier} {d.returnRate.noSupplier === 1 ? "case names" : "cases name"} no supplier.</p>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

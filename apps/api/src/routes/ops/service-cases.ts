@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import {
+  caseReturnRateFrom,
+  caseSupplierReturnRates,
+  warehouseReceiptTotals,
+  type CaseReceivedQty,
   CASE_EVIDENCE_BUCKET,
   caseEvidenceExtension,
   caseEvidenceGapMessage,
@@ -215,7 +219,7 @@ scRouter.get("/numbers", requireOperationOrPrincipal, async (c) => {
   const { data, error } = await sb
     .from("service_cases")
     .select(
-      "id, case_no, opened_at, product_category, issue_type, progress, sla_events, service_case_statuses(is_closed), suppliers(name), " +
+      "id, case_no, opened_at, product_category, issue_type, progress, sla_events, supplier_id, service_case_statuses(is_closed), suppliers(name), " +
         "service_case_resolution_methods(label), " +
         "service_case_stage_history(entered_at, exited_at, target_days, service_case_statuses(label, sort_order))",
     )
@@ -242,9 +246,51 @@ scRouter.get("/numbers", requireOperationOrPrincipal, async (c) => {
     })).filter((v) => v.stage),
   }));
 
-  return c.json(
-    computeCaseNumbers({ cases, todayIso, period, nowIso: new Date().toISOString() }, { holidays: myHolidaySet() }),
-  );
+  // Houzs assrQuality.ts:31-33, 62-71 (supplier rate): goods received on posted,
+  // not voided GRNs, by the PO's supplier, over at least the three months to the
+  // period end. shortcut: clamped to the fetched window, so the oldest month reads
+  // fewer than three months; widen the case read if that month matters.
+  const periodTo = period
+    ? (() => { const end = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 0)).toISOString().slice(0, 10); return end < todayIso ? end : todayIso; })()
+    : todayIso;
+  const fromRate = caseReturnRateFrom(period ? `${period}-01` : from, periodTo);
+  const rateFrom = fromRate < from ? from : fromRate;
+  const { data: grns, error: gErr } = await sb
+    .from("warehouse_receipts")
+    .select("po_id, goods_received_at, lines")
+    .not("posted_at", "is", null)
+    .is("void_at", null)
+    .gte("goods_received_at", rateFrom)
+    .lte("goods_received_at", periodTo);
+  if (gErr) throw new HTTPException(500, { message: gErr.message });
+  const grnRows = (grns ?? []) as Array<{ po_id: string | null; goods_received_at: string | null; lines: unknown }>;
+  const poIds = [...new Set(grnRows.map((g) => g.po_id).filter((x): x is string => !!x))];
+  const supplierByPo = new Map<string, { id: string; name: string }>();
+  for (let i = 0; i < poIds.length; i += 200) {
+    const { data: pos, error: pErr } = await sb
+      .from("purchase_orders").select("id, supplier_id, suppliers(name)").in("id", poIds.slice(i, i + 200));
+    if (pErr) throw new HTTPException(500, { message: pErr.message });
+    for (const p of (pos ?? []) as unknown as Array<{ id: string; supplier_id: string | null; suppliers: { name: string } | { name: string }[] | null }>) {
+      if (p.supplier_id) supplierByPo.set(p.id, { id: p.supplier_id, name: embeddedSupplier(p.suppliers) ?? "" });
+    }
+  }
+  const received: CaseReceivedQty[] = grnRows.flatMap((g) => {
+    const sup = g.po_id ? supplierByPo.get(g.po_id) : undefined;
+    if (!sup || !g.goods_received_at) return [];
+    const qty = warehouseReceiptTotals(Array.isArray(g.lines) ? g.lines : []).received;
+    return [{ supplierId: sup.id, supplierName: sup.name, day: g.goods_received_at.slice(0, 10), qty }];
+  });
+  const rates = caseSupplierReturnRates({
+    cases: ((data ?? []) as unknown as NumbersRow[]).map((r) => ({
+      supplierId: r.supplier_id ?? null, supplierName: embeddedSupplier(r.suppliers ?? null), openedAt: r.opened_at,
+    })),
+    received, rateFrom, to: periodTo,
+  });
+
+  return c.json({
+    ...computeCaseNumbers({ cases, todayIso, period, nowIso: new Date().toISOString() }, { holidays: myHolidaySet() }),
+    returnRate: { rateFrom, to: periodTo, ...rates },
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1094,6 +1140,7 @@ function shapeSlaEvents(raw: unknown): CaseSlaEvent[] {
  *  counts rather than crashing the read. */
 interface NumbersRow {
   id: string;
+  supplier_id?: string | null;
   case_no: string;
   opened_at: string;
   product_category?: string | null;
