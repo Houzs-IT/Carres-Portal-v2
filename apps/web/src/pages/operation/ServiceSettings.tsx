@@ -17,6 +17,7 @@ import Input from "@/components/kit/Input";
 import PageShell from "@/components/kit/PageShell";
 import Select from "@/components/kit/Select";
 import { W } from "./settings-core/parts";
+import ServiceLeadTime from "./ServiceLeadTime";
 
 type PickItem = { id: string; label: string; active: boolean; isClosed: boolean; targetDays?: number | null; slaHours?: number | null; statusId?: string | null };
 type ServiceSettingsRead = { defaultOwnerUserId: string | null; types: PickItem[]; statuses: PickItem[]; subStatuses?: PickItem[]; resolutionMethods?: PickItem[];
@@ -63,7 +64,9 @@ export default function ServiceSettings() {
             />
           </div>
         </section>
-        <PickList list="statuses" title="Stages" help="The stages staff pick on a case. A stage that closes the case cannot be added here. Target days: how long a case should stay in the stage; a case past it shows red. A new target counts for cases that enter the stage after the change." items={q.data?.statuses ?? []} canEdit={canEdit} onChanged={refresh} />
+        <PickList list="statuses" title="Stages" help="The stages staff pick on a case. A stage that closes the case cannot be added here. Target days per stage are set under Lead Time." items={q.data?.statuses ?? []} canEdit={canEdit} onChanged={refresh} />
+        {/* 0766 — Houzs ServiceLeadTimePortal.tsx: stage target days live in Lead Time profiles. */}
+        <ServiceLeadTime stages={q.data?.statuses ?? []} canEdit={canEdit} />
         {/* 0760 — Houzs assr-sub-statuses.ts: sub-statuses inside a stage, one list per open stage. */}
         {(q.data?.statuses ?? []).filter((st) => st.active && !st.isClosed).map((st) => (
           <PickList key={st.id} list="subStatuses" statusId={st.id} title={`Sub-statuses in ${st.label}`}
@@ -98,7 +101,7 @@ function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
     onSuccess: () => { setLabel(""); onChanged(); },
   });
   const edit = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: { label?: string; active?: boolean; targetDays?: number | null; slaHours?: number | null } }) =>
+    mutationFn: ({ id, body }: { id: string; body: { label?: string; active?: boolean; slaHours?: number | null } }) =>
       apiFetch(`/api/ops/service-cases/settings/${list}/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: onChanged,
   });
@@ -128,27 +131,6 @@ function PickList({ list, statusId, title, help, items, canEdit, onChanged }: {
                   }}
                 />
               </div>
-              {/* 0745 — Houzs ServiceLeadTimePortal.tsx stage targets, one per stage. */}
-              {list === "statuses" && !it.isClosed && (
-                <div className="w-28">
-                  <Input
-                    id={`service-${list}-${it.id}-target`}
-                    aria-label={`Target days for ${it.label}`}
-                    placeholder="Target days"
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    defaultValue={it.targetDays ?? ""}
-                    disabled={!canEdit}
-                    onBlur={(e) => {
-                      const raw = e.target.value.trim();
-                      const next = raw === "" ? null : Number(raw);
-                      if (next !== null && !(next >= 0)) return;
-                      if (next !== (it.targetDays ?? null)) edit.mutate({ id: it.id, body: { targetDays: next } });
-                    }}
-                  />
-                </div>
-              )}
               {/* 0764 — Houzs assr_priorities.sla_hours: the case deadline. */}
               {list === "priorities" && (
                 <div className="w-28">

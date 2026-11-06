@@ -1391,6 +1391,38 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(await res.json()).toMatchObject({ code: "last_closing_stage", message: refusal.message });
   });
 
+  // 0766 — Houzs assrPortal.ts:281-340: a target change carries a reason and goes through the checked function.
+  it("amends a Lead Time target through the checked function", async () => {
+    const sb = { from: vi.fn(), rpc: vi.fn(async (name: string) => ({ data: name === "service_case_amend_lead_time_target" ? 2 : true, error: null })) };
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    const body = { profileId: "00000000-0000-0000-0000-0000000000a1", statusId: "00000000-0000-0000-0000-0000000000b1", targetDays: 3.5, reason: "Peak season backlog" };
+    const res = await app.request(
+      "/api/ops/service-cases/settings/lead-time/targets",
+      { method: "PATCH", headers: { Authorization: `Bearer ${await makeJwt("principal")}`, "content-type": "application/json" }, body: JSON.stringify(body) },
+      env,
+    );
+    expect(await res.json()).toEqual({ reapplied: 2 });
+    expect(sb.rpc).toHaveBeenCalledWith("service_case_amend_lead_time_target", {
+      p_profile: body.profileId, p_status: body.statusId, p_days: 3.5, p_reason: "Peak season backlog",
+    });
+  });
+
+  it("refuses a Lead Time change with a short reason", async () => {
+    const sb = { from: vi.fn(), rpc: vi.fn(async () => ({ data: true, error: null })) };
+    vi.mocked(userClient).mockReturnValue(sb as never);
+    const res = await app.request(
+      "/api/ops/service-cases/settings/lead-time/targets",
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${await makeJwt("principal")}`, "content-type": "application/json" },
+        body: JSON.stringify({ profileId: "00000000-0000-0000-0000-0000000000a1", statusId: "00000000-0000-0000-0000-0000000000b1", targetDays: 2, reason: "short" }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(sb.rpc).not.toHaveBeenCalledWith("service_case_amend_lead_time_target", expect.anything());
+  });
+
   it("My Cases narrows the list to the ids the database answers for me and my team", async () => {
     const { sb } = tableSb({ service_cases: [CASE_ROW, { ...CASE_ROW, id: "c2" }] }, ["c2"]);
     const res = await get("/ops/service-cases?mine=1", sb);

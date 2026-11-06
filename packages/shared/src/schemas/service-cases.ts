@@ -632,3 +632,18 @@ export const servicePickItemPatchSchema = z.object({
   /** 0764 — priorities only: SLA hours, null = 14 working days. */
   slaHours: z.number().int().positive().max(8760).nullable().optional(),
 });
+
+// 0766 — Houzs Lead Time Portal (assrPortal.ts): profiles of stage target days, one active.
+export const leadTimeProfileCreateSchema = z.object({
+  name:        z.string().trim().min(1).max(60),
+  description: z.string().trim().max(200).nullable().optional(),
+});
+export const leadTimeTargetAmendSchema = z.object({
+  profileId:  z.string().uuid(),
+  statusId:   z.string().uuid(),
+  targetDays: z.number({ invalid_type_error: "Use a number of days." }).min(0, "Use 0 or more days."),
+  reason:     z.string().trim().min(10, "Give a reason of at least 10 characters.").max(500),
+});
+export type LeadTimeProfile = { id: string; name: string; description: string | null; isActive: boolean; targets: Record<string, number> };
+export type LeadTimeAmendment = { id: string; profileId: string; statusId: string; beforeDays: number | null; afterDays: number; reason: string; createdAt: string };
+export type LeadTimeRead = { profiles: LeadTimeProfile[]; amendments: LeadTimeAmendment[] };
