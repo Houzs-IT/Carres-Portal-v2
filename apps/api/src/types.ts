@@ -35,6 +35,8 @@ export type Bindings = {
   SCM_ENGINE_API?: string;
   SCM_ENGINE_SITE?: string;
   SCM_ENGINE_SSO_SECRET?: string;
+  /** The engine Worker itself (service binding, production); unset => SCM_ENGINE_API over the internet. */
+  SCM_ENGINE?: Fetcher;
 };
 
 export type AuthContext = {

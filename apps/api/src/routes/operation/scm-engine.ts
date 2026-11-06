@@ -31,7 +31,10 @@ router.post("/session", requireOperation, async (c) => {
   const auth = c.var.auth;
   let res: Response;
   try {
-    res = await fetch(`${api.replace(/\/+$/, "")}/api/carres-sso`, {
+    // Through the service binding when there is one: a public workers.dev call between two Workers of one
+    // account is refused by Cloudflare.
+    const call = c.env.SCM_ENGINE ? c.env.SCM_ENGINE.fetch.bind(c.env.SCM_ENGINE) : fetch;
+    res = await call(`${api.replace(/\/+$/, "")}/api/carres-sso`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ assertion: await engineAssertion(secret, { email: auth.email, role: auth.role }) }),
