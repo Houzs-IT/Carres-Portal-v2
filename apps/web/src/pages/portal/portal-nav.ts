@@ -365,6 +365,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only: My Work / Team Work and a person's own leave (0670).
       { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
       { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
+      // Carres-only: the supply chain engine (engine/), one row that opens its own menu in a frame. Its own
+      // name while the older Supply Chain pages above are still in use.
+      { key: "engine", label: "New Supply Chain", icon: Boxes, mIcon: "inventory_2", section: "Workspace" },
       // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order.
       { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
       { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/amendments", section: "Sales" },
@@ -590,6 +593,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "stock-drops", label: "Stock drops", icon: Boxes, financePath: "/finance/reports/stock-drops", section: "Reports" },
       { key: "corrections", label: "Corrections", icon: History, financePath: "/finance/corrections", section: "Reports" },
       { key: "payment-report", label: "Payment", icon: Wallet, financePath: "/finance/reports/payment", section: "Reports" },
+      /* 0754: a project's money (Houzs event page finance, YH 3 Nov 2026). */
+      { key: "project-money", label: "Project money", icon: BarChart3, financePath: "/finance/project-money", section: "Reports" },
 
       /* FORECASTING and SETUP: one Carres page each, so plain rows. */
       { key: "forecast", label: "Forecast P&L", icon: TrendingUp, financePath: "/finance/reports/forecast", section: "Forecast" },

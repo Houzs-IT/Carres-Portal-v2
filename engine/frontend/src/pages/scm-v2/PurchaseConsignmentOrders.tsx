@@ -1,0 +1,555 @@
+// ----------------------------------------------------------------------------
+// PurchaseConsignmentOrders — Purchase Consignment Order list, cloned from the
+// polished Purchase Orders list (PurchaseOrders.tsx). Same DataGrid UX:
+//   • double-click a row → open the detail page
+//   • right-click → context menu (View · Edit · Cancel)
+//   • click a row → drill-down with full line items
+//
+// Reuses the shared DataGrid + ItemGroupPill + fmtDateOrDash UNCHANGED; only the
+// queries are repointed at `/purchase-consignment-orders` (pc-order hooks) and
+// navigation points at /purchase-consignment.
+//
+// Dropped from the PO clone (per scope): the "From Sales Order" button + the
+// multi-select "Transfer to Goods Received" batch flow + the per-line "Received (GRN)"
+// breakdown column (consignment receiving lives on the parallel Purchase
+// Consignment Receive flow).
+// ----------------------------------------------------------------------------
+
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit3, PackageCheck } from 'lucide-react';
+import { Button } from '@2990s/design-system';
+import { Button as DrawerButton } from '../../components/Button';
+import {
+  QuickViewShell, DrawerMetaGrid, DrawerMeta, DrawerSection, DrawerKV, DrawerPartyCard,
+  DrawerLines, DrawerLineRow, DrawerLineItem, DrawerTotals, DrawerTotal, drawerErrorText, type DrawerTone,
+} from './QuickViewDrawerParts';
+import { buildVariantSummary, fmtDateOrDash, fmtMoneySen, fmtQty, fmtSen } from '@2990s/shared';
+import {
+  usePurchaseConsignmentOrders,
+  usePurchaseConsignmentOrderDetail,
+  useCancelPurchaseConsignmentOrder,
+} from '../../vendor/scm/lib/purchase-consignment-order-queries';
+import {
+  type PoHeaderRow,
+  type PoItemRow,
+  type Currency,
+} from '../../vendor/scm/lib/suppliers-queries';
+import { poStatusLabel } from '../../vendor/scm/lib/po-status';
+import { warehouseLabel } from '../../vendor/scm/lib/warehouse-label';
+import { ItemGroupPill } from '../../vendor/scm/lib/category-badges';
+import { DataGridCompat, type GridColumn } from '../../components/DataGridCompat';
+import { cancelledDocNoClass, cancelledRowClass } from '../../lib/scm';
+import { usePrompt } from '../../vendor/scm/components/ConfirmDialog';
+import { useNotify } from '../../vendor/scm/components/NotifyDialog';
+import { StatusPill } from '../../vendor/scm/components/StatusPill';
+import styles from './Suppliers.module.css';
+import { PageHeader } from '../../components/Layout';
+import { FilterPills } from '../../components/FilterPills';
+
+const ICON = { size: 16, strokeWidth: 1.75 } as const;
+
+type StatusFilter = 'all' | 'outstanding' | 'cancelled';
+const STATUS_CHIPS: { value: StatusFilter; label: string }[] = [
+  { value: 'outstanding', label: 'Outstanding' },
+  { value: 'all', label: 'All' },
+  { value: 'cancelled', label: 'Cancelled' }
+];
+
+const fmtMoney = (centi: number, currency: Currency): string =>
+  currency === 'MYR' ? fmtSen(centi) : fmtMoneySen(centi, currency);
+
+// The backend PC-orders list returns pc_number (the consignment doc number),
+// but the shared PoHeaderRow type carries po_number. Read pc_number first with
+// a po_number fallback so the doc number renders instead of `undefined`.
+const pcNo = (po: PoHeaderRow): string =>
+  (po as { pc_number?: string }).pc_number ?? po.po_number ?? '';
+
+const summarizeItems = (items: PoHeaderRow['items']): string | null => {
+  if (!items || items.length === 0) return null;
+  const HEAD = 3;
+  const shown = items.slice(0, HEAD)
+    .map((it) => `${it.item_code}×${it.qty}`)
+    .join(' · ');
+  const extra = items.length - HEAD;
+  return extra > 0 ? `${shown} · +${extra} more` : shown;
+};
+
+const locationOf = (po: PoHeaderRow): string => warehouseLabel(po.purchase_location) ?? '';
+
+const PC_ORDER_LIST_STORAGE_KEY = 'pc-order-list.layout.v1';
+
+const buildColumns = (): GridColumn<PoHeaderRow>[] => [
+  {
+    key: 'pc_number', label: 'P/CO No.', width: 150, sortable: true,
+    // Backend (purchase-consignment-orders list) returns pc_number, not the
+    // PO's po_number — the PoHeaderRow type is shared with real POs, so read
+    // pc_number with a po_number fallback.
+    accessor: (po) => <span style={{ fontWeight: 700, color: '#16695f', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(po.status)}>{pcNo(po)}</span>,
+    searchValue: (po) => pcNo(po),
+    /* Accessor is JSX → export the raw doc-no string or the cell exports blank. */
+    exportValue: (po) => pcNo(po),
+    sortFn: (a, b) => pcNo(a).localeCompare(pcNo(b)),
+  },
+  {
+    // Owner 2026-07-24: supplier NAME and CODE are separate columns on every
+    // procurement table — code is no longer buried as the name's fallback.
+    key: 'supplier', label: 'Supplier', width: 200, sortable: true, groupable: true,
+    accessor: (po) => po.supplier?.name ?? '—',
+    searchValue: (po) => po.supplier?.name ?? '',
+    groupValue: (po) => po.supplier?.name ?? po.supplier?.code ?? '(none)',
+    sortFn: (a, b) =>
+      (a.supplier?.name ?? '').localeCompare(b.supplier?.name ?? ''),
+  },
+  {
+    key: 'supplier_code', label: 'Supplier Code', width: 120, sortable: true,
+    accessor: (po) => po.supplier?.code
+      ? <span className={styles.codeChip}>{po.supplier.code}</span>
+      : '—',
+    searchValue: (po) => po.supplier?.code ?? '',
+    filterValue: (po) => po.supplier?.code ?? '—',
+    sortFn: (a, b) => (a.supplier?.code ?? '').localeCompare(b.supplier?.code ?? ''),
+  },
+  {
+    key: 'items', label: 'Items', width: 320, sortable: false, groupable: false,
+    accessor: (po) => {
+      const summary = summarizeItems(po.items);
+      return (
+        <span
+          title={(po.items ?? []).map((it) => `${it.item_code} × ${it.qty}`).join('\n')}
+          style={{
+            display: 'block',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--fs-12)',
+            color: summary ? 'var(--c-ink)' : 'var(--fg-muted)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {summary ?? '—'}
+        </span>
+      );
+    },
+    searchValue: (po) => (po.items ?? []).map((it) => `${it.item_code} ${it.qty}`).join(' '),
+    /* Accessor is JSX → export the readable "code×qty · …" summary string. */
+    exportValue: (po) => summarizeItems(po.items) ?? '',
+  },
+  {
+    key: 'po_date', label: 'Date', width: 120, sortable: true,
+    accessor: (po) => fmtDateOrDash(po.po_date),
+    searchValue: (po) => po.po_date,
+    sortFn: (a, b) => (a.po_date ?? '').localeCompare(b.po_date ?? ''),
+    filterType: 'date', dateValue: (po) => po.po_date,
+  },
+  {
+    key: 'expected_at', label: 'Expected', width: 120, sortable: true,
+    accessor: (po) => fmtDateOrDash(po.expected_at),
+    searchValue: (po) => po.expected_at ?? '',
+    sortFn: (a, b) => (a.expected_at ?? '').localeCompare(b.expected_at ?? ''),
+    filterType: 'date', dateValue: (po) => po.expected_at,
+  },
+  {
+    key: 'purchase_location', label: 'Purchase Location', width: 170, sortable: true, groupable: true,
+    accessor: (po) => locationOf(po) || '—',
+    searchValue: (po) => locationOf(po),
+    filterValue: (po) => locationOf(po) || '—',
+    groupValue: (po) => locationOf(po) || '(none)',
+    sortFn: (a, b) => locationOf(a).localeCompare(locationOf(b)),
+  },
+  {
+    key: 'currency', label: 'Currency', width: 90, sortable: true, groupable: true,
+    accessor: (po) => po.currency,
+    searchValue: (po) => po.currency,
+    groupValue: (po) => po.currency,
+  },
+  {
+    key: 'total_sen', label: 'Total', width: 130, sortable: true, align: 'right', groupable: false,
+    accessor: (po) => (
+      <span style={{ fontFamily: 'var(--font-mark)', color: '#16695f', fontWeight: 800 }}>
+        {fmtMoney(po.total_sen, po.currency)}
+      </span>
+    ),
+    searchValue: (po) => fmtMoney(po.total_sen, po.currency),
+    /* Accessor is JSX → export the NUMBER in ringgit (not "MYR 1,234.00") so
+       Excel can SUM the column. */
+    exportValue: (po) => (po.total_sen ?? 0) / 100,
+    exportFormat: 'money',
+    sortFn: (a, b) => a.total_sen - b.total_sen,
+  },
+  {
+    key: 'status', label: 'Status', width: 160, sortable: true, groupable: true,
+    accessor: (po) => <StatusPill docType="po" status={po.status} />,
+    searchValue: (po) => poStatusLabel(po.status),
+    /* Accessor is JSX → export the human status label, not blank. */
+    exportValue: (po) => poStatusLabel(po.status),
+    groupValue: (po) => poStatusLabel(po.status),
+    sortFn: (a, b) => poStatusLabel(a.status).localeCompare(poStatusLabel(b.status)),
+  },
+];
+
+/* Status TONE for the drawer badge: every line received = success, cancelled
+   = error, draft = neutral, anything still open = warning. A function, not a
+   status map, so the po_status vocabulary keeps its one home (po-status.ts).
+   LABEL is poStatusLabel. */
+const pcoTone = (s: string): DrawerTone =>
+  s === 'RECEIVED' ? 'success' : s === 'CANCELLED' ? 'error' : s === 'DRAFT' ? 'neutral' : 'warning';
+const PCO_LINE_COLS = 'grid-cols-[minmax(0,1fr)_44px_96px]';
+
+/* Quick-view drawer — row click opens the same right slide-over the Sales
+   Order / Purchase Order lists have. Lines ride the SAME detail query the
+   expand chevron uses. */
+export function PurchaseConsignmentOrderDrawer({
+  row, onClose, onOpenFull, onEdit, onReceive, onCancel,
+}: {
+  row: PoHeaderRow | null;
+  onClose: () => void;
+  onOpenFull: () => void;
+  onEdit: () => void;
+  onReceive: () => void;
+  onCancel: () => void;
+}) {
+  const detailQ = usePurchaseConsignmentOrderDetail(row?.id ?? null);
+  const items = detailQ.data?.items ?? [];
+  const status = row?.status ?? '';
+  const hasChildren = Boolean(row?.has_children);
+  const canReceive = status === 'SUBMITTED' || status === 'PARTIALLY_RECEIVED';
+  const canCancel = status !== 'CANCELLED' && status !== 'RECEIVED' && !hasChildren;
+  const currency: Currency = row?.currency ?? 'MYR';
+  const lineSum = items.reduce((sum, it) => sum + it.line_total_sen, 0);
+  const subtotalSen = items.length > 0 ? lineSum : row?.subtotal_sen ?? 0;
+
+  return (
+    <QuickViewShell
+      open={Boolean(row)}
+      onClose={onClose}
+      ariaLabel={row ? `Purchase consignment order ${pcNo(row)}` : 'Purchase consignment order details'}
+      docNo={row ? pcNo(row) : ''}
+      docLabel="Purchase Consignment Order"
+      statusLabel={row ? poStatusLabel(row.status) : ''}
+      statusTone={pcoTone(status)}
+      onOpenFull={onOpenFull}
+      footer={row && (
+        <>
+          {!hasChildren && <DrawerButton variant="ghost" icon={<Edit3 size={14} />} onClick={onEdit}>Edit</DrawerButton>}
+          {canCancel && <DrawerButton variant="ghost" className="text-err" onClick={onCancel}>Cancel</DrawerButton>}
+          <div className="flex-1" />
+          {canReceive && (
+            <DrawerButton variant="primary" icon={<PackageCheck size={14} />} onClick={onReceive}>Receive Goods</DrawerButton>
+          )}
+        </>
+      )}
+    >
+      {row && (
+        <>
+          <div className="text-[19px] font-bold text-ink">{row.supplier?.name ?? '—'}</div>
+          <div className="mt-1.5 text-[12.5px] text-ink-muted">Ordered {fmtDateOrDash(row.po_date)}</div>
+
+          <DrawerMetaGrid>
+            <DrawerMeta k="Supplier code" v={row.supplier?.code ?? '—'} mono />
+            <DrawerMeta k="Order date" v={fmtDateOrDash(row.po_date)} />
+            <DrawerMeta k="Expected" v={fmtDateOrDash(row.expected_at)} />
+            <DrawerMeta k="Currency" v={row.currency} />
+            <DrawerMeta k="Purchase location" v={locationOf(row) || '—'} />
+            <DrawerMeta k="Lines" v={String(items.length || row.items?.length || 0)} />
+          </DrawerMetaGrid>
+
+          <DrawerSection>Supplier</DrawerSection>
+          <DrawerPartyCard name={row.supplier?.name ?? '—'} code={row.supplier?.code}>
+            <DrawerKV k="Contact" v={row.supplier?.contact_person || '—'} />
+            <DrawerKV k="Phone" v={row.supplier?.phone || '—'} />
+            <DrawerKV k="Email" v={row.supplier?.email || '—'} />
+            <DrawerKV k="Address" v={row.supplier?.address || '—'} />
+            {row.notes ? <DrawerKV k="Notes" v={row.notes} /> : null}
+          </DrawerPartyCard>
+
+          <DrawerSection>Order lines</DrawerSection>
+          <DrawerLines
+            cols={PCO_LINE_COLS}
+            headings={[{ label: 'Item' }, { label: 'Qty', right: true }, { label: 'Amount', right: true }]}
+            loading={detailQ.isLoading}
+            error={drawerErrorText(detailQ)}
+            empty={items.length === 0}
+          >
+            {items.map((it) => {
+              const manual = (it.description ?? '').trim();
+              const summary = buildVariantSummary(it.item_group ?? null, it.variants ?? null);
+              return (
+                <DrawerLineRow key={it.id} cols={PCO_LINE_COLS}>
+                  <DrawerLineItem
+                    pill={<ItemGroupPill group={it.item_group ?? null} />}
+                    primary={it.item_code}
+                    secondary={manual || summary || it.material_name}
+                  />
+                  <span className="text-right font-money text-[12.5px] text-ink-secondary">{fmtQty(it.qty)}</span>
+                  <span className="text-right font-money text-[12.5px] font-semibold text-ink">{fmtMoney(it.line_total_sen, currency)}</span>
+                </DrawerLineRow>
+              );
+            })}
+          </DrawerLines>
+
+          <DrawerTotals>
+            <DrawerTotal k="Subtotal" v={fmtMoney(subtotalSen, currency)} />
+            {row.tax_sen ? <DrawerTotal k="Tax" v={fmtMoney(row.tax_sen, currency)} /> : null}
+            <DrawerTotal k="Total" v={fmtMoney(row.total_sen, currency)} strong />
+          </DrawerTotals>
+        </>
+      )}
+    </QuickViewShell>
+  );
+}
+
+export const PurchaseConsignmentOrders = () => {
+  const [status, setStatus] = useState<StatusFilter>('outstanding');
+  /* Row click → quick-view drawer. */
+  const [selected, setSelected] = useState<PoHeaderRow | null>(null);
+  const navigate = useNavigate();
+  const cancelPo = useCancelPurchaseConsignmentOrder();
+  const askPrompt = usePrompt();
+  const notify = useNotify();
+
+  const { data, isLoading, error } = usePurchaseConsignmentOrders();
+  const rows = useMemo(() => {
+    const all = data ?? [];
+    if (status === 'all') return all;
+    if (status === 'cancelled') return all.filter((r) => r.status === 'CANCELLED');
+    return all.filter((r) => r.status === 'SUBMITTED' || r.status === 'PARTIALLY_RECEIVED');
+  }, [data, status]);
+
+  const columns = useMemo(() => buildColumns(), []);
+
+  const doCancelPo = async (po: PoHeaderRow) => {
+    const reason = await askPrompt({
+      title: `Cancel ${pcNo(po)}?`, 
+      body: 'It will stop proceeding.', 
+      confirmLabel: 'Cancel order', 
+      danger: true,
+      input: { label: 'Why it is cancelled', required: true },
+    });
+    if (reason === null) return;
+    cancelPo.mutate({id:po.id, reason}, {
+      onSuccess: () => setSelected(null),
+      onError: (e) => notify({ title: 'Cancel failed', body: e instanceof Error ? e.message : 'Something went wrong.', tone: 'error' }),
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        eyebrow="Procurement"
+        title="Purchase Consignment Orders"
+        actions={
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <Button variant="primary" size="sm" onClick={() => navigate('/scm/purchase-consignment-orders/new')}>
+              <Plus {...ICON} />
+              <span>New Purchase Consignment Order</span>
+            </Button>
+          </div>
+        }
+      />
+
+      {/* The SO strip's own FilterPills slab (owner 2026-07-26, red box on
+          the Outstanding/All strip) — the shared component, not a spec copy. */}
+      <FilterPills
+        options={STATUS_CHIPS.map((c) => ({ value: c.value as string, label: c.label }))}
+        value={status}
+        onChange={(v) => setStatus(v as StatusFilter)}
+      />
+
+      <p className={styles.eyebrow}>
+        {isLoading ? 'Loading…' : `${rows.length} purchase consignment orders`}
+      </p>
+
+      {error && !isLoading && (
+        <div className={styles.bannerWarn}>
+          <strong>Failed to load.</strong>{' '}
+          {error instanceof Error ? error.message : 'Something went wrong.'}
+        </div>
+      )}
+
+      <DataGridCompat<PoHeaderRow>
+        rows={rows}
+        columns={columns}
+        storageKey={PC_ORDER_LIST_STORAGE_KEY}
+        exportName="Purchase Consignment Orders"
+        rowKey={(po) => po.id}
+        getRowClassName={(po) => cancelledRowClass(po.status)}
+        searchPlaceholder="Search P/CO no, supplier, code…"
+        loadedSearchLimit={1000}
+        groupBanner={false}
+        onRowClick={(po) => setSelected(po)}
+        onRowDoubleClick={(po) => navigate(`/scm/purchase-consignment-orders/${po.id}`)}
+        expandable={{
+          renderExpansion: (po) => <ExpandedLines po={po} />,
+          rowExpansionKey: (po) => po.id,
+        }}
+        rowStyle={(po) => po.status === 'CANCELLED'
+          ? { opacity: 0.55, filter: 'grayscale(0.6)' }
+          : undefined}
+        contextMenu={(po) => {
+          const hasChildren = Boolean(po.has_children);
+          const menu: Array<{ label?: string; onClick?: () => void; danger?: boolean; divider?: true }> = [
+            { label: 'View', onClick: () => navigate(`/scm/purchase-consignment-orders/${po.id}`) },
+          ];
+          if (!hasChildren) {
+            menu.push({ label: 'Edit', onClick: () => navigate(`/scm/purchase-consignment-orders/${po.id}?edit=1`) });
+          }
+          menu.push({ label: 'Copy as new', onClick: () => navigate(`/scm/purchase-consignment-orders/new?copyFrom=${po.id}`) });
+          if (po.status !== 'CANCELLED' && po.status !== 'RECEIVED' && !hasChildren) {
+            menu.push({ divider: true as const });
+            menu.push({ label: 'Cancel', danger: true, onClick: () => doCancelPo(po) });
+          }
+          return menu;
+        }}
+        isLoading={isLoading}
+        emptyMessage='No orders yet — click "New Purchase Consignment Order" to start.'
+      />
+
+      <PurchaseConsignmentOrderDrawer
+        row={selected}
+        onClose={() => setSelected(null)}
+        onOpenFull={() => selected && navigate(`/scm/purchase-consignment-orders/${selected.id}`)}
+        onEdit={() => selected && navigate(`/scm/purchase-consignment-orders/${selected.id}?edit=1`)}
+        onReceive={() => selected && navigate(`/scm/purchase-consignment-receives/new?fromPcOrder=${selected.id}`)}
+        onCancel={() => selected && void doCancelPo(selected)}
+      />
+    </div>
+  );
+};
+
+/* ─────────────────── Expanded drill-down ────────────────────────────── */
+const buildDrilldownColumns = (
+  currency: Currency,
+  headerExpectedAt: string | null,
+): GridColumn<PoItemRow>[] => [
+  {
+    key: 'group', label: 'Group', width: 90, groupable: true,
+    accessor: (it) => <ItemGroupPill group={it.item_group ?? null} />,
+    searchValue: (it) => it.item_group ?? '',
+    groupValue: (it) => it.item_group ?? '(none)',
+    sortFn: (a, b) => (a.item_group ?? '').localeCompare(b.item_group ?? ''),
+  },
+  {
+    key: 'item_code', label: 'Item Code', width: 130,
+    accessor: (it) => <span style={{ fontWeight: 700, color: '#16695f' }}>{it.item_code}</span>,
+    searchValue: (it) => it.item_code,
+    sortFn: (a, b) => (a.item_code ?? '').localeCompare(b.item_code ?? ''),
+  },
+  {
+    key: 'description', label: 'Description', width: 240, minWidth: 180,
+    accessor: (it) => {
+      const manual = (it.description ?? '').trim();
+      if (manual) return <div>{manual}</div>;
+      const summary = buildVariantSummary(it.item_group ?? null, it.variants ?? null);
+      return summary || it.material_name || '—';
+    },
+    searchValue: (it) => `${it.description ?? ''} ${buildVariantSummary(it.item_group ?? null, it.variants ?? null)} ${it.material_name ?? ''}`.trim(),
+  },
+  {
+    key: 'description2', label: 'Description 2', width: 220, minWidth: 160,
+    accessor: (it) => {
+      const summary = buildVariantSummary(it.item_group ?? null, it.variants ?? null);
+      return summary ? <div>{summary}</div> : <span style={{ color: 'var(--fg-muted)' }}>—</span>;
+    },
+    searchValue: (it) => buildVariantSummary(it.item_group ?? null, it.variants ?? null),
+  },
+  {
+    key: 'uom', label: 'UOM', width: 70,
+    accessor: (it) => it.uom || 'UNIT',
+    searchValue: (it) => it.uom || 'UNIT',
+  },
+  {
+    key: 'ordered', label: 'Ordered', width: 70, align: 'right',
+    accessor: (it) => fmtQty(it.qty ?? 0),
+    exportValue: (it) => it.qty,
+    searchValue: (it) => String(it.qty ?? 0),
+    sortFn: (a, b) => Number(a.qty ?? 0) - Number(b.qty ?? 0),
+  },
+  {
+    key: 'delivery_date', label: 'Delivery Date', width: 120,
+    accessor: (it) => {
+      const due = it.delivery_date ?? headerExpectedAt ?? null;
+      return due
+        ? <span style={{ whiteSpace: 'nowrap' }}>{fmtDateOrDash(due)}</span>
+        : <span style={{ color: 'var(--fg-muted)' }}>—</span>;
+    },
+    searchValue: (it) => it.delivery_date ?? headerExpectedAt ?? '',
+    sortFn: (a, b) => (a.delivery_date ?? headerExpectedAt ?? '').localeCompare(b.delivery_date ?? headerExpectedAt ?? ''),
+    filterType: 'date', dateValue: (it) => it.delivery_date ?? headerExpectedAt,
+  },
+  {
+    key: 'unit_price', label: 'Unit Price', width: 100, align: 'right',
+    accessor: (it) => fmtMoney(Number(it.unit_price_sen ?? 0), currency),
+    exportValue: (it) => it.unit_price_sen / 100,
+    exportFormat: 'rate',
+    searchValue: (it) => String(it.unit_price_sen ?? 0),
+    sortFn: (a, b) => Number(a.unit_price_sen ?? 0) - Number(b.unit_price_sen ?? 0),
+  },
+  {
+    key: 'line_total', label: 'Line Total', width: 110, align: 'right',
+    accessor: (it) => <span style={{ fontWeight: 700, color: '#16695f' }}>{fmtMoney(Number(it.line_total_sen ?? 0), currency)}</span>,
+    exportValue: (it) => it.line_total_sen / 100,
+    exportFormat: 'money',
+    searchValue: (it) => String(it.line_total_sen ?? 0),
+    sortFn: (a, b) => Number(a.line_total_sen ?? 0) - Number(b.line_total_sen ?? 0),
+  },
+];
+
+const ExpandedLines = ({ po }: { po: PoHeaderRow }) => {
+  const detail = usePurchaseConsignmentOrderDetail(po.id);
+
+  if (detail.isLoading) {
+    return (
+      <div style={{ padding: 'var(--space-2) var(--space-3) var(--space-3) 40px', background: 'var(--c-cream)' }}>
+        <p style={{ fontSize: 'var(--fs-11)', color: 'var(--fg-muted)', margin: 0 }}>Loading lines for {pcNo(po)}…</p>
+      </div>
+    );
+  }
+  if (detail.error) {
+    return (
+      <div style={{ padding: 'var(--space-2) var(--space-3) var(--space-3) 40px', background: 'var(--c-cream)' }}>
+        <p style={{ fontSize: 'var(--fs-11)', color: 'var(--c-festive-b, #B8331F)', margin: 0 }}>
+          Failed to load lines: {detail.error instanceof Error ? detail.error.message : String(detail.error)}
+        </p>
+      </div>
+    );
+  }
+
+  const items = (detail.data?.items ?? []) as PoItemRow[];
+  if (items.length === 0) {
+    return (
+      <div style={{ padding: 'var(--space-2) var(--space-3) var(--space-3) 40px', background: 'var(--c-cream)' }}>
+        <p style={{ fontSize: 'var(--fs-11)', color: 'var(--fg-muted)', margin: 0 }}>No line items.</p>
+      </div>
+    );
+  }
+
+  let subtotal = 0;
+  for (const it of items) subtotal += Number(it.line_total_sen ?? 0);
+
+  const columns = buildDrilldownColumns(po.currency, po.expected_at ?? null);
+
+  return (
+    <div style={{ padding: 'var(--space-2) var(--space-3) var(--space-3) 40px', background: 'var(--c-cream)' }}>
+      <DataGridCompat<PoItemRow>
+        rows={items}
+        columns={columns}
+        storageKey="pc-order-drilldown-grid.v1"
+        rowKey={(it) => it.id}
+        embedded
+        groupBanner={false}
+      />
+      <div style={{
+        display: 'flex', gap: 'var(--space-4)', justifyContent: 'flex-end',
+        alignItems: 'baseline', padding: '8px 8px 2px',
+        fontSize: 'var(--fs-11)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-muted)',
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
+          letterSpacing: '0.06em', textTransform: 'uppercase',
+        }}>Subtotal</span>
+        <span>Total <strong style={{ color: '#16695f' }}>{fmtMoney(subtotal, po.currency)}</strong></span>
+      </div>
+    </div>
+  );
+};

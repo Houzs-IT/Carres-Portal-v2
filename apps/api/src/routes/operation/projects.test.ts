@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppEnv } from "../../types";
 vi.mock("../../lib/supabase", () => ({ userClient: vi.fn(), adminClient: vi.fn() }));
 import { userClient } from "../../lib/supabase";
+vi.mock("../../lib/today", async (orig) => ({ ...(await orig<typeof import("../../lib/today")>()), todayIsoMYT: vi.fn(() => "2026-11-05") }));
+import { todayIsoMYT } from "../../lib/today";
 import router from "./projects";
 
 /** 0750 — Projects, Houzs way (Weisiang's decision 2026-10-22). */
@@ -20,7 +22,7 @@ const calls: Array<{ table: string; op: string; args: unknown[] }> = [];
 function from(table: string) {
   const next = () => (results[table] ?? []).shift() ?? { data: null, error: null };
   const q: Record<string, unknown> = {};
-  for (const op of ["select", "insert", "update", "delete", "eq", "is", "not", "in", "gte", "lte", "or", "like", "order", "limit"]) {
+  for (const op of ["select", "insert", "update", "delete", "eq", "is", "not", "in", "gte", "lte", "or", "like", "order", "limit", "range"]) {
     q[op] = (...args: unknown[]) => { calls.push({ table, op, args }); return q; };
   }
   q.single = async () => next();
@@ -60,6 +62,21 @@ describe("/api/operation/projects", () => {
       { table: "projects", op: "gte", args: ["end_date", "2026-12-01"] },
       { table: "projects", op: "lte", args: ["start_date", "2026-12-31"] },
     ]));
+  });
+
+  it("gives each listed project its checklist progress and overdue count", async () => {
+    vi.mocked(todayIsoMYT).mockReturnValue("2026-11-05");
+    results.projects = [{ data: [row], error: null }];
+    // start 2026-12-04: -40 is due 25 Oct (overdue), -10 due 24 Nov (not yet).
+    results.project_checklist = [{ data: [
+      { id: "k1", project_id: "p1", status: "pending", due_offset_days: -40 },
+      { id: "k2", project_id: "p1", status: "pending", due_offset_days: -10 },
+      { id: "k3", project_id: "p1", status: "done", due_offset_days: -40 },
+      { id: "k4", project_id: "other", status: "pending", due_offset_days: -40 },
+    ], error: null }];
+    const res = await app().request("/projects");
+    expect(await res.json()).toMatchObject({ projects: [{ id: "p1", checklist: { total: 3, percent: 33, overdue: 1 } }] });
+    expect(calls).toEqual(expect.arrayContaining([{ table: "project_checklist", op: "in", args: ["project_id", ["p1"]] }]));
   });
 
   it("mints the next free code and the derived name on create", async () => {
@@ -146,5 +163,42 @@ describe("/api/operation/projects", () => {
     results.orders = [{ data: { id: "o1", project_id: null }, error: null }];
     expect((await post("/projects/p1/sales-orders", { so: "SO-1" })).status).toBe(201);
     expect(calls.find((c) => c.table === "rpc")).toEqual({ table: "rpc", op: "project_link_order", args: [{ p_order: "o1", p_project: "p1" }] });
+  });
+
+  const PID = "11111111-2222-4333-8444-555555555555";
+  it("adds a stock transfer with today left to the database, and refuses a file from another project (0757)", async () => {
+    results.project_stock_transfers = [{ data: { id: "x1" }, error: null }];
+    const res = await post(`/projects/${PID}/stock-transfers`, { direction: "out", notes: "Sofa set" });
+    expect(res.status).toBe(201);
+    expect(calls.find((c) => c.op === "insert")!.args[0]).toEqual({
+      project_id: PID, direction: "out", record_path: null, file_name: null, mime_type: null, notes: "Sofa set",
+    });
+    const other = "99999999-2222-4333-8444-555555555555";
+    expect((await post(`/projects/${PID}/stock-transfers`, { direction: "return", recordPath: `${other}/${other}.pdf`, mimeType: "application/pdf" })).status).toBe(422);
+    expect((await post(`/projects/${PID}/stock-transfers`, { direction: "sideways" })).status).toBe(422);
+  });
+
+  it("confirms, unconfirms and archives only a live transfer (0757)", async () => {
+    results.project_stock_transfers = [{ data: { id: "x1" }, error: null }, { data: { id: "x1" }, error: null }, { data: null, error: null }];
+    expect((await post("/projects/stock-transfers/x1/confirm", {})).status).toBe(200);
+    expect(calls.find((c) => c.op === "update")!.args[0]).toMatchObject({ confirmed_at: expect.any(String) });
+    calls.length = 0;
+    expect((await post("/projects/stock-transfers/x1/unconfirm", {})).status).toBe(200);
+    expect(calls.find((c) => c.op === "update")!.args[0]).toEqual({ confirmed_at: null });
+    expect(calls).toContainEqual({ table: "project_stock_transfers", op: "is", args: ["archived_at", null] });
+    expect((await post("/projects/stock-transfers/x9", undefined, "DELETE")).status).toBe(404);
+    expect(calls.some((c) => c.table === "projects")).toBe(false);
+  });
+
+  it("lists a project's live transfers on its detail read (0757)", async () => {
+    results.projects = [{ data: row, error: null }];
+    results.project_stock_transfers = [{ data: [{ id: "x1", direction: "out", transferred_at: "2026-12-02", record_path: null, file_name: null, notes: null, confirmed_at: null, created_at: "2026-11-03T00:00:00Z", by: { name: "Ali" }, checker: null }], error: null }];
+    const res = await app().request("/projects/p1");
+    expect(await res.json()).toMatchObject({ stockTransfers: [{ id: "x1", direction: "out", transferredAt: "2026-12-02", createdByName: "Ali", confirmedByName: null }] });
+  });
+
+  it("names the record key itself and refuses a bad file path (0757)", async () => {
+    expect((await post(`/projects/${PID}/stock-transfers/sign`, { mimeType: "text/plain", sizeBytes: 10 })).status).toBe(422);
+    expect((await app().request("/projects/stock-transfers/file?path=../x.pdf")).status).toBe(422);
   });
 });

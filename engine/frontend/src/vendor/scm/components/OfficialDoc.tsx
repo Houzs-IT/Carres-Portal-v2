@@ -1,0 +1,81 @@
+// ----------------------------------------------------------------------------
+// OfficialDoc — 欠正式单 (owner 2026-10-01, payment-request item 3) where a
+// payment is read: the state of its official invoice, and Finance's own marks —
+// owed (paid on a proforma or quotation), checked (the official invoice came and
+// is right), or clear. RECEIVED is never marked here: it is the requester's
+// upload (POST /payment-requests/:id/official-doc). Checked is offered on OWED
+// too (owner 2026-10-01, 漏洞 2): the official invoice may reach Finance another
+// way, and a payment that answers no request has nobody to upload it.
+// Marking it owed asks for Finance's remark — what to follow up — and the
+// remark can be rewritten while still owed (owner 2026-10-08: 可能是performa
+// invoice, 所以finance 这样也要可以remark 要follow up actual invoice); the
+// requester reads it on the request and on the PMS row it came from.
+// The marks are Finance's alone, so their words are English (the redesign's
+// rule); the chip is read by requesters too and keeps both languages. A page in
+// the redesign (Money out › Official invoices owed) shows the state as its own
+// status tag and dresses the buttons in its own class.
+// ----------------------------------------------------------------------------
+
+import type { ReactNode } from 'react';
+import { OFFICIAL_LABEL, isOfficialState, useMarkOfficialDoc } from '../lib/official-doc-queries';
+import { usePrompt } from './ConfirmDialog';
+
+const REMARK_INPUT = { label: 'Remark — what to follow up (optional)', placeholder: 'e.g. Proforma only — ask MITEC for the tax invoice' };
+
+const linkBtn: React.CSSProperties = {
+  background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--c-orange)', textDecoration: 'underline', fontSize: 'var(--fs-12, 12px)',
+};
+
+/** The state in the owner's words — nothing when nothing is owed. */
+export function OfficialDocChip({ state, note }: { state: string | null | undefined; note?: string | null }) {
+  if (!isOfficialState(state)) return null;
+  return (
+    <span title={note ?? undefined} style={{ fontSize: 'var(--fs-11, 11px)', fontWeight: 600, color: OFFICIAL_LABEL[state].tone, whiteSpace: 'nowrap' }}>
+      {OFFICIAL_LABEL[state].label}
+    </span>
+  );
+}
+
+/** Finance's marks on one payment — a voucher (PV) or an AP invoice (API).
+    `stateTag` shows the state in place of the chip and `buttonClassName`
+    dresses the buttons; without them, the chip and today's link buttons. */
+export function OfficialDocActions({ kind, id, state, note, stateTag, buttonClassName }: {
+  kind: 'PV' | 'API'; id: string; state: string | null | undefined; note?: string | null;
+  stateTag?: ReactNode; buttonClassName?: string;
+}) {
+  const mark = useMarkOfficialDoc();
+  const askPrompt = usePrompt();
+  /* Owed, with Finance's remark: blank keeps the one there (or none). */
+  const markOwed = async (title: string) => {
+    const remark = await askPrompt({ title, body: note ? `Now: ${note}` : undefined, confirmLabel: 'Save', input: REMARK_INPUT });
+    if (remark == null) return;
+    mark.mutate({ kind, id, state: 'OWED', note: remark || null });
+  };
+  const btn = buttonClassName ? { className: buttonClassName } : { style: linkBtn };
+  return (
+    <span style={{ display: 'inline-flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      {stateTag ?? <OfficialDocChip state={state} note={note} />}
+      {!state && (
+        <button type="button" {...btn} disabled={mark.isPending} onClick={() => void markOwed('Official invoice owed')}>
+          Mark: official invoice owed
+        </button>
+      )}
+      {state === 'OWED' && (
+        <button type="button" {...btn} disabled={mark.isPending} onClick={() => void markOwed('Remark — what to follow up')}>
+          {note ? 'Change the remark' : 'Add a remark'}
+        </button>
+      )}
+      {(state === 'RECEIVED' || state === 'OWED') && (
+        <button type="button" {...btn} disabled={mark.isPending} onClick={() => mark.mutate({ kind, id, state: 'CHECKED' })}>
+          Checked ✓
+        </button>
+      )}
+      {state === 'OWED' && (
+        <button type="button" {...btn} disabled={mark.isPending} onClick={() => mark.mutate({ kind, id, state: null })}>
+          Clear the mark
+        </button>
+      )}
+      {note && <span style={{ fontSize: 'var(--fs-12, 12px)', color: 'var(--fg-muted)' }}>{note}</span>}
+    </span>
+  );
+}

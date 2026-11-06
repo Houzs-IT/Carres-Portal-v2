@@ -1,0 +1,51 @@
+# Carres's copy of the Houzs supply chain engine (Houzs commit a87a841be, 5 Nov 2026), in CARRES's
+# Cloudflare account. Rules, copied from the Conts engine that runs the same code:
+#   - only Carres resources: never a Houzs database, bucket, queue, KV, domain or account;
+#   - no scheduled jobs (no [triggers]), no AutoCount, no routes, no queues;
+#   - the database is the engine's OWN Supabase project, never Carres-Portal-v2: its tables share names
+#     with Carres's (projects, purchase_orders, warehouses ...).
+# The REPLACE_ME ids are filled once those Carres resources exist; until then a deploy fails on purpose.
+name = "carres-scm-engine"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+AUTOCOUNT_API_URL = "https://autocount.invalid/"
+AUTOCOUNT_SYNC_DISABLED = "true"
+COSTING_DISPLAY_ENABLED = "true"
+SESSION_FALLBACK_ENABLED = "false"
+SESSION_FALLBACK_TTL_MS = "60000"
+HOUZS_OWNS_2990 = "true"
+PUBLIC_APP_URL = "https://carres-portal.pages.dev"
+EMAIL_FROM = "Carres <noreply@carresofficial.com>"
+SO_ITEM_PHOTOS_BUCKET_NAME = "carres-scm"
+SENTRY_ENVIRONMENT = "production"
+
+# The engine's own Supabase project, connected as its own role (scm_engine). Caching off.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "5051c7e20a9b44afaa3523d296b651f0"
+
+[[r2_buckets]]
+binding = "POD_BUCKET"
+bucket_name = "carres-scm"
+
+[[r2_buckets]]
+binding = "SO_ITEM_PHOTOS"
+bucket_name = "carres-scm"
+
+[[r2_buckets]]
+binding = "PUBLIC_ASSETS"
+bucket_name = "carres-scm"
+
+[[r2_buckets]]
+binding = "SLIPS"
+bucket_name = "carres-scm"
+
+[[kv_namespaces]]
+binding = "SESSION_CACHE"
+id = "f11f807086f14251bd6fcdad0193129a"
+
+[alias]
+zod = "./node_modules/zod"

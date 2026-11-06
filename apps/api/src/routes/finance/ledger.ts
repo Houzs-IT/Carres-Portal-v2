@@ -406,6 +406,9 @@ async function readChart(sb: Sb): Promise<{ chart: LedgerChart } | { error: PgEr
         // 0656: AutoCount's section and special type. Null before 0656 is applied.
         section: typeof r.section === "string" ? r.section : null,
         special: typeof r.special === "string" ? r.special : null,
+        // 0754: Needs project and its row. False and null before 0754 is applied.
+        needs_project: r.needs_project === true,
+        project_row: typeof r.project_row === "string" ? r.project_row : null,
       })),
     },
   };
