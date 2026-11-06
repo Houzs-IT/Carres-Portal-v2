@@ -234,8 +234,8 @@ describe("recording", () => {
       entry_date: "2026-09-15",
       narration: "Opening bank balance",
       lines: [
-        { account_code: "310-1000", debit: 12500.5, credit: null, memo: "Test bank statement" },
-        { account_code: "151-0000", debit: null, credit: 12500.5, memo: null },
+        { account_code: "310-1000", debit: 12500.5, credit: null, memo: "Test bank statement", project_id: null },
+        { account_code: "151-0000", debit: null, credit: 12500.5, memo: null, project_id: null },
       ],
       requestKey: expect.stringMatching(UUID),
     });
