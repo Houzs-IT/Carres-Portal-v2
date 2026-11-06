@@ -5,6 +5,8 @@ export type Bindings = {
   RESEND_API_KEY?: string;
   PO_EMAIL_FROM?: string;
   PO_EMAIL_ENABLED?: string;
+  /** 0765 — the verified Resend sender for the service case survey email; unset sends nothing. */
+  SURVEY_EMAIL_FROM?: string;
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY: string;

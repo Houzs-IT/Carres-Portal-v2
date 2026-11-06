@@ -30,6 +30,7 @@ import CaseEvidenceGallery from "./CaseEvidenceGallery";
 import CaseFollowUps from "./CaseFollowUps";
 import CaseDeadline from "./CaseDeadline";
 import CaseCostSuggestion from "./CaseCostSuggestion";
+import CaseSurvey from "./CaseSurvey";
 import CaseRemedyApproval from "./CaseRemedyApproval";
 import ConfirmActionDialog from "./ConfirmActionDialog";
 import Button from "@/components/kit/Button";
@@ -319,6 +320,12 @@ export default function ServiceCaseDetail({ id, onBack }: { id: string; onBack: 
               <CaseCostSuggestion caseId={id} onApply={save} />
             </Panel>
 
+            {/* 0765 — Houzs satisfaction survey: the address the close emails, and the rating once closed. */}
+            <Panel title="Customer Satisfaction">
+              <InlineField id="scm-survey-email" label="Survey Email" type="email" value={d.surveyEmail} onSave={(v) => save({ surveyEmail: v || null })} />
+              {d.statusIsClosed && <CaseSurvey caseId={id} rating={d.satisfactionRating ?? null} notes={d.satisfactionNotes ?? null} />}
+            </Panel>
+
             <CaseRemedyApproval caseId={id} onDirtyChange={setRemedyDirty} onBusyChange={setRemedyBusy} />
           </div>
 
@@ -421,7 +428,7 @@ function LegNote({ requested, confirmed }: { requested: string | null | undefine
 /** One field that saves itself when you leave it (Houzs InlineEdit). */
 function InlineField({ id, label, value, onSave, textarea, type = "text", required, mono }: {
   id: string; label: string; value: string | null | undefined; onSave: (value: string) => Promise<void>;
-  textarea?: boolean; type?: "text" | "date" | "number"; required?: boolean; mono?: boolean;
+  textarea?: boolean; type?: "text" | "date" | "number" | "email"; required?: boolean; mono?: boolean;
 }) {
   const saved = value ?? "";
   const [draft, setDraft] = useState(saved);

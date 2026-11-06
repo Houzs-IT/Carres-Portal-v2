@@ -395,6 +395,11 @@ export const serviceCaseSchema = z.object({
   customerAmount:     z.number().nullable().optional(),
   supplierCostAmount: z.number().nullable().optional(),
   supplierInvoiceRef: z.string().nullable().optional(),
+
+  /** 0765 — Houzs satisfaction survey: the customer's 1 to 5 rating and note, and where the link is emailed. */
+  satisfactionRating: z.number().nullable().optional(),
+  satisfactionNotes:  z.string().nullable().optional(),
+  surveyEmail:        z.string().nullable().optional(),
 });
 export type ServiceCase = z.infer<typeof serviceCaseSchema>;
 
@@ -464,6 +469,7 @@ export const updateServiceCaseInputSchema = createServiceCaseInputSchema
     customerAmount:     z.number({ invalid_type_error: "Use an amount." }).nonnegative("Use an amount of 0 or more.").max(9_999_999_999.99).nullable().optional(),
     supplierCostAmount: z.number({ invalid_type_error: "Use an amount." }).nonnegative("Use an amount of 0 or more.").max(9_999_999_999.99).nullable().optional(),
     supplierInvoiceRef: z.string().trim().max(120).nullable().optional(),
+    surveyEmail: z.union([z.literal(""), z.string().trim().email("Use an email address.").max(254)]).nullable().optional(),
   });
 export type UpdateServiceCaseInput = z.infer<typeof updateServiceCaseInputSchema>;
 
