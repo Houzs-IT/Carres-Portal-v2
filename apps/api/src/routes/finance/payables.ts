@@ -125,6 +125,7 @@ import type { AppEnv } from "../../types";
  *     POST /bills/:id/files/sign  · POST /vouchers/:id/files/sign · POST /credit-notes/:id/files/sign · POST /debit-notes/:id/files/sign
  *     POST /bills/:id/files       · POST /vouchers/:id/files      · POST /credit-notes/:id/files      · POST /debit-notes/:id/files
  *     GET  /files/url?path=                                          short-lived read URL
+ *     DELETE /vouchers/:id/files/:fileId                             remove a file until checked
  *
  * Every call runs as the SIGNED-IN USER (userClient). The database functions
  * decide every rule, including who may prepare, check and approve; this
@@ -178,6 +179,7 @@ function billLinesToJson(lines: SupplierBillDraftInput["lines"]) {
     amount: l.amount ?? null,
     department_type: l.departmentType ?? null,
     department_id: l.departmentId ?? null,
+    project_id: l.projectId ?? null,   // 0754
   }));
 }
 
@@ -208,6 +210,7 @@ function voucherArgs(voucherId: string | null, d: PaymentVoucherDraftInput) {
       amount: l.amount,
       department_type: l.departmentType ?? null,
       department_id: l.departmentId ?? null,
+      project_id: l.projectId ?? null,   // 0754
     })),
     // 0681: an allocation pays a bill or a supplier debit note.
     // 0705: or an opening bill (Opening balances).
@@ -1025,6 +1028,17 @@ for (const { prefix, type, what } of DOC_ROUTES) {
     return c.json({ id: data as string }, 201);
   });
 }
+
+// A voucher's file can be removed until the voucher is checked (0773,
+// Houzs pv-files.ts:7-10). Bills and notes keep every file.
+payablesRouter.delete("/vouchers/:id/files/:fileId", requireFinance, async (c) => {
+  const id = c.req.param("id");
+  const fileId = c.req.param("fileId");
+  if (!UUID_RE.test(id) || !UUID_RE.test(fileId)) return badId(c, "payment voucher");
+  const { error } = await sb(c).rpc("ap_document_file_remove", { p_voucher_id: id, p_file_id: fileId });
+  if (error) return pgFail(c, error);
+  return c.json({ ok: true });
+});
 
 const filePathQuery = z
   .string()

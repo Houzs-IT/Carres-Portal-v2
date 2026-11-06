@@ -23,6 +23,7 @@ import Modal from "@/components/kit/Modal";
 import { fieldCls } from "@/components/Field";
 import type { DepartmentType } from "@carres/shared";
 import { DepartmentFilter, DepartmentName, DepartmentPicker, useDepartmentParam } from "../department";
+import { ProjectName, ProjectPicker } from "../project";
 import ModuleHeader from "@/pages/operation/components/ModuleHeader";
 import SalesOrderTabs from "@/pages/operation/SalesOrderTabs";
 import { appTodayIso, fmtDate } from "@/lib/fmt-date";
@@ -539,6 +540,7 @@ function BillLinesCard({ doc }: { doc: SupplierBillDocument }) {
               <th className="py-1 pr-3 text-right">Unit price</th>
               <th className="py-1 pr-3">Against PO</th>
               <th className="py-1 pr-3">Department</th>
+              <th className="py-1 pr-3">Project</th>
               <th className="py-1 text-right">Amount</th>
             </tr>
           </thead>
@@ -563,6 +565,7 @@ function BillLinesCard({ doc }: { doc: SupplierBillDocument }) {
                   )}
                 </td>
                 <td className="py-1 pr-3"><DepartmentName type={l.department_type} id={l.department_id} /></td>
+                <td className="py-1 pr-3"><ProjectName id={l.project_id} /></td>
                 <td className="py-1 text-right">{money(l.amount)}</td>
               </tr>
             ))}
@@ -595,6 +598,8 @@ export type LineDraft = {
   /** 0689: the delivery order a logistics partner's line charges for, and its number. */
   deliveryOrderId: string | null;
   doNo: string | null;
+  /** 0754 (Houzs event-books): the project this line's money is for. */
+  projectId?: string | null;
 };
 
 let lineSeq = 0;
@@ -646,7 +651,7 @@ export function toInput(l: LineDraft): SupplierBillDraftInput["lines"][number] {
     return {
       warehouseReceiptId: l.warehouseReceiptId, poLineId: l.poLineId,
       accountCode: l.accountCode || null, sku: l.sku || null, description: l.description || null,
-      qty: q, unitPrice: p, departmentType: null, departmentId: null,
+      qty: q, unitPrice: p, departmentType: null, departmentId: null, projectId: l.projectId ?? null,
     };
   }
   if (l.deliveryOrderId) {
@@ -654,13 +659,13 @@ export function toInput(l: LineDraft): SupplierBillDraftInput["lines"][number] {
     return {
       deliveryOrderId: l.deliveryOrderId,
       accountCode: l.accountCode || null, description: l.description || null,
-      qty: null, unitPrice: null, departmentType: null, departmentId: null,
+      qty: null, unitPrice: null, departmentType: null, departmentId: null, projectId: l.projectId ?? null,
       amount: l.amount.trim() === "" ? null : Number(l.amount),
     };
   }
   return {
     accountCode: l.accountCode || null, sku: l.sku || null, description: l.description || null,
-    qty: q, unitPrice: p, departmentType: l.departmentType, departmentId: l.departmentId,
+    qty: q, unitPrice: p, departmentType: l.departmentType, departmentId: l.departmentId, projectId: l.projectId ?? null,
     amount: q !== null && p !== null ? null : (l.amount.trim() === "" ? null : Number(l.amount)),
   };
 }
@@ -744,6 +749,7 @@ function BillForm() {
       // 0689: a saved delivery order line keeps its DO, and its order's channel.
       deliveryOrderId: l.delivery_order_id ?? null,
       doNo: l.do_no ?? null,
+      projectId: l.project_id ?? null,
     })));
     setLoaded(true);
   }, [id, loaded, existing.data]);
@@ -909,6 +915,7 @@ function BillForm() {
                         <th className="py-1 pr-2">Amount</th>
                         <th className="py-1 pr-2">Against PO</th>
                         <th className="py-1 pr-2">Department</th>
+                        <th className="py-1 pr-2">Project</th>
                         <th className="py-1" />
                       </tr>
                     </thead>
@@ -1082,6 +1089,10 @@ function BillLineRow({ line, index, accounts, usualGoods, usualTransport, onChan
               </span>
             : <DepartmentPicker label={`Line ${n} department`} type={line.departmentType} id={line.departmentId}
                 income={accounts.find((a) => a.code === line.accountCode)?.kind === "INCOME"} onChange={onChange} />}
+      </td>
+      <td className="py-1 pr-2">
+        <ProjectPicker label={`Line ${n} project`} className={`${fieldCls} w-48`} id={line.projectId}
+          onChange={(projectId) => onChange({ projectId })} />
       </td>
       <td className="py-1">
         <Button variant="ghost" size="sm" onClick={onRemove}>Remove</Button>

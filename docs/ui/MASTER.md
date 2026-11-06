@@ -373,6 +373,7 @@ not a current pattern: do not copy it from a neighbouring page. Live examples ar
 | Object header + tabs | `SalesOrderTabs` recipe | `pages/operation/SalesOrderTabs.tsx` | §4.1 · accepted; page-owned — no generic ObjectHeader/ObjectPage kit API (KIT GAP) |
 | Object facts | `Block` — the one card · `Panel` · `StatusPill` · `EmptyState` · `Loading` | `components/kit/*` | Existing component built; current visual migration owed |
 | Forms | `Input` · `Textarea` · `Select` · `SearchInput` · `Checkbox` · `DatePicker` · `FieldFrame` | `components/kit/*`, `field-recipe.ts` | Existing component built; current visual migration owed |
+| Calendars | `DatePicker` (a date field) · `MonthCalendar` (a rail filter: picks a day, counts each day) · `BarCalendar` (a listing's calendar view: one bar per dated item, first day to last, StatusPill tone colours, Monday first, Month / Week, three lanes then `+N more` that opens the week, each bar a named button) | `components/kit/DatePicker.tsx` · `MonthCalendar.tsx` · `BarCalendar.tsx` + `bar-calendar-model.ts` | `BarCalendar` admitted 3 Nov 2026 from the Houzs project calendar (YH: all follow Houzs); first page: Projects. `/ui#calendars` |
 | Buttons and menus | `Button` · the one pop-up `CPopover` (a menu: `CMenu` with items as data, or `CMenuItem` rows; a small panel: filter, calendar, links) · `Tooltip` · `Tabs` (segmented) | `components/kit/*` · `components/carres/CPopover.tsx` | DEPLOYED. `DropdownMenu` (#2070) and kit `Popover` (#2072) retired 15 Oct 2026 (a test blocks their return); inside a dialog `CPopover` opens within it |
 | Dialogs, documents and evidence | `Modal` · `Drawer` · `Toast` · `PdfPreview` + `PdfPreviewHeader` · `SavedEvidenceViewer` | `components/kit/*` | §4.4 · built |
 | Work route pieces | `RouteStop` | `components/kit/RouteStop.tsx` | §3 · built 2026-09-28 · drawn by the Repair Order record. `ChecklistRow` and `QuietRouteRow` were drawn by no page after the Workspace rebuild (13 Oct 2026) and were deleted 15 Oct 2026, with the unused `Card` (Block is the one card) and `GridToolbar` (the list engine draws its own selection bar) |
@@ -1113,6 +1114,9 @@ Read the values/components/pattern parts in this MASTER. Current visual input:30
 Inbound, Inventory and Outbound. Use the existing shared module-view controls to expose Arrival
 Schedule inside Inbound and Pickup Schedule inside Outbound. Keep full-width directional schedule
 content as an alternate view, not a calendar strip beside the register and not another shared kit.
+
+**A listing's calendar view** is the kit `BarCalendar`, switched with the list by the segmented
+`Tabs` in the toolbar and keeping the list's own filters (§0 Calendars). First used by Projects.
 Stock MASTER §2 owns scope, source-link continuity and retained context; COPY owns the exact words.
 This approval changes no shared dimensions, Summary/Tasks behaviour, business engine or permissions.
 Stock MASTER §2's **Inventory design coverage** and §7's location coverage are the approved design
