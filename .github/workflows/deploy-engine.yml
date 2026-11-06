@@ -1,0 +1,48 @@
+name: Deploy engine
+# The supply chain engine (engine/) is its own Worker (carres-scm-engine) and Pages site (carres-scm), apart from
+# the portal. A merge to main that changes engine/ builds both and puts them live; other merges skip this.
+on:
+  push:
+    branches: [main]
+    paths: ["engine/**", ".github/workflows/deploy-engine.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: engine-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            engine/backend/package-lock.json
+            engine/frontend/package-lock.json
+      - name: Install
+        run: |
+          npm ci --prefix engine/backend --ignore-scripts --no-audit --no-fund
+          npm ci --prefix engine/frontend --ignore-scripts --no-audit --no-fund
+      - name: Type-check the server, build the screens
+        run: |
+          npm run typecheck --prefix engine/backend
+          npm run build --prefix engine/frontend
+      - name: Deploy the server
+        working-directory: engine/backend
+        run: npx wrangler deploy --message "main ${GITHUB_SHA}"
+      - name: Deploy the screens
+        working-directory: engine/frontend
+        run: ../backend/node_modules/.bin/wrangler pages deploy dist --project-name carres-scm --branch main --commit-hash "${GITHUB_SHA}" --commit-dirty=true
+      - name: Check both answer
+        run: |
+          curl -fsS --retry 5 --retry-delay 5 https://carres-scm-engine.wwch.workers.dev/health | grep -q '"ok":true'
+          curl -fsS --retry 5 --retry-delay 5 -o /dev/null https://carres-scm.pages.dev/
