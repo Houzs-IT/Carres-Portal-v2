@@ -64,6 +64,8 @@ export const supplierBillLineInput = z
     unitPrice: money.nullable().optional(),
     amount: money.nullable().optional(),
     ...lineDepartmentFields,
+    /** 0754 (Houzs event-books): the project this line's money is for. */
+    projectId: z.string().uuid().nullable().optional(),
   })
   .strict();
 export type SupplierBillLineInput = z.infer<typeof supplierBillLineInput>;
@@ -265,6 +267,8 @@ export const paymentVoucherLineInput = z
     description: z.string().trim().min(1, "Say what this payment is for").max(300),
     amount: money,
     ...lineDepartmentFields,
+    /** 0754 (Houzs event-books): the project this line's money is for. */
+    projectId: z.string().uuid().nullable().optional(),
   })
   .strict();
 
@@ -423,6 +427,8 @@ export interface SupplierBillDocument {
     price_diff: ApMoney | null;
     /** 0540 */
     department_type?: string | null; department_id?: string | null;
+    /** 0754 */
+    project_id?: string | null;
     /** 0659: a person chose this line's account. A goods line nobody chose an
      *  account for takes its item group's purchase account when confirmed. */
     account_chosen?: boolean;
@@ -921,7 +927,7 @@ export interface PaymentVoucherDocument {
     entry_no: string | null;
     reversal_entry_no: string | null;
   };
-  lines: Array<{ line_no: number; account_code: string; account_name: string | null; description: string | null; amount: ApMoney; department_type?: string | null; department_id?: string | null }>;
+  lines: Array<{ line_no: number; account_code: string; account_name: string | null; description: string | null; amount: ApMoney; department_type?: string | null; department_id?: string | null; project_id?: string | null }>;
   allocations: Array<{
     bill_id: string;
     bill_no: string | null;
