@@ -168,8 +168,8 @@ describe("manual journal — recording", () => {
       p_entry_date: "2026-09-10",
       p_narration: "Opening bank balance",
       p_lines: [
-        { account_code: "1120", debit: 12500.5, credit: null, memo: "Test bank statement" },
-        { account_code: "3300", debit: null, credit: 12500.5, memo: null },
+        { account_code: "1120", debit: 12500.5, credit: null, memo: "Test bank statement", project_id: null },
+        { account_code: "3300", debit: null, credit: 12500.5, memo: null, project_id: null },
       ],
     });
     const read = calls.find((c) => c.kind === "from" && c.name === "gl_entries");

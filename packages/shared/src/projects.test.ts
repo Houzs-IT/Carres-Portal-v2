@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checklistDueDate, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode } from "./projects";
+import { checklistDueDate, compareProjectsForCalendar, projectDateRange, projectSalesTotals, checklistItemInput, checklistProgress, projectListSummary, projectChecklistCounts, deriveProjectCode, deriveProjectName, projectCreateInput, projectDurationDays, uniqueProjectCode, stockRecordSignInput, stockTransferInput } from "./projects";
 
 /** Houzs project-naming.ts:25-60 and deriveProjectName, ported for 0750. */
 describe("project code and name", () => {
@@ -67,5 +67,65 @@ describe("project date range", () => {
     expect(projectDateRange("2026-12-04", "2026-12-06")).toBe("4 to 6 Dec 2026");
     expect(projectDateRange("2026-11-30", "2026-12-02")).toBe("30 Nov to 2 Dec 2026");
     expect(projectDateRange("2026-12-30", "2027-01-02")).toBe("30 Dec 2026 to 2 Jan 2027");
+  });
+});
+
+/** Houzs calendarSort.ts: the calendar stacks by state north to south, then venue, organizer, brand (slice 8). */
+describe("project calendar order", () => {
+  it("puts Penang before Johor, an unknown state last, and keeps one fair's brands together", () => {
+    const p = (state: string, venue: string, brand: string) => ({ state, venue, organizer: "ORG", brand });
+    const sorted = [p("Johor", "MID", "B"), p("Mars", "A", "A"), p("Penang", "SPICE", "B"), p("Penang", "SPICE", "A")]
+      .sort(compareProjectsForCalendar).map((x) => `${x.state} ${x.brand}`);
+    expect(sorted).toEqual(["Penang A", "Penang B", "Johor B", "Mars A"]);
+  });
+});
+
+describe("stock transfers (0757, Houzs project_stock_transfers)", () => {
+  const pid = "11111111-2222-4333-8444-555555555555";
+  it("takes out or return, and an empty day stays empty for the database default", () => {
+    expect(stockTransferInput.parse({ direction: "out" })).toMatchObject({ direction: "out", transferredAt: null, recordPath: null, notes: null });
+    expect(stockTransferInput.safeParse({ direction: "in" }).success).toBe(false);
+    expect(stockTransferInput.safeParse({ direction: "return", transferredAt: "3 Nov" }).success).toBe(false);
+  });
+  it("accepts only a server named record path, with its type", () => {
+    const path = `${pid}/${pid}.pdf`;
+    expect(stockTransferInput.parse({ direction: "out", recordPath: path, mimeType: "application/pdf" }).recordPath).toBe(path);
+    expect(stockTransferInput.safeParse({ direction: "out", recordPath: path }).success).toBe(false);
+    expect(stockTransferInput.safeParse({ direction: "out", recordPath: `../${path}`, mimeType: "application/pdf" }).success).toBe(false);
+  });
+  it("signs only a photo or PDF up to 10 MB", () => {
+    expect(stockRecordSignInput.safeParse({ mimeType: "image/png", sizeBytes: 1000 }).success).toBe(true);
+    expect(stockRecordSignInput.safeParse({ mimeType: "text/plain", sizeBytes: 1000 }).success).toBe(false);
+    expect(stockRecordSignInput.safeParse({ mimeType: "image/png", sizeBytes: 10 * 1024 * 1024 + 1 }).success).toBe(false);
+  });
+});
+
+/** Houzs Project List tiles: Live now and Upcoming (30 days). */
+describe("project list summary", () => {
+  const r = (startDate: string, endDate: string, status: "pending" | "confirmed" | "cancelled" = "confirmed") => ({ startDate, endDate, status });
+
+  it("counts projects running today, both ends included, and leaves cancelled out", () => {
+    const rows = [r("2026-11-05", "2026-11-05"), r("2026-11-01", "2026-11-07"), r("2026-11-03", "2026-11-04"), r("2026-11-04", "2026-11-06", "cancelled")];
+    expect(projectListSummary(rows, "2026-11-05").liveNow).toBe(2);
+  });
+
+  it("lists projects starting after today and within 30 days, soonest first", () => {
+    const rows = [r("2026-12-05", "2026-12-06"), r("2026-12-06", "2026-12-07"), r("2026-11-06", "2026-11-08"), r("2026-11-05", "2026-11-09"), r("2026-11-10", "2026-11-11", "cancelled")];
+    expect(projectListSummary(rows, "2026-11-05").upcoming.map((x) => x.startDate)).toEqual(["2026-11-06", "2026-12-05"]);
+  });
+});
+
+/** Houzs Overdue Tasks and card progress. */
+describe("project checklist counts", () => {
+  const t = (status: "pending" | "done" | "na" | "blocked", dueOffsetDays: number | null) => ({ status, dueOffsetDays });
+
+  it("counts a pending task due before today as overdue, nothing else", () => {
+    // start 2026-11-10: -10 is due 31 Oct (overdue), -5 due 5 Nov (today, not yet), no offset never.
+    const tasks = [t("pending", -10), t("pending", -5), t("pending", null), t("blocked", -10), t("done", -10), t("na", -10)];
+    expect(projectChecklistCounts(tasks, "2026-11-10", "2026-11-05")).toEqual({ total: 6, percent: 33, overdue: 1 });
+  });
+
+  it("is empty for a project with no tasks", () => {
+    expect(projectChecklistCounts([], "2026-11-10", "2026-11-05")).toEqual({ total: 0, percent: 0, overdue: 0 });
   });
 });

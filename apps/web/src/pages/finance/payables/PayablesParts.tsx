@@ -6,7 +6,7 @@ import Button from "@/components/kit/Button";
 import Modal from "@/components/kit/Modal";
 import { fieldAreaCls } from "@/components/Field";
 import { fmtDate } from "@/lib/fmt-date";
-import { openApFile, useUploadApFile, type ApDocKind } from "@/lib/payables-queries";
+import { openApFile, useRemoveVoucherFile, useUploadApFile, type ApDocKind } from "@/lib/payables-queries";
 import { EVENT_WORD, refusal, word } from "./payables-words";
 
 export function Facts({ title, children, testId, right }: {
@@ -62,15 +62,18 @@ export function HistoryCard({ events }: { events: ApEvent[] }) {
 }
 
 /** The supplier's invoice, the bank slip, the receipt — attached to the
- *  document. Files are evidence: they can be added, never removed. */
-export function FilesCard({ kind, id, files, canAdd }: {
+ *  document. Files are evidence: they can be added, and only a voucher's file
+ *  can be removed, until the voucher is checked (0773). */
+export function FilesCard({ kind, id, files, canAdd, canRemove = false }: {
   kind: ApDocKind;
   id: string;
   files: ApFile[];
   canAdd: boolean;
+  canRemove?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const upload = useUploadApFile(kind, id);
+  const remove = useRemoveVoucherFile(id);
   const open = (path: string) => {
     openApFile(path).catch((e: unknown) => toast.error(`The file could not be opened: ${refusal(e)}`));
   };
@@ -84,6 +87,19 @@ export function FilesCard({ kind, id, files, canAdd }: {
               {f.file_name}
             </button>
             {" · "}{fmtDate(f.uploaded_at, { time: true })} · {f.uploaded_by_name ?? "Name not available"}
+            {canRemove && (
+              <>
+                {" · "}
+                <button type="button" className="underline underline-offset-2" disabled={remove.isPending}
+                  data-testid={`ap-file-remove-${f.id}`}
+                  onClick={() => remove.mutate(f.id, {
+                    onSuccess: () => toast.success(`${f.file_name} removed`),
+                    onError: (err) => toast.error(refusal(err)),
+                  })}>
+                  Remove
+                </button>
+              </>
+            )}
           </p>
         ))}
       {canAdd && (

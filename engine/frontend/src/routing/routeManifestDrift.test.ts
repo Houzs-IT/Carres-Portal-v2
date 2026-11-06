@@ -1,0 +1,294 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { NAV_TABS, type NavTab } from "../components/Sidebar";
+import { ROUTE_ALIASES } from "../lib/routeAliases";
+import {
+  MOBILE_MENU_GROUPS,
+  PROFILE_ORG_ITEMS,
+  destinationScreen,
+} from "../mobile/MobileApp";
+import {
+  mobileDestinationMatches,
+  resolveMobileRoute,
+  type MobileDestination,
+} from "../mobile/mobileRoute";
+import {
+  PUBLIC_ROUTE_PATTERNS,
+  ROUTE_CONTRACT,
+  STAFF_LEGACY_REDIRECT_PATTERNS,
+  STAFF_ROUTE_PATTERNS,
+  isKnownStaffLocation,
+} from "./routeManifest";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const src = (relative: string) => readFileSync(resolve(HERE, "..", relative), "utf8");
+
+const appSource = src("App.tsx");
+const mainSource = src("main.tsx");
+const portalSource = src("portal/PortalApp.tsx");
+
+const appLiteralPaths = [...appSource.matchAll(/path="([^"]+)"/g)].map((match) => match[1]);
+const appPages = appLiteralPaths.filter(
+  (path) => path !== "*" && !(STAFF_LEGACY_REDIRECT_PATTERNS as readonly string[]).includes(path),
+);
+
+const flattenNav = (tabs: readonly NavTab[]): NavTab[] =>
+  tabs.flatMap((tab) => [tab, ...flattenNav(tab.children ?? [])]);
+
+const allMobile: MobileDestination[] = [
+  ...MOBILE_MENU_GROUPS.flatMap((group) => group.items),
+  ...PROFILE_ORG_ITEMS,
+];
+
+describe("executable route contract", () => {
+  it("matches every canonical staff page mounted by App.tsx, with no extras", () => {
+    // 149 since 2026-09-03: /scm/chart-of-accounts — every account, every company, one tick each.
+    // 148 since 2026-09-02: /scm/payment-vouchers/scan — the bill pile, read and grouped.
+    // 147 since 2026-08-25 (feat/acc-settlement merged main again): /scm/merchant-recon,
+    //     /scm/bank-recon and /scm/settlement-setup — the settlement screens, +3 on main's 144.
+    // 144 since 2026-08-25: /scm/loading-list, the warehouse no-price loading queue.
+    // (143 since 2026-08-25: driver POD; 143 since 2026-08-21: /scm/do-load.)
+    // (142 since 2026-08-16: /scm/daily-bank; 141 since 2026-08-15: /autocount-sync.)
+    // 151 since 2026-09-03 night: /scm/receipts — every ringgit in, one list
+    // (general + other-debtor + customer). (150 that evening: /scm/other-debtors.)
+    // 152 since 2026-09-05: /scm/official-receipts — the OR book (GL redesign
+    // 9b), NOT the money-in list: drafts under the watermark, Confirm money.
+    // 153 since 2026-09-06: /scm/ap-invoices — the Finance side's supplier
+    // bills, both kinds (AP invoices raised there, purchase invoices mirrored).
+    // 154 since 2026-09-08: /scm/ap-invoices/scan — the bill pile for AP
+    // invoices, one AP invoice per bill (the voucher's pile page, target="ap").
+    // 155 since 2026-09-08: /change-log — who changed which document since the
+    // owner opened sales, delivery, purchase and receipt documents to staff.
+    // 156 since 2026-09-08: /scm/cancel-requests — the cancellation-approval
+    // inbox (SO / PO cancel = a reason + two signatures).
+    // 157 for a few hours on 2026-09-09: /memos, the department memo register.
+    // 156 again since 2026-09-09: the owner moved the register INTO the
+    // Announcements page (its Register mode, /announcements?view=register —
+    // docs/modules/memos.md), so /memos is no route.
+    // 157 since 2026-09-12: /scm/credit-notes — credit and debit notes to a
+    // customer, supplier credit notes (docs/bugs/0827).
+    // 158 since 2026-09-12: /scm/deposit-invoices — one invoice per deposit,
+    // born off the payment when the company's switch is on (docs/bugs/0828).
+    // 159 since 2026-09-12: /venture-portal-feed — the live sales-order feed to
+    // the Venture Portal (which pays Revenue Department commission out of these
+    // orders) and its settings: receiver address, shared secret, which
+    // companies, start date, and the queue with the reason on the row.
+    // 160 since 2026-09-13: /scm/fair-pending — the sales orders whose FAIR link
+    // the system could not settle on its own (two booths fit, or the order's
+    // brand has no booth at that event). docs/bugs/0862.
+    // 161 since 2026-09-21: /scm/forecast — the Forecast P&L, targets per
+    // account on the P&L's own tree, the Dashboard's forecast side.
+    // 162 since 2026-09-21: /scm/finance-dashboard — the statements' actuals
+    // beside the forecast, per month or quarter.
+    // 163 since 2026-09-29: /scm/ar-invoices — the AP list's twin: sales
+    // invoices mirrored beside the other-debtor bills raised there.
+    // 164 since 2026-09-30: /scm/payment-requests — 申请付款, a requester asks
+    // Finance to pay a bill; Finance answers with a voucher.
+    // 165 since 2026-09-30: /scm/unmatched-payments — every card and transfer
+    // payment not matched yet, on one list.
+    // 166 since 2026-09-30: /scm/payment-backdate-requests — the admin inbox
+    // for payments whose slip is more than 14 days old.
+    // 167 since 2026-10-01: /scm/official-docs — 欠正式单, the payments made on a
+    // proforma still owing the official invoice (payment-request item 3).
+    // 168 since 2026-10-02: /scm/supplier-maintenance — Finance's own supplier
+    // list in Money out (owed, bank, the ones Finance keeps to itself).
+    // 169 since 2026-10-06: /scm/product-requests — a salesperson asks for a new
+    // product or a repack; the Purchaser approves and raises the PC Order from it.
+    // 171 since 2026-10-07: /scm/stock-adjustments/:id and /:id/edit — a stock
+    // adjustment became a numbered document you can open and edit (BUG-66).
+    // 172 since 2026-10-13: /it-support — report a problem to IT and follow it;
+    // the requests live in the Houzs IT Hub.
+    // 173 since 2026-10-14: /scm/lorry-live-map — where each tracked lorry is (DEV-42).
+    // 174 since 2026-10-14: /pos-admin — the Houzs POS Admin menu (items, labels,
+    // cashiers, events, terminals, sync status, import backup; PR #4635).
+    // 175: /ai-usage — IT-only monthly AI cost (DEV-35).
+    // 176: /ocr — IT-only OCR accuracy (DEV-35).
+    // 178 since 2026-10-17: /scm/logistic-overview and /scm/procurement-overview,
+    // the module dashboards, each first in its Sidebar group.
+    // 179 since 2026-10-21: /scm/delivery-planning-driver — the driver run-sheet
+    // ("Last Mile Delivery (Driver)") brought to desktop beside the admin board.
+    // 180 since 2026-10-21: /hr/employees, Employees & Attendance (HC-0125).
+    // 181 since 2026-10-28: /scm/opening-balance, Finance › Setup › Opening Balance.
+    // 182 since 2026-10-28: /scm/supplier-notes, Finance › Money out › Supplier &
+    // Other Creditor CN / DN — the supplier's notes moved off /scm/credit-notes.
+    // 183 since 2026-11-02: /scm/finance/rules, Finance › Setup › To do rules —
+    // the To do's rule switches, routines and groups (Claude Design redesign).
+    // 184 since 2026-11-02: /scm/saved-locations, the transfer from/to address book (方案2).
+    // 187 since 2026-11-03: /scm/ap-invoices/:id, /scm/credit-notes/:id and
+    // /scm/supplier-notes/:id — the bill and note pages (batch 4, step 6).
+    // 190 since 2026-11-03: /scm/ar-invoices/deposit/:id, /bills/:id and /sales/:id —
+    // Money in's invoice documents as pages (Claude Design, batch 5 step 1).
+    // 192 since 2026-11-03: /scm/receipts/official/:id and /scm/receipts/debtor/:id —
+    // the official and the other-debtor receipt as pages (Claude Design, batch 5 step 3).
+    // 194 since 2026-11-03: /scm/receipts/sundry/:id and /scm/other-debtors/:id —
+    // a sundry receipt and an other debtor as pages (Claude Design, batch 5 step 2).
+    // 193 since 2026-11-03: /scm/official-receipts folded into Receipts — a
+    // legacy redirect now (Claude Design, batch 5 step 4), so the contract's
+    // count below stays.
+    // 193 still since 2026-11-03: /scm/deposit-invoices folded into Invoices (a
+    // legacy redirect now) and /scm/finance/deposit-invoices, Setup › Deposit
+    // invoices, holds its switch (Claude Design, batch 5 step 5).
+    expect(STAFF_ROUTE_PATTERNS).toHaveLength(193);
+    expect(new Set(STAFF_ROUTE_PATTERNS).size).toBe(STAFF_ROUTE_PATTERNS.length);
+    expect([...STAFF_ROUTE_PATTERNS].sort()).toEqual([...appPages].sort());
+  });
+
+  it("records every public surface instead of treating App.tsx as the whole app", () => {
+    expect(PUBLIC_ROUTE_PATTERNS).toEqual([
+      "/survey/:token",
+      "/track",
+      "/portal/case/:ref/:token",
+      "/portal/case/:token",
+      "/portal/supplier/:token",
+      "/reset/:token",
+      "/invite/:token",
+      "/privacy",
+    ]);
+    const mountedPublic = [...`${mainSource}\n${portalSource}`.matchAll(/path="([^"]+)"/g)]
+      .map((match) => match[1])
+      .filter((path) => path !== "*");
+    expect([...new Set(["/survey/:token", ...mountedPublic])].sort())
+      .toEqual([...PUBLIC_ROUTE_PATTERNS].sort());
+    // 158 since 2026-09-03 — /scm/chart-of-accounts; see the staff-route count above.
+    // (157 since 2026-09-02.)
+    // (156 since 2026-08-25.)
+    // (153 since 2026-08-25: /scm/loading-list.)
+    // (152 since 2026-08-21.) (151 since 2026-08-16.) (150 since 2026-08-15.)
+    // 160 since 2026-09-03 night — /scm/receipts; see the staff-route count above.
+    // 161 since 2026-09-05 — /scm/official-receipts; see the staff-route count above.
+    // 162 since 2026-09-06 — /scm/ap-invoices; see the staff-route count above.
+    // 163 since 2026-09-08 — /scm/ap-invoices/scan; see the staff-route count above.
+    // 164 since 2026-09-08 — /change-log; see the staff-route count above.
+    // 165 since 2026-09-08 — /scm/cancel-requests; see the staff-route count above.
+    // 166 for a few hours on 2026-09-09 (/memos), 165 again the same day; see
+    // the staff-route count above.
+    // 166 since 2026-09-12 — /scm/credit-notes; see the staff-route count above.
+    // 167 since 2026-09-12 — /scm/deposit-invoices; see the staff-route count above.
+    // 168 since 2026-09-12 — /venture-portal-feed; see the staff-route count.
+    // 169 since 2026-09-13 — /scm/fair-pending; see the staff-route count above.
+    // 170 since 2026-09-21 — /scm/forecast; see the staff-route count above.
+    // 171 since 2026-09-21 — /scm/finance-dashboard; see the staff-route count above.
+    // 172 since 2026-09-29 — /scm/ar-invoices; see the staff-route count above.
+    // 173 since 2026-09-30 — /scm/payment-requests; see the staff-route count above.
+    // 174 since 2026-09-30 — /scm/unmatched-payments; see the staff-route count above.
+    // 175 since 2026-09-30 — /scm/payment-backdate-requests; same.
+    // 176 since 2026-10-01 — /scm/official-docs; see the staff-route count above.
+    // 177 since 2026-10-02 — /scm/supplier-maintenance; see the staff-route count above.
+    // 178 since 2026-10-06 — /scm/product-requests; see the staff-route count above.
+    // 180 since 2026-10-07 — /scm/stock-adjustments/:id and /:id/edit (BUG-66).
+    // 181 since 2026-10-13 — /it-support; see the staff-route count above.
+    // 182 since 2026-10-14 — /scm/lorry-live-map (DEV-42).
+    // 183 since 2026-10-14 — /pos-admin; see the staff-route count above.
+    // 184 — /ai-usage (DEV-35).
+    // 185 — /ocr (DEV-35).
+    // 187 since 2026-10-17 — the Logistic and Procurement Overviews.
+    // 188 since 2026-10-21 — /scm/delivery-planning-driver; see the staff-route count above.
+    // 189 since 2026-10-21 — /hr/employees; see the staff-route count above.
+    // 190 since 2026-10-28 — /scm/opening-balance; see the staff-route count above.
+    // 191 since 2026-10-28 — /scm/supplier-notes; see the staff-route count above.
+    // 192 since 2026-11-02 — /scm/finance/rules; see the staff-route count above.
+    // 193 since 2026-11-02 — /scm/saved-locations; see the staff-route count above.
+    // 196 since 2026-11-03 — the bill and note pages (batch 4, step 6); see the staff-route count above.
+    // 199 since 2026-11-03 — the three invoice document pages; see the staff-route count above.
+    // 201 since 2026-11-03 — the two receipt document pages; see the staff-route count above.
+    // 203 since 2026-11-03 — the sundry receipt and other debtor pages; see the staff-route count above.
+    // 203 still since 2026-11-03 — /scm/official-receipts moved from page to legacy redirect.
+    // 204 since 2026-11-03 — Setup › Deposit invoices (+1), /scm/deposit-invoices a legacy redirect.
+    expect(ROUTE_CONTRACT).toHaveLength(204);
+  });
+
+  it("keeps every desktop nav destination on a live staff route", () => {
+    const dead = flattenNav(NAV_TABS)
+      .filter((tab) => tab.to)
+      .map((tab) => tab.to!.split("?")[0])
+      .filter((path) => !(STAFF_ROUTE_PATTERNS as readonly string[]).includes(path));
+    expect(dead).toEqual([]);
+  });
+
+  it("keeps the public/staff surface decision reactive inside BrowserRouter", () => {
+    expect(mainSource).toContain("const surface = useAppSurface()");
+    expect(mainSource).not.toContain("const path = window.location.pathname");
+  });
+
+  it("recognises static and dynamic desktop-only paths, but not typos", () => {
+    expect(isKnownStaffLocation("/scm/hr/settings")).toBe(true);
+    expect(isKnownStaffLocation("/SCM/HR/SETTINGS/")).toBe(true);
+    expect(isKnownStaffLocation("/scm/purchase-orders/PO-2607-001?from=mail")).toBe(true);
+    expect(isKnownStaffLocation("/scm/inventory/stock-card/SKU%2F001")).toBe(true);
+    expect(isKnownStaffLocation("/definitely-not-a-page")).toBe(false);
+  });
+});
+
+describe("mobile route drift gate", () => {
+  it("pins the complete runtime destination inventory", () => {
+    // 35 since 2026-08-15: the System group and its one row, /autocount-sync.
+    // 36 since 2026-09-08: /change-log, the System group's second row — the
+    // owner asks "who changed my sales order" away from a desk too.
+    // 37 since 2026-09-12: /venture-portal-feed, the System group's third row.
+    // On a phone for the same reason the other two are: whether the Venture
+    // Portal received an order decides whether somebody's commission is right,
+    // and turning the feed OFF is the control most plausibly wanted away from
+    // a desk.
+    // 38 since 2026-09-13: /scm/warehouses/racks, the Warehouse group's fifth
+    // row — the storekeeper's rack LOOKUP. Owner parity ruling 2026-09-12
+    // (「电脑版本有的，手机版本都要有」); the phone could CREATE a rack and never
+    // read one back.
+    // 39 since 2026-09-30: /scm/payment-requests, Sales & Finance's last row —
+    // 申请付款; the PIC at a fair asks Finance to pay, a photo of the bill in hand.
+    // 40 since 2026-10-06: /scm/product-requests, beside Payment Requests — a
+    // salesperson on the floor asks for a new product or a repack.
+    // 42 since 2026-10-17: /scm/logistic-overview and /scm/procurement-overview,
+    // first in Logistics and in Procurement & MRP, as on the desktop Sidebar.
+    // 43 since 2026-10-21: /scm/delivery-planning-driver, "Last Mile Delivery
+    // (Driver)", beside Last Mile Delivery in the Logistics group.
+    // 44 since 2026-10-22: /hr/punch, Punch In / Out (HC-0125), the Attendance
+    // group's one row: the employee's own clock.
+    expect(MOBILE_MENU_GROUPS.flatMap((group) => group.items)).toHaveLength(44);
+    // 6 since 2026-09-10: /roles, the rebuilt Roles & Permissions screen, reached
+    // from a Profile row (gated via the Team hub tab).
+    // 7 since 2026-09-17: /titles, the phone Titles editor (position_policy),
+    // the last desktop-only Roles & Permissions surface to reach the phone.
+    // 8 since 2026-10-13: /it-support, report a problem to IT from the phone;
+    // the row shows only where IT Support is connected, as on desktop.
+    expect(PROFILE_ORG_ITEMS).toHaveLength(8);
+    expect(allMobile).toHaveLength(52);
+    expect(new Set(allMobile.map((item) => item.to)).size).toBe(52);
+    expect(new Set(allMobile.map((item) => item.to.split("?")[0])).size).toBe(51);
+  });
+
+  it("maps every declared mobile row to a real screen, never a placeholder stub", () => {
+    const stubs = allMobile
+      .filter((item) => destinationScreen(item.to, item.label).t === "stub")
+      .map((item) => `${item.label} (${item.to})`);
+    expect(stubs).toEqual([]);
+  });
+
+  it("proves alias parity against the full runtime menu, not a hand-written subset", () => {
+    const nativeAliases = ROUTE_ALIASES.filter((alias) =>
+      allMobile.some((item) => mobileDestinationMatches(alias.to, item.to)),
+    );
+    const desktopOnlyAliases = ROUTE_ALIASES.filter((alias) => !nativeAliases.includes(alias));
+    expect(nativeAliases).toHaveLength(21);
+    expect(desktopOnlyAliases).toHaveLength(10);
+
+    for (const alias of ROUTE_ALIASES) {
+      const canonical = resolveMobileRoute(alias.to, allMobile, allMobile);
+      const legacy = resolveMobileRoute(alias.from, allMobile, allMobile);
+      expect(legacy, `${alias.from} drifted from ${alias.to}`).toEqual(canonical);
+      if (nativeAliases.includes(alias)) {
+        expect(canonical.t, `${alias.to} is a real mobile destination`).toBe("menu");
+      } else {
+        expect(canonical.t, `${alias.to} is intentionally desktop-only`).toBe("desktop-only");
+      }
+    }
+  });
+
+  it("distinguishes a known desktop page from a nonexistent URL", () => {
+    expect(resolveMobileRoute("/scm/hr/settings", allMobile, allMobile))
+      .toEqual({ t: "desktop-only", path: "/scm/hr/settings" });
+    expect(resolveMobileRoute("/typo-that-exists-nowhere", allMobile, allMobile))
+      .toEqual({ t: "not-found", path: "/typo-that-exists-nowhere" });
+  });
+});

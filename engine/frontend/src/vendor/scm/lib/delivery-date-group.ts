@@ -1,0 +1,103 @@
+// ----------------------------------------------------------------------------
+// delivery-date-group — the Delivery Planning board's delivery-date default sort
+// and its All-view month grouping (owner follow-up 2026-10-23).
+//
+// One shared place for "which date is this row's delivery date" so the board's
+// default ordering (earliest first) and the All tab's month buckets can never
+// disagree. EFFECTIVE delivery date = amended_delivery_date (the date WE
+// confirmed) ?? customer_delivery_date (the customer's original promise) —
+// mirrors the server-derived effective_delivery_date and the arrangement queues'
+// "new date, else original" rule (lib/arrangement-sort.ts). A row with neither
+// sorts LAST and buckets into a trailing "No date" month group.
+//
+// Pure + shared so the host page (defaultSort) and the board (month groupValue)
+// read the same key; pinned by delivery-date-group.test.ts.
+// ----------------------------------------------------------------------------
+import type { PlanningOrder } from './delivery-planning-queries';
+import { runSheetTieBreak, type RunStopOrder } from '../../../mobile/runSheetOrder';
+
+/** The comparator / bucketers read only these two fields, so tests (and any
+ *  future caller) can build rows without the full PlanningOrder shape. */
+export type DeliveryDateRow = Pick<PlanningOrder, 'amended_delivery_date' | 'customer_delivery_date'>;
+
+/** The row's EFFECTIVE delivery day as YYYY-MM-DD, or null when it has neither an
+ *  amended nor an original customer date. Truncated to the calendar day so a
+ *  stored timestamp still buckets by its date. */
+export function effectiveDeliveryDay(o: DeliveryDateRow): string | null {
+  const raw = o.amended_delivery_date ?? o.customer_delivery_date;
+  if (raw == null) return null;
+  const day = String(raw).slice(0, 10);
+  return day || null;
+}
+
+/** Ascending by effective delivery day, blanks (no date) LAST. ISO YYYY-MM-DD
+ *  sorts correctly as a plain string. This is the board's DEFAULT ordering —
+ *  a column sort or the manual drag order still overrides it. */
+export function compareByDeliveryDate(a: DeliveryDateRow, b: DeliveryDateRow): number {
+  const av = effectiveDeliveryDay(a) ?? '';
+  const bv = effectiveDeliveryDay(b) ?? '';
+  if (!av && !bv) return 0;
+  if (!av) return 1;
+  if (!bv) return -1;
+  return av < bv ? -1 : av > bv ? 1 : 0;
+}
+
+/** The comparator below also reads the lorry and the driver's run-sheet keys. */
+export type DeliverySlotRow = DeliveryDateRow & RunStopOrder & {
+  crew?: { lorry_plate: string | null } | null;
+};
+
+/* Reporter 2026-11-04: drivers lost track of which bill comes first, so each
+   lorry's day reads earliest Time Slot first, the same order as the driver's
+   phone run-sheet. Lorry sits above the slot so two lorries never interleave;
+   rows with no lorry yet sink to the end of their day. */
+export function compareByDeliverySlot(a: DeliverySlotRow, b: DeliverySlotRow): number {
+  const la = (a.crew?.lorry_plate ?? '').trim();
+  const lb = (b.crew?.lorry_plate ?? '').trim();
+  const byLorry = !la || !lb ? Number(!la) - Number(!lb) : la.localeCompare(lb);
+  return compareByDeliveryDate(a, b) || byLorry || runSheetTieBreak(a, b);
+}
+
+/** A DO print bundle's header, as the DO detail read returns it. */
+export type DoPrintHeader = {
+  expected_delivery_at?: string | null;
+  customer_delivery_date?: string | null;
+  so_doc_no?: string | null;
+  time_range?: string | null;
+  vehicle?: string | null;
+  crew?: { lorry_plate: string | null } | null;
+};
+
+/** The same order for a printed DO stack, so the driver's paper reads like the
+ *  board. The date is the one the DO prints; the crew lorry falls back to the
+ *  header's Vehicle. */
+export function compareDoPrintOrder(a: DoPrintHeader, b: DoPrintHeader): number {
+  const row = (h: DoPrintHeader): DeliverySlotRow => ({
+    amended_delivery_date: h.expected_delivery_at ?? null,
+    customer_delivery_date: h.customer_delivery_date ?? null,
+    so_doc_no: h.so_doc_no,
+    time_range: h.time_range,
+    crew: { lorry_plate: h.crew?.lorry_plate ?? h.vehicle ?? null },
+  });
+  return compareByDeliverySlot(row(a), row(b));
+}
+
+/** The row's month bucket key: 'YYYY-MM', or '' when it has no delivery date
+ *  (the empty key is the trailing "No date" group, and sorts after every real
+ *  month because compareByDeliveryDate puts no-date rows last). */
+export function deliveryMonthKey(o: DeliveryDateRow): string {
+  return effectiveDeliveryDay(o)?.slice(0, 7) ?? '';
+}
+
+/** The month group's banner label: 'YYYY-MM' -> 'YYYY/MM' (e.g. '2026/10');
+ *  '' -> 'No date'. The SAME digits in the SAME order (year then month, slash-
+ *  separated) as every date in this app — a month NAME would be a second date
+ *  format, the thing the owner ruled out app-wide on 2026-08-18 and that
+ *  check-date-formatting.mjs fails a build over (see vendor/shared/format.ts).
+ *  Formatted from the key's digits (no Date parsing) so it can't drift by
+ *  timezone; an unparseable key falls back to itself. */
+export function deliveryMonthLabel(key: string): string {
+  if (!key) return 'No date';
+  const m = /^(\d{4})-(\d{2})$/.exec(key);
+  return m ? `${m[1]}/${m[2]}` : key;
+}
