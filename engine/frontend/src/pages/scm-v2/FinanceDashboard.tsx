@@ -62,7 +62,7 @@ const tabTrack: React.CSSProperties = { display: 'inline-flex', gap: 2, flexWrap
     blues, amber, sage and greys so none of them wears the actual's petrol;
     the forecast stays red so the target jumps out; one colour a group across
     every card, Bedding = mattress + bedframe. */
-const PETROL = '#16695f';   // --fg-accent (--c-orange, Theme C primary)
+const PETROL = '#1B1B39';   // --fg-accent (--c-orange, Theme C primary)
 const FOREST = '#2F5D4F';   // --c-secondary-a
 const BLUE = '#1F3A8A';     // --c-secondary-b
 const SKY = '#7FA3C9';

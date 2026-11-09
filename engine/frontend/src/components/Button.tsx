@@ -59,16 +59,16 @@ const ICON_BUTTON_SIZES: Record<IconButtonSize, string> = {
 
 const ICON_BUTTON_VARIANTS: Record<IconButtonVariant, string> = {
   ghost:
-    "border-border bg-surface text-ink shadow-[0_1px_1px_rgba(17,20,15,0.04)] hover:border-primary hover:text-primary hover:shadow-[0_2px_8px_rgba(22,105,95,0.18)] active:shadow-[0_1px_1px_rgba(17,20,15,0.05)]",
+    "border-border bg-surface text-ink shadow-[0_1px_1px_rgba(17,20,15,0.04)] hover:border-primary hover:text-primary hover:shadow-[0_2px_8px_rgba(27, 27, 57,0.18)] active:shadow-[0_1px_1px_rgba(17,20,15,0.05)]",
   /* No card, no lift — a flat hover tint. For chrome that sits on top of an
      already-elevated surface (drawer header ⋮ / ✕), where a bordered white
      card on white is one box too many. */
   quiet:
     "border-transparent bg-transparent text-ink-secondary hover:bg-surface-2 hover:text-ink hover:translate-y-0",
   primary:
-    "border-primary bg-primary text-white shadow-[0_1px_3px_rgba(22,105,95,0.35)] hover:border-primary-ink hover:bg-primary-ink hover:shadow-[0_3px_10px_rgba(22,105,95,0.3)]",
+    "border-primary bg-primary text-white shadow-[0_1px_3px_rgba(27, 27, 57,0.35)] hover:border-primary-ink hover:bg-primary-ink hover:shadow-[0_3px_10px_rgba(27, 27, 57,0.3)]",
   secondary:
-    "border-transparent bg-surface-2 text-ink-muted hover:border-primary hover:bg-primary hover:text-white hover:shadow-[0_2px_8px_rgba(22,105,95,0.18)]",
+    "border-transparent bg-surface-2 text-ink-muted hover:border-primary hover:bg-primary hover:text-white hover:shadow-[0_2px_8px_rgba(27, 27, 57,0.18)]",
 };
 
 export function IconButton({

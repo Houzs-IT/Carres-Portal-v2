@@ -97,7 +97,7 @@ export function EditProjectSheet({
   };
   const labelStyle: React.CSSProperties = {
     fontSize: 9.5, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase",
-    color: "#767b6e", marginBottom: 4, display: "block",
+    color: "#6B7280", marginBottom: 4, display: "block",
   };
   const disabled = saving || busy;
 

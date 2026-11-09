@@ -266,8 +266,8 @@ const trackState = (o: BoardRow, isToday: boolean): TrackState => {
 const STATE_COLORS: Record<TrackState, [string, string]> = {
   done: ["#e2f0e9", "#2f8a5b"],
   late: ["#f8eaea", "#b23a3a"],
-  arrived: ["#e1efed", "#0c3f39"],
-  otw: ["#e1efed", "#0c3f39"],
+  arrived: ["#DCE6FD", "#2F55E0"],
+  otw: ["#DCE6FD", "#2F55E0"],
   sched: ["#f6efd9", "#8a6a2e"],
 };
 const STATE_LABELS: Record<TrackState, string> = {
@@ -283,8 +283,8 @@ const seqBgFor = (st: TrackState): string =>
     : st === "late"
       ? "#b23a3a"
       : st === "sched"
-        ? "#16695f"
-        : "#0c3f39";
+        ? "#1B1B39"
+        : "#2F55E0";
 
 export function MobileDeliveryPlanning({
   onBack,
@@ -518,7 +518,7 @@ export function MobileDeliveryPlanning({
               gap: 6,
               fontSize: 12.5,
               fontWeight: 700,
-              color: "#16695f",
+              color: "#1B1B39",
               background: "none",
               border: "none",
               cursor: "pointer",
@@ -529,7 +529,7 @@ export function MobileDeliveryPlanning({
               height="17"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#16695f"
+              stroke="#1B1B39"
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -826,18 +826,18 @@ function JobTypeChip({ o }: { o: BoardRow }) {
    so it is replicated here rather than pulling the whole desktop screen into the
    mobile bundle. Unknown / blank → muted. */
 const SUBSTATUS_TONE: Record<string, string> = {
-  "Pending Pickup": "#767b6e",
+  "Pending Pickup": "#6B7280",
   "Done Shipout": "#2f5d4f",
   "Arrives EM Warehouse": "#2f5d4f",
   "Done Delivered": "#2e7d32",
   Confirm: "#2f5d4f",
-  "House Not Ready": "#0c3f39",
-  "Request Hold": "#0c3f39",
+  "House Not Ready": "#2F55E0",
+  "Request Hold": "#2F55E0",
 };
 
 // ── Sub-status chip — a MetaChip-shaped pill tinted with the desktop tone. ──
 function SubstatusChip({ value }: { value: string }) {
-  const tone = SUBSTATUS_TONE[value] ?? "#767b6e";
+  const tone = SUBSTATUS_TONE[value] ?? "#6B7280";
   return (
     <span
       style={{
@@ -1175,7 +1175,7 @@ function PdPhotoGroup({
             fontWeight: 700,
             textTransform: "uppercase",
             letterSpacing: ".05em",
-            color: "#767b6e",
+            color: "#6B7280",
           }}
         >
           {title}
@@ -1205,7 +1205,7 @@ function PdPhotoGroup({
             height="20"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#16695f"
+            stroke="#1B1B39"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -1240,7 +1240,7 @@ function PdAttach({
         alignItems: "center",
         gap: 10,
         padding: 12,
-        border: "1px solid #d6d9d2",
+        border: "1px solid #E5E7EB",
         borderRadius: 11,
         background: "#f8f9f6",
         cursor: "pointer",
@@ -1255,7 +1255,7 @@ function PdAttach({
           height: 44,
           flex: "none",
           borderRadius: 9,
-          background: "#e1efed",
+          background: "#DCE6FD",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1266,7 +1266,7 @@ function PdAttach({
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#16695f"
+          stroke="#1B1B39"
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -1277,12 +1277,12 @@ function PdAttach({
         </svg>
       </span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>
           {title}
         </div>
-        <div style={{ fontSize: 11, color: "#767b6e" }}>{sub}</div>
+        <div style={{ fontSize: 11, color: "#6B7280" }}>{sub}</div>
       </div>
-      <span style={{ fontSize: 16, color: "#16695f" }}>›</span>
+      <span style={{ fontSize: 16, color: "#1B1B39" }}>›</span>
     </button>
   );
 }
@@ -1676,10 +1676,10 @@ function StopDetail({
                 justifyContent: "center",
                 gap: 6,
                 height: 42,
-                border: "1px solid #d6d9d2",
+                border: "1px solid #E5E7EB",
                 borderRadius: 11,
                 background: "#fff",
-                color: "#16695f",
+                color: "#1B1B39",
                 fontSize: 12.5,
                 fontWeight: 700,
                 textDecoration: "none",
@@ -1690,7 +1690,7 @@ function StopDetail({
                 height="15"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#16695f"
+                stroke="#1B1B39"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1710,7 +1710,7 @@ function StopDetail({
                 height: 42,
                 border: "1px solid #eceee9",
                 borderRadius: 11,
-                background: "#f4f6f3",
+                background: "#F8F9FA",
                 color: "#9aa093",
                 fontSize: 12.5,
                 fontWeight: 700,
@@ -1733,10 +1733,10 @@ function StopDetail({
                 justifyContent: "center",
                 gap: 6,
                 height: 42,
-                border: "1px solid #d6d9d2",
+                border: "1px solid #E5E7EB",
                 borderRadius: 11,
                 background: "#fff",
-                color: "#16695f",
+                color: "#1B1B39",
                 fontSize: 12.5,
                 fontWeight: 700,
                 textDecoration: "none",
@@ -1747,7 +1747,7 @@ function StopDetail({
                 height="15"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#16695f"
+                stroke="#1B1B39"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1768,7 +1768,7 @@ function StopDetail({
                 height: 42,
                 border: "1px solid #eceee9",
                 borderRadius: 11,
-                background: "#f4f6f3",
+                background: "#F8F9FA",
                 color: "#9aa093",
                 fontSize: 12.5,
                 fontWeight: 700,
@@ -1829,10 +1829,10 @@ function StopDetail({
               justifyContent: "center",
               gap: 7,
               height: 44,
-              border: "1.5px solid #16695f",
+              border: "1.5px solid #1B1B39",
               borderRadius: 11,
               background: "#fff",
-              color: "#16695f",
+              color: "#1B1B39",
               fontFamily: "inherit",
               fontSize: 13,
               fontWeight: 700,
@@ -1846,7 +1846,7 @@ function StopDetail({
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#16695f"
+              stroke="#1B1B39"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -2242,8 +2242,8 @@ function TrackStep({
   border?: boolean;
   check?: boolean;
 }) {
-  const bg = tone === "green" ? "#e2f0e9" : "#e1efed";
-  const fg = tone === "green" ? "#2f8a5b" : "#0c3f39";
+  const bg = tone === "green" ? "#e2f0e9" : "#DCE6FD";
+  const fg = tone === "green" ? "#2f8a5b" : "#2F55E0";
   return (
     <div
       style={{
@@ -2296,11 +2296,11 @@ function TrackStep({
         )}
       </span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>
           {label}
         </div>
         {time && (
-          <div className="tnum" style={{ fontSize: 11, color: "#767b6e" }}>
+          <div className="tnum" style={{ fontSize: 11, color: "#6B7280" }}>
             {time}
           </div>
         )}
@@ -2323,7 +2323,7 @@ function TrackButton({
   icon: "arrow" | "pin" | "camera";
   primary?: boolean;
 }) {
-  const stroke = primary ? "#fff" : "#16695f";
+  const stroke = primary ? "#fff" : "#1B1B39";
   return (
     <button
       onClick={onClick}
@@ -2335,10 +2335,10 @@ function TrackButton({
         justifyContent: "center",
         gap: 7,
         height: primary ? 46 : 44,
-        border: primary ? "none" : "1.5px solid #16695f",
+        border: primary ? "none" : "1.5px solid #1B1B39",
         borderRadius: 11,
-        background: primary ? (busy ? "#7fb4ad" : "#16695f") : "#fff",
-        color: primary ? "#fff" : "#16695f",
+        background: primary ? (busy ? "#7fb4ad" : "#1B1B39") : "#fff",
+        color: primary ? "#fff" : "#1B1B39",
         fontFamily: "inherit",
         fontSize: primary ? 13.5 : 13,
         fontWeight: primary ? 800 : 700,

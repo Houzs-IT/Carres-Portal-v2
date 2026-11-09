@@ -124,7 +124,7 @@ import OperationGuarantees from "./OperationGuarantees";
 import ShellHeader, { ShellHeaderContext, useShellHeaderHost } from "./components/ShellHeader";
 import ShellTasks, { useShellTasks } from "./components/ShellTasks";
 import { useTasksHost } from "./tasks/tasks-host";
-import { activeNavTitle } from "@/pages/portal/portal-nav";
+import { activeNavTitle, engineFor } from "@/pages/portal/portal-nav";
 import type { MovementsFilters } from "@/lib/queries";
 
 /**
@@ -225,6 +225,7 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
      page, Houzs's /purchase-invoices/new and /from-grn. The list stays the
      `?tab=purchase-invoices` module. */
   const isPurchaseInvoiceFormUrl = location.pathname.startsWith("/operation/purchase-invoices/");
+  const enginePage = engineFor(location.pathname, location.search);
   const isUrlDriven =
     isProcurementUrl || isToOrderUrl || isOrdersUrl || isOldOrdersUrl || isPurchaseInvoiceFormUrl ||
     /* Edit Delivery (2026-08-24) is a real route. Its flag joined the
@@ -439,7 +440,10 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
           } ${phone ? "" : "rounded-lg"}`}
           data-testid={isSalesOrdersRegisterUrl ? "sales-orders-work-surface" : undefined}
         >
-        {isUrlDriven ? (
+        {/* Service Cases and Supply Chain rows with an engine page open it here (portal-nav ENGINE_PAGES). */}
+        {enginePage ? (
+          <SupplyChainEngine path={enginePage} />
+        ) : isUrlDriven ? (
           // Nested route table for the URL-driven sections.
           //
           // Procurement — the BARE path (`/operation/procurement`) mounts the
@@ -583,8 +587,6 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
             {/* 0725 — Fleet, Fleet Health, Delivery Zones, Rate Cards (same decision). */}
             {/* 0750 — Projects: fairs, exhibitions and solo roadshows (same decision). */}
             {tab === "projects" && <ProjectsPage />}
-            {/* Supply Chain and Service Cases, the Houzs screens run as their own site (engine/). */}
-            {tab === "engine" && <SupplyChainEngine />}
             {tab === "project-maintenance" && <ProjectMaintenancePage />}
             {tab === "fleet" && <FleetPage />}
             {tab === "fleet-health" && <FleetHealthPage />}

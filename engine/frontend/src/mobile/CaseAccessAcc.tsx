@@ -3,9 +3,9 @@ import { useConfirm } from "../vendor/scm/components/ConfirmDialog";
 import { useNotify } from "../vendor/scm/components/NotifyDialog";
 import { useChoice } from "../vendor/scm/components/ChoiceDialog";
 
-const INK = "#11140f";
-const TEAL_DK = "#0c3f39";
-const BROWN = "#a16a2e";
+const INK = "#111827";
+const TEAL_DK = "#2F55E0";
+const BROWN = "#D64F20";
 
 /** Access rows arrive snake_case from our SQL; the PG driver may camelCase them, so read both. */
 type AccessRow = { user_id?: number; userId?: number; user_name?: string | null; userName?: string | null };
@@ -96,7 +96,7 @@ export function CaseAccessAcc({
               return (
                 <span
                   key={uid}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: TEAL_DK, background: "#e1efed", borderRadius: 7, padding: "4px 8px 4px 10px" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: TEAL_DK, background: "#DCE6FD", borderRadius: 7, padding: "4px 8px 4px 10px" }}
                 >
                   {name}
                   <span

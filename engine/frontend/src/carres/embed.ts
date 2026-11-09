@@ -2,7 +2,7 @@
 //
 // The portal shows these screens in a frame and signs the person in on their behalf: the session arrives in the
 // address fragment (never sent to a server) and is removed from the address at once. Inside the frame this app
-// keeps its own menu (navOnly.ts) and drops its top bars, since the portal's header is already on screen.
+// draws no menu or top bar of its own: the portal's sidebar picks the page (followCarresMenu) and its header is on screen.
 import { tokenStore, passStore } from "../api/client";
 import "./embed.css";
 
@@ -26,4 +26,19 @@ export function consumeCarresSignIn(): void {
     if (typeof p === "string" && p.startsWith("/") && !p.startsWith("//")) path = p;
   } catch { /* a broken hand-over just opens the sign-in screen */ }
   window.history.replaceState(null, "", path);
+}
+
+/** Pages allowed to steer the frame: the portal, its pr-N previews, and local dev. */
+const PORTAL = /^(https:\/\/([a-z0-9-]+\.)?carres-portal\.pages\.dev|https:\/\/erp\.carresofficial\.com|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
+
+/** The portal's menu picks the page: { type: "carres:navigate", path } moves this app without reloading it. */
+export function followCarresMenu(): void {
+  if (!CARRES_EMBEDDED) return;
+  window.addEventListener("message", (e: MessageEvent) => {
+    const d = e.data as { type?: string; path?: unknown } | null;
+    if (!PORTAL.test(e.origin) || d?.type !== "carres:navigate") return;
+    if (typeof d.path !== "string" || !d.path.startsWith("/") || d.path.startsWith("//")) return;
+    window.history.pushState(null, "", d.path);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
 }

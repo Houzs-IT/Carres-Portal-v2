@@ -26,7 +26,7 @@ const str = (v: unknown): string => {
 };
 
 function Eyebrow({ children }: { children: string }) {
-  return <div className="ey" style={{ color: "#767b6e", margin: "4px 2px 6px" }}>{children}</div>;
+  return <div className="ey" style={{ color: "#6B7280", margin: "4px 2px 6px" }}>{children}</div>;
 }
 
 type MemberRow = { id?: unknown; email?: unknown; status?: unknown } | null | undefined;

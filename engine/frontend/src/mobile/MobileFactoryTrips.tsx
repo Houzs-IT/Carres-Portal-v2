@@ -16,9 +16,9 @@ import {
   returnNotePath,
 } from "../vendor/scm/lib/assr/returns";
 
-const INK = "#11140f";
-const MUTED = "#767b6e";
-const LINE = "#d6d9d2";
+const INK = "#111827";
+const MUTED = "#6B7280";
+const LINE = "#E5E7EB";
 const BLUE = "#1F3A8A";
 
 const lbl: React.CSSProperties = { fontSize: 11, color: MUTED, display: "block", margin: "6px 0 2px" };

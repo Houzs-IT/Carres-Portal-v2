@@ -110,7 +110,7 @@ const STATUS_COLOR: Record<string, string> = {
   pending: "#cf9a2e",
   cancelled: "#b23a3a",
 };
-const TASK_COLOR = "#a16a2e";
+const TASK_COLOR = "#D64F20";
 const HOLIDAY_COLOR = "#7a5c86";
 const statusColor = (s: string | null) => STATUS_COLOR[(s ?? "").toLowerCase()] ?? "#5a6b7a";
 // Overdue task bar colour — the mobile "cancelled / late" red token (--red),
@@ -500,7 +500,7 @@ export function MobileCalendar({
             title="Search"
             style={{ fontFamily: "inherit" }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#414539" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
           </button>
         </div>
       </header>
@@ -514,7 +514,7 @@ export function MobileCalendar({
           <button onClick={() => nav(-1)} aria-label="Previous month" className="cal-navbtn">‹</button>
           <button onClick={goToday} className="cal-today">Today</button>
           <button onClick={() => nav(1)} aria-label="Next month" className="cal-navbtn">›</button>
-          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: "#11140f", textAlign: "right" }}>{MONTHS[month]} {year}</div>
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: "#111827", textAlign: "right" }}>{MONTHS[month]} {year}</div>
         </div>
 
         {/* Month / Week segmented toggle */}

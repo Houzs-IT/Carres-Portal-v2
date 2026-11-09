@@ -123,8 +123,8 @@ export function MobileSkuPicker({
         <div className="grab" />
         <div className="sheet-head">
           <div>
-            <div className="ey" style={{ color: "#a16a2e" }}>Catalog</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#11140f", marginTop: 2 }}>Pick a product</div>
+            <div className="ey" style={{ color: "#D64F20" }}>Catalog</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 2 }}>Pick a product</div>
           </div>
           <button className="sheet-x" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -194,7 +194,7 @@ export function MobileSkuPicker({
                   }}
                   style={{
                     textAlign: "left", width: "100%", boxSizing: "border-box",
-                    border: `1px solid ${isOn ? "#0c3f39" : "rgba(34,31,32,.12)"}`, borderRadius: 11,
+                    border: `1px solid ${isOn ? "#2F55E0" : "rgba(34,31,32,.12)"}`, borderRadius: 11,
                     background: isOn ? "#f0f6f2" : "#fff",
                     padding: "10px 12px", cursor: "pointer", fontFamily: "inherit",
                     display: "flex", alignItems: "center", gap: 10,
@@ -205,8 +205,8 @@ export function MobileSkuPicker({
                       aria-hidden
                       style={{
                         flex: "none", width: 18, height: 18, borderRadius: 5,
-                        border: `1.6px solid ${isOn ? "#0c3f39" : "rgba(34,31,32,.28)"}`,
-                        background: isOn ? "#0c3f39" : "#fff",
+                        border: `1.6px solid ${isOn ? "#2F55E0" : "rgba(34,31,32,.28)"}`,
+                        background: isOn ? "#2F55E0" : "#fff",
                         display: "flex", alignItems: "center", justifyContent: "center",
                       }}
                     >
@@ -224,10 +224,10 @@ export function MobileSkuPicker({
                       row's full width and WRAPS instead of truncating; category
                       stays available as the chip filter above. skuOf() still
                       binds p.code / p.category on tap — display-only change. */}
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: "#11140f", overflowWrap: "anywhere" }}>{p.name}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: "#111827", overflowWrap: "anywhere" }}>{p.name}</span>
                   {repeatable && count > 0 && (
                     <>
-                      <span style={{ flex: "none", fontSize: 12, fontWeight: 800, color: "#0c3f39" }}>{"×"}{count}</span>
+                      <span style={{ flex: "none", fontSize: 12, fontWeight: 800, color: "#2F55E0" }}>{"×"}{count}</span>
                       <span
                         role="button"
                         aria-label={`Remove one ${p.name}`}
@@ -235,7 +235,7 @@ export function MobileSkuPicker({
                         style={{
                           flex: "none", width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(34,31,32,.2)",
                           background: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 16, fontWeight: 800, color: "#11140f",
+                          fontSize: 16, fontWeight: 800, color: "#111827",
                         }}
                       >
                         {"−"}
@@ -256,7 +256,7 @@ export function MobileSkuPicker({
 
         {multi && (
           <div className="sheet-foot">
-            <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: picked.length ? "#11140f" : "#9aa093" }}>
+            <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: picked.length ? "#111827" : "#9aa093" }}>
               {picked.length} selected
             </span>
             <button

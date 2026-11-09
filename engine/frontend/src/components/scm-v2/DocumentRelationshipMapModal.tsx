@@ -331,7 +331,7 @@ export function DocumentRelationshipMapModal({
   const pairingTitle = floatingPairing
     ? "Live MRP pairing — recomputed on every view; may change"
     : "Bought for — procurement provenance";
-  const pairingStroke = floatingPairing ? "#a16a2e" : "var(--border-strong, #b3b8ac)";
+  const pairingStroke = floatingPairing ? "#D64F20" : "var(--border-strong, #b3b8ac)";
   const pairingDash = floatingPairing ? "6 5" : undefined;
   const anchoredDash = pairingKind ? undefined : "4 4";
 
@@ -457,7 +457,7 @@ export function DocumentRelationshipMapModal({
             y1={row1Top + 42}
             x2={x0 + xStep}
             y2={row1Top + 42}
-            stroke={!twoChain && pairingKind ? pairingStroke : "var(--primary, #16695f)"}
+            stroke={!twoChain && pairingKind ? pairingStroke : "var(--primary, #1B1B39)"}
             strokeWidth="2"
             strokeDasharray={!twoChain && pairingKind ? pairingDash : undefined}
             className={!twoChain && floatingPairing ? "animate-pulse" : undefined}
@@ -471,7 +471,7 @@ export function DocumentRelationshipMapModal({
             y1={row1Top + 42}
             x2={x0 + xStep * 2}
             y2={row1Top + 42}
-            stroke="var(--primary, #16695f)"
+            stroke="var(--primary, #1B1B39)"
             strokeWidth="2"
             markerEnd="url(#arrowP)"
           />
@@ -482,7 +482,7 @@ export function DocumentRelationshipMapModal({
               y1={row1Top + 42}
               x2={x0 + xStep * 3}
               y2={row1Top + 42}
-              stroke="var(--primary, #16695f)"
+              stroke="var(--primary, #1B1B39)"
               strokeWidth="2"
               markerEnd="url(#arrowP)"
             />
@@ -540,7 +540,7 @@ export function DocumentRelationshipMapModal({
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <path d="M0,0 L7,3.5 L0,7 z" fill="var(--primary, #16695f)" />
+              <path d="M0,0 L7,3.5 L0,7 z" fill="var(--primary, #1B1B39)" />
             </marker>
             <marker
               id="arrowM"
@@ -563,7 +563,7 @@ export function DocumentRelationshipMapModal({
               orient="auto"
               markerUnits="strokeWidth"
             >
-              <path d="M0,0 L7,3.5 L0,7 z" fill="#a16a2e" />
+              <path d="M0,0 L7,3.5 L0,7 z" fill="#D64F20" />
             </marker>
           </defs>
         </svg>
@@ -613,7 +613,7 @@ export function DocumentRelationshipMapModal({
             <span
               className="inline-block h-0 w-5"
               style={{
-                borderTop: floatingPairing ? "2px dashed #a16a2e" : "2px solid #b3b8ac",
+                borderTop: floatingPairing ? "2px dashed #D64F20" : "2px solid #b3b8ac",
               }}
             />
             {floatingPairing

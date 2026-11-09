@@ -4,24 +4,24 @@
    inside it reads var(--fin-…). Values are the design's own, on Theme C. */
 
 .root {
-  --fin-ink: #11140f;
-  --fin-text: #414539;
+  --fin-ink: #111827;
+  --fin-text: #4B5563;
   --fin-detail: #5f6459;
-  --fin-muted: #767b6e;
-  --fin-line: #d6d9d2;
-  --fin-rule: #e3e6e0;
-  --fin-rule-soft: #eef0ec;
+  --fin-muted: #6B7280;
+  --fin-line: #E5E7EB;
+  --fin-rule: #EEF0F3;
+  --fin-rule-soft: #F6F7F9;
   --fin-input: #c2c6bd;
-  --fin-paper: #f4f6f3;
+  --fin-paper: #F8F9FA;
   --fin-row: #f9faf8;
   --fin-surface: #ffffff;
-  --fin-petrol: #16695f;
-  --fin-petrol-ink: #0c3f39;
-  --fin-petrol-pale: #e1efed;
+  --fin-petrol: #1B1B39;
+  --fin-petrol-ink: #2F55E0;
+  --fin-petrol-pale: #DCE6FD;
   --fin-petrol-line: #b9d6d1;
   --fin-petrol-hover: #d3e7e3;
-  --fin-brass: #a16a2e;
-  --fin-gold: #d8a85a;
+  --fin-brass: #D64F20;
+  --fin-gold: #D64F20;
 
   /* Status tones: late (with a dot), warn, info, calm. */
   --fin-late-bg: #fbeeee;
@@ -34,14 +34,14 @@
   --fin-calm-fg: #5b6055;
 
   /* The five closing stocks (Books › Stock close): the design's three, then showroom and others. */
-  --fin-bucket-customer: #16695f;
-  --fin-bucket-display: #a16a2e;
+  --fin-bucket-customer: #1B1B39;
+  --fin-bucket-display: #D64F20;
   --fin-bucket-service: #dcb36a;
   --fin-bucket-showroom: #6fa79e;
   --fin-bucket-others: #a3a99b;
 
   /* The dark toast with its brass check. */
-  --fin-toast: #13201c;
+  --fin-toast: #1B1B39;
   --fin-toast-ink: #e7eae4;
 
   --fin-card-shadow: 0 1px 0 rgba(17, 24, 16, 0.04), 0 4px 18px -8px rgba(17, 24, 16, 0.12);

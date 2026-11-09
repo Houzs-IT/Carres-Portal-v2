@@ -365,9 +365,6 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only: My Work / Team Work and a person's own leave (0670).
       { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
       { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
-      // Carres-only: the supply chain engine (engine/), one row that opens its own menu in a frame. Its own
-      // name while the older Supply Chain pages above are still in use.
-      { key: "engine", label: "New Supply Chain", icon: Boxes, mIcon: "inventory_2", section: "Workspace" },
       // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order.
       { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
       { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/amendments", section: "Sales" },
@@ -715,6 +712,42 @@ export const PORTAL_NAV: PortalNavGroup[] = [
     ],
   },
 ];
+/** Service Cases and Supply Chain rows whose address now opens the engine's own page (engine/, the Houzs
+ *  screens) in a frame (owner, 9 Nov 2026: the engine replaces the older pages). Keyed by row, valued by the
+ *  engine address. A row with no engine page keeps its own page. */
+export const ENGINE_PAGES: Readonly<Record<string, string>> = {
+  "service-quality": "/assr?view=metrics", "service-notes": "/assr?view=cases",
+  "service-maintenance": "/assr?view=settings", "service-mine": "/my-cases",
+  orders: "/scm/sales-orders", "orders-shortcut": "/scm/sales-orders", amendments: "/scm/amendments",
+  "delivery-orders": "/scm/delivery-orders", "sales-invoices": "/scm/sales-invoices", "delivery-returns": "/scm/delivery-returns",
+  "procurement-overview": "/scm/procurement-overview", "op-catalog": "/scm/products", suppliers: "/scm/suppliers",
+  mrp: "/scm/mrp", "purchase-orders": "/scm/purchase-orders", "po-amendments": "/scm/po-amendments",
+  "po-cancellation-requests": "/scm/cancel-requests", receiving: "/scm/grns",
+  "purchase-invoices": "/scm/purchase-invoices", "purchase-returns": "/scm/purchase-returns",
+  "logistic-overview": "/scm/logistic-overview", "delivery-planning": "/scm/delivery-planning", "dp-orders": "/scm/dp-orders",
+  "fleet-day": "/scm/fleet-day", "fleet-map": "/scm/lorry-live-map", "fleet-capacity": "/scm/lorry-capacity",
+  "crew-leave": "/scm/driver-leave", "coverage-fleet": "/scm/delivery-maintenance", "delivery-zones": "/scm/delivery-zones",
+  "rate-cards": "/scm/delivery-rate-cards", "fleet-health": "/fleet-health",
+  "wh-loading-list": "/scm/loading-list", "wh-warehouses": "/scm/warehouses", "wh-racks": "/scm/warehouses/racks",
+  stock: "/scm/inventory", "stock-adjustments": "/scm/stock-adjustments", "stock-transfers": "/scm/stock-transfers",
+  "stock-takes": "/scm/stock-takes",
+};
+/** The engine page for this address, when it is one of the replaced rows' own address: the row's link
+ *  (bare path, or tab plus view) opens the engine page in place of the older Carres page. Every other address,
+ *  record pages and record or search links included, is untouched. */
+export function engineFor(pathname: string, search: string): string | null {
+  const operation = PORTAL_NAV.find((g) => g.area === "operation");
+  if (!operation) return null;
+  const tab = new URLSearchParams(search).get("tab");
+  for (const item of operation.items) {
+    const page = ENGINE_PAGES[item.key];
+    if (!page) continue;
+    // A path row only on its bare address: with a query (?po=, ?search=) it is a record or a search link
+    // into the Carres page, which stays.
+    if (item.path ? pathname === item.path && (!search || search === "?") : pathname === operation.base && tab !== null && rowMatchesTab(operation, item, tab, search)) return page;
+  }
+  return null;
+}
 
 /** The area-groups a given role may see (preserves PORTAL_NAV order). */
 export function visibleGroups(role: Role | null): PortalNavGroup[] {

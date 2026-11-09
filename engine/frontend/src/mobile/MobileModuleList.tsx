@@ -262,7 +262,7 @@ function Avatar({ seed, size = 40 }: { seed: string; size?: number }) {
     <span
       style={{
         width: size, height: size, flex: "none", borderRadius: "50%",
-        background: "#15161a", color: "#d8a85a", fontSize: 13, fontWeight: 800,
+        background: "#15161a", color: "#D64F20", fontSize: 13, fontWeight: 800,
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
@@ -550,7 +550,7 @@ export function MobileModuleList({
             // opens MobileModuleForm; a doc module (DO/SI/GRN/PO) opens the
             // convert wizard. Both go through the same "+ New" affordance.
             <button onClick={onNew} className="iconbtn" aria-label={`New ${config.title}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
             </button>
           )}
         </div>
@@ -829,7 +829,7 @@ function ListCard({ config, row, onOpen }: { config: ModuleConfig; row: any; onO
   return (
     <div className="card" onClick={open} style={{ ...cardStyle, padding: "12px 13px", ...(cancelled ? { opacity: 0.6 } : null) }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 800, color: "#11140f", ...(cancelled ? { textDecoration: "line-through", textDecorationThickness: 1 } : null) }}>{name}</span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 800, color: "#111827", ...(cancelled ? { textDecoration: "line-through", textDecorationThickness: 1 } : null) }}>{name}</span>
         {status ? <span style={{ flex: "none" }}><Badge label={status} tone={statusTone} /></span> : (() => {
           const rightRaw = config.right ? config.right(row) : "";
           const rightText = config.rightMoney ? `RM ${rm(rightRaw as unknown as number)}` : rightRaw;
@@ -841,7 +841,7 @@ function ListCard({ config, row, onOpen }: { config: ModuleConfig; row: any; onO
           {cardFields.map(([accessor, label]) => (
             <div key={label} style={{ minWidth: 0 }}>
               <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "#9aa093" }}>{label}</div>
-              <div className="money" style={{ fontSize: 12, fontWeight: 600, color: "#11140f" }}>{safe(accessor, row) || "—"}</div>
+              <div className="money" style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{safe(accessor, row) || "—"}</div>
             </div>
           ))}
         </div>

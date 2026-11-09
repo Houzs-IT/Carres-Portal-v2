@@ -221,7 +221,9 @@ const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/operation/procurement${window.location.search}`]}>
+      {/* The bare `/operation/procurement` opens the engine now (portal-nav ENGINE_PAGES); with a query it stays the
+          Carres workspace these screens measure, which ignores `preview`. */}
+      <MemoryRouter initialEntries={[`/operation/procurement${window.location.search || "?preview=1"}`]}>
         <Routes>
           <Route path="/operation/*" element={<OperationApp />} />
         </Routes>

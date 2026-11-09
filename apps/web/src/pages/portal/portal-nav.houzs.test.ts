@@ -24,7 +24,7 @@ const tree = () =>
 describe("the Houzs tree", () => {
   it("draws Workspace, then Operations with Supply Chain inside it", () => {
     expect(tree()).toEqual([
-      { head: "Workspace", blocks: ["Overview", "Sales Orders", "Workspace", "Leave", "New Supply Chain"] },
+      { head: "Workspace", blocks: ["Overview", "Sales Orders", "Workspace", "Leave"] },
       {
         head: "Operations",
         blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases · Guarantees", "Projects: Project List · Project Maintenance"],

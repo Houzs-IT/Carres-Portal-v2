@@ -1088,7 +1088,7 @@ export function ColumnsButton({
       className={cn(
         "group inline-flex h-[34px] items-center gap-2 rounded-lg border bg-surface px-3.5 text-[12.5px] font-medium text-ink-secondary",
         "shadow-[0_1px_1px_rgba(17,20,15,0.03)] transition-all duration-fast ease-out",
-        "hover:-translate-y-px hover:border-primary/45 hover:shadow-[0_4px_12px_rgba(22,105,95,0.12)]",
+        "hover:-translate-y-px hover:border-primary/45 hover:shadow-[0_4px_12px_rgba(27, 27, 57,0.12)]",
         "active:translate-y-0 disabled:pointer-events-none disabled:opacity-45",
         active ? "border-primary text-primary" : "border-border"
       )}

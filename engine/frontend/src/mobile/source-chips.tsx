@@ -16,12 +16,12 @@ const eyebrowStyle: CSSProperties = {
   fontSize: 9.5, fontWeight: 700, letterSpacing: ".3px", textTransform: "uppercase", color: "#9aa093",
 };
 const solidChip: CSSProperties = {
-  fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#0c3f39",
+  fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#2F55E0",
   background: "#eef3f1", border: "1px solid #d7e2de", borderRadius: 5, padding: "1px 6px",
 };
 const mutedChip: CSSProperties = {
   fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#5c6357",
-  background: "#f4f6f3", border: "1px solid #d9ded4", borderRadius: 5, padding: "1px 6px",
+  background: "#F8F9FA", border: "1px solid #d9ded4", borderRadius: 5, padding: "1px 6px",
 };
 /* Floating identity (Decision, docs/modules/purchase-order.md 2026-08-06: soft
    until DO): a live, recomputed-on-every-view allocation wears a dashed border.
@@ -46,17 +46,17 @@ export function soStockPillMobile(l: {
   remaining_qty?: number | null;
 }): { label: string; fg: string; bg: string; bd: string } | null {
   if ((l.item_group ?? "").toUpperCase().includes("SERVICE"))
-    return { label: "READY", fg: "#16695f", bg: "#e1efed", bd: "#b9d8d2" };
+    return { label: "READY", fg: "#1B1B39", bg: "#DCE6FD", bd: "#b9d8d2" };
   const shipped = (l.delivered_qty ?? 0) > 0 && (l.remaining_qty ?? null) === 0;
-  if (shipped) return { label: "DELIVERED", fg: "#5c6357", bg: "#f4f6f3", bd: "#d9ded4" };
+  if (shipped) return { label: "DELIVERED", fg: "#5c6357", bg: "#F8F9FA", bd: "#d9ded4" };
   const effective = (l.stock_status_effective ?? "").toUpperCase()
     || (l.stock_state === "stock" || (l.stock_status ?? "").toUpperCase() === "READY" ? "READY"
       : (l.stock_status ?? "").toUpperCase() === "PARTIAL" ? "PARTIAL" : "PENDING");
   if (effective === "READY")
-    return { label: "READY", fg: "#16695f", bg: "#e1efed", bd: "#b9d8d2" };
+    return { label: "READY", fg: "#1B1B39", bg: "#DCE6FD", bd: "#b9d8d2" };
   if (effective === "PARTIAL")
     return { label: "PARTIAL", fg: "#8a6116", bg: "rgba(212,151,40,0.12)", bd: "rgba(212,151,40,0.45)" };
-  return { label: "PENDING", fg: "#5c6357", bg: "#f4f6f3", bd: "#d9ded4" };
+  return { label: "PENDING", fg: "#5c6357", bg: "#F8F9FA", bd: "#d9ded4" };
 }
 
 /* The non-selling-warehouse refusal, phone shell. Desktop twin: the note under
@@ -366,8 +366,8 @@ export function PairedSoRowsMobile({
             <span
               style={{
                 fontSize: 9, fontWeight: 800, letterSpacing: ".4px", padding: "2px 8px", borderRadius: 20,
-                color: shipped ? "#16695f" : "#5c6357",
-                background: shipped ? "#e1efed" : "#f4f6f3",
+                color: shipped ? "#1B1B39" : "#5c6357",
+                background: shipped ? "#DCE6FD" : "#F8F9FA",
               }}
               title={shipped
                 ? "Delivered — at least one Delivery Order has shipped this line's goods for this Sales Order"

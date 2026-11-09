@@ -94,14 +94,14 @@ const TYPE_LABEL: Record<SearchHitType, string> = {
 };
 const TYPE_ORDER = Object.keys(TYPE_LABEL) as SearchHitType[];
 const TYPE_COLOR: Record<SearchHitType, string> = {
-  sales_order: "#16695f",
+  sales_order: "#1B1B39",
   purchase_order: "#b76b00",
   grn: "#2f5d4f",
-  delivery_order: "#16695f",
-  sales_invoice: "#16695f",
+  delivery_order: "#1B1B39",
+  sales_invoice: "#1B1B39",
   purchase_invoice: "#b76b00",
   project: "#2f8a5b",
-  assr_case: "#a16a2e",
+  assr_case: "#D64F20",
   product: "#4b6b86",
   user: "#7a5c86",
 };

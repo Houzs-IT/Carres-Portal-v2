@@ -26,6 +26,10 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 // this suite tests OperationApp's descendant routing, not the rail. Active-tab
 // highlight moved into PortalSidebar (URL-derived) and is covered by its own
 // suite, so the old `data-active` prop assertions are gone.
+// The engine frame (engine/): Service Cases and Supply Chain rows with an engine page open it (portal-nav ENGINE_PAGES).
+vi.mock("./SupplyChainEngine", () => ({
+  default: ({ path }: { path: string }) => <div data-testid="engine-stub" data-path={path}>engine</div>,
+}));
 vi.mock("@/pages/portal/PortalSidebar", () => ({
   default: () => <div data-testid="sidebar-stub">sidebar</div>,
 }));
@@ -198,11 +202,22 @@ describe("OperationApp — procurement descendant routing", () => {
     expectOneHeader();
   });
 
-  it("URL /operation/procurement mounts the Purchase Execution Workspace via descendant Routes", () => {
+  it("URL /operation/procurement opens the engine's Purchase Orders (it replaced the workspace)", () => {
     renderApp("/operation/procurement");
-    expect(
-      screen.getByTestId("purchase-orders-workspace-stub"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/purchase-orders");
+    expect(screen.queryByTestId("purchase-orders-workspace-stub")).not.toBeInTheDocument();
+  });
+
+  it("the Carres workspace still opens with a query (record links, and the screen checks' door)", () => {
+    renderApp("/operation/procurement?preview=1");
+    expect(screen.getByTestId("purchase-orders-workspace-stub")).toBeInTheDocument();
+    expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
+  });
+
+  it("the Carres Sales Orders register still opens on its stage door (the screen checks' door)", () => {
+    renderApp("/operation/orders/all");
+    expect(screen.getByTestId("register-stub")).toBeInTheDocument();
+    expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
     // The dashboard must NOT render alongside the workspace — `isProcurementUrl`
     // gates the conditional so only the inner <Routes> block paints.
     expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
@@ -235,10 +250,10 @@ describe("OperationApp — procurement descendant routing", () => {
  * import surface there is, which is exactly what blocks the final delete.
  */
 describe("OperationApp — the Sales Order cutover's two doors", () => {
-  it("/operation/orders mounts the NEW register and never the old table", () => {
+  it("/operation/orders opens the engine's Sales Orders and never the old table", () => {
     renderApp("/operation/orders");
-    // The Outright list (2026-10-08).
-    expect(screen.getByTestId("register-stub")).toBeInTheDocument();
+    // The engine's list replaced the Outright list (owner, 9 Nov 2026).
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/sales-orders");
     expect(screen.queryByTestId("old-orders-stub")).not.toBeInTheDocument();
     expect(screen.getByTestId("sales-orders-work-surface")).toHaveClass("overflow-hidden");
     expect(screen.getByTestId("sales-orders-work-surface")).not.toHaveClass("overflow-auto");
@@ -345,9 +360,9 @@ describe("OperationApp — one header on Monitor", () => {
  * routes keep reaching their existing components unchanged.
  */
 describe("OperationApp — the Delivery destinations", () => {
-  it("/operation/delivery-orders mounts the existing register, not a redirect", () => {
+  it("/operation/delivery-orders opens the engine's Delivery Orders, not a redirect", () => {
     renderApp("/operation/delivery-orders");
-    expect(screen.getByTestId("delivery-orders-register-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/delivery-orders");
     expect(screen.getByTestId("location-probe")).toHaveTextContent(
       "/operation/delivery-orders",
     );
@@ -400,9 +415,9 @@ describe("OperationApp — Warehouse surfaces draw one top row, not two", () => 
     expect(screen.getByTestId("arrival-workspace-stub")).toBeInTheDocument();
     expectOneHeader();
   });
-  it("?tab=stock-onhand mounts the Inventory Register with no slim bar", () => {
+  it("?tab=stock-onhand opens the engine's Inventory with no slim bar", () => {
     renderApp("/operation?tab=stock-onhand");
-    expect(screen.getByTestId("stock-register-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/inventory");
     expectOneHeader();
   });
 
