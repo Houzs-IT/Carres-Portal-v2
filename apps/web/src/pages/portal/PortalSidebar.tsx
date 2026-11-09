@@ -35,6 +35,8 @@ import {
    common detail/Tasks canvas fit can temporarily use its existing 64px mode
    without overwriting that saved choice. */
 const COLLAPSE_KEY = "carres-menu-collapsed";
+/** The Operations rail opened by hand (see detailExpanded): kept across the page re-mounts of one tab. */
+let canvasRailOpen = false;
 
 /** The module / plain-row icon (01 §4 "Side menu": 18). */
 const MODULE_ICON = 18;
@@ -137,12 +139,19 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     return () => window.removeEventListener("resize", measure);
   }, []);
   const isSalesOrderDetail = /^\/operation\/orders\/so\/(?!new(?:\/|$))[^/]+/.test(location.pathname);
-  const [detailExpanded, setDetailExpanded] = useState(false);
+  // The Operations rail opened by hand stays open as the person moves between pages (owner, 9 Nov 2026). The
+  // route boundary in App.tsx re-mounts the whole page on every path change, so the open state lives outside
+  // the component, for this tab only; a reload starts on the compact rail again.
+  const [detailExpanded, setDetailExpandedState] = useState(() => compactForCanvas && canvasRailOpen);
+  const setDetailExpanded = (next: boolean | ((open: boolean) => boolean)) =>
+    setDetailExpandedState((open) => {
+      const value = typeof next === "function" ? next(open) : next;
+      if (compactForCanvas) canvasRailOpen = value;
+      return value;
+    });
   const [reporting, setReporting] = useState(false);
-  // A compact rail opened by hand stays open while the person moves between pages (owner, 9 Nov 2026:
-  // clicking a row must not close the menu); it shuts when they close it, or when the width class changes.
-  useEffect(() => setDetailExpanded(false), [narrowDetail]);
-  useEffect(() => { if (!compactForCanvas) setDetailExpanded(false); }, [location.pathname, compactForCanvas]);
+  // Only the Sales Order detail's own compact rail starts shut again on each page or width change.
+  useEffect(() => { if (!compactForCanvas) setDetailExpanded(false); }, [location.pathname, narrowDetail, compactForCanvas]);
   const autoDetail = isSalesOrderDetail && narrowDetail;
   const autoCanvas = compactForCanvas;
   /* A drawer is always the named rail. */
