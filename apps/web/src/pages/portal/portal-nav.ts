@@ -733,8 +733,8 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "stock-takes": "/scm/stock-takes",
 };
 /** The engine page for this address, when it is one of the replaced rows' own address: the row's link
- *  (path, or tab plus view) opens the engine page in place of the older Carres page. Every other address,
- *  record pages included, is untouched. */
+ *  (bare path, or tab plus view) opens the engine page in place of the older Carres page. Every other address,
+ *  record pages and record or search links included, is untouched. */
 export function engineFor(pathname: string, search: string): string | null {
   const operation = PORTAL_NAV.find((g) => g.area === "operation");
   if (!operation) return null;
@@ -742,7 +742,9 @@ export function engineFor(pathname: string, search: string): string | null {
   for (const item of operation.items) {
     const page = ENGINE_PAGES[item.key];
     if (!page) continue;
-    if (item.path ? pathname === item.path : pathname === operation.base && tab !== null && rowMatchesTab(operation, item, tab, search)) return page;
+    // A path row only on its bare address: with a query (?po=, ?search=) it is a record or a search link
+    // into the Carres page, which stays.
+    if (item.path ? pathname === item.path && (!search || search === "?") : pathname === operation.base && tab !== null && rowMatchesTab(operation, item, tab, search)) return page;
   }
   return null;
 }

@@ -18,4 +18,9 @@ describe("engineFor: the replaced rows' addresses open the engine page", () => {
     expect(engineFor("/operation", "?tab=guarantees")).toBeNull();
     expect(engineFor("/operation", "")).toBeNull();
   });
+  it("keeps record and search links on a path row's Carres page", () => {
+    expect(engineFor("/operation/procurement", "?po=PO-1")).toBeNull();
+    expect(engineFor("/operation/orders", "?search=SO-1")).toBeNull();
+    expect(engineFor("/operation/procurement", "?")).toBe("/scm/purchase-orders");
+  });
 });

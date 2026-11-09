@@ -342,7 +342,9 @@ const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[previewParams.get("path") ?? `/operation/orders${window.location.search}`]}>
+      {/* `/operation/orders` itself opens the engine's Sales Orders now (portal-nav ENGINE_PAGES); the Carres
+          register these screens measure still answers on its `orders/:stage` door, drawn the same way. */}
+      <MemoryRouter initialEntries={[previewParams.get("path") ?? `/operation/orders/all${window.location.search}`]}>
         <Routes>
           <Route path="/operation/*" element={<OperationApp />} />
         </Routes>

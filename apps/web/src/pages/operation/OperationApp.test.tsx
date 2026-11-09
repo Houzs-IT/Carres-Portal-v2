@@ -206,6 +206,18 @@ describe("OperationApp — procurement descendant routing", () => {
     renderApp("/operation/procurement");
     expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/purchase-orders");
     expect(screen.queryByTestId("purchase-orders-workspace-stub")).not.toBeInTheDocument();
+  });
+
+  it("the Carres workspace still opens with a query (record links, and the screen checks' door)", () => {
+    renderApp("/operation/procurement?preview=1");
+    expect(screen.getByTestId("purchase-orders-workspace-stub")).toBeInTheDocument();
+    expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
+  });
+
+  it("the Carres Sales Orders register still opens on its stage door (the screen checks' door)", () => {
+    renderApp("/operation/orders/all");
+    expect(screen.getByTestId("register-stub")).toBeInTheDocument();
+    expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
     // The dashboard must NOT render alongside the workspace — `isProcurementUrl`
     // gates the conditional so only the inner <Routes> block paints.
     expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
