@@ -19,6 +19,24 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # What the PR can affect, from the files it changes. Only two narrow cases skip anything: a PR inside engine/
+      # (its own site and checks) and a PR inside apps/api/. Any other file, docs and scripts included (web tests
+      # read them), runs everything.
+      - name: Decide which checks this PR needs
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "Changed files:"; echo "$files"
+          outside() { grep -vE "$1" <<<"$files" | grep -q . ; }
+          deploy='^\.github/workflows/(deploy-engine|deploy-production|preview|baselines)\.yml$'
+          if ! outside "^engine/|$deploy"; then scope=engine
+          elif ! outside "^engine/|^apps/api/|$deploy"; then scope=api
+          else scope=all; fi
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          echo "Checks for this PR: $scope" >> "$GITHUB_STEP_SUMMARY"
       - name: Validate migration law (never applies migrations)
         run: pnpm ci:migrations
       - name: Design and governance guards
@@ -26,10 +44,15 @@ jobs:
       - name: Type checks
         run: pnpm typecheck
       - name: Unit and integration tests
+        if: steps.scope.outputs.scope == 'all'
         run: pnpm test
+      - name: Server tests (the PR changes only the server)
+        if: steps.scope.outputs.scope == 'api'
+        run: pnpm --filter @carres/api test
       - name: Production build
         run: pnpm build
       - name: Kit check on the moved screens (1025, 1164 and 1440 wide)
+        if: steps.scope.outputs.scope == 'all'
         run: |
           pnpm exec playwright install --with-deps chromium
           pnpm kit:check
