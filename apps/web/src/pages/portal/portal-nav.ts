@@ -719,7 +719,8 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "service-quality": "/assr?view=metrics", "service-notes": "/assr?view=cases",
   "service-maintenance": "/assr?view=settings", "service-mine": "/my-cases",
   orders: "/scm/sales-orders", "orders-shortcut": "/scm/sales-orders", amendments: "/scm/amendments",
-  "delivery-orders": "/scm/delivery-orders", "sales-invoices": "/scm/sales-invoices", "delivery-returns": "/scm/delivery-returns",
+  "delivery-orders": "/scm/delivery-orders", "delivery-returns": "/scm/delivery-returns",
+  // Sales Invoices stays Carres Finance's own page (/finance/sales-invoices): it feeds the Carres books.
   "procurement-overview": "/scm/procurement-overview", "op-catalog": "/scm/products", suppliers: "/scm/suppliers",
   mrp: "/scm/mrp", "purchase-orders": "/scm/purchase-orders", "po-amendments": "/scm/po-amendments",
   "po-cancellation-requests": "/scm/cancel-requests", receiving: "/scm/grns",

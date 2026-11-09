@@ -2047,9 +2047,12 @@ describe("PortalSidebar — common Tasks canvas fit", () => {
 
   it("once opened, stays open while the person clicks from page to page (owner, 9 Nov 2026)", () => {
     const expand = vi.fn((open: () => void) => open());
-    render(<MemoryRouter initialEntries={["/operation?tab=purchase"]}>
-      <PortalSidebar compactForCanvas onExpandForCanvas={expand} />
-    </MemoryRouter>);
+    // As in App.tsx: the route boundary is keyed on the path, so every page change re-mounts the sidebar.
+    function Keyed() {
+      const { pathname } = useLocation();
+      return <div key={pathname}><PortalSidebar compactForCanvas onExpandForCanvas={expand} /></div>;
+    }
+    render(<MemoryRouter initialEntries={["/operation?tab=purchase"]}><Keyed /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
     expect(screen.getByTestId("portal-sidebar")).toHaveStyle({ width: "220px" });
     fireEvent.click(screen.getAllByRole("link", { name: "Sales Orders" })[0]); // /operation/orders: a new path
