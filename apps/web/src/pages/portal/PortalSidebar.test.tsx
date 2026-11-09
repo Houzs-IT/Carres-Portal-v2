@@ -2045,6 +2045,19 @@ describe("PortalSidebar — common Tasks canvas fit", () => {
     }
   });
 
+  it("once opened, stays open while the person clicks from page to page (owner, 9 Nov 2026)", () => {
+    const expand = vi.fn((open: () => void) => open());
+    render(<MemoryRouter initialEntries={["/operation?tab=purchase"]}>
+      <PortalSidebar compactForCanvas onExpandForCanvas={expand} />
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));
+    expect(screen.getByTestId("portal-sidebar")).toHaveStyle({ width: "220px" });
+    fireEvent.click(screen.getAllByRole("link", { name: "Sales Orders" })[0]); // /operation/orders: a new path
+    expect(screen.getByTestId("portal-sidebar")).toHaveStyle({ width: "220px" });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse menu" }));
+    expect(screen.getByTestId("portal-sidebar")).toHaveStyle({ width: "64px" });
+  });
+
   it("stays 64 by default at 1280 too (MASTER 4: 64px compact navigation)", () => {
     const previousWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 });
