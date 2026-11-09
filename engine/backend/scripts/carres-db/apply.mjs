@@ -102,7 +102,7 @@ try {
   if (!DRY && !process.exitCode && (await sql`select 1 from pg_roles where rolname = 'scm_engine'`).length) {
     // Tables a step created as the admin go to the engine role too, or the engine cannot read them.
     await sql.unsafe(readFileSync(new URL("./engine-owns-all.sql", import.meta.url), "utf8"));
-    console.log("scm_engine owns every engine table.");
+    console.log("scm_engine owns every engine table; the data API serves scm.");
     const pw = (await askHidden("Password to give scm_engine (nothing will show; empty keeps the current one): ")).trim();
     if (pw) { await sql.unsafe(`alter role scm_engine password '${pw.replace(/'/g, "''")}'`); console.log("scm_engine password set."); }
   }

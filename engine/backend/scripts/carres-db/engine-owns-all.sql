@@ -22,3 +22,17 @@ end $$;
 
 grant execute on all functions in schema scm to scm_engine;
 grant execute on all functions in schema public to scm_engine;
+
+-- The engine's server reads scm through Supabase's data API with the service key (as Houzs and The Conts do):
+-- that key gets every scm table, including ones made after step 0001, and never anon or authenticated.
+grant usage on schema scm to service_role;
+grant all on all tables in schema scm to service_role;
+grant usage, select, update on all sequences in schema scm to service_role;
+grant execute on all functions in schema scm to service_role;
+alter default privileges in schema scm grant all on tables to service_role;
+alter default privileges in schema scm grant usage, select, update on sequences to service_role;
+
+-- And the data API serves scm next to public (6 Nov 2026: "Invalid schema: scm" on the Sales Orders list).
+alter role authenticator set pgrst.db_schemas = 'public, graphql_public, scm';
+notify pgrst, 'reload config';
+notify pgrst, 'reload schema';
