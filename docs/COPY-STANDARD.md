@@ -6315,3 +6315,13 @@ Fairs, exhibitions and solo roadshows, following Houzs Projects. These words are
 | Checklist templates (0752) | `Checklist template` · `Checklist templates` · `Add template tasks` · `New projects of this type` · `N tasks` |
 | Sales Orders at a project (0753) | `Sales Orders` · `SO No` · `Add Sales Order` · `No Sales Orders on this project yet.` · `No value` · `Cancelled` · `Paid RM · Balance RM` · `N orders · RM · Paid RM · Balance RM` · refusals `No Sales Order has that number.` · `This Sales Order is on another project. Remove it there first.` |
 | Project sheet (slice 7, PDF) | button `Print` · failure `The project sheet could not be made. Try again.` · on the paper: `PROJECT SHEET` · `Printed {date}` · `D to D Mon YYYY` · `PIC {name}` · `Overview` · `Event type` · `Brand` · `Venue` · `Venue address` · `State` · `Organizer` · `Contractor` · `Booth no` · `Size (sqm)` · `Days` · `Team` · `Sales Orders` · `SO No` · `Customer` · `Total (RM)` · `Paid (RM)` · `Balance (RM)` · `No value` · `Cancelled` · `TOTAL · 1 order, cancelled left out` · `TOTAL · N orders, cancelled left out` · `Checklist · N% done` · `Task` · `Due` · `Status` · `Finished` · `Notes` · `This is a computer generated document. No signature is required.` · `Page n of m` |
+
+## Supply Chain frame words · owner decisions (6 and 9 Nov 2026) · engine/
+
+The supply chain and service case screens run as their own site (engine/), framed inside the portal. The Service Cases and Supply Chain sidebar rows that have an engine page open it (portal-nav `ENGINE_PAGES`); their row words are unchanged. These words are admitted for the frame; the screens inside it keep their own words.
+
+| Meaning | Use exactly |
+|---|---|
+| Frame | `Supply Chain` (read aloud) |
+| While it opens | `Opening Supply Chain` (read aloud) |
+| Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |

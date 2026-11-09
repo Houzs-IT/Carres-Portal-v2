@@ -1,20 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
 import Loading from "@/components/kit/Loading";
 
 /**
- * Supply Chain: the supply chain and service case screens run as their own site (engine/), shown here in a
- * frame with the person already signed in. The portal's API asks the engine for a session on their behalf
+ * The supply chain and service case screens run as their own site (engine/), shown here in a frame with the
+ * person already signed in. The portal's API asks the engine for a session on their behalf
  * (routes/operation/scm-engine.ts); the session goes over in the address fragment, which is never sent to a
- * server and which the engine removes as soon as it has read it (engine/frontend/src/carres/embed.ts).
- * Words are in COPY-STANDARD "Supply Chain words".
+ * server and which the engine removes at once (engine/frontend/src/carres/embed.ts). The engine draws no menu
+ * of its own: the sidebar row's address names the engine page (portal-nav ENGINE_PAGES) and the frame is
+ * told to go there. Words are in COPY-STANDARD "Supply Chain frame words".
  */
 export const SC = {
-  title: "New Supply Chain",
-  opening: "Opening New Supply Chain",
-  failed: "New Supply Chain could not be opened. Try again.",
+  title: "Supply Chain",
+  opening: "Opening Supply Chain",
+  failed: "Supply Chain could not be opened. Try again.",
   retry: "Try again",
 };
 
@@ -27,24 +28,45 @@ export function engineFrameSrc(r: EngineSession, path = "/"): string {
   return `${r.site}/#carres=${b64url(JSON.stringify({ t: r.token, sp: r.sessionPass ?? undefined, p: path }))}`;
 }
 
-export default function SupplyChainEngine() {
-  const [src, setSrc] = useState<string | null>(null);
+/** The engine page to show; only an engine address, never another site. */
+export function enginePath(p: string | null): string {
+  return p && p.startsWith("/") && !p.startsWith("//") ? p : "/scm/sales-orders";
+}
+
+export default function SupplyChainEngine({ path: wantedPath }: { path: string }) {
+  const path = enginePath(wantedPath);
+  const [session, setSession] = useState<{ site: string; src: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const frame = useRef<HTMLIFrameElement>(null);
+  // The page the frame is on: it opens on the row clicked, and later clicks move it there.
+  const shown = useRef(path);
+  const wanted = useRef(path);
+  wanted.current = path;
 
   useEffect(() => {
     let live = true;
     setError(null);
-    setSrc(null);
+    setSession(null);
     apiFetch<EngineSession>("/api/operation/scm-engine/session", { method: "POST" })
-      .then((r) => { if (live) setSrc(engineFrameSrc(r)); })
+      .then((r) => {
+        if (!live) return;
+        shown.current = wanted.current;
+        setSession({ site: r.site, src: engineFrameSrc(r, shown.current) });
+      })
       .catch((e: unknown) => { if (live) setError((e as { message?: string })?.message || SC.failed); });
     return () => { live = false; };
   }, [attempt]);
 
+  useEffect(() => {
+    if (!session || path === shown.current) return;
+    shown.current = path;
+    frame.current?.contentWindow?.postMessage({ type: "carres:navigate", path }, session.site);
+  }, [path, session]);
+
   if (error) {
     return <EmptyState title={SC.failed} detail={error === SC.failed ? undefined : error} action={<Button onClick={() => setAttempt((n) => n + 1)}>{SC.retry}</Button>} />;
   }
-  if (!src) return <Loading variant="skeleton" lines={6} label={SC.opening} />;
-  return <iframe src={src} title={SC.title} className="block h-[calc(100dvh-7rem)] min-h-[560px] w-full border-0" />;
+  if (!session) return <Loading variant="skeleton" lines={6} label={SC.opening} />;
+  return <iframe ref={frame} src={session.src} title={SC.title} className="block h-[calc(100dvh-7rem)] min-h-[560px] w-full border-0" />;
 }
