@@ -139,7 +139,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   const isSalesOrderDetail = /^\/operation\/orders\/so\/(?!new(?:\/|$))[^/]+/.test(location.pathname);
   const [detailExpanded, setDetailExpanded] = useState(false);
   const [reporting, setReporting] = useState(false);
-  useEffect(() => setDetailExpanded(false), [location.pathname, narrowDetail]);
+  // A compact rail opened by hand stays open while the person moves between pages (owner, 9 Nov 2026:
+  // clicking a row must not close the menu); it shuts when they close it, or when the width class changes.
+  useEffect(() => setDetailExpanded(false), [narrowDetail]);
+  useEffect(() => { if (!compactForCanvas) setDetailExpanded(false); }, [location.pathname, compactForCanvas]);
   const autoDetail = isSalesOrderDetail && narrowDetail;
   const autoCanvas = compactForCanvas;
   /* A drawer is always the named rail. */
