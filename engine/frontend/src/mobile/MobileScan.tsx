@@ -279,7 +279,7 @@ const CHECK = (
 );
 
 const CAMERA = (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
     <circle cx="12" cy="13" r="3" />
   </svg>
@@ -287,14 +287,14 @@ const CAMERA = (
 
 /* 16px twins of the tile camera, for the source menu's rows. */
 const CAMERA_SM = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
     <circle cx="12" cy="13" r="3" />
   </svg>
 );
 
 const UPLOAD_SM = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
     <path d="M17 8l-5-5-5 5" />
     <path d="M12 3v13" />
@@ -323,7 +323,7 @@ function PickSourceMenu({ at, onPick, onClose }: {
     display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "10px 12px",
     border: "none", background: "transparent", fontFamily: "inherit", cursor: "pointer", textAlign: "left",
   };
-  const label: CSSProperties = { fontSize: 12.5, fontWeight: 700, color: "#11140f" };
+  const label: CSSProperties = { fontSize: 12.5, fontWeight: 700, color: "#111827" };
   const icon: CSSProperties = { display: "flex", width: 16, height: 16, flex: "none" };
   return (
     <>
@@ -333,7 +333,7 @@ function PickSourceMenu({ at, onPick, onClose }: {
       <div
         style={{
           position: "fixed", left: at.left, top: at.top, width: MENU_W, zIndex: 61,
-          background: "#fff", border: "1px solid #e3e6e0", borderRadius: 12, overflow: "hidden",
+          background: "#fff", border: "1px solid #EEF0F3", borderRadius: 12, overflow: "hidden",
           boxShadow: "0 10px 26px -10px rgba(17,24,16,.32)",
         }}
       >
@@ -394,15 +394,15 @@ function JobPill({ status }: { status: string }) {
   };
   if (status === "running") {
     return (
-      <span style={{ ...base, background: "#e3efed", color: "#16695f" }}>
-        <span style={{ width: 10, height: 10, borderRadius: "50%", border: "2px solid rgba(22,105,95,.3)", borderTopColor: "#16695f", animation: "hzSpin .8s linear infinite" }} />
+      <span style={{ ...base, background: "#e3efed", color: "#1B1B39" }}>
+        <span style={{ width: 10, height: 10, borderRadius: "50%", border: "2px solid rgba(27, 27, 57,.3)", borderTopColor: "#1B1B39", animation: "hzSpin .8s linear infinite" }} />
         Reading…
       </span>
     );
   }
-  if (status === "done") return <span style={{ ...base, background: "#16695f", color: "#fff" }}>Done</span>;
+  if (status === "done") return <span style={{ ...base, background: "#1B1B39", color: "#fff" }}>Done</span>;
   if (status === "error") return <span style={{ ...base, background: "#f8eaea", color: "#b23a3a" }}>Failed</span>;
-  return <span style={{ ...base, background: "#eef0ec", color: "#767b6e" }}>{status === "queued" ? "Queued" : status}</span>;
+  return <span style={{ ...base, background: "#F6F7F9", color: "#6B7280" }}>{status === "queued" ? "Queued" : status}</span>;
 }
 
 /* Money formatter shared by the payment + line mappings below (matches the
@@ -1105,20 +1105,20 @@ export function MobileScan({
           </button>
         </div>
         <div className="scr-title" style={{ marginTop: 2 }}>Scan order slip</div>
-        <div style={{ fontSize: 11, color: "#767b6e", marginTop: 2 }}>Snap each slip — one front slip and its payment slips per order. Queue as many orders as you like.</div>
+        <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>Snap each slip — one front slip and its payment slips per order. Queue as many orders as you like.</div>
       </header>
 
       <div className="scroll" style={{ padding: 14, paddingBottom: 120 }}>
         {unavailable ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "34px 12px 8px" }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#f4ecdf", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
             </div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#11140f", marginBottom: 8 }}>Scan isn't available yet</div>
-            <div style={{ fontSize: 12.5, color: "#767b6e", lineHeight: 1.55, maxWidth: 280 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", marginBottom: 8 }}>Scan isn't available yet</div>
+            <div style={{ fontSize: 12.5, color: "#6B7280", lineHeight: 1.55, maxWidth: 280 }}>
               Slip scanning isn't switched on in this environment yet. You can still create the order by hand from the New Sales Order form.
             </div>
-            <button onClick={() => setUnavailable(false)} style={{ marginTop: 26, height: 48, padding: "0 22px", borderRadius: 12, border: "1px solid #16695f", background: "#fff", color: "#16695f", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            <button onClick={() => setUnavailable(false)} style={{ marginTop: 26, height: 48, padding: "0 22px", borderRadius: 12, border: "1px solid #1B1B39", background: "#fff", color: "#1B1B39", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
               Back to capture
             </button>
           </div>
@@ -1139,20 +1139,20 @@ export function MobileScan({
                     <button
                       onClick={() => void clearFailedJobs()}
                       disabled={clearingFailed}
-                      style={{ border: "none", background: "none", padding: "0 2px", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, color: "#16695f", cursor: "pointer", opacity: clearingFailed ? 0.5 : 1 }}
+                      style={{ border: "none", background: "none", padding: "0 2px", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, color: "#1B1B39", cursor: "pointer", opacity: clearingFailed ? 0.5 : 1 }}
                     >
                       {clearingFailed ? "Clearing…" : "Clear"}
                     </button>
                   )}
                 </div>
-                <div style={{ border: "1px solid #e3e6e0", borderRadius: 14, background: "#fff", overflow: "hidden" }}>
+                <div style={{ border: "1px solid #EEF0F3", borderRadius: 14, background: "#fff", overflow: "hidden" }}>
                   {visibleJobs.map((j, i) => {
                     const createdAt = jobTs(j.createdAt);
                     const tappable = j.status === "done" && !!j.soDocNo && !!onOpenSo;
                     const rowStyle: CSSProperties = {
                       display: "flex", alignItems: "flex-start", gap: 9, width: "100%",
                       padding: "10px 12px", background: "none", border: "none",
-                      borderTop: i === 0 ? "none" : "1px solid #eef0ec",
+                      borderTop: i === 0 ? "none" : "1px solid #F6F7F9",
                       textAlign: "left", fontFamily: "inherit", cursor: tappable ? "pointer" : "default",
                     };
                     const body = (
@@ -1160,7 +1160,7 @@ export function MobileScan({
                         <JobPill status={j.status} />
                         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
                           {j.status === "done" && (
-                            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f", lineHeight: 1.35 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, color: "#111827", lineHeight: 1.35 }}>
                               {j.soDocNo ? `${j.soDocNo} — saved to Orders` : "Saved to Orders"}
                             </div>
                           )}
@@ -1170,10 +1170,10 @@ export function MobileScan({
                             </div>
                           )}
                           {j.status === "done" && j.error && (
-                            <div style={{ fontSize: 11, color: "#a16a2e", lineHeight: 1.45, marginTop: 2 }}>{j.error}</div>
+                            <div style={{ fontSize: 11, color: "#D64F20", lineHeight: 1.45, marginTop: 2 }}>{j.error}</div>
                           )}
                           {j.duplicateOf && (
-                            <div style={{ fontSize: 11, color: "#a16a2e", fontWeight: 700, lineHeight: 1.45, marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: "#D64F20", fontWeight: 700, lineHeight: 1.45, marginTop: 2 }}>
                               Duplicate of {j.duplicateOf}
                             </div>
                           )}
@@ -1256,13 +1256,13 @@ export function MobileScan({
             {orders.map((order, oi) => (
               <div
                 key={order.id}
-                style={{ border: "1px solid #e3e6e0", borderRadius: 14, padding: 12, marginBottom: 12, background: "#fff" }}
+                style={{ border: "1px solid #EEF0F3", borderRadius: 14, padding: 12, marginBottom: 12, background: "#fff" }}
               >
                 {/* Order header — "Order N" + a remove-order control (only when
                     more than one order is queued; the sole order can't be removed,
                     only its slips). */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "#11140f" }}>Order {oi + 1}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "#111827" }}>Order {oi + 1}</span>
                   {multiOrder && !submitting && (
                     <button
                       onClick={() => removeOrder(order.id)}
@@ -1304,10 +1304,10 @@ export function MobileScan({
                   <button
                     onClick={(e) => openPicker(e, order.id, "front")}
                     disabled={submitting}
-                    style={{ height: 130, width: "100%", border: "1px dashed #c2c6bd", borderRadius: 12, background: "#f4f6f3", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: submitting ? "default" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.5 : 1, marginBottom: 4 }}
+                    style={{ height: 130, width: "100%", border: "1px dashed #c2c6bd", borderRadius: 12, background: "#F8F9FA", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: submitting ? "default" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.5 : 1, marginBottom: 4 }}
                   >
                     {CAMERA}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#16695f" }}>{SLOT_LABELS[0]}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#1B1B39" }}>{SLOT_LABELS[0]}</span>
                   </button>
                 )}
 
@@ -1340,10 +1340,10 @@ export function MobileScan({
                     onClick={(e) => openPicker(e, order.id, "payment")}
                     disabled={submitting}
                     aria-label={order.payShots.length === 0 ? `${SLOT_LABELS[1]} for order ${oi + 1}` : `Add another payment slip to order ${oi + 1}`}
-                    style={{ height: 96, width: "100%", border: "1px dashed #c2c6bd", borderRadius: 12, background: "#f4f6f3", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, cursor: submitting ? "default" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.5 : 1 }}
+                    style={{ height: 96, width: "100%", border: "1px dashed #c2c6bd", borderRadius: 12, background: "#F8F9FA", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, cursor: submitting ? "default" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.5 : 1 }}
                   >
                     {CAMERA}
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#16695f", textAlign: "center", lineHeight: 1.25 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "#1B1B39", textAlign: "center", lineHeight: 1.25 }}>
                       {order.payShots.length === 0 ? SLOT_LABELS[1] : "Add payment"}
                     </span>
                   </button>
@@ -1362,13 +1362,13 @@ export function MobileScan({
                 {orderErrors[order.id] && (
                   <div style={{ marginTop: 10, background: "#f3ece0", border: "1px solid #e8dcc5", borderRadius: 11, padding: "10px 12px", fontSize: 12, color: "#6a4a1e", lineHeight: 1.5 }}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                      <svg width="15" height="15" style={{ flex: "none", marginTop: 1 }} viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+                      <svg width="15" height="15" style={{ flex: "none", marginTop: 1 }} viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
                       <span>{orderErrors[order.id]}</span>
                     </div>
                     <button
                       onClick={() => void createAnyway(order.id)}
                       disabled={forcingId === order.id}
-                      style={{ marginTop: 9, height: 34, width: "100%", border: "1px solid #a16a2e", borderRadius: 9, background: forcingId === order.id ? "#efe6d6" : "#a16a2e", color: forcingId === order.id ? "#a16a2e" : "#fff", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: forcingId === order.id ? "default" : "pointer" }}
+                      style={{ marginTop: 9, height: 34, width: "100%", border: "1px solid #D64F20", borderRadius: 9, background: forcingId === order.id ? "#efe6d6" : "#D64F20", color: forcingId === order.id ? "#D64F20" : "#fff", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: forcingId === order.id ? "default" : "pointer" }}
                     >
                       {forcingId === order.id ? "Creating…" : "Create anyway"}
                     </button>
@@ -1381,7 +1381,7 @@ export function MobileScan({
             <button
               onClick={addOrder}
               disabled={submitting}
-              style={{ height: 46, width: "100%", border: "1px dashed #16695f", borderRadius: 12, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: submitting ? "default" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.5 : 1, color: "#16695f", fontSize: 13, fontWeight: 700 }}
+              style={{ height: 46, width: "100%", border: "1px dashed #1B1B39", borderRadius: 12, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: submitting ? "default" : "pointer", fontFamily: "inherit", opacity: submitting ? 0.5 : 1, color: "#1B1B39", fontSize: 13, fontWeight: 700 }}
             >
               <span style={{ fontSize: 18, lineHeight: 1 }}>{"+"}</span> Add order
             </button>
@@ -1392,7 +1392,7 @@ export function MobileScan({
                 opens it from Orders to review and finalise. */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: "#f3ece0", border: "1px solid #e8dcc5", borderRadius: 11, padding: 11, marginTop: 12, fontSize: 11, color: "#6a4a1e", lineHeight: 1.5 }}>
               {/* Spec #scan amber info glyph on the left of the note. */}
-              <svg width="15" height="15" style={{ flex: "none", marginTop: 1 }} viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
+              <svg width="15" height="15" style={{ flex: "none", marginTop: 1 }} viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
               <span>
                 We read {multiOrder ? "each slip" : "the slip"} and save {multiOrder ? "a draft order per slip" : "a draft order"} to Orders in the background. Open {multiOrder ? "each draft" : "the draft"} from Orders to review every field, correct anything the reader missed, then finalise.
               </span>
@@ -1410,21 +1410,21 @@ export function MobileScan({
                 disabled={submitting}
                 onChange={(e) => setSalesperson(e.target.value)}
                 placeholder="Whose slip is this?"
-                style={{ width: "100%", boxSizing: "border-box", height: 42, padding: "0 12px", borderRadius: 10, border: "1px solid #e3e6e0", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)" }}
+                style={{ width: "100%", boxSizing: "border-box", height: 42, padding: "0 12px", borderRadius: 10, border: "1px solid #EEF0F3", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)" }}
               />
             </label>
             <datalist id="mobile-scan-salespeople">
               {knownReps.map((r) => <option key={r} value={r} />)}
             </datalist>
             {repsUnavailable && (
-              <div style={{ marginTop: 5, fontSize: 11, color: "#a16a2e" }}>
+              <div style={{ marginTop: 5, fontSize: 11, color: "#D64F20" }}>
                 Couldn&apos;t load the salesperson list — type the name instead.
               </div>
             )}
 
             {submitting && (
-              <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12, color: "#767b6e" }}>
-                <span style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(22,105,95,.3)", borderTopColor: "#16695f", animation: "hzSpin .8s linear infinite" }} />
+              <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12, color: "#6B7280" }}>
+                <span style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(27, 27, 57,.3)", borderTopColor: "#1B1B39", animation: "hzSpin .8s linear infinite" }} />
                 Uploading — the reading finishes in the background.
               </div>
             )}

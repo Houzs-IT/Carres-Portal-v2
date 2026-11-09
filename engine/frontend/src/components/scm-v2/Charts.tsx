@@ -4,8 +4,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../lib/utils";
 
-export const PALETTE = ["#16695f", "#a16a2e", "#4f7cac", "#c2603d", "#7a8f3c", "#8a5a9e", "#3d9c94", "#b8913f", "#6b7a8f", "#a34d6d"];
-export const TONE = { good: "#2f8a5b", warn: "#c08a1e", bad: "#b23a3a", muted: "#c9cdc4", main: "#16695f", brass: "#a16a2e" } as const;
+export const PALETTE = ["#1B1B39", "#D64F20", "#4f7cac", "#c2603d", "#7a8f3c", "#8a5a9e", "#3d9c94", "#b8913f", "#6b7a8f", "#a34d6d"];
+export const TONE = { good: "#2f8a5b", warn: "#c08a1e", bad: "#b23a3a", muted: "#c9cdc4", main: "#1B1B39", brass: "#D64F20" } as const;
 
 type Fmt = (n: number) => string;
 const pctOf = (v: number, total: number) => (total > 0 ? `${((v / total) * 100).toFixed(total > 0 && v / total < 0.1 ? 1 : 0)}%` : "—");
@@ -125,7 +125,7 @@ export function Columns({ labels, series, values, format, stacked, line, highlig
           let acc = 0;
           return (
             <g key={lab + i}>
-              {highlight === i && <rect x={padL + i * slot} y={padT - 6} width={slot} height={H - padB - padT + 6} fill="#16695f" opacity="0.06" rx="3" />}
+              {highlight === i && <rect x={padL + i * slot} y={padT - 6} width={slot} height={H - padB - padT + 6} fill="#1B1B39" opacity="0.06" rx="3" />}
               {series.map((s, si) => {
                 const v = Math.max(0, values[si]?.[i] ?? 0);
                 const top = stacked ? y(acc + v) : y(v);
@@ -143,7 +143,7 @@ export function Columns({ labels, series, values, format, stacked, line, highlig
               })}
               {i % step === 0 && <text x={padL + i * slot + slot / 2} y={H - 6} textAnchor="middle" className="fill-ink-muted" style={{ fontSize: 10.5 }}>{lab}</text>}
               {axes && (
-                <rect x={padL + i * slot} y={padT - 6} width={slot} height={H - padB - padT + 6} fill={hover === i ? "#16695f" : "transparent"} opacity={hover === i ? 0.05 : 1}
+                <rect x={padL + i * slot} y={padT - 6} width={slot} height={H - padB - padT + 6} fill={hover === i ? "#1B1B39" : "transparent"} opacity={hover === i ? 0.05 : 1}
                   onMouseEnter={() => setHover(i)} />
               )}
             </g>

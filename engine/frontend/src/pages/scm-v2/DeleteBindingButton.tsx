@@ -41,14 +41,14 @@ export const DeleteBindingButton = ({
 
   const iconBtn: React.CSSProperties = {
     background: 'transparent', border: 'none', cursor: 'pointer',
-    color: '#767b6e', padding: 4, lineHeight: 0, borderRadius: 'var(--radius-sm)',
+    color: '#6B7280', padding: 4, lineHeight: 0, borderRadius: 'var(--radius-sm)',
   };
   const dangerBtn: React.CSSProperties = {
     fontSize: 'var(--fs-11)', fontWeight: 700, color: '#fff', background: '#b3261e',
     border: 'none', borderRadius: 'var(--radius-sm)', padding: '3px 8px', cursor: 'pointer',
   };
   const ghostBtn: React.CSSProperties = {
-    fontSize: 'var(--fs-11)', fontWeight: 600, color: 'var(--c-burnt, #0c3f39)',
+    fontSize: 'var(--fs-11)', fontWeight: 600, color: 'var(--c-burnt, #2F55E0)',
     background: 'transparent', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-sm)',
     padding: '3px 8px', cursor: 'pointer',
   };

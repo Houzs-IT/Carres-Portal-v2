@@ -86,12 +86,12 @@ import "./mobile.css";
 // fields live inside Under Verification.
 
 // ── Theme C colour tokens (design SC_T) ───────────────────────────
-const INK = "#11140f";
+const INK = "#111827";
 const INK_SEC = "#3f463a";
-const MUTED = "#767b6e";
-const TEAL = "#16695f";
-const TEAL_DK = "#0c3f39";
-const BROWN = "#a16a2e";
+const MUTED = "#6B7280";
+const TEAL = "#1B1B39";
+const TEAL_DK = "#2F55E0";
+const BROWN = "#D64F20";
 const BROWN_SOFT = "#f6efd9";
 const BROWN_FG = "#8a6a2e";
 const GREEN = "#2f8a5b";
@@ -102,10 +102,10 @@ const RED = "#b23a3a";
 const ERR_BG = "rgba(178,58,58,0.08)";
 const GREY = "#9aa093";
 const BLUE = "#1F3A8A";
-const LINE = "#d6d9d2";
+const LINE = "#E5E7EB";
 const LINE_SOFT = "rgba(34,31,32,0.10)";
-const DIM = "#e3e6e0";
-const FIELD_BG = "#f4f6f3";
+const DIM = "#EEF0F3";
+const FIELD_BG = "#F8F9FA";
 
 // Ordered stage pipeline + the resolution-routing rule now live in the SHARED
 // vendor/scm/lib/assr/stages module so desktop + mobile can't drift on them
@@ -1540,7 +1540,7 @@ function CaseDetail({ id, onBack }: { id: number; onBack: () => void }) {
                           <a
                             href={`tel:${String(get(c, "phone", "customerPhone", "customer_phone")).replace(/[^+\d]/g, "")}`}
                             aria-label="Call customer"
-                            style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#e1efed", color: TEAL_DK, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                            style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#DCE6FD", color: TEAL_DK, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
                           >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11 11 0 0 0 3.4.55 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11 11 0 0 0 .55 3.4 1 1 0 0 1-.24 1Z" /></svg>
                           </a>
@@ -1552,7 +1552,7 @@ function CaseDetail({ id, onBack }: { id: number; onBack: () => void }) {
                           {[get(c, "addr1"), get(c, "addr2"), get(c, "addr3"), get(c, "addr4")].filter(Boolean).join(", ") || "—"}
                         </div>
                         {get(c, "location", "customerState", "customer_state") && (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, fontWeight: 600, color: TEAL_DK, background: "#e1efed", borderRadius: 7, padding: "4px 10px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, fontWeight: 600, color: TEAL_DK, background: "#DCE6FD", borderRadius: 7, padding: "4px 10px" }}>
                             {String(get(c, "location", "customerState", "customer_state"))}
                           </span>
                         )}

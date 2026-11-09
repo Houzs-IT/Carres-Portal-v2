@@ -665,16 +665,16 @@ export const ProductModelDetail = ({
               placeholder="e.g. 31 (for AKKA-FIRM)"
               /* Hex-pinned: --line-strong / --c-paper only resolved through
                  the removed .page cascade (:root has them as
-                 rgba(34,31,32,.28) / #f4f6f3 — this input would have gained a
+                 rgba(34,31,32,.28) / #F8F9FA — this input would have gained a
                  dark border on a grey fill). Now border + surface tokens. */
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--fs-14)',
                 padding: 'var(--space-2) var(--space-3)',
-                border: '1px solid #d6d9d2',
+                border: '1px solid #E5E7EB',
                 borderRadius: 'var(--radius-sm)',
                 background: '#fff',
-                color: '#11140f',
+                color: '#111827',
                 width: '160px',
               }}
             />
@@ -776,7 +776,7 @@ export const ProductModelDetail = ({
                   <button
                     type="button"
                     className={`${styles.statusPill} ${sku.status === 'ACTIVE' ? styles.active : styles.inactive}`}
-                    style={{ cursor: 'pointer', border: '1px solid #d6d9d2' }}
+                    style={{ cursor: 'pointer', border: '1px solid #E5E7EB' }}
                     disabled={statusMut.isPending}
                     onClick={() => statusMut.mutate({ id: sku.id, status: sku.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
                     title={sku.status === 'ACTIVE'
@@ -797,7 +797,7 @@ export const ProductModelDetail = ({
                     <button
                       type="button"
                       className={`${styles.statusPill} ${styles.inactive}`}
-                      style={{ cursor: 'pointer', border: '1px solid #d6d9d2' }}
+                      style={{ cursor: 'pointer', border: '1px solid #E5E7EB' }}
                       disabled={activateOneShotMut.isPending}
                       onClick={() => activateOneShotMut.mutate({ id: sku.id })}
                       title="Activate this one-shot SKU in POS"

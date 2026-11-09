@@ -340,7 +340,7 @@ export function ApBillPage() {
             value: fileCount === 0 ? 'none attached' : (
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                 <input type="checkbox" checked={includeFiles} onChange={(e) => setIncludeFiles(e.target.checked)}
-                  aria-label="Include attached files in the print" style={{ width: 14, height: 14, accentColor: '#16695f' }} />
+                  aria-label="Include attached files in the print" style={{ width: 14, height: 14, accentColor: '#1B1B39' }} />
                 {fileCount == null ? 'include its attached files after the bill page' : `include the ${fileCount} attached file(s) after the bill page`}
               </label>
             ),

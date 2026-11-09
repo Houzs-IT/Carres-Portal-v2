@@ -44,7 +44,7 @@ export function AmbientSnow() {
         p.y += p.sp * dt; p.x += Math.sin((t / 1000) * p.sw + p.ph) * 0.2;
         if (p.y > H + 6) parts[i] = mk(false);
         ctx.beginPath(); ctx.globalAlpha = p.a;
-        ctx.fillStyle = p.brass ? "#d8a85a" : "#cfe6df";
+        ctx.fillStyle = p.brass ? "#D64F20" : "#cfe6df";
         ctx.shadowColor = p.brass ? "rgba(216,168,90,.5)" : "rgba(180,220,210,.5)";
         ctx.shadowBlur = p.r * 2.6;
         ctx.arc(p.x, p.y, p.r, 0, 6.2832); ctx.fill();

@@ -416,7 +416,7 @@ export function MobilePOD({ docNo, companyCode = null, onBack, onDone }: { docNo
                   }}
                 />
               </label>
-              <div style={{ flex: 1, borderRadius: 13, minHeight: 70, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700, color: "var(--mut)", background: photoFiles.length ? "linear-gradient(135deg,#d7ded6,#c7d0c4)" : "linear-gradient(135deg,#eceee9,#e3e6e0)" }}>
+              <div style={{ flex: 1, borderRadius: 13, minHeight: 70, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700, color: "var(--mut)", background: photoFiles.length ? "linear-gradient(135deg,#d7ded6,#c7d0c4)" : "linear-gradient(135deg,#eceee9,#EEF0F3)" }}>
                 {photoFiles.length ? `${photoFiles.length} photo${photoFiles.length === 1 ? "" : "s"}` : "No photo yet"}
               </div>
             </div>
@@ -543,7 +543,7 @@ function SignaturePad({ canvasRef, onChange, clearNonce }: {
       ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "#16695f";
+      ctx.strokeStyle = "#1B1B39";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

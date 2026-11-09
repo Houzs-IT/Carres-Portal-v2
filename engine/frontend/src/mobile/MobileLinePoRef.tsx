@@ -25,7 +25,7 @@ export const mobileLinePoRefFor = (moduleKey: string, line: LinePoFields): LineP
 const rowStyle: CSSProperties = { flexBasis: "100%", display: "flex", alignItems: "center", gap: 6, marginTop: 4 };
 const eyebrowStyle: CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: ".3px", textTransform: "uppercase", color: "#9aa093" };
 const chipStyle: CSSProperties = {
-  fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#0c3f39",
+  fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#2F55E0",
   background: "#eef3f1", border: "1px solid #d7e2de", borderRadius: 5, padding: "1px 6px",
 };
 

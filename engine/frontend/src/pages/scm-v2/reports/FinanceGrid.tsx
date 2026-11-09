@@ -257,7 +257,7 @@ export function FinanceGrid({ layoutKey, nameColumn, columns, rows, showPct = fa
     const src = t.querySelectorAll<HTMLElement>('th, td');
     clone.querySelectorAll<HTMLElement>('th, td').forEach((el, i) => {
       const cs = getComputedStyle(src[i]!);
-      el.setAttribute('style', `text-align:${cs.textAlign};font-weight:${cs.fontWeight};font-style:${cs.fontStyle};background:${cs.backgroundColor};padding:3px 8px;border-bottom:1px solid #e3e6e0;white-space:nowrap`);
+      el.setAttribute('style', `text-align:${cs.textAlign};font-weight:${cs.fontWeight};font-style:${cs.fontStyle};background:${cs.backgroundColor};padding:3px 8px;border-bottom:1px solid #EEF0F3;white-space:nowrap`);
     });
     clone.querySelectorAll('button[aria-label^="Open"], button[aria-label^="Close"], input').forEach((el) => el.remove());
     const frame = document.createElement('iframe');
@@ -268,7 +268,7 @@ export function FinanceGrid({ layoutKey, nameColumn, columns, rows, showPct = fa
     const esc = (x: string) => x.replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]!));
     doc.open();
     doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
-      @page { size: landscape; margin: 12mm; } body { font: 11px 'IBM Plex Sans', system-ui, sans-serif; color: #11140f; }
+      @page { size: landscape; margin: 12mm; } body { font: 11px 'IBM Plex Sans', system-ui, sans-serif; color: #111827; }
       h1 { font-size: 15px; margin: 0 0 2px; } p { margin: 0 0 10px; color: #5f6459; }
       table { border-collapse: collapse; font-variant-numeric: tabular-nums; } colgroup { display: none; }
     </style></head><body><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}${clone.outerHTML}</body></html>`);

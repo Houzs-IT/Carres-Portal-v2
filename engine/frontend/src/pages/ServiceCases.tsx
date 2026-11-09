@@ -240,7 +240,7 @@ const URGENCY_META: Record<
 > = {
   overdue: { label: "Overdue",   hint: "Past SLA deadline",       hex: "#b23b3b", tint: "rgba(178,59,59,0.12)",  text: "#8f2f2f" },
   today:   { label: "Due today", hint: "SLA deadline within 24h", hex: "#c2740f", tint: "rgba(194,116,15,0.13)", text: "#8a540b" },
-  soon:    { label: "Due soon",  hint: "SLA deadline in 1–3 days", hex: "#a16a2e", tint: "rgba(161,106,46,0.12)", text: "#7c5224" },
+  soon:    { label: "Due soon",  hint: "SLA deadline in 1–3 days", hex: "#D64F20", tint: "rgba(161,106,46,0.12)", text: "#7c5224" },
   later:   { label: "On track",  hint: "More than 3 days of SLA", hex: "#3f6b53", tint: "rgba(63,107,83,0.12)",  text: "#2f5340" },
   none:    { label: "No SLA",    hint: "No SLA deadline set",     hex: "#6c7167", tint: "rgba(108,113,103,0.10)", text: "#585d53" },
 };

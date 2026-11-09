@@ -765,8 +765,8 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
         <div className="hdr-row">
           <button className="back" onClick={onBack}><span className="chev">{"‹"}</span> Sales Orders</button>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {h && <button className="tinybtn" onClick={() => setMapOpen(true)} style={{ background: "#f4f6f3", border: "1px solid var(--line2)", color: "var(--ink)" }}>Map</button>}
-            {h && <button className="tinybtn" onClick={print.openPreview} style={{ background: "#f4f6f3", border: "1px solid var(--line2)", color: "var(--ink)" }}>PDF</button>}
+            {h && <button className="tinybtn" onClick={() => setMapOpen(true)} style={{ background: "#F8F9FA", border: "1px solid var(--line2)", color: "var(--ink)" }}>Map</button>}
+            {h && <button className="tinybtn" onClick={print.openPreview} style={{ background: "#F8F9FA", border: "1px solid var(--line2)", color: "var(--ink)" }}>PDF</button>}
             {h && (
               <PrintPreviewModal
                 open={print.open}
@@ -847,8 +847,8 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                   : "On order to the supplier. Tap Edit to request a line-item amendment — the coordinator and supplier confirm it before the order is revised."}
               </div>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#eef1ec", border: "1px solid #e3e6e0", borderRadius: 10, padding: "9px 11px", marginBottom: 12, fontSize: 11, color: "#5c6156" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#767b6e" strokeWidth="2" strokeLinecap="round"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#eef1ec", border: "1px solid #EEF0F3", borderRadius: 10, padding: "9px 11px", marginBottom: 12, fontSize: 11, color: "#5c6156" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
                 Locked view — tap Edit to change. Same form as New SO.
               </div>
             )}
@@ -887,7 +887,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                     onClick={() => void handleApproveSo()}
                     disabled={busy}
                     className="money"
-                    style={{ border: "1px solid #bcdcd7", background: "#e1efed", color: "#16695f", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
+                    style={{ border: "1px solid #bcdcd7", background: "#DCE6FD", color: "#1B1B39", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
                   >
                     {busy ? "Working…" : amendmentLane === "LINES" ? "Approve product changes" : amendmentLane === "PRICE" ? "Approve price change" : "Approve delivery changes"}
                   </button>
@@ -905,7 +905,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                     onClick={() => setSupplierConfirmOpen(true)}
                     disabled={busy}
                     className="money"
-                    style={{ border: "1px solid #bcdcd7", background: "#e1efed", color: "#16695f", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
+                    style={{ border: "1px solid #bcdcd7", background: "#DCE6FD", color: "#1B1B39", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
                   >
                     Record supplier confirmation
                   </button>
@@ -916,7 +916,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                     onClick={() => void handleApproveSo()}
                     disabled={busy}
                     className="money"
-                    style={{ border: "1px solid #bcdcd7", background: "#e1efed", color: "#16695f", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
+                    style={{ border: "1px solid #bcdcd7", background: "#DCE6FD", color: "#1B1B39", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
                   >
                     {busy ? "Working…" : "Approve SO revision"}
                   </button>
@@ -937,7 +937,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                         onClick={() => void handleApprovePo()}
                         disabled={approvePo.isPending}
                         className="money"
-                        style={{ border: "1px solid #bcdcd7", background: "#e1efed", color: "#16695f", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: approvePo.isPending ? 0.5 : 1 }}
+                        style={{ border: "1px solid #bcdcd7", background: "#DCE6FD", color: "#1B1B39", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: approvePo.isPending ? 0.5 : 1 }}
                       >
                         {approvePo.isPending ? "Approving…" : "Approve PO revision"}
                       </button>
@@ -958,7 +958,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                         onClick={() => void handleSendAmendment()}
                         disabled={sendAmendment.isPending}
                         className="money"
-                        style={{ border: "1px solid #bcdcd7", background: "#e1efed", color: "#16695f", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: sendAmendment.isPending ? 0.5 : 1 }}
+                        style={{ border: "1px solid #bcdcd7", background: "#DCE6FD", color: "#1B1B39", fontFamily: "inherit", fontSize: 12, fontWeight: 700, borderRadius: 9, padding: "9px 11px", cursor: "pointer", opacity: sendAmendment.isPending ? 0.5 : 1 }}
                       >
                         {sendAmendment.isPending ? "Sending…" : "Send to supplier"}
                       </button>
@@ -994,14 +994,14 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
             )}
 
             {/* KPI — Total / Paid / Balance. Colours VERBATIM from the design:
-                Total + Paid both brand-dark (#0c3f39), Balance always red
+                Total + Paid both brand-dark (#2F55E0), Balance always red
                 (#b23a3a). Overflow-hardened for 375px (owner 2026-07-04 "上面
                 那一块都爆掉了"): flex 1 1 0 + minWidth 0 per card, tighter
                 gap/padding, ellipsis-safe nowrap values, and the RM figure
                 steps down a size once it passes 6 digits — see <Kpi/>. */}
             <div style={{ display: "flex", gap: 7, marginBottom: 12 }}>
-              <Kpi label="Total" centi={total(h)} color="#0c3f39" />
-              <Kpi label="Paid" centi={h.paid_sen_total} color="#0c3f39" />
+              <Kpi label="Total" centi={total(h)} color="#2F55E0" />
+              <Kpi label="Paid" centi={h.paid_sen_total} color="#2F55E0" />
               <Kpi label="Balance" centi={bal} color="#b23a3a" unknown={balanceUnknown} />
             </div>
 
@@ -1135,13 +1135,13 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                     />
                   </div>
                   <div style={{ textAlign: "right", whiteSpace: "nowrap", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                    <div className="money" style={{ fontSize: 13, fontWeight: 700, color: "#0c3f39" }}>RM {rm(lineTotalSen(it))}</div>
+                    <div className="money" style={{ fontSize: 13, fontWeight: 700, color: "#2F55E0" }}>RM {rm(lineTotalSen(it))}</div>
                     {/* Unit price × qty — the per-unit price was missing on mobile,
                         so a discounted / FOC line was indistinguishable from a
                         full-price one. */}
                     <div className="money" style={{ fontSize: 11, color: "var(--mut)" }}>RM {rm(it.unit_price_sen ?? 0)} {"×"}{it.qty ?? 0}</div>
                     {isFoc ? (
-                      <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".3px", color: "#a16a2e", background: "#f6ecd9", border: "1px solid #e6d3ad", borderRadius: 5, padding: "1px 5px" }}>FOC</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".3px", color: "#D64F20", background: "#f6ecd9", border: "1px solid #e6d3ad", borderRadius: 5, padding: "1px 5px" }}>FOC</span>
                     ) : discountSen > 0 ? (
                       <div className="money" style={{ fontSize: 10.5, color: "#b23a3a" }}>Disc RM {rm(discountSen)}</div>
                     ) : null}
@@ -1204,7 +1204,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
                     type="button"
                     onClick={() => setPayOpen(true)}
                     className="money"
-                    style={{ border: "1px solid #bcdcd7", background: "#e1efed", color: "#16695f", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "4px 10px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    style={{ border: "1px solid #bcdcd7", background: "#DCE6FD", color: "#1B1B39", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, borderRadius: 8, padding: "4px 10px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
                   >
                     <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> Add Payment
                   </button>
@@ -1481,7 +1481,7 @@ function ScannedThumb({ imageKey, label, onView }: { imageKey: string; label: st
       type="button"
       onClick={() => { if (src) onView(src, label); }}
       aria-label={`View ${label} photo`}
-      style={{ border: "1px solid var(--line2, #e3e6e0)", background: "#f4f6f3", borderRadius: 12, padding: 0, overflow: "hidden", cursor: src ? "pointer" : "default", fontFamily: "inherit", textAlign: "center" }}
+      style={{ border: "1px solid var(--line2, #EEF0F3)", background: "#F8F9FA", borderRadius: 12, padding: 0, overflow: "hidden", cursor: src ? "pointer" : "default", fontFamily: "inherit", textAlign: "center" }}
     >
       {failed ? (
         <div style={{ height: 96, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", fontSize: 10.5, color: "var(--mut2)", lineHeight: 1.4 }}>Couldn't load this photo.</div>
@@ -1644,7 +1644,7 @@ function HistoryCard({ docNo }: { docNo: string }) {
                         Changes ({fc.length})
                       </button>
                       {isX && (
-                        <div style={{ marginTop: 5, background: "#f4f6f3", border: "1px solid #e3e6e0", borderRadius: 8, padding: "7px 9px", display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ marginTop: 5, background: "#F8F9FA", border: "1px solid #EEF0F3", borderRadius: 8, padding: "7px 9px", display: "flex", flexDirection: "column", gap: 4 }}>
                           {fc.map((ch, idx) => (
                             <div key={idx} style={{ fontSize: 11, lineHeight: 1.4, color: "var(--ink)", wordBreak: "break-word" }}>
                               <span style={{ fontWeight: 700, color: "var(--mut)" }}>{HIST_FIELD_LABEL[ch.field] ?? ch.field}:</span>{" "}
@@ -1654,7 +1654,7 @@ function HistoryCard({ docNo }: { docNo: string }) {
                                   <span style={{ color: "var(--mut2)" }}>{" → "}</span>
                                 </>
                               ) : null}
-                              <span style={{ color: "#0c3f39", fontWeight: 600 }}>{histVal(ch.field, ch.to)}</span>
+                              <span style={{ color: "#2F55E0", fontWeight: 600 }}>{histVal(ch.field, ch.to)}</span>
                             </div>
                           ))}
                         </div>
@@ -1671,7 +1671,7 @@ function HistoryCard({ docNo }: { docNo: string }) {
   );
 }
 
-/* soPill — from the design's status→color map (Submitted [#e1efed,#0c3f39] ·
+/* soPill — from the design's status→color map (Submitted [#DCE6FD,#2F55E0] ·
    Cancelled [#f8eaea,#b23a3a]), EXCEPT Draft: owner 2026-07-04 couldn't tell
    Draft from Confirmed, so Draft upgraded from the design's grey to the shared
    amber "pending" badge (+ border) so it reads unmistakably as unconfirmed. */
@@ -1701,7 +1701,7 @@ function AmendmentStatusPill({ status }: { status: string }) {
     s === "REJECTED"
       ? { bg: "#f8eaea", fg: "#b23a3a" }
       : s === "SO_APPROVED" || s === "PO_APPROVED" || s === "SENT"
-      ? { bg: "#e1efed", fg: "#0c3f39" }
+      ? { bg: "#DCE6FD", fg: "#2F55E0" }
       : { bg: "#f6efd9", fg: "#8a6a2e" };
   return (
     <span className="money" style={{ display: "inline-block", fontSize: 10, fontWeight: 800, letterSpacing: ".04em", textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: tone.bg, color: tone.fg }}>
@@ -1821,8 +1821,8 @@ function AmRoutingChips({ kinds }: { kinds: AmendmentFieldKind[] }) {
           key={k}
           style={{
             display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10,
-            padding: "1px 5px", borderRadius: 4, border: "1px solid var(--line2, #e3e6e0)",
-            background: "#f4f6f3", color: "var(--mut)",
+            padding: "1px 5px", borderRadius: 4, border: "1px solid var(--line2, #EEF0F3)",
+            background: "#F8F9FA", color: "var(--mut)",
           }}
         >
           <span style={{ color: "var(--ink)", fontWeight: 600 }}>{FIELD_KIND_LABEL[k]}</span>
@@ -1841,7 +1841,7 @@ function AmTypeBadges({ kinds }: { kinds: AmendmentFieldKind[] }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
       {isMixed && (
-        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", padding: "1px 6px", borderRadius: 4, background: "var(--line2, #e3e6e0)", color: "var(--mut)" }}>
+        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", padding: "1px 6px", borderRadius: 4, background: "var(--line2, #EEF0F3)", color: "var(--mut)" }}>
           Mixed
         </span>
       )}
@@ -1952,11 +1952,11 @@ function AmendmentDiffSheet({ amendmentId, onClose }: { amendmentId: string; onC
             <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
               {/* Order details (dates / delivery location) first, then the lines. */}
               {headerDiffs.map((d) => (
-                <div key={d.key} style={{ border: "1px solid var(--line2, #e3e6e0)", borderRadius: 11, overflow: "hidden" }}>
-                  <div style={{ padding: "7px 11px", background: "#f4f6f3", fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "#5c6156" }}>{d.label}</div>
+                <div key={d.key} style={{ border: "1px solid var(--line2, #EEF0F3)", borderRadius: 11, overflow: "hidden" }}>
+                  <div style={{ padding: "7px 11px", background: "#F8F9FA", fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "#5c6156" }}>{d.label}</div>
                   <AmRoutingChips kinds={[soHeaderFieldKind(d.key) as AmendmentFieldKind]} />
                   <div style={{ display: "flex", gap: 0 }}>
-                    <div style={{ flex: 1, minWidth: 0, padding: "9px 11px", borderRight: "1px solid var(--line2, #e3e6e0)" }}>
+                    <div style={{ flex: 1, minWidth: 0, padding: "9px 11px", borderRight: "1px solid var(--line2, #EEF0F3)" }}>
                       <div className="fld-l" style={{ marginBottom: 3 }}>Was</div>
                       <div style={{ fontSize: 12.5, color: "var(--mut)" }}>{d.from}</div>
                     </div>
@@ -1981,12 +1981,12 @@ function AmendmentDiffSheet({ amendmentId, onClose }: { amendmentId: string; onC
                 const unrendered = amendmentUnrenderedAxes(l);
                 const unrenderedAll = [...new Set([...unrendered.from, ...unrendered.to])];
                 return (
-                  <div key={l.id} style={{ border: "1px solid var(--line2, #e3e6e0)", borderRadius: 11, overflow: "hidden" }}>
-                    <div style={{ padding: "7px 11px", background: "#f4f6f3", fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "#5c6156" }}>{amendmentChangeLabel(l.change_type)}</div>
+                  <div key={l.id} style={{ border: "1px solid var(--line2, #EEF0F3)", borderRadius: 11, overflow: "hidden" }}>
+                    <div style={{ padding: "7px 11px", background: "#F8F9FA", fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: "#5c6156" }}>{amendmentChangeLabel(l.change_type)}</div>
                     <AmRoutingChips kinds={amendmentLineFieldKinds(l)} />
                     <div style={{ display: "flex", gap: 0 }}>
                       {/* Before */}
-                      <div style={{ flex: 1, minWidth: 0, padding: "9px 11px", borderRight: "1px solid var(--line2, #e3e6e0)" }}>
+                      <div style={{ flex: 1, minWidth: 0, padding: "9px 11px", borderRight: "1px solid var(--line2, #EEF0F3)" }}>
                         <div className="fld-l" style={{ marginBottom: 3 }}>Was</div>
                         {l.change_type === "ADD" ? (
                           <div style={{ fontSize: 11.5, color: "var(--mut2)" }}>—</div>
@@ -2015,7 +2015,7 @@ function AmendmentDiffSheet({ amendmentId, onClose }: { amendmentId: string; onC
                           <div style={{ fontSize: 11.5, color: "#b23a3a", fontWeight: 600 }}>Removed</div>
                         ) : (
                           <>
-                            <div className="money" style={{ fontSize: 12.5, fontWeight: 700, color: "#0c3f39", ...mEmphIf(chg.itemCode) }}>{l.new_item_code ?? old.itemCode ?? "—"}</div>
+                            <div className="money" style={{ fontSize: 12.5, fontWeight: 700, color: "#2F55E0", ...mEmphIf(chg.itemCode) }}>{l.new_item_code ?? old.itemCode ?? "—"}</div>
                             <div className="money" style={{ fontSize: 11, color: "var(--mut)", marginTop: 2 }}>
                               <span style={mEmphIf(chg.qty)}>Qty {l.new_qty ?? old.qty ?? "—"}</span>
                               {/* A null requested price keeps the stored one (desktop parity): show it unchanged. */}
@@ -2038,7 +2038,7 @@ function AmendmentDiffSheet({ amendmentId, onClose }: { amendmentId: string; onC
                       </div>
                     </div>
                     {unrenderedAll.length > 0 && (
-                      <div style={{ borderTop: "1px solid var(--line2, #e3e6e0)", background: "rgba(214,158,46,0.12)", padding: "7px 11px", fontSize: 10.5, lineHeight: 1.4, color: "#6d5626" }}>
+                      <div style={{ borderTop: "1px solid var(--line2, #EEF0F3)", background: "rgba(214,158,46,0.12)", padding: "7px 11px", fontSize: 10.5, lineHeight: 1.4, color: "#6d5626" }}>
                         This line also carries {unrenderedAll.join(", ")}, which the summary above cannot display. Open the Sales Order to check the full specification before approving.
                       </div>
                     )}
@@ -2055,7 +2055,7 @@ function AmendmentDiffSheet({ amendmentId, onClose }: { amendmentId: string; onC
 
           {/* Approve / reject history (owner 2026-07-18) — WHO approved or
               rejected, WHEN, and the reason. Newest first. */}
-          <div style={{ marginTop: 14, borderTop: "1px solid var(--line2, #e3e6e0)", paddingTop: 12 }}>
+          <div style={{ marginTop: 14, borderTop: "1px solid var(--line2, #EEF0F3)", paddingTop: 12 }}>
             <div className="fld-l" style={{ marginBottom: 8 }}>Approval history</div>
             {audit.isLoading ? (
               <div style={{ fontSize: 11.5, color: "var(--mut2)" }}>Loading history{"…"}</div>
@@ -2072,7 +2072,7 @@ function AmendmentDiffSheet({ amendmentId, onClose }: { amendmentId: string; onC
                   const rej = isRejectDecision(d.action);
                   return (
                     <div key={d.id} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
-                      <span aria-hidden style={{ width: 8, height: 8, minWidth: 8, borderRadius: "50%", marginTop: 4, background: rej ? "#b23a3a" : "#0c3f39" }} />
+                      <span aria-hidden style={{ width: 8, height: 8, minWidth: 8, borderRadius: "50%", marginTop: 4, background: rej ? "#b23a3a" : "#2F55E0" }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 700, color: rej ? "#b23a3a" : "var(--ink)", lineHeight: 1.35 }}>{d.label}</div>
                         <div className="money" style={{ fontSize: 10.5, color: "var(--mut)", marginTop: 1 }}>

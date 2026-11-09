@@ -147,11 +147,11 @@ function StatusPill({ status, statusDoc }: { status: unknown; statusDoc: StatusD
   const raw = s(status).trim();
   if (!raw) return null;
   const p = phase(status);
-  // VERBATIM from MobileSODetail's soPill: Submitted [#e1efed,#0c3f39,none] ·
-  // Draft [#f4f6f3,#767b6e,border] · Cancelled [#f8eaea,#b23a3a,none].
+  // VERBATIM from MobileSODetail's soPill: Submitted [#DCE6FD,#2F55E0,none] ·
+  // Draft [#F8F9FA,#6B7280,border] · Cancelled [#f8eaea,#b23a3a,none].
   const map: Record<string, [string, string, string]> = {
-    live: ["#e1efed", "#0c3f39", "none"],
-    draft: ["#f4f6f3", "#767b6e", "1px solid #e3e6e0"],
+    live: ["#DCE6FD", "#2F55E0", "none"],
+    draft: ["#F8F9FA", "#6B7280", "1px solid #EEF0F3"],
     cancelled: ["#f8eaea", "#b23a3a", "none"],
   };
   const [bg, fg, border] = map[p];
@@ -180,7 +180,7 @@ function Kv({ label, value, mono }: { label: string; value: string; mono?: boole
 /** Money stat card — one of the 3 white cards under the header, `.ey` label. */
 function Stat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #e3e6e0", borderRadius: 11, padding: 10, textAlign: "center" }}>
+    <div style={{ background: "#fff", border: "1px solid #EEF0F3", borderRadius: 11, padding: 10, textAlign: "center" }}>
       <div className="money" style={{ fontSize: 13, fontWeight: 800, color }}>{value}</div>
       <div className="ey" style={{ color: "#9aa093", marginTop: 3 }}>{label}</div>
     </div>
@@ -188,7 +188,7 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
 }
 
 function Eyebrow({ children }: { children: string }) {
-  return <div className="ey" style={{ color: "#767b6e", margin: "4px 2px 6px" }}>{children}</div>;
+  return <div className="ey" style={{ color: "#6B7280", margin: "4px 2px 6px" }}>{children}</div>;
 }
 
 /** One `.docrow` line item: name + qty on top, unit price + amount below. */
@@ -237,10 +237,10 @@ function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, source
   const qtyLabel = Number.isFinite(q) ? q : 0;
   return (
     <div className="docrow" style={{ flexWrap: "wrap" }}>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "#11140f" }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "#111827" }}>
         {name || "—"} <span style={{ color: "#9aa093", fontWeight: 600 }}>{"×"}{qtyLabel}</span>
       </span>
-      <span className="money" style={{ fontSize: 12.5, fontWeight: 800, color: "#11140f", flex: "none" }}>{money(amountSen)}</span>
+      <span className="money" style={{ fontSize: 12.5, fontWeight: 800, color: "#111827", flex: "none" }}>{money(amountSen)}</span>
       <div className="money" style={{ flexBasis: "100%", fontSize: 10.5, color: "#9aa093" }}>
         {sub ? <span style={{ marginRight: 8 }}>{sub}</span> : null}
         <span>@ {money(unitSen)}</span>
@@ -280,7 +280,7 @@ function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, source
                 title={stock
                   ? `${subNo} — ${a.qty} of this line bought for stock (no customer)`
                   : `${subNo} — ${a.qty} of this line bought for ${a.so_doc_no}. Procurement provenance, not the live assignment.`}
-                style={{ fontFamily: "monospace", fontSize: 10.5, fontWeight: 700, color: "#5c6357", background: stock ? "transparent" : "#f4f6f3", border: stock ? "1px dashed #b6c6c0" : "1px solid #d9ded4", borderRadius: 5, padding: "1px 6px" }}
+                style={{ fontFamily: "monospace", fontSize: 10.5, fontWeight: 700, color: "#5c6357", background: stock ? "transparent" : "#F8F9FA", border: stock ? "1px dashed #b6c6c0" : "1px solid #d9ded4", borderRadius: 5, padding: "1px 6px" }}
               >
                 {subNo}{" -> "}{a.so_doc_no ?? "STOCK"} (qty {a.qty})
               </span>
@@ -301,30 +301,30 @@ function DetailHeader({ eyebrow, title, subtitle, status, statusDoc, onBack, onE
   return (
     <header className="hdr">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12.5, fontWeight: 600, color: "#16695f", cursor: "pointer" }}>
+        <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12.5, fontWeight: 600, color: "#1B1B39", cursor: "pointer" }}>
           <span style={{ fontSize: 17, lineHeight: 1 }}>{"‹"}</span> Back
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <StatusPill status={status} statusDoc={statusDoc} />
           {onMap && (
-            <button className="tinybtn" onClick={onMap} style={{ background: "#f4f6f3", border: "1px solid var(--line2)", color: "var(--ink)" }}>
+            <button className="tinybtn" onClick={onMap} style={{ background: "#F8F9FA", border: "1px solid var(--line2)", color: "var(--ink)" }}>
               Map
             </button>
           )}
           {onPdf && (
-            <button className="tinybtn" onClick={onPdf} style={{ background: "#f4f6f3", border: "1px solid var(--line2)", color: "var(--ink)" }}>
+            <button className="tinybtn" onClick={onPdf} style={{ background: "#F8F9FA", border: "1px solid var(--line2)", color: "var(--ink)" }}>
               PDF
             </button>
           )}
           {onEdit && (
-            <button className="tinybtn" onClick={onEdit} style={{ background: "#e1efed", border: "1px solid #16695f", color: "#0c3f39" }}>
+            <button className="tinybtn" onClick={onEdit} style={{ background: "#DCE6FD", border: "1px solid #1B1B39", color: "#2F55E0" }}>
               Edit
             </button>
           )}
         </div>
       </div>
-      {eyebrow ? <div className="money" style={{ fontSize: 11.5, fontWeight: 700, color: "#a16a2e", marginTop: 7 }}>{eyebrow}</div> : null}
-      <div style={{ fontSize: 19, fontWeight: 800, color: "#11140f", marginTop: 2, wordBreak: "break-word" }}>{title || "—"}</div>
+      {eyebrow ? <div className="money" style={{ fontSize: 11.5, fontWeight: 700, color: "#D64F20", marginTop: 7 }}>{eyebrow}</div> : null}
+      <div style={{ fontSize: 19, fontWeight: 800, color: "#111827", marginTop: 2, wordBreak: "break-word" }}>{title || "—"}</div>
       {subtitle ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{subtitle}</div> : null}
     </header>
   );
@@ -333,7 +333,7 @@ function DetailHeader({ eyebrow, title, subtitle, status, statusDoc, onBack, onE
 const scrollStyle: React.CSSProperties = { padding: 14, paddingBottom: 120 };
 const wrapStyle: React.CSSProperties = { display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" };
 // Line-items / list card — same white rounded shell as MobileSODetail's item card.
-const cardStyle: React.CSSProperties = { background: "#fff", border: "1px solid #e3e6e0", borderRadius: 12, padding: "2px 12px", marginBottom: 13 };
+const cardStyle: React.CSSProperties = { background: "#fff", border: "1px solid #EEF0F3", borderRadius: 12, padding: "2px 12px", marginBottom: 13 };
 
 // ---------------------------------------------------------------------------
 // Document detail — fetches header + line items by id, per module.
@@ -418,7 +418,7 @@ const DOC_MODULES: Record<string, DocMap> = {
         ["Total", money(h.total_sen ?? h.local_total_sen), "var(--ink)"],
         ["Paid", money(h.paid_sen), "#2f8a5b"],
         ...(depositSen > 0 ? [["SO deposit", money(depositSen), "#2f8a5b"] as [string, string, string]] : []),
-        ["Balance", money(bal), bal > 0 ? "#a16a2e" : "var(--ink)"],
+        ["Balance", money(bal), bal > 0 ? "#D64F20" : "var(--ink)"],
       ];
     },
     /* Item CODE first, then the variant subtitle; description dropped (owner 2026-07-24) — the shared order-line rule
@@ -464,7 +464,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#767b6e"],
+      ["Tax", money(h.tax_sen), "#6B7280"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     // A scanned draft's note says which PO it may be wrong about and which
@@ -496,7 +496,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#767b6e"],
+      ["Tax", money(h.tax_sen), "#6B7280"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     line: (it) => ({
@@ -554,7 +554,7 @@ const DOC_MODULES: Record<string, DocMap> = {
       return [
         ["Total", money(h.total_sen), "var(--ink)"],
         ["Paid", money(h.paid_sen), "#2f8a5b"],
-        ["Balance", money(bal), bal > 0 ? "#a16a2e" : "var(--ink)"],
+        ["Balance", money(bal), bal > 0 ? "#D64F20" : "var(--ink)"],
       ];
     },
     /* line: PI items key on item_code (PC/PO family) rather than item_code —
@@ -645,7 +645,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Total", money(h.local_total_sen), "var(--ink)"],
-      ["Refund", money(h.refund_sen), "#a16a2e"],
+      ["Refund", money(h.refund_sen), "#D64F20"],
     ],
     line: (it) => {
       const { primary } = lineIdentity({
@@ -696,7 +696,7 @@ const DOC_MODULES: Record<string, DocMap> = {
       return [
         ["Total", money(h.local_total_sen), "var(--ink)"],
         ["Paid", money(h.paid_sen), "#2f8a5b"],
-        ["Balance", money(bal), bal > 0 ? "#a16a2e" : "var(--ink)"],
+        ["Balance", money(bal), bal > 0 ? "#D64F20" : "var(--ink)"],
       ];
     },
     line: (it) => {
@@ -777,7 +777,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Total", money(h.local_total_sen), "var(--ink)"],
-      ["Refund", money(h.refund_sen), "#a16a2e"],
+      ["Refund", money(h.refund_sen), "#D64F20"],
     ],
     line: (it) => {
       const { primary } = lineIdentity({
@@ -817,7 +817,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#767b6e"],
+      ["Tax", money(h.tax_sen), "#6B7280"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     line: (it) => {
@@ -863,7 +863,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#767b6e"],
+      ["Tax", money(h.tax_sen), "#6B7280"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     line: (it) => {
@@ -1135,9 +1135,9 @@ const SI_METHODS: Array<{ value: string; label: string }> = PAYMENT_METHOD_CODES
 // variant, mirroring the SO-detail actbar (Edit / Cancel = white outline).
 function actSkin(variant: ActVariant, disabled: boolean): React.CSSProperties {
   const skin: React.CSSProperties =
-    variant === "solid" ? { background: "#16695f", color: "#fff", border: "none" }
+    variant === "solid" ? { background: "#1B1B39", color: "#fff", border: "none" }
     : variant === "danger" ? { background: "#fff", color: "#b23a3a", border: "1.5px solid #f0d4d4" }
-    : { background: "#fff", color: "#16695f", border: "1.5px solid #16695f" };
+    : { background: "#fff", color: "#1B1B39", border: "1.5px solid #1B1B39" };
   // white-space:nowrap per spec — labels never wrap; the row lets buttons flex.
   return { flex: 1, padding: 12, borderRadius: 11, fontSize: 13.5, whiteSpace: "nowrap", ...skin, opacity: disabled ? 0.55 : 1 };
 }
@@ -1178,7 +1178,7 @@ function PaymentSheet({ id, header, onClose, onDone }: {
 
   const inputStyle: React.CSSProperties = {
     width: "100%", boxSizing: "border-box", height: 42, padding: "0 12px", borderRadius: 10,
-    border: "1px solid #e3e6e0", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)",
+    border: "1px solid #EEF0F3", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)",
   };
   const labelStyle: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#9aa093", marginBottom: 5, display: "block" };
 
@@ -1193,7 +1193,7 @@ function PaymentSheet({ id, header, onClose, onDone }: {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
           <Stat label="Total" value={money(total)} color="var(--ink)" />
           <Stat label="Paid" value={money(paid)} color="#2f8a5b" />
-          <Stat label="Balance" value={money(balance)} color={balance > 0 ? "#a16a2e" : "var(--ink)"} />
+          <Stat label="Balance" value={money(balance)} color={balance > 0 ? "#D64F20" : "var(--ink)"} />
         </div>
 
         <div style={{ marginBottom: 12 }}>

@@ -127,7 +127,7 @@ export function ProjectOverviewPage() {
 
       {/* The period's P&L, on the dark slab the home page uses for its hero. */}
       <section className="relative overflow-hidden rounded-2xl bg-sidebar px-5 py-5 text-sidebar-ink shadow-slab sm:px-7">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, rgba(22,105,95,0.6), transparent 70%)" }} />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, rgba(27, 27, 57,0.6), transparent 70%)" }} />
         <div className="relative">
           <div className="font-mono text-[10px] font-bold uppercase tracking-brand text-accent-bright">{period.label} · {t.projects} projects</div>
           <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">

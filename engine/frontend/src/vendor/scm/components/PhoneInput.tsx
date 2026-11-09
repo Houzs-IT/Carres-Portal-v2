@@ -66,12 +66,12 @@ const SEARCH_ALIAS: Record<string, string> = {
 // Palette (tailwind.config.js · "Ink & Petrol").
 const C = {
   surface: '#ffffff',
-  surface2: '#f4f6f3',
-  border: '#d6d9d2',
-  ink: '#11140f',
-  inkMuted: '#767b6e',
-  primary: '#16695f',
-  primarySoft: '#e1efed',
+  surface2: '#F8F9FA',
+  border: '#E5E7EB',
+  ink: '#111827',
+  inkMuted: '#6B7280',
+  primary: '#1B1B39',
+  primarySoft: '#DCE6FD',
 };
 
 type PhoneInputProps = {

@@ -203,7 +203,7 @@ function TextInput({
       disabled={disabled}
       className={cn(
         "h-10 w-full rounded-lg border border-border bg-surface px-3 text-[13.5px] text-ink outline-none transition-colors placeholder:text-ink-muted",
-        "focus:border-primary focus:shadow-[0_0_0_3px_rgba(22,105,95,.12)]",
+        "focus:border-primary focus:shadow-[0_0_0_3px_rgba(27, 27, 57,.12)]",
         "disabled:opacity-50",
         className
       )}
@@ -231,7 +231,7 @@ function TextArea({
       placeholder={placeholder}
       rows={rows}
       disabled={disabled}
-      className="w-full resize-y disabled:opacity-50 rounded-lg border border-border bg-surface px-3 py-2.5 text-[13.5px] leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:shadow-[0_0_0_3px_rgba(22,105,95,.12)]"
+      className="w-full resize-y disabled:opacity-50 rounded-lg border border-border bg-surface px-3 py-2.5 text-[13.5px] leading-relaxed text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:shadow-[0_0_0_3px_rgba(27, 27, 57,.12)]"
     />
   );
 }
@@ -255,7 +255,7 @@ function SelectInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="h-10 w-full appearance-none disabled:opacity-50 rounded-lg border border-border bg-surface px-3 pr-8 text-[13.5px] text-ink outline-none transition-colors focus:border-primary focus:shadow-[0_0_0_3px_rgba(22,105,95,.12)]"
+        className="h-10 w-full appearance-none disabled:opacity-50 rounded-lg border border-border bg-surface px-3 pr-8 text-[13.5px] text-ink outline-none transition-colors focus:border-primary focus:shadow-[0_0_0_3px_rgba(27, 27, 57,.12)]"
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((o) => (
@@ -1278,7 +1278,7 @@ export function DeliveryOrderNewV2() {
                 placeholder="e.g. Lim Mei Hua"
                 className={cn(
                   "h-10 w-full rounded-lg border border-border bg-surface px-3 text-[13.5px] text-ink outline-none transition-colors placeholder:text-ink-muted",
-                  "focus:border-primary focus:shadow-[0_0_0_3px_rgba(22,105,95,.12)] disabled:opacity-50",
+                  "focus:border-primary focus:shadow-[0_0_0_3px_rgba(27, 27, 57,.12)] disabled:opacity-50",
                 )}
               />
               <DebtorSuggestList

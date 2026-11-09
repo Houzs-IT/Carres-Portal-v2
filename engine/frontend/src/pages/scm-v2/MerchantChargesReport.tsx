@@ -138,7 +138,7 @@ const NOTE_CASH = 'Cash and Online are the payments keyed on sales orders, by pa
 
 /* ── The chart (batch 6 §5.6): fee % by merchant, month by month, the charge %
    under each month — the same read over the chart's months. ── */
-const MERCHANT_COLORS = [REPORT_CHART_COLORS.petrol, REPORT_CHART_COLORS.gold, REPORT_CHART_COLORS.grey, '#0c3f39', '#a16a2e', '#5f6459'];
+const MERCHANT_COLORS = [REPORT_CHART_COLORS.petrol, REPORT_CHART_COLORS.gold, REPORT_CHART_COLORS.grey, '#2F55E0', '#D64F20', '#5f6459'];
 
 export function chargeChartMonths(win: ChartWindow | null, r: MerchantChargesReport | undefined): { series: ChartBarSeries[]; months: ChartMonth[] } {
   if (!win) return { series: [], months: [] };

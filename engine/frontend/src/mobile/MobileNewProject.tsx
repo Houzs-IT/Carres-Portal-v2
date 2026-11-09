@@ -104,7 +104,7 @@ export function NewProjectSheet({
   };
   const labelStyle: React.CSSProperties = {
     fontSize: 9.5, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase",
-    color: "#767b6e", marginBottom: 4, display: "block",
+    color: "#6B7280", marginBottom: 4, display: "block",
   };
 
   return (
@@ -171,7 +171,7 @@ export function NewProjectSheet({
           </div>
           {dateInvalid && <div style={{ fontSize: 11.5, color: "#b23a3a" }}>End date must be on or after the start date.</div>}
           {/* The name is composed, never typed — show what will be saved. */}
-          <div style={{ border: "1px dashed #d6d9d2", borderRadius: 10, padding: "9px 11px", background: "#faf9f5" }}>
+          <div style={{ border: "1px dashed #E5E7EB", borderRadius: 10, padding: "9px 11px", background: "#faf9f5" }}>
             <div style={labelStyle}>Event name</div>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: derivedName ? "var(--ink)" : "#9aa093", lineHeight: 1.35 }}>
               {derivedName || "Pick brand + venue to compose the name"}

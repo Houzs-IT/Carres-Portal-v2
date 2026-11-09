@@ -152,7 +152,7 @@ export function Overview() {
       <div className="relative overflow-hidden rounded-2xl bg-sidebar px-6 py-7 text-sidebar-ink shadow-slab sm:px-8">
         <div
           className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full opacity-60 blur-2xl"
-          style={{ background: "radial-gradient(circle, rgba(22,105,95,0.55), transparent 70%)" }}
+          style={{ background: "radial-gradient(circle, rgba(27, 27, 57,0.55), transparent 70%)" }}
         />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">

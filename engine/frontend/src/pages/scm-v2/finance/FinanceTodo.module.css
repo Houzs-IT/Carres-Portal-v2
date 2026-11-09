@@ -2,15 +2,15 @@
    (2026-11-02). Colours are the design's own, on the ERP's Theme C. */
 
 .page {
-  --fin-ink: #11140f;
-  --fin-text: #414539;
+  --fin-ink: #111827;
+  --fin-text: #4B5563;
   --fin-detail: #5f6459;
-  --fin-muted: #767b6e;
-  --fin-line: #d6d9d2;
-  --fin-rule: #e3e6e0;
+  --fin-muted: #6B7280;
+  --fin-line: #E5E7EB;
+  --fin-rule: #EEF0F3;
   --fin-head: #f9faf8;
-  --fin-petrol: #16695f;
-  --fin-brass: #a16a2e;
+  --fin-petrol: #1B1B39;
+  --fin-brass: #D64F20;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 20px;
@@ -98,10 +98,10 @@
   border-radius: 6px; font: 600 12.5px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; white-space: nowrap;
   text-decoration: none;
 }
-.actionPrimary { border: 1px solid #b9d6d1; background: #e1efed; color: #0c3f39; }
+.actionPrimary { border: 1px solid #b9d6d1; background: #DCE6FD; color: #2F55E0; }
 .actionPrimary:hover { background: #d3e7e3; }
 .actionSecondary { border: 1px solid var(--fin-line); background: #ffffff; color: var(--fin-text); }
-.actionSecondary:hover { background: #f4f6f3; }
+.actionSecondary:hover { background: #F8F9FA; }
 
 .pill {
   display: inline-flex; align-items: center; height: 20px; box-sizing: border-box; padding: 0 7px; border-radius: 4px;
@@ -117,7 +117,7 @@
 .doneText { flex: 1; min-width: 0; }
 .je {
   font-size: 11px; font-weight: 500; padding: 1px 7px; border: 1px solid var(--fin-rule); border-radius: 999px;
-  background: #f4f6f3; color: var(--fin-text);
+  background: #F8F9FA; color: var(--fin-text);
 }
 .time { font-size: 11.5px; color: var(--fin-muted); }
 
@@ -150,10 +150,10 @@
 .checkValue { font-size: 12px; }
 .checkReview {
   margin-top: 10px; width: 100%; height: 32px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
-  border: 1px solid var(--fin-line); border-radius: 6px; background: #f4f6f3; font: 600 12px 'IBM Plex Sans', system-ui, sans-serif;
+  border: 1px solid var(--fin-line); border-radius: 6px; background: #F8F9FA; font: 600 12px 'IBM Plex Sans', system-ui, sans-serif;
   color: var(--fin-text); text-decoration: none;
 }
-.checkReview:hover { background: #eef0ec; }
+.checkReview:hover { background: #F6F7F9; }
 
 .headStats { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--fin-text); }
 .bar { width: 120px; height: 6px; border-radius: 999px; background: var(--fin-rule); overflow: hidden; display: block; }
@@ -165,8 +165,8 @@
 }
 
 /* Tile tones by kind of job (the design's `tone` table) — icons take the colour. */
-.tileRoutine, .tileCards, .tileBank { background: #e1efed; color: var(--fin-petrol); }
-.tileManual { background: #f4f6f3; color: var(--fin-text); }
+.tileRoutine, .tileCards, .tileBank { background: #DCE6FD; color: var(--fin-petrol); }
+.tileManual { background: #F8F9FA; color: var(--fin-text); }
 .tileMoney { background: #e2f0e9; color: var(--fin-green); }
 .tileOut { background: #f3ece0; color: var(--fin-brass); }
 .tileErr { background: #f8eaea; color: var(--fin-red); }
@@ -191,19 +191,19 @@
   color: var(--fin-petrol); text-decoration: none; border-bottom: 1px dotted var(--fin-petrol); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 button.action { background: none; }
-button.actionPrimary { background: #e1efed; }
+button.actionPrimary { background: #DCE6FD; }
 button.actionSecondary { background: #ffffff; }
 .pillDone { background: #e2f0e9; color: var(--fin-green); }
 .reopen {
   height: 24px; padding: 0 9px; border: 1px solid var(--fin-line); border-radius: 6px; background: #ffffff; color: var(--fin-text);
   font: 600 11.5px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer;
 }
-.reopen:hover:not(:disabled) { background: #f4f6f3; }
+.reopen:hover:not(:disabled) { background: #F8F9FA; }
 
 /* List / Calendar (batch 2). */
-.viewSwitch { display: inline-flex; padding: 2px; border-radius: 8px; background: #eef0ec; }
+.viewSwitch { display: inline-flex; padding: 2px; border-radius: 8px; background: #F6F7F9; }
 .viewSwitch > button {
-  height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--fin-text, #414539);
+  height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--fin-text, #4B5563);
   font: 600 12px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer;
 }
-.viewSwitch > .viewOn { background: #ffffff; color: #0c3f39; box-shadow: 0 1px 2px rgba(17, 24, 16, 0.12); }
+.viewSwitch > .viewOn { background: #ffffff; color: #2F55E0; box-shadow: 0 1px 2px rgba(17, 24, 16, 0.12); }

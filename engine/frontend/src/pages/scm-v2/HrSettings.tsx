@@ -44,7 +44,7 @@ const SECTION_CLASS = 'space-y-2';
 const TABLE_WRAP_CLASS = 'overflow-x-auto rounded-md border border-border bg-surface';
 // Batch 4 skin (2026-07-29): the inline-edit tables stay exempt from
 // conversion, but their headers take the SO-sample DataTable spec so the whole
-// program reads as one system — surface-dim #e3e6e0, 10px/bold, brand tracking,
+// program reads as one system — surface-dim #EEF0F3, 10px/bold, brand tracking,
 // ink, 2px rule. Drives all three HrSettings tables.
 const THEAD_CLASS = 'border-b-2 border-border bg-surface-dim text-[10px] font-bold uppercase tracking-brand text-ink';
 

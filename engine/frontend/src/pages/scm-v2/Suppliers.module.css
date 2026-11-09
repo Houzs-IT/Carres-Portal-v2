@@ -521,7 +521,7 @@
   border: none;
   background: transparent;
 }
-.viewToggleOn { background: var(--c-orange, #16695f); color: #fff; }
+.viewToggleOn { background: var(--c-orange, #1B1B39); color: #fff; }
 .viewToggleOff { color: var(--fg-muted); }
 
 /* ── Theme C: desktop PO card list ──────────────────────────────────────── */
@@ -543,7 +543,7 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 .poCard:hover {
-  border-color: var(--c-orange, #16695f);
+  border-color: var(--c-orange, #1B1B39);
   box-shadow: var(--shadow-md, 0 6px 18px -10px rgba(17, 24, 16, 0.35));
   transform: translateY(-1px);
 }
@@ -560,8 +560,8 @@
   font-family: var(--font-mark);
   font-size: 16px;
   font-weight: 800;
-  color: var(--c-orange, #16695f);
-  background: var(--c-paper, #f4f6f3);
+  color: var(--c-orange, #1B1B39);
+  background: var(--c-paper, #F8F9FA);
   border: 1px solid var(--line);
 }
 .poCardBody { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
@@ -587,7 +587,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--c-burnt, #0c3f39);
+  color: var(--c-burnt, #2F55E0);
 }
 .poCardMeta {
   display: flex;
@@ -597,7 +597,7 @@
   font-size: 11.5px;
   color: var(--fg-muted);
 }
-.poCardDoc { font-weight: 700; color: var(--c-burnt, #0c3f39); }
+.poCardDoc { font-weight: 700; color: var(--c-burnt, #2F55E0); }
 .poCardDot { color: var(--line); }
 .poCardFoot {
   display: flex;
@@ -609,13 +609,13 @@
   flex: 1;
   height: 5px;
   border-radius: 999px;
-  background: var(--c-paper, #eef0ec);
+  background: var(--c-paper, #F6F7F9);
   overflow: hidden;
 }
 .poProgFill {
   height: 100%;
   border-radius: 999px;
-  background: var(--c-orange, #16695f);
+  background: var(--c-orange, #1B1B39);
   transition: width 0.3s ease;
 }
 
@@ -623,7 +623,7 @@
 .docLink {
   font-family: var(--font-mono);
   font-size: var(--fs-12);
-  color: #16695f;
+  color: #1B1B39;
   text-decoration: none;
 }
 .docLink:hover { text-decoration: underline; }

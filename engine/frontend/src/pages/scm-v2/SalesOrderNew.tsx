@@ -2108,7 +2108,7 @@ export const SalesOrderNew = () => {
             style={{
               display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
               padding: 'var(--space-3)',
-              background: fillAddressLater ? 'rgba(22, 105, 95, 0.08)' : 'var(--c-cream)',
+              background: fillAddressLater ? 'rgba(27, 27, 57, 0.08)' : 'var(--c-cream)',
               border: '1px solid ' + (fillAddressLater ? 'var(--c-orange)' : 'var(--line)'),
               borderRadius: 'var(--radius-md)',
               marginBottom: 'var(--space-3)',
