@@ -28,6 +28,7 @@ import ocrDashboardRoutes from "./routes/ocrDashboard";
 import clientErrors from "./routes/clientErrors";
 import udf from "./routes/udf";
 import authRoutes from "./routes/auth";
+import carresSso from "./carres/sso";
 import totpRoutes from "./routes/totp";
 import users from "./routes/users";
 import fieldPinAdmin from "./routes/fieldPinAdmin";
@@ -254,18 +255,9 @@ function corsOriginAllowed(origin: string | undefined | null): string | undefine
   } catch {
     return undefined;
   }
+  // Carres: only the Carres engine site and its previews (never a Houzs or 2990 host).
   const ok =
-    host === "houzscentury.com" ||
-    host.endsWith(".houzscentury.com") ||
-    host === "2990shome.com" ||
-    host.endsWith(".2990shome.com") ||
-    /^([a-z0-9-]+\.)?houzs-erp(-staging)?\.pages\.dev$/.test(host) ||
-    // 2990 POS is a BROWSER SPA on Cloudflare Pages at 2990s-pos.pages.dev
-    // calling this backend cross-origin (post-cutover it targets the Houzs
-    // Worker). The M3 allowlist that replaced `cors *` omitted it, which
-    // CORS-blocked every POS request (pin-login, catalog, cart) — the POS could
-    // not open. The `<hash>.` prefix covers Pages preview deploys.
-    /^([a-z0-9-]+\.)?2990s-pos\.pages\.dev$/.test(host) ||
+    /^([a-z0-9-]+\.)?carres-scm\.pages\.dev$/.test(host) ||
     host === "localhost" ||
     host === "127.0.0.1";
   return ok ? origin : undefined;
@@ -338,6 +330,8 @@ app.get("/health", (c) => {
 // /api/auth/* is unauthenticated (login, bootstrap, accept-invite, status,
 // me, logout). It must be mounted BEFORE the auth middleware below.
 app.route("/api/auth", authRoutes);
+// Carres: sign-on from the Carres portal, server to server, proven by a shared secret (src/carres/sso.ts).
+app.route("/api/carres-sso", carresSso);
 
 // Public customer survey — unauthenticated, token-based. Lives under
 // /api/survey (not /survey) so it doesn't collide with the SPA route

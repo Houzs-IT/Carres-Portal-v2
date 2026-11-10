@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NAV_TABS, type NavTab } from "./Sidebar";
 import { makeNavFilter, type NavFilterCtx } from "./navFilter";
 import type { AccessLevel, AuthUser } from "../types";
+
+// Carres: these pin Houzs's whole menu and its gates; the Carres trim is tested in carres/navOnly.test.ts.
+vi.mock("./Sidebar", async (importOriginal) => {
+  const m = await importOriginal<typeof import("./Sidebar")>();
+  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
+});
 
 /**
  * HC-0136 (Sim): 「product request have notification alert when have new request

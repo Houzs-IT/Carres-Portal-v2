@@ -1875,7 +1875,7 @@ const resolveCompartmentImageSrc = (
   if (imageKey.startsWith(SOFA_COMPARTMENT_API_PREFIX)) {
     const API =
       ((import.meta.env.VITE_API_URL ||
-        (import.meta.env.PROD ? '' : 'https://autocount-sync-api.houzs-erp.workers.dev')) as string) +
+        (import.meta.env.PROD ? '' : 'http://localhost:8787')) as string) +
       '/api/scm';
     return `${API}/maintenance-config/sofa-compartments/${encodeURIComponent(code)}/photo/${encodeURIComponent(imageKey)}`;
   }

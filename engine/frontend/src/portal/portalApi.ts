@@ -21,7 +21,7 @@ import {
 // phones, where *.workers.dev is unreliable on some MY carriers.
 const baseUrl =
   (import.meta.env.VITE_API_URL as string) ||
-  (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
+  (import.meta.env.PROD ? "" : "http://localhost:8787");
 
 function url(path: string): string {
   return path.startsWith("http") ? path : `${baseUrl}${path}`;

@@ -1,3 +1,4 @@
+import { carresNavOnly } from "../carres/navOnly";
 import { NavLink, useLocation } from "react-router-dom";
 import { BACKDATE_DECIDER_PERMS } from "../vendor/scm/lib/payment-backdate-perms";
 import { markWorkspaceOpenIntent } from "../lib/workspaceTabs";
@@ -249,7 +250,8 @@ export interface NavTab {
  * Management). Tabs declare permission via `perm` / `anyPerm`; the
  * filter recurses so groups with no visible kids hide entirely.
  */
-export const NAV_TABS: NavTab[] = [
+/** Houzs's whole registry, before Carres trims it (carres/navOnly.ts). Exported for the tests that pin its shape. */
+export const ALL_NAV_TABS: NavTab[] = [
   // ══ WORKSPACE ════════════════════════════════════════════════
   {
     section: "workspace",
@@ -1105,6 +1107,9 @@ export const NAV_TABS: NavTab[] = [
   },
 ];
 
+// Carres: Supply Chain and Service Cases only (see src/carres/navOnly.ts).
+export const NAV_TABS: NavTab[] = carresNavOnly(ALL_NAV_TABS);
+
 // Accordion sibling map — each expandable group's same-level peers. Opening a
 // group collapses its siblings (top-level groups are mutually exclusive; so are
 // the SCM sub-groups) so the rail never piles up. Built once from NAV_TABS.
@@ -1419,7 +1424,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Prop
           // and the no-logo fallback is a two-letter glyph.
           <CompanyMark
             variant="mark"
-            imgClassName="h-9 w-9 object-contain brightness-0 invert"
+            imgClassName="h-9 w-9 object-contain"
             uploadedImgClassName="h-9 w-9 object-contain"
             textClassName="text-[15px] font-bold tracking-wide text-sidebar-ink"
           />
@@ -1428,7 +1433,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Prop
           // The 1:4 aspect ratio + h-10 yields a comfortable ~40×160 box.
           <CompanyMark
             variant="wordmark"
-            imgClassName="h-10 w-auto max-w-[160px] object-contain brightness-0 invert"
+            imgClassName="h-10 w-auto max-w-[160px] object-contain"
             uploadedImgClassName="h-10 w-auto max-w-[160px] object-contain"
             textClassName="truncate text-[15px] font-bold tracking-tight text-sidebar-ink"
           />

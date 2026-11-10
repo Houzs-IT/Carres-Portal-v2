@@ -149,7 +149,7 @@ export async function runClientErrorDigest(
     // Top-10 sums are a fine floor if the totals query hiccups.
   }
 
-  const subject = `[Houzs ERP] Client errors -- ${errors} distinct, ${occurrences} occurrence(s) in 24h`;
+  const subject = `[Carres] Client errors -- ${errors} distinct, ${occurrences} occurrence(s) in 24h`;
   const html = clientErrorDigestHtml({
     rows,
     totalErrors: errors,

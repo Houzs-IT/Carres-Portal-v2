@@ -43,7 +43,7 @@ import { isCompressibleImage, prepareImageForUpload } from '../../../lib/imagePi
 
 const API_URL =
   ((import.meta as { env?: Record<string, string | undefined> }).env?.VITE_API_URL
-    || (import.meta.env.PROD ? '' : 'https://autocount-sync-api.houzs-erp.workers.dev')) + '/api/scm';
+    || (import.meta.env.PROD ? '' : 'http://localhost:8787')) + '/api/scm';
 
 const token = (): string => {
   const t = readAuthToken();

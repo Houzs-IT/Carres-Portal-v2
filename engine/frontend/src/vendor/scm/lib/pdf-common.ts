@@ -118,7 +118,7 @@ export const COMPANY = {
   // any other active company renders "<short name> ERP" (e.g. "2990's Home
   // ERP"). Live getter like the fields above, so it flips with the switcher.
   get portalLabel(): string {
-    if (getBrandingCompanyCode() === HOUZS_COMPANY_CODE) return 'Houzs ERP';
+    if (getBrandingCompanyCode() === HOUZS_COMPANY_CODE) return 'Carres';
     return `${shortCompanyName(getBrandingCache().companyName)} ERP`;
   },
 };

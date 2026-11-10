@@ -66,7 +66,7 @@ export const scmTelemetryPath = (path: string): string =>
    fleet PR. */
 export const API_URL =
   (import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD ? '' : 'https://autocount-sync-api.houzs-erp.workers.dev')) +
+    (import.meta.env.PROD ? '' : 'http://localhost:8787')) +
   '/api/scm';
 
 /* ── Request timeout (ported from 2990 b9d0035c) ───────────────────────────

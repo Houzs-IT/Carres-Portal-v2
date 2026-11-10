@@ -16,15 +16,15 @@ export default {
         // (logo, eyebrows, doc numbers, soft backgrounds).
 
         // ── Canvas ─────────────────────────────────────────
-        bg: "#F6F7F9",
+        bg: "#F6F7F9", // Carres ground (apps/web carres-tokens.css), as every colour below
         surface: "#ffffff",
         "surface-2": "#F8F9FA", // table headers, nested/inset surfaces, search fields
         "surface-dim": "#EEF0F3",
 
         border: {
           DEFAULT: "#E5E7EB",
-          subtle: "#EEF0F3",
-          strong: "#c2c6bd",
+          subtle: "#F1F2F4",
+          strong: "#D5D9DE",
         },
 
         // ── Ink ────────────────────────────────────────────
@@ -36,29 +36,29 @@ export default {
 
         // ── Primary (petrol/teal) — NEW functional accent ──
         primary: {
-          DEFAULT: "#1B1B39",
-          soft: "#DCE6FD", // selected-row bg, soft chips, month-P&L card
-          ink: "#2F55E0", // text on primary-soft
+          DEFAULT: "#1B1B39", // Carres main button
+          soft: "#DCE6FD", // Carres selection // selected-row bg, soft chips, month-P&L card
+          ink: "#2F55E0", // text on primary-soft (Carres selection)
         },
 
         // ── Brass accent (brand only — not primary CTAs) ───
         accent: {
-          DEFAULT: "#D64F20",
-          soft: "#f3ece0",
-          bright: "#D64F20", // gold for text on dark sidebar/headers
-          hover: "#8a5a26",
-          ink: "#5a3a14",
+          DEFAULT: "#D64F20", // Carres brand orange
+          soft: "#FBEDE7",
+          bright: "#2F55E0", // gold for text on dark sidebar/headers
+          hover: "#BC4319",
+          ink: "#7A2E12",
         },
 
         // ── Sidebar palette (dark ink-green slab) ──────────
         sidebar: {
-          DEFAULT: "#1B1B39",
-          ink: "#e7eae4",
-          "ink-muted": "#8c968a",
-          "ink-soft": "#6f786d",
-          border: "rgba(231,234,228,0.12)",
-          hover: "rgba(231,234,228,0.06)",
-          active: "rgba(27, 27, 57,0.22)", // petrol 22%
+          DEFAULT: "#FFFFFF", // Carres light menu
+          ink: "#1F2937",
+          "ink-muted": "#5C6168",
+          "ink-soft": "#6B7280",
+          border: "#E5E7EB",
+          hover: "#EDEFF2",
+          active: "#DCE6FD",
         },
 
         // ── Semantic ───────────────────────────────────────
@@ -92,7 +92,7 @@ export default {
         // clamp to real 700 outlines instead of synthesising. The -v2 name is
         // load-bearing — /fonts/* is immutable-cached for a year, so the sheet
         // had to be renamed for the fix to reach existing users at all.
-        body: ['"IBM Plex Sans"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+        body: ['"Inter"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
         // Nick 2026-07-09 "整个系统页面都要 C 字体": Ink & Petrol admin
         // rhythm wants sans titles, not display serif. Point `font-display`
         // at the same IBM Plex Sans stack as body so every V2 list / detail

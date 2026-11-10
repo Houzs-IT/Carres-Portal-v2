@@ -676,7 +676,7 @@ export function AcceptInviteScreen() {
   const { token: routeToken } = useParams<{ token: string }>();
   const baseUrl =
     (import.meta.env.VITE_API_URL as string) ||
-    (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
+    (import.meta.env.PROD ? "" : "http://localhost:8787");
   const [token, setToken] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");

@@ -24,6 +24,7 @@
   /* ------------------------------------------------------------------
      PRIMARY PALETTE — warm, clean, inviting
      ------------------------------------------------------------------ */
+  /* Carres: remapped to the Carres palette (apps/web carres-tokens.css), 6 Nov 2026. */
   /* Remapped to Theme C (2026-06-26) so the vendored SCM pages match the
      main app — warm cream/orange → cool white/petrol. Originals in comments. */
   --c-cream:        #ffffff;   /* was #FFF9EB — Theme C surface          */
@@ -50,11 +51,11 @@
   /* Pressed / inset — one step under --c-paper, same green-grey cast.
      Referenced by ListingPickerDialog's trigger :active but was never
      defined, so the press state silently no-op'd. */
-  --bg-subtle:      #eceeea;
+  --bg-subtle:      #EDEFF2;
 
   --fg:             var(--c-ink);
   --fg-muted:       #6B7280;       /* was #5C5455 — Theme C ink-muted  */
-  --fg-soft:        #9aa093;       /* was #8B7E6A — Theme C soft grey   */
+  --fg-soft:        #9CA3AF;       /* was #8B7E6A — Theme C soft grey   */
   --fg-on-orange:   var(--c-cream);
   --fg-on-ink:      var(--c-cream);
   --fg-accent:      var(--c-orange);
@@ -159,7 +160,7 @@
      native system stack, same call 2990 made. IBM Plex Sans / Noto Sans SC
      dropped from the lead so text and digits stop being two different faces;
      CJK falls through to the OS face (YaHei / PingFang), exactly like 2990. */
-  --font-system:  system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-system:  "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   /* Body / paragraphs / general UI text */
   --font-sans:    var(--font-system);
   /* Titles / headings — Plex Serif display face for detail-page heros.

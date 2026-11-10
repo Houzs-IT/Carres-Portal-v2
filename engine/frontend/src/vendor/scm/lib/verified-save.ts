@@ -43,7 +43,7 @@ import { companyHeader } from '../../../lib/activeCompany';
 // authed-fetch.ts for the rationale.
 const API_URL =
   (import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD ? '' : 'https://autocount-sync-api.houzs-erp.workers.dev')) +
+    (import.meta.env.PROD ? '' : 'http://localhost:8787')) +
   '/api/scm';
 
 // Multi-company (Phase 0c): stamp the active company on every SCM request so

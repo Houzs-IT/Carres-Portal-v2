@@ -631,7 +631,7 @@ export function publicUrl(env: Env, path: string, companyCode?: string | null): 
  *  the company's Branding so 2990 invites read "2990's Home ERP". Callers pass
  *  the branding they already fetched; no branding → the historical literal. */
 export function erpProductName(branding?: { companyName: string } | null): string {
-  if (!branding?.companyName?.trim()) return "Houzs ERP";
+  if (!branding?.companyName?.trim()) return "Carres";
   return `${shortCompanyName(branding.companyName)} ERP`;
 }
 
@@ -644,7 +644,7 @@ export function inviteEmailHtml(p: {
    *  historical copy for untouched callers. */
   productName?: string;
 }): string {
-  const product = p.productName?.trim() || "Houzs ERP";
+  const product = p.productName?.trim() || "Carres";
   return `
     <div style="font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#222">
       <h2 style="margin:0 0 10px">You're invited to ${product}</h2>
@@ -716,7 +716,7 @@ export function documentEmailHtml(p: {
   companyName?: string;
 }): string {
   const label = escapeHtml(p.docTypeLabel);
-  const company = escapeHtml(p.companyName?.trim() || "Houzs Century");
+  const company = escapeHtml(p.companyName?.trim() || "Carres");
   const summary = p.rows
     .map(
       (r) =>
@@ -753,7 +753,7 @@ export function resetEmailHtml(p: {
    *  historical copy for untouched callers. */
   productName?: string;
 }): string {
-  const product = p.productName?.trim() || "Houzs ERP";
+  const product = p.productName?.trim() || "Carres";
   const intro = p.requestedBy
     ? `${escapeHtml(p.requestedBy)} has initiated a password reset for your ${product} account.`
     : `We received a request to reset the password for your ${product} account. If this was you, set a new password below.`;

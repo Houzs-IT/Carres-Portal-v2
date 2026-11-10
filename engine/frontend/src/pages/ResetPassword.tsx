@@ -27,7 +27,7 @@ import {
 // reset links open on phones where *.workers.dev can be carrier-blocked.
 const baseUrl =
   (import.meta.env.VITE_API_URL as string) ||
-  (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
+  (import.meta.env.PROD ? "" : "http://localhost:8787");
 
 class ResetPasswordDisplayError extends Error {}
 

@@ -181,7 +181,7 @@ export const provenanceExtras = (
 export const sourcePoTitle = (poNo: string): string =>
   /^\d+-/.test(poNo)
     ? `Source purchase order ${poNo} — the "${poNo.split("-")[0]}-" prefix is the company that raised it.`
-    : `Source purchase order ${poNo} — no company prefix, so it was raised under the base company (Houzs).`;
+    : `Source purchase order ${poNo} — no company prefix, so it was raised under the base company.`;
 
 /* "STOCK ADJ" — goods that entered stock through a positive ADJUSTMENT (free
    gift / cancel add-back), which is legitimately PO-less BY DESIGN. The owner's

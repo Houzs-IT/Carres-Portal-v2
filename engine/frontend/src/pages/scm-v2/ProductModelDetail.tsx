@@ -86,7 +86,7 @@ const BACK_LINK =
    relative R2 path resolved against the backend origin → 404.) */
 const API_URL =
   ((import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD ? '' : 'https://autocount-sync-api.houzs-erp.workers.dev')) as string) +
+    (import.meta.env.PROD ? '' : 'http://localhost:8787')) as string) +
   '/api/scm';
 const resolveModelPhotoUrl = (u: string | null | undefined): string | undefined => {
   if (!u) return undefined;

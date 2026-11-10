@@ -88,16 +88,13 @@ export function brandingKeyForCompany(companyCode: string): string {
 // hardcodes). Used only if the row is missing (fresh/restored DB before
 // the migration runs) so consumers never get an empty company name.
 export const DEFAULT_BRANDING: Branding = {
-  companyName: "Houzs Century Sdn Bhd",
-  registrationNo: "202201031135 (1476832-W)",
-  address:
-    "1831-B, Jalan KPB 1, Kawasan Perindustrian Balakong, 43300 Seri Kembangan, Selangor.",
-  // Mirrors migration 0142's backfill (extracted from the address above). The
-  // address still carries "43300", so composeBrandingAddress leaves the printed
-  // letterhead byte-identical — this only makes the structured value available.
-  postcode: "43300",
-  phone: "011-1110 8883",
-  email: "hello@houzscentury.com",
+  // Carres: blank until set in Settings > Branding, so nothing prints another company's details.
+  companyName: "Carres",
+  registrationNo: "",
+  address: "",
+  postcode: "",
+  phone: "",
+  email: "",
   website: "",
   logoR2Key: "",
   printLogoR2Key: "",

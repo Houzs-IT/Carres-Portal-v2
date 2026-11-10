@@ -39,7 +39,7 @@ export { requestIdFromError } from "../lib/requestCorrelation";
 // absolute workers.dev fallback.
 const baseUrl =
   (import.meta.env.VITE_API_URL as string) ||
-  (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
+  (import.meta.env.PROD ? "" : "http://localhost:8787");
 
 // Token storage — the writer. The AuthContext writes here on login/logout.
 // The READ lives in lib/authToken so the vendored SCM layer shares it verbatim

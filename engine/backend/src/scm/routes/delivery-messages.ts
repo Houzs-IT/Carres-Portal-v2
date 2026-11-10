@@ -424,7 +424,7 @@ deliveryMessages.post('/sync', async (c) => {
   if (!isConnectConfigured(c.env)) {
     return c.json({
       error: 'not_configured',
-      reason: 'Houzs Connect is not configured yet — set the CONNECT_WEBHOOK_URL and CONNECT_WEBHOOK_KEY secrets to enable sync.',
+      reason: 'Chat is not configured yet — set the CONNECT_WEBHOOK_URL and CONNECT_WEBHOOK_KEY secrets to enable sync.',
     }, 503);
   }
   let body: unknown;
@@ -442,7 +442,7 @@ deliveryMessages.post('/send', async (c) => {
   if (!isConnectConfigured(c.env)) {
     return c.json({
       error: 'not_configured',
-      reason: 'Houzs Connect is not configured yet — set the CONNECT_WEBHOOK_URL and CONNECT_WEBHOOK_KEY secrets to enable sending.',
+      reason: 'Chat is not configured yet — set the CONNECT_WEBHOOK_URL and CONNECT_WEBHOOK_KEY secrets to enable sending.',
     }, 503);
   }
   let body: unknown;

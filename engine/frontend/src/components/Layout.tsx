@@ -1,3 +1,4 @@
+import { CARRES_EMBEDDED } from "../carres/embed";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
@@ -52,21 +53,25 @@ export function Layout({ children }: Props) {
 
   return (
     <div className="flex h-dvh min-h-dvh w-screen overflow-hidden">
-      <Sidebar
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((c) => !c)}
-        mobileOpen={false}
-      />
+      {/* Carres: inside the portal its menu is the only one (carres/embed.ts). */}
+      {!CARRES_EMBEDDED && (
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((c) => !c)}
+          mobileOpen={false}
+        />
+      )}
 
       <main className="paper-grain thin-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         {/* Mobile top bar — brand + topbar chrome only. Hidden on lg+. */}
-        <MobileTopBar />
+        {/* Carres: inside the portal its own top bar is the one drawn; the engine keeps only its menu. */}
+        {!CARRES_EMBEDDED && <MobileTopBar />}
 
         {/* Desktop top chrome — ONE 52px bar (2b): workspace tabs inline +
             search / company / bell / avatar. No breadcrumb, no second row.
             Every lg+ sticky below parks at top-[52px]: PageHeader here,
             DetailLayout, the two SCM V2 doc bars. Hidden below lg. */}
-        <TopNavbar />
+        {!CARRES_EMBEDDED && <TopNavbar />}
 
         {writesDisabled && <ReadOnlyBanner />}
 
@@ -92,7 +97,7 @@ export function Layout({ children }: Props) {
           Floating Chat FAB which auto-clears it on mobile. The centre
           "Menu" tab opens its own bottom-sheet modal (no longer
           delegates to the Sidebar drawer), so onOpenDrawer is gone. */}
-      <MobileTabBar />
+      {!CARRES_EMBEDDED && <MobileTabBar />}
     </div>
   );
 }

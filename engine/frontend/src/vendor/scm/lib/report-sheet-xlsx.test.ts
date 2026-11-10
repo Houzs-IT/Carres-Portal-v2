@@ -56,7 +56,7 @@ describe('sheetMatrix', () => {
     /* A total is shaded with a rule above; a net line darker with a heavier rule. */
     expect(m[10]![0]).toMatchObject({ value: 'Total expenses', fontWeight: 'bold', backgroundColor: '#eceeea', topBorderStyle: 'thin' });
     expect(m[10]![1]).toMatchObject({ backgroundColor: '#eceeea' });
-    expect(m[11]![0]).toMatchObject({ value: 'NET PROFIT', fontWeight: 'bold', backgroundColor: '#e3e6e0', topBorderStyle: 'medium' });
+    expect(m[11]![0]).toMatchObject({ value: 'NET PROFIT', fontWeight: 'bold', backgroundColor: '#EEF0F3', topBorderStyle: 'medium' });
     expect(m[11]![1]).toMatchObject({ value: -415 });
     /* The notes at the foot. */
     expect(m[12]).toEqual([]);

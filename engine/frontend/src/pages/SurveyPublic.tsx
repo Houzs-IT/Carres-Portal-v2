@@ -11,7 +11,7 @@ import {
  *  IS the case's company. HOUZS keeps its historic literal. */
 function surveyCompanyName(): string {
   return hostDefaultCompanyCode() === HOUZS_COMPANY_CODE
-    ? "Houzs Century Sdn. Bhd."
+    ? "Carres"
     : defaultBrandingForCompany(hostDefaultCompanyCode()).companyName;
 }
 import { Star, CheckCircle2 } from "lucide-react";
@@ -54,7 +54,7 @@ export function SurveyPublic() {
       try {
         const base =
           (import.meta.env.VITE_API_URL as string) ||
-          (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
+          (import.meta.env.PROD ? "" : "http://localhost:8787");
         const res = await correlatedFetch(`${base}/api/survey/${encodeURIComponent(token)}`);
         if (!res.ok) {
           throw correlateError(

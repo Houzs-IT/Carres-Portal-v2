@@ -34,7 +34,7 @@ export function resetStampClock(): void {
    lives on the same origin in production (the Pages proxy), so its Date header
    is readable. */
 function clockProbeUrl(): string {
-  const base = (import.meta.env.VITE_API_URL as string | undefined) || (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
+  const base = (import.meta.env.VITE_API_URL as string | undefined) || (import.meta.env.PROD ? "" : "http://localhost:8787");
   return `${base}/api/auth/status`;
 }
 
