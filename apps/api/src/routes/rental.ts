@@ -47,6 +47,7 @@ import { stripeClient, stripeConfigured } from "../lib/stripe";
 import { adminClient, userClient } from "../lib/supabase";
 import { todayIsoMYT } from "../lib/today";
 import type { AppEnv } from "../types";
+import { refuseWhenOldOrdersOff } from "../lib/old-order-flows";
 
 // ---------------------------------------------------------------------------
 // Rental + Service Plan base (migrations 0247-0249, 2026-07-25).
@@ -1618,7 +1619,7 @@ function decodeSignature(dataUrl: string): { bytes: Uint8Array; contentType: str
 // DB needs a path to stamp), then the RPC runs; if the RPC refuses, the blob is
 // removed again so a rejected signup leaves nothing behind. The alternative
 // order is impossible: the agreement id does not exist until the RPC returns.
-rentalRouter.post("/agreements", async (c) => {
+rentalRouter.post("/agreements", refuseWhenOldOrdersOff, async (c) => {
   sellerOnly(c);
   const parsed = await parseJsonBody(c, createRentalAgreementInputSchema);
   if (!parsed.ok) return c.json(parsed.body, parsed.status);
