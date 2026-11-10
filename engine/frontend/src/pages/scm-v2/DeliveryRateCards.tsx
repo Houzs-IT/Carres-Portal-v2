@@ -431,7 +431,7 @@ const CardEditor = ({ cardId, onDeleted }: { cardId: string; onDeleted: () => vo
             </select>
           </Field>
           <label className="flex cursor-pointer items-center gap-2.5 self-start pt-[26px] text-[14px] font-semibold text-ink">
-            <input type="checkbox" className="h-[18px] w-[18px] accent-[#16695f]" checked={card.isActive} disabled={update.isPending}
+            <input type="checkbox" className="h-[18px] w-[18px] accent-[#1B1B39]" checked={card.isActive} disabled={update.isPending}
               onChange={(e) => patch({ isActive: e.target.checked })} />
             Active
           </label>

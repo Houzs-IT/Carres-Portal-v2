@@ -49,7 +49,7 @@ export const AddSupplierBinding = ({ productCode, productName }: { productCode: 
   };
 
   const cta: React.CSSProperties = {
-    fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--c-burnt, #0c3f39)',
+    fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--c-burnt, #2F55E0)',
     background: 'transparent', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-sm)',
     padding: '5px 11px', cursor: 'pointer',
   };
@@ -59,7 +59,7 @@ export const AddSupplierBinding = ({ productCode, productName }: { productCode: 
   };
   const fieldLabel: React.CSSProperties = {
     fontSize: 'var(--fs-11)', fontWeight: 700, textTransform: 'uppercase',
-    letterSpacing: '0.04em', color: '#767b6e', marginBottom: 4, display: 'block',
+    letterSpacing: '0.04em', color: '#6B7280', marginBottom: 4, display: 'block',
   };
 
   if (!open) {

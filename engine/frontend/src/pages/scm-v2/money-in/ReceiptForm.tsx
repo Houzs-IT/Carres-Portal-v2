@@ -244,7 +244,7 @@ export function ReceiptForm({
                               <div key={b.id} className={ui.pickRow}>
                                 <input type="checkbox" aria-label={`Collect ${b.bill_number} in full`} checked={got === out && out > 0}
                                   onChange={(e) => { const on = e.target.checked; setV((p) => ({ ...p, alloc: { ...p.alloc, [b.id]: on ? out : 0 } })); }}
-                                  style={{ width: 16, height: 16, accentColor: '#16695f' }} />
+                                  style={{ width: 16, height: 16, accentColor: '#1B1B39' }} />
                                 <span className={ui.pickNo}>{b.bill_number}</span>
                                 <span className={ui.muted}>{fmtDate(b.bill_date)}</span>
                                 <span className={ui.pickFor} title={b.notes ?? undefined}>{b.notes ?? '—'}</span>

@@ -5,11 +5,11 @@ import { formatDate } from "../lib/utils";
 import { orderDeliveryOf } from "../vendor/scm/lib/assr/order-delivery";
 import { cellEllipsis } from "./assr-case-fields";
 
-const INK = "#11140f";
-const TEAL_DK = "#0c3f39";
+const INK = "#111827";
+const TEAL_DK = "#2F55E0";
 const GREY = "#9aa093";
-const DIM = "#e3e6e0";
-const FIELD_BG = "#f4f6f3";
+const DIM = "#EEF0F3";
+const FIELD_BG = "#F8F9FA";
 
 function Chip({ label, value, accent }: { label: string; value: string | null; accent?: boolean }) {
   return (

@@ -299,7 +299,7 @@ const CompanyRow = ({ row, open, onToggleOpen }: { row: ThreePLCompanyRow; open:
         <Fact label="Office" value={row.officePhone ? formatPhone(row.officePhone) : null} sub={row.email} />
 
         <label className="inline-flex flex-none cursor-pointer items-center gap-1.5">
-          <input type="checkbox" className="h-4 w-4 accent-[#16695f]" checked={row.isActive} disabled={update.isPending}
+          <input type="checkbox" className="h-4 w-4 accent-[#1B1B39]" checked={row.isActive} disabled={update.isPending}
             onChange={() => update.mutate({ id: row.id, isActive: !row.isActive }, {
               onError: writeFailedAs('The company was not updated'),
             })} />
@@ -518,8 +518,8 @@ const Inp = ({ value, onChange, placeholder, width }: {
     style={{ ...selStyle, width: width ?? 150 }} />
 );
 const selStyle: CSSProperties = {
-  minHeight: 38, padding: '0 10px', borderRadius: 8, border: '1px solid #d6d9d2',
-  background: '#fff', color: '#11140f', fontSize: 13,
+  minHeight: 38, padding: '0 10px', borderRadius: 8, border: '1px solid #E5E7EB',
+  background: '#fff', color: '#111827', fontSize: 13,
 };
 
 export default ThreePLCompanies;

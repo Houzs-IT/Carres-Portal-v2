@@ -12,7 +12,7 @@ import type { PlanningOrder, useScheduleDelivery } from '../lib/delivery-plannin
 export type MarkDeliveredSchedule = ReturnType<typeof useScheduleDelivery>['mutate'];
 
 export function MarkDeliveredCell({ order, onSchedule }: { order: PlanningOrder; onSchedule: MarkDeliveredSchedule }) {
-  if (order.row_type !== 'assr') return <span style={{ color: '#767b6e' }}>—</span>;
+  if (order.row_type !== 'assr') return <span style={{ color: '#6B7280' }}>—</span>;
   // A cancelled leg is already off the board, so a visible row is only pending or delivered.
   const value: 'delivered' | 'pending' = order.delivery_state === 'DELIVERED' ? 'delivered' : 'pending';
   return (

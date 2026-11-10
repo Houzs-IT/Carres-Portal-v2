@@ -1338,7 +1338,7 @@ function MembersTab({
                   }}
                   onChange={() => (all ? clearSelect() : selectAllFiltered())}
                   onClick={(e) => e.stopPropagation()}
-                  className="h-3.5 w-3.5 cursor-pointer accent-[#a16a2e]"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#D64F20]"
                   aria-label="Select all members"
                   title="Select all"
                 />
@@ -1354,7 +1354,7 @@ function MembersTab({
                   disabled={bulkBusy}
                   onChange={() => toggleSelect(u.id)}
                   onClick={(e) => e.stopPropagation()}
-                  className="h-3.5 w-3.5 cursor-pointer accent-[#a16a2e]"
+                  className="h-3.5 w-3.5 cursor-pointer accent-[#D64F20]"
                   aria-label={`Select ${u.name || u.email}`}
                 />
               ),
@@ -2656,12 +2656,12 @@ function MemberDetail({
           className={cn(
             "px-3 py-2 text-[12.5px] font-semibold transition-colors",
             view === "overview"
-              ? "text-primary shadow-[inset_0_-2px_0_var(--tw-color-primary,#16695f)]"
+              ? "text-primary shadow-[inset_0_-2px_0_var(--tw-color-primary,#1B1B39)]"
               : "text-ink-muted hover:text-ink",
           )}
           style={
             view === "overview"
-              ? { boxShadow: "inset 0 -2px 0 #16695f" }
+              ? { boxShadow: "inset 0 -2px 0 #1B1B39" }
               : undefined
           }
         >
@@ -2680,7 +2680,7 @@ function MemberDetail({
           )}
           style={
             view === "org-performance"
-              ? { boxShadow: "inset 0 -2px 0 #16695f" }
+              ? { boxShadow: "inset 0 -2px 0 #1B1B39" }
               : undefined
           }
         >

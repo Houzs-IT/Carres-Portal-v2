@@ -102,7 +102,7 @@ export function QualitySummary({ from, to, fq, filters, periodLabel, breachNow, 
       {q.error && <div className="rounded-md border border-err/40 bg-err/5 px-3 py-2 text-[12.5px] text-err">Could not load the quality summary: {q.error}</div>}
       {/* The headline on the dark slab the home page and Project Overview use. */}
       <section className="relative overflow-hidden rounded-2xl bg-sidebar px-5 py-5 text-sidebar-ink shadow-slab sm:px-7">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, rgba(22,105,95,0.6), transparent 70%)" }} />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, rgba(27, 27, 57,0.6), transparent 70%)" }} />
         <div className="relative">
           <div className="font-mono text-[10px] font-bold uppercase tracking-brand text-accent-bright">Service cases · {periodLabel}</div>
           <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-5">

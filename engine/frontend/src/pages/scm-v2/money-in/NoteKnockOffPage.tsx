@@ -132,7 +132,7 @@ export function NoteKnockOffPage({ id, backLabel, onClose, onSaved }: {
                             return (
                               <div key={r.id} className={ui.pickRow}>
                                 <input type="checkbox" aria-label={`Knock off ${r.number}`} checked={mine > 0} disabled={save.isPending || (mine === 0 && reach === 0)}
-                                  onChange={(e) => put(r, e.target.checked ? reach : 0)} style={{ width: 16, height: 16, accentColor: '#16695f' }} />
+                                  onChange={(e) => put(r, e.target.checked ? reach : 0)} style={{ width: 16, height: 16, accentColor: '#1B1B39' }} />
                                 <span className={ui.pickNo}>{r.number}</span>
                                 <span className={ui.muted}>{fmtDate(r.invoiceDate)}</span>
                                 <span className={ui.pickFor} title={r.invoiceRef ?? undefined}>{r.invoiceRef ?? '—'} · total {fmtSen(r.totalSen)}</span>

@@ -234,9 +234,9 @@ export const ProductModels = () => {
                 className={styles.statusPill}
                 title="No SKUs under this Model — likely an orphan left behind after its SKUs were deleted from SKU Master."
                 style={{
-                  background: '#e1efed',
-                  color: '#0c3f39',
-                  borderColor: '#16695f',
+                  background: '#DCE6FD',
+                  color: '#2F55E0',
+                  borderColor: '#1B1B39',
                   fontWeight: 600,
                 }}
               >
@@ -244,7 +244,7 @@ export const ProductModels = () => {
               </span>
             );
           }
-          return <span style={{ color: '#767b6e' }}>{skuCountText(m)}</span>;
+          return <span style={{ color: '#6B7280' }}>{skuCountText(m)}</span>;
         },
         searchValue: (m) => String(m.sku_count ?? 0),
         filterValue: (m) => ((m.sku_count ?? 0) === 0 ? '0 SKUs' : String(m.sku_count ?? 0)),
@@ -255,7 +255,7 @@ export const ProductModels = () => {
         label: 'Description',
         width: 240,
         accessor: (m) => (
-          <span style={{ color: '#767b6e' }}>{m.description ?? '—'}</span>
+          <span style={{ color: '#6B7280' }}>{m.description ?? '—'}</span>
         ),
         searchValue: (m) => m.description ?? '',
         filterValue: (m) => m.description ?? '—',
@@ -278,7 +278,7 @@ export const ProductModels = () => {
               onClick={() => setEditModel(m)}
               style={{
                 background: 'transparent', border: 'none', padding: 4,
-                cursor: 'pointer', color: '#767b6e',
+                cursor: 'pointer', color: '#6B7280',
                 display: 'inline-flex', alignItems: 'center',
               }}
             >
@@ -626,14 +626,14 @@ function ModelPhotoCell({ model }: { model: ProductModelRow }) {
           width: 48,
           height: 48,
           borderRadius: 'var(--radius-sm)',
-          border: '1px solid #d6d9d2',
-          background: src ? `#f4f6f3 center/cover no-repeat url(${src})` : '#f4f6f3',
+          border: '1px solid #E5E7EB',
+          background: src ? `#F8F9FA center/cover no-repeat url(${src})` : '#F8F9FA',
           padding: 0,
           cursor: busy ? 'wait' : 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#767b6e',
+          color: '#6B7280',
           overflow: 'hidden',
         }}
       >
@@ -649,7 +649,7 @@ function ModelPhotoCell({ model }: { model: ProductModelRow }) {
               top: -6, right: -6,
               width: 16, height: 16,
               borderRadius: '50%',
-              background: '#11140f',
+              background: '#111827',
               /* fg-on-ink — #fff, not the surface-2 hex --c-cream mapped to
                  elsewhere: here it painted text on an ink fill, not a bg. */
               color: '#fff',
@@ -1121,17 +1121,17 @@ export function NewModelDialog({
             width: '100%',
             padding: '10px 12px',
             marginTop: 4,
-            border: '1px dashed #16695f',
+            border: '1px dashed #1B1B39',
             borderRadius: 'var(--radius-md)',
             background: 'transparent',
-            color: '#16695f',
+            color: '#1B1B39',
             fontFamily: 'var(--font-sans)',
             fontSize: 'var(--fs-13)',
             fontWeight: 600,
             cursor: 'pointer',
             transition: 'background 120ms ease',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#e1efed'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#DCE6FD'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
         >
           <Plus {...ICON} />
@@ -1177,16 +1177,16 @@ export function NewModelDialog({
         {/* (D) Live preview — what the system will actually create. */}
         {previewCodes.length > 0 && (
           <div style={{
-            fontSize: 'var(--fs-11)', color: '#767b6e',
+            fontSize: 'var(--fs-11)', color: '#6B7280',
             padding: '6px 2px', lineHeight: 1.5,
           }}>
             <span style={{
               fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
-              letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0c3f39',
+              letterSpacing: '0.06em', textTransform: 'uppercase', color: '#2F55E0',
             }}>Will create → </span>
             {previewCodes.map((c, i) => (
               <span key={i}>
-                <code style={{ fontWeight: 700, color: '#11140f' }}>{c}</code>
+                <code style={{ fontWeight: 700, color: '#111827' }}>{c}</code>
                 {i < previewCodes.length - 1 ? ', ' : ''}
               </span>
             ))}
@@ -1309,7 +1309,7 @@ function ModelRowCard({
           every SKU this row generates is bound to each filled entry with a
           code auto-suffixed per size/variant. Only one entry can be Main.
           Shown for every category (None = no binding). */}
-      <div style={{ borderTop: '1px solid #d6d9d2', marginTop: 8, paddingTop: 8 }}>
+      <div style={{ borderTop: '1px solid #E5E7EB', marginTop: 8, paddingTop: 8 }}>
         {row.suppliers.map((sup, si) => {
           const patchSup = (patch: Partial<SupplierEntry>) => {
             onChange({
@@ -1375,14 +1375,14 @@ function ModelRowCard({
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
             marginTop: 6, padding: 0, border: 'none', background: 'transparent',
-            color: '#16695f', fontFamily: 'var(--font-sans)',
+            color: '#1B1B39', fontFamily: 'var(--font-sans)',
             fontSize: 'var(--fs-12)', fontWeight: 600, cursor: 'pointer',
           }}
         >
           + Add supplier
         </button>
         {row.suppliers.some((s) => s.supplierId && s.supplierCode.trim()) && (
-          <div style={{ fontSize: 'var(--fs-10)', color: '#767b6e', marginTop: 4 }}>
+          <div style={{ fontSize: 'var(--fs-10)', color: '#6B7280', marginTop: 4 }}>
             Every generated SKU for this model will be bound to {
               row.suppliers.filter((s) => s.supplierId && s.supplierCode.trim()).length === 1
                 ? `this supplier with code “${row.suppliers.find((s) => s.supplierId && s.supplierCode.trim())!.supplierCode.trim()}”`
@@ -1424,7 +1424,7 @@ function InlineAllowedOptions({
     return (
       <div className={styles.field}>
         <span className="t-eyebrow">{label}</span>
-        <p style={{ fontSize: 'var(--fs-12)', color: '#767b6e', margin: 0 }}>
+        <p style={{ fontSize: 'var(--fs-12)', color: '#6B7280', margin: 0 }}>
           Maintenance pool is empty — add entries in Maintenance first.
         </p>
       </div>
@@ -1440,7 +1440,7 @@ function InlineAllowedOptions({
     <div className={styles.field} style={{ gap: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <span className="t-eyebrow" style={{ marginRight: 4 }}>{label}</span>
-        <span style={{ fontSize: 'var(--fs-11)', color: '#767b6e' }}>· {hint}</span>
+        <span style={{ fontSize: 'var(--fs-11)', color: '#6B7280' }}>· {hint}</span>
         {onSetAll && (
           <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4 }}>
             <button
@@ -1454,9 +1454,9 @@ function InlineAllowedOptions({
                 textTransform: 'uppercase',
                 padding: '1px 7px',
                 borderRadius: 999,
-                border: '1px solid #d6d9d2',
+                border: '1px solid #E5E7EB',
                 background: '#fff',
-                color: allOn ? '#767b6e' : '#11140f',
+                color: allOn ? '#6B7280' : '#111827',
                 cursor: allOn ? 'default' : 'pointer',
                 opacity: allOn ? 0.5 : 1,
               }}
@@ -1475,9 +1475,9 @@ function InlineAllowedOptions({
                 textTransform: 'uppercase',
                 padding: '1px 7px',
                 borderRadius: 999,
-                border: '1px solid #d6d9d2',
+                border: '1px solid #E5E7EB',
                 background: '#fff',
-                color: allOff ? '#767b6e' : '#11140f',
+                color: allOff ? '#6B7280' : '#111827',
                 cursor: allOff ? 'default' : 'pointer',
                 opacity: allOff ? 0.5 : 1,
               }}
@@ -1509,10 +1509,10 @@ function InlineAllowedOptions({
                 gap: 6,
                 padding: '4px 12px',
                 borderRadius: 999,
-                border: '1px solid ' + (isOn ? '#16695f' : '#c2c6bd'),
-                background: isOn ? '#16695f' : '#fff',
+                border: '1px solid ' + (isOn ? '#1B1B39' : '#c2c6bd'),
+                background: isOn ? '#1B1B39' : '#fff',
                 /* isOn = petrol fill, so --c-cream here was fg-on-petrol → #fff. */
-                color: isOn ? '#fff' : '#11140f',
+                color: isOn ? '#fff' : '#111827',
                 cursor: 'pointer',
                 transition: 'all 120ms ease-out',
                 fontFamily: 'var(--font-mono)',
@@ -1672,7 +1672,7 @@ function EditModelDialog({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            style={{ background: 'transparent', border: 'none', color: '#767b6e', cursor: 'pointer', padding: 4, lineHeight: 0 }}
+            style={{ background: 'transparent', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 4, lineHeight: 0 }}
           >
             <X size={18} strokeWidth={1.75} />
           </button>
@@ -1998,7 +1998,7 @@ export function ModularAssignSupplierDialog({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#767b6e',
+              color: '#6B7280',
               cursor: 'pointer',
               padding: 4,
               lineHeight: 0,
@@ -2017,7 +2017,7 @@ export function ModularAssignSupplierDialog({
         />
 
         <div style={{
-          border: '1px solid #d6d9d2',
+          border: '1px solid #E5E7EB',
           borderRadius: 'var(--radius-md)',
           background: '#fff',
           // The table area takes the remaining modal height and scrolls on its
@@ -2029,7 +2029,7 @@ export function ModularAssignSupplierDialog({
         }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-sans)' }}>
             <thead>
-              <tr style={{ background: '#e3e6e0', borderBottom: '2px solid #d6d9d2' }}>
+              <tr style={{ background: '#EEF0F3', borderBottom: '2px solid #E5E7EB' }}>
                 <th style={thStyle}>Model · Supplier</th>
                 <th style={thStyle}>Supplier Code</th>
                 <th style={thStyle}>Description</th>
@@ -2041,7 +2041,7 @@ export function ModularAssignSupplierDialog({
             </thead>
             <tbody>
               {draftRows.length === 0 && (
-                <tr><td colSpan={7} style={{ ...tdStyle, color: '#767b6e', textAlign: 'center' }}>
+                <tr><td colSpan={7} style={{ ...tdStyle, color: '#6B7280', textAlign: 'center' }}>
                   {loading
                     ? 'Loading…'
                     : supplierIds.length === 0
@@ -2058,19 +2058,19 @@ export function ModularAssignSupplierDialog({
                 const head = rowsForModel[0]!;
                 return (
                   <Fragment key={modelId}>
-                    <tr style={{ background: '#e3e6e0', borderBottom: '2px solid #d6d9d2' }}>
+                    <tr style={{ background: '#EEF0F3', borderBottom: '2px solid #E5E7EB' }}>
                       <td colSpan={7} style={{
                         padding: '6px 12px',
                         fontSize: 'var(--fs-12)',
-                        color: '#767b6e',
+                        color: '#6B7280',
                         textTransform: 'uppercase',
                         letterSpacing: '0.04em',
                       }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', color: '#11140f', fontWeight: 600 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: '#111827', fontWeight: 600 }}>
                           {head.modelCode}
                         </span>
                         {' · '}
-                        <span style={{ color: '#11140f' }}>{head.modelName}</span>
+                        <span style={{ color: '#111827' }}>{head.modelName}</span>
                         {' — '}
                         {rowsForModel.length} supplier{rowsForModel.length === 1 ? '' : 's'}
                         {' · '}
@@ -2081,10 +2081,10 @@ export function ModularAssignSupplierDialog({
                       const isOpen = expanded.has(d.key);
                       return (
                         <Fragment key={d.key}>
-                          <tr style={{ borderBottom: '1px solid #d6d9d2' }}>
+                          <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
                             <td style={tdStyle}>
                               <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{d.supplierCode_s}</div>
-                              <div style={{ color: '#767b6e', fontSize: 'var(--fs-12)' }}>{d.supplierName}</div>
+                              <div style={{ color: '#6B7280', fontSize: 'var(--fs-12)' }}>{d.supplierName}</div>
                               <button
                                 type="button"
                                 onClick={() => toggleExpanded(d.key)}
@@ -2096,7 +2096,7 @@ export function ModularAssignSupplierDialog({
                                   marginTop: 2,
                                   fontSize: 'var(--fs-12)',
                                   cursor: d.skus.length === 0 ? 'default' : 'pointer',
-                                  color: isOpen ? '#0c3f39' : '#767b6e',
+                                  color: isOpen ? '#2F55E0' : '#6B7280',
                                   textDecoration: 'underline',
                                   textUnderlineOffset: 2,
                                 }}
@@ -2156,11 +2156,11 @@ export function ModularAssignSupplierDialog({
                             </td>
                           </tr>
                           {isOpen && d.skus.length > 0 && (
-                            <tr style={{ background: '#f4f6f3' }}>
+                            <tr style={{ background: '#F8F9FA' }}>
                               <td colSpan={7} style={{
                                 padding: 'var(--space-2) var(--space-3)',
-                                borderBottom: '1px solid #d6d9d2',
-                                borderTop: '1px dashed #d6d9d2',
+                                borderBottom: '1px solid #E5E7EB',
+                                borderTop: '1px dashed #E5E7EB',
                               }}>
                                 {/* PR — preview uses THIS row's typed base code +
                                     composeSupplierSku() so commander sees the
@@ -2195,7 +2195,7 @@ export function ModularAssignSupplierDialog({
         )}
 
         <footer className={styles.modalFooter} style={{ justifyContent: 'space-between' }}>
-          <span style={{ color: '#767b6e', fontSize: 'var(--fs-12)' }}>
+          <span style={{ color: '#6B7280', fontSize: 'var(--fs-12)' }}>
             {totalSkus > 0
               ? `Will POST ${totalSkus} binding${totalSkus === 1 ? '' : 's'} across ` +
                 `${new Set(draftRows.filter((d) => d.supplierCode.trim()).map((d) => d.supplierId)).size} supplier${
@@ -2221,19 +2221,19 @@ export function ModularAssignSupplierDialog({
 
 const thStyle: React.CSSProperties = {
   // Batch 3 theme skin — the SO-sample DataTable header spec (sans 10px/700,
-  // tracking-brand 0.18em, surface-dim #e3e6e0, ink).
+  // tracking-brand 0.18em, surface-dim #EEF0F3, ink).
   fontFamily: 'var(--font-sans)',
   fontSize: 10,
   fontWeight: 700,
   textAlign: 'left',
   padding: '8px 12px',
-  color: 'var(--c-ink, #11140f)',
+  color: 'var(--c-ink, #111827)',
   textTransform: 'uppercase',
   letterSpacing: '0.18em',
   // Keep the column headers visible while the (Model × Supplier) rows scroll.
   position: 'sticky',
   top: 0,
-  background: '#e3e6e0',
+  background: '#EEF0F3',
   zIndex: 1,
 };
 const tdStyle: React.CSSProperties = {
@@ -2244,8 +2244,8 @@ const tdStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-13)',
-  background: '#f4f6f3',
-  border: '1px solid #d6d9d2',
+  background: '#F8F9FA',
+  border: '1px solid #E5E7EB',
   borderRadius: 'var(--radius-sm)',
   padding: '4px 8px',
   outline: 'none',

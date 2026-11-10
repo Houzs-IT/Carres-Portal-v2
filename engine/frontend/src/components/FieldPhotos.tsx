@@ -18,13 +18,13 @@ import { ACCEPTED_PHOTO_TYPES, type FieldPhoto, type FieldPhotosApi } from "../l
    server says this person may remove it. */
 
 const C = {
-  brand: "var(--brand, #16695f)",
+  brand: "var(--brand, #1B1B39)",
   red: "var(--red, #b23a3a)",
   green: "var(--green, #2f8a5b)",
-  mut: "var(--mut, #767b6e)",
-  line: "var(--line, #e3e6e0)",
+  mut: "var(--mut, #6B7280)",
+  line: "var(--line, #EEF0F3)",
   card: "var(--card, #ffffff)",
-  ink: "var(--ink, #11140f)",
+  ink: "var(--ink, #111827)",
 };
 
 const STATUS_TEXT: Record<FieldPhoto["status"], string> = {

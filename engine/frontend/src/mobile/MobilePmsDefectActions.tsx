@@ -32,7 +32,7 @@ function DefectThumb({ r2Key, contentType }: { r2Key?: string | null; contentTyp
     return () => { live = false; if (made) URL.revokeObjectURL(made); };
   }, [r2Key, isImage]);
   if (!r2Key || !isImage) return null;
-  const box: CSSProperties = { width: 72, height: 58, borderRadius: 7, border: "1px solid #e3e6e0", overflow: "hidden", flex: "none" };
+  const box: CSSProperties = { width: 72, height: 58, borderRadius: 7, border: "1px solid #EEF0F3", overflow: "hidden", flex: "none" };
   return url
     ? <img src={url} alt="" style={{ ...box, objectFit: "cover", display: "block" }} />
     : <div className="ph" style={box} />;
@@ -123,9 +123,9 @@ export function DefectFileActions({
     <div style={{ paddingLeft: wide ? 0 : 2 }}>
       {wide ? (
         (model || reason) && (
-          <div style={{ background: "#faf9f5", borderLeft: "3px solid #d8a85a", borderRadius: 7, padding: "7px 10px", fontSize: 11.5, lineHeight: 1.45, color: "#414539", marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {model && <div><b style={{ color: "#a16a2e" }}>Model:</b> {model}</div>}
-            {reason && <div><b style={{ color: "#a16a2e" }}>Reason:</b> {reason}</div>}
+          <div style={{ background: "#faf9f5", borderLeft: "3px solid #D64F20", borderRadius: 7, padding: "7px 10px", fontSize: 11.5, lineHeight: 1.45, color: "#4B5563", marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {model && <div><b style={{ color: "#D64F20" }}>Model:</b> {model}</div>}
+            {reason && <div><b style={{ color: "#D64F20" }}>Reason:</b> {reason}</div>}
           </div>
         )
       ) : (
@@ -157,7 +157,7 @@ export function DefectFileActions({
           <textarea className="fld-i" value={remark} disabled={saving} rows={2} onChange={(e) => setRemark(e.target.value)} placeholder="Add a remark (optional)…" style={{ fontSize: 12, padding: "5px 8px", resize: "vertical" }} />
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4 }}>
             <button className="tinybtn" disabled={saving} onClick={() => { setDraft(null); setRemark(""); }}>Cancel</button>
-            <button className="tinybtn" disabled={saving} style={{ background: "#11140f", borderColor: "#11140f", color: "#fff" }} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button>
+            <button className="tinybtn" disabled={saving} style={{ background: "#111827", borderColor: "#111827", color: "#fff" }} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button>
           </div>
         </div>
       )}

@@ -27,11 +27,11 @@
   /* Remapped to Theme C (2026-06-26) so the vendored SCM pages match the
      main app — warm cream/orange → cool white/petrol. Originals in comments. */
   --c-cream:        #ffffff;   /* was #FFF9EB — Theme C surface          */
-  --c-beige:        #e3e6e0;   /* was #E3D0A6 — Theme C surface-dim      */
-  --c-orange:       #16695f;   /* was #E86B3A — Theme C primary (petrol) */
-  --c-burnt:        #0c3f39;   /* was #A6471E — Theme C primary-ink      */
-  --c-paper:        #f4f6f3;   /* was #F4F3F2 — Theme C surface-2        */
-  --c-ink:          #11140f;   /* was #221F20 — Theme C ink             */
+  --c-beige:        #EEF0F3;   /* was #E3D0A6 — Theme C surface-dim      */
+  --c-orange:       #1B1B39;   /* was #E86B3A — Theme C primary (petrol) */
+  --c-burnt:        #2F55E0;   /* was #A6471E — Theme C primary-ink      */
+  --c-paper:        #F8F9FA;   /* was #F4F3F2 — Theme C surface-2        */
+  --c-ink:          #111827;   /* was #221F20 — Theme C ink             */
 
   /* Secondary, season-driven (swap A/B per campaign) */
   --c-secondary-a:  #2F5D4F;   /* default earth: forest/teal           */
@@ -53,7 +53,7 @@
   --bg-subtle:      #eceeea;
 
   --fg:             var(--c-ink);
-  --fg-muted:       #767b6e;       /* was #5C5455 — Theme C ink-muted  */
+  --fg-muted:       #6B7280;       /* was #5C5455 — Theme C ink-muted  */
   --fg-soft:        #9aa093;       /* was #8B7E6A — Theme C soft grey   */
   --fg-on-orange:   var(--c-cream);
   --fg-on-ink:      var(--c-cream);

@@ -37,7 +37,7 @@
 .handle {
   position: absolute; top: 0; bottom: 0; right: -5px; width: 10px; z-index: 3; cursor: col-resize;
 }
-.handle:hover { background: rgba(22, 105, 95, 0.14); }
+.handle:hover { background: rgba(27, 27, 57, 0.14); }
 
 /* ── Cells ── */
 .name {

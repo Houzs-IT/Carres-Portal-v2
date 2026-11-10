@@ -16,20 +16,20 @@ import { compact, type RankBar, type Slice, type Step } from './product-profit-v
 export { compact };
 
 const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-const INK = '#11140f';
-const INK2 = '#414539';
-const MUTED = '#767b6e';
-const GRID = '#e3e6e0';
+const INK = '#111827';
+const INK2 = '#4B5563';
+const MUTED = '#6B7280';
+const GRID = '#EEF0F3';
 /* The reports' palette (the owner's redesign, batch 6 §5.11): petrol, gold and
    warm grey, the P&L chart's three; dark petrol for the bottom line, the
    Finance red for a loss. Hex, not tokens: Charts PNG draws the SVG as it is. */
-const PETROL = '#16695f';
-const PETROL_INK = '#0c3f39';
-const GOLD = '#d8a85a';
+const PETROL = '#1B1B39';
+const PETROL_INK = '#2F55E0';
+const GOLD = '#D64F20';
 const WARM_GREY = '#a3a99b';
 const RED = '#a83434';
-export const SLICE_COLOURS = [PETROL, GOLD, WARM_GREY, '#6fa79e', '#a16a2e', PETROL_INK];
-const REST_COLOUR = '#d6d9d2';
+export const SLICE_COLOURS = [PETROL, GOLD, WARM_GREY, '#6fa79e', '#D64F20', PETROL_INK];
+const REST_COLOUR = '#E5E7EB';
 const CATEGORY_COLOURS = { mattress: PETROL, sofa: GOLD, bedframe: '#6fa79e', other: WARM_GREY } as const;
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);

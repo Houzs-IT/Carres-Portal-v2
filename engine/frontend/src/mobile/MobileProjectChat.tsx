@@ -135,14 +135,14 @@ export function MobileProjectChat({
                     alignItems: mine ? "flex-end" : "flex-start",
                   }}
                 >
-                  <div style={{ display: "flex", gap: 6, alignItems: "baseline", fontSize: 10.5, color: "#767b6e" }}>
-                    <span style={{ fontWeight: 700, color: "#414539" }}>{n.user_name || "Unknown"}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "baseline", fontSize: 10.5, color: "#6B7280" }}>
+                    <span style={{ fontWeight: 700, color: "#4B5563" }}>{n.user_name || "Unknown"}</span>
                     <span>{relativeTime(n.created_at)}</span>
                   </div>
                   <div
                     style={{
                       fontSize: 13,
-                      color: "#11140f",
+                      color: "#111827",
                       background: mine ? "#e5f4ec" : "#fff",
                       border: "1px solid #eceee9",
                       borderRadius: 10,
@@ -204,7 +204,7 @@ export function MobileProjectChat({
                 height: 40,
                 padding: 0,
                 borderRadius: 10,
-                color: "#16695f",
+                color: "#1B1B39",
                 borderColor: "#bcdcd7",
               }}
             >
@@ -249,7 +249,7 @@ function FormatHints({ note, align }: { note: string | null; align: "start" | "e
             borderRadius: 7,
             border: it.tone === "warn" ? "1px solid #f4d9a8" : "1px solid #dde1d8",
             background: it.tone === "warn" ? "#fdf5e4" : "#f3f5f0",
-            color: it.tone === "warn" ? "#8a4e0e" : "#414539",
+            color: it.tone === "warn" ? "#8a4e0e" : "#4B5563",
           }}
         >
           {it.message}

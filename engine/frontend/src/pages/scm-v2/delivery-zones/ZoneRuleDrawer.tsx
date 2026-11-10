@@ -134,7 +134,7 @@ export function ZoneRuleDrawer({ target, rules, defaultMap, knownZones, onClose 
 
         <label className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2.5">
           <span className="text-[12.5px]"><span className="font-semibold text-ink">In use</span><span className="block text-ink-muted">A turned-off rule stays here but does not decide any zone.</span></span>
-          <input type="checkbox" role="switch" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-5 w-5 accent-[#16695f]" aria-label="In use" />
+          <input type="checkbox" role="switch" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-5 w-5 accent-[#1B1B39]" aria-label="In use" />
         </label>
 
         <section className="rounded-xl border border-border bg-surface p-4" aria-live="polite">
@@ -148,7 +148,7 @@ export function ZoneRuleDrawer({ target, rules, defaultMap, knownZones, onClose 
                 <div className="flex h-5 gap-px overflow-hidden rounded-md">
                   {preview.after.map((z, p) => {
                     const inRange = p >= preview.v.prefixStart && p <= preview.v.prefixEnd;
-                    return <span key={p} className="flex-1" style={{ background: inRange ? (active ? '#16695f' : '#9fb8b3') : z ? '#d6d9d2' : '#eef0ec' }} />;
+                    return <span key={p} className="flex-1" style={{ background: inRange ? (active ? '#1B1B39' : '#9fb8b3') : z ? '#E5E7EB' : '#F6F7F9' }} />;
                   })}
                 </div>
                 <div className="mt-1 flex justify-between text-[11px] text-ink-muted"><span>00</span><span>25</span><span>50</span><span>75</span><span>99</span></div>

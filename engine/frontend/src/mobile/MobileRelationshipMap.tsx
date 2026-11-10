@@ -53,11 +53,11 @@ const cardStatus = (c: MobileMapCard): string => {
 
 /* Chip dress — lockstep with ./source-chips.tsx. */
 const chipBase: React.CSSProperties = {
-  fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#0c3f39",
+  fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#2F55E0",
   background: "#eef3f1", border: "1px solid #d7e2de", borderRadius: 5, padding: "1px 6px",
 };
 const mutedChip: React.CSSProperties = {
-  ...chipBase, color: "#5c6357", background: "#f4f6f3", border: "1px solid #d9ded4",
+  ...chipBase, color: "#5c6357", background: "#F8F9FA", border: "1px solid #d9ded4",
 };
 const floatingChip: React.CSSProperties = {
   ...mutedChip, background: "transparent", border: "1px dashed #b6c6c0",
@@ -65,7 +65,7 @@ const floatingChip: React.CSSProperties = {
 
 const eyebrowStyle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, letterSpacing: ".13em", textTransform: "uppercase",
-  color: "#a16a2e", margin: "2px 2px 8px",
+  color: "#D64F20", margin: "2px 2px 8px",
 };
 
 /* One document card. Tappable only when a mobile screen exists AND the shell
@@ -81,7 +81,7 @@ function MapCard({ card, nav, onClose }: { card: MobileMapCard; nav?: FlowNav; o
       title={card.floating ? FLOATING_TITLE : open ? "Open document" : undefined}
       style={{
         background: card.isAnchor ? "#fff7d6" : "#fff",
-        border: card.isAnchor ? "2px solid #d4a017" : card.floating ? "1.5px dashed #b6c6c0" : "1px solid #e3e6e0",
+        border: card.isAnchor ? "2px solid #d4a017" : card.floating ? "1.5px dashed #b6c6c0" : "1px solid #EEF0F3",
         borderRadius: 12, padding: "9px 12px",
         opacity: card.cancelled ? 0.55 : 1,
         cursor: open ? "pointer" : "default",
@@ -98,12 +98,12 @@ function MapCard({ card, nav, onClose }: { card: MobileMapCard; nav?: FlowNav; o
       <div
         className="money"
         style={{
-          fontSize: 13, fontWeight: 800, color: "#11140f", marginTop: 2,
+          fontSize: 13, fontWeight: 800, color: "#111827", marginTop: 2,
           textDecoration: card.cancelled ? "line-through" : "none", wordBreak: "break-all",
         }}
       >
         {card.label}{card.floating ? " ~" : ""}
-        {open && <span style={{ color: "#16695f", fontWeight: 600, marginLeft: 6 }}>{"›"}</span>}
+        {open && <span style={{ color: "#1B1B39", fontWeight: 600, marginLeft: 6 }}>{"›"}</span>}
       </div>
       {card.fromLabels.length > 0 && (
         <div className="money" style={{ fontSize: 10, color: "#9aa093", marginTop: 2 }}>
@@ -198,7 +198,7 @@ export function MobileRelationshipMap({ type, id, label, onClose, nav }: {
             {model.pairings.length > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <div style={eyebrowStyle}>Sales ▸ Procurement pairing</div>
-                <div style={{ background: "#fff", border: "1px solid #e3e6e0", borderRadius: 12, padding: "4px 12px" }}>
+                <div style={{ background: "#fff", border: "1px solid #EEF0F3", borderRadius: 12, padding: "4px 12px" }}>
                   {model.pairings.map((p) => {
                     const floating = p.identity === "floating";
                     const title = floating ? FLOATING_TITLE : PROVENANCE_TITLE;

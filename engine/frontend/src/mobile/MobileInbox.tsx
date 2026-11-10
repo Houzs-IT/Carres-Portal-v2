@@ -11,7 +11,7 @@ import "./mobile.css";
 // feed is project-activity notifications, so the icon is derived from the row's
 // action rather than a stored type. Falls back to a neutral bell.
 function ActivityIcon({ action }: { action: string }) {
-  const common = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "#16695f", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const common = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "#1B1B39", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   switch (action) {
     case "stage_change":
       return <svg {...common}><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>;
@@ -159,13 +159,13 @@ export function MobileInbox({
             disabled={marking || totalUnread === 0}
             style={{
               display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 12px",
-              border: "1px solid #d6d9d2", borderRadius: 9, background: "#f4f6f3", color: "#414539",
+              border: "1px solid #E5E7EB", borderRadius: 9, background: "#F8F9FA", color: "#4B5563",
               fontFamily: "inherit", fontSize: 12, fontWeight: 700,
               cursor: marking || totalUnread === 0 ? "default" : "pointer",
               opacity: totalUnread === 0 ? 0.5 : 1,
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
             {marking ? "Marking…" : "Mark all read"}
           </button>
         </div>
@@ -195,7 +195,7 @@ export function MobileInbox({
           <>
             {today.length > 0 && (
               <div>
-                <div className="ey" style={{ color: "#767b6e", margin: "0 2px 9px" }}>Today</div>
+                <div className="ey" style={{ color: "#6B7280", margin: "0 2px 9px" }}>Today</div>
                 <div className="card" style={{ overflow: "hidden", marginBottom: 14 }}>
                   {today.map((item, i) => (
                     <Row key={item.id} item={item} first={i === 0} unread={(unreadByProject[item.project_id] ?? 0) > 0} onOpen={onOpen} />
@@ -205,7 +205,7 @@ export function MobileInbox({
             )}
             {earlier.length > 0 && (
               <div>
-                <div className="ey" style={{ color: "#767b6e", margin: "0 2px 9px" }}>Earlier</div>
+                <div className="ey" style={{ color: "#6B7280", margin: "0 2px 9px" }}>Earlier</div>
                 <div className="card" style={{ overflow: "hidden" }}>
                   {earlier.map((item, i) => (
                     <Row key={item.id} item={item} first={i === 0} unread={(unreadByProject[item.project_id] ?? 0) > 0} onOpen={onOpen} />
@@ -234,22 +234,22 @@ function Row({
       onClick={() => onOpen?.(item)}
       style={{
         display: "flex", alignItems: "center", gap: 11, width: "100%", textAlign: "left",
-        background: "none", border: "none", borderTop: first ? "none" : "1px solid #e3e6e0",
+        background: "none", border: "none", borderTop: first ? "none" : "1px solid #EEF0F3",
         padding: "11px 13px", cursor: onOpen ? "pointer" : "default", fontFamily: "inherit",
       }}
     >
       <span style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: "#b23a3a", visibility: unread ? "visible" : "hidden" }} />
-      <span style={{ width: 32, height: 32, flex: "none", borderRadius: 9, background: "#f4f6f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <span style={{ width: 32, height: 32, flex: "none", borderRadius: 9, background: "#F8F9FA", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <ActivityIcon action={item.action} />
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 13, fontWeight: unread ? 800 : 600, color: "#11140f", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ display: "block", fontSize: 13, fontWeight: unread ? 800 : 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {title}
           {item.brand && (
             <span className="money" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 400, color: "#9aa093" }}>{item.brand}</span>
           )}
         </span>
-        <span style={{ display: "block", fontSize: 11.5, color: "#767b6e", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ display: "block", fontSize: 11.5, color: "#6B7280", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {activityLine(item)}
         </span>
       </span>

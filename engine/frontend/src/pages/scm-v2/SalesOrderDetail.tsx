@@ -4005,13 +4005,13 @@ const changeTypeLabel = (t: string): string =>
    and emphasised on the After side; untouched fields stay plain, so the eye
    lands on the ask. Inline styles because this table is CSS-modules, not
    Tailwind (the AmendmentDetailV2 job card does the same with utility classes);
-   #0c3f39 is this stylesheet's own brand-dark (see .codeCell) rather than a
+   #2F55E0 is this stylesheet's own brand-dark (see .codeCell) rather than a
    var(--ink)-style token — the desktop app defines no such variable, it is
    scoped to .hz-m in mobile.css, so it would silently resolve to nothing here. */
 const strikeIf = (changed: boolean): CSSProperties | undefined =>
   changed ? { textDecoration: 'line-through', opacity: 0.7 } : undefined;
 const emphasiseIf = (changed: boolean): CSSProperties | undefined =>
-  changed ? { fontWeight: 700, color: '#0c3f39' } : undefined;
+  changed ? { fontWeight: 700, color: '#2F55E0' } : undefined;
 
 /* The responsible department(s) for a row's changed atoms — de-duplicated, for
    the amendment diff modal's Dept column (accountability routing). */

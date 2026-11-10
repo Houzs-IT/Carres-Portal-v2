@@ -245,7 +245,7 @@ function PanelOverlay({
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           scale: 12,
-          fillColor: '#0c3f39',
+          fillColor: '#2F55E0',
           fillOpacity: emphasis == null ? 1 : 0.55,
           strokeColor: '#ffffff',
           strokeWeight: 2,

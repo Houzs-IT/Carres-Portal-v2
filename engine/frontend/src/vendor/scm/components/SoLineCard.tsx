@@ -1006,7 +1006,7 @@ const SoLineCardInner = ({
               {multiMode && multiPicked.length > 0 && (
                 <li
                   className={styles.suggestItem}
-                  style={{ position: 'sticky', bottom: 0, background: 'var(--accent, #16695f)', color: '#fff', textAlign: 'center', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ position: 'sticky', bottom: 0, background: 'var(--accent, #1B1B39)', color: '#fff', textAlign: 'center', fontWeight: 700, cursor: 'pointer' }}
                   onMouseDown={(e) => { e.preventDefault(); commitMulti(); }}
                 >
                   Add {multiPicked.length} product{multiPicked.length > 1 ? 's' : ''}

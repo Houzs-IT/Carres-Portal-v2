@@ -26,7 +26,7 @@ type Props = {
 
 const tileCls = (on: boolean) => cn(
   'flex min-w-0 flex-col items-start justify-end gap-0.5 overflow-hidden rounded-xl px-3 py-2 text-left',
-  on ? 'shadow-[inset_0_0_0_2px_#16695f,0_6px_16px_rgba(11,71,64,.12)]' : '',
+  on ? 'shadow-[inset_0_0_0_2px_#1B1B39,0_6px_16px_rgba(11,71,64,.12)]' : '',
 );
 
 export function ZoneMapCard({ rows, map, usingDefault, byPrefix, selected, onSelect, onEdit, onAdd }: Props) {
@@ -135,7 +135,7 @@ export function ZoneMapCard({ rows, map, usingDefault, byPrefix, selected, onSel
           <div className="text-[24px] font-bold leading-tight text-ink">{title}</div>
           <div>
             <div className="flex h-5 gap-px overflow-hidden rounded-md" aria-hidden>
-              {byPrefix.map((z, p) => <span key={p} className="flex-1" style={{ background: mine(p) ? '#16695f' : z ? '#d6d9d2' : '#eef0ec' }} />)}
+              {byPrefix.map((z, p) => <span key={p} className="flex-1" style={{ background: mine(p) ? '#1B1B39' : z ? '#E5E7EB' : '#F6F7F9' }} />)}
             </div>
             <div className="mt-1 flex justify-between text-[11px] text-ink-muted"><span>00</span><span>25</span><span>50</span><span>75</span><span>99</span></div>
           </div>

@@ -637,7 +637,7 @@ const SkuMasterTab = () => {
               onClick={(e) => { e.stopPropagation(); setSuppliersRow(r); }}
               style={{
                 background: 'transparent', border: 'none', padding: 0, margin: 0,
-                cursor: 'pointer', color: '#767b6e',
+                cursor: 'pointer', color: '#6B7280',
                 display: 'inline-flex', alignItems: 'center',
               }}
             >
@@ -963,7 +963,7 @@ const SkuMasterTab = () => {
         <div className={styles.bannerErr}>
           <strong>Failed to load products.</strong>{' '}
           {error instanceof Error ? error.message : 'Something went wrong.'}
-          <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+          <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: '#6B7280' }}>
             If this keeps happening, sign out and back in — your session may
             have expired — or let IT know.
           </div>
@@ -1079,7 +1079,7 @@ const SkuMasterTab = () => {
             )}
             {!isLoading && !error && shownRows.length === 0 && (
               <tr>
-                <td colSpan={colCount} style={{ textAlign: 'center', color: '#767b6e', padding: 'var(--space-7)' }}>
+                <td colSpan={colCount} style={{ textAlign: 'center', color: '#6B7280', padding: 'var(--space-7)' }}>
                   <Package size={32} strokeWidth={1.5} />
                   <div style={{ marginTop: 8 }}>No products yet.</div>
                   <div style={{ marginTop: 4, fontSize: 'var(--fs-12)' }}>
@@ -1508,7 +1508,7 @@ export const MaintenanceTab = ({
       <div className={styles.bannerErr}>
         <strong>Failed to load maintenance config.</strong>{' '}
         {resolved.error instanceof Error ? resolved.error.message : String(resolved.error)}
-        <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+        <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: '#6B7280' }}>
           The <code>maintenance_config_history</code> table likely doesn't exist
           yet. Run migration <code>0039_hookka_products_port.sql</code> against
           Supabase, then refresh.
@@ -1607,14 +1607,14 @@ export const MaintenanceTab = ({
               <p className={styles.stateInfo} style={{ marginTop: 8 }}>
                 Effective from {resolved.data.effectiveFrom}
                 {resolved.data.hasPendingPriceChange && (
-                  <span style={{ color: '#0c3f39', fontWeight: 600 }}>
+                  <span style={{ color: '#2F55E0', fontWeight: 600 }}>
                     · Pending change on {resolved.data.pendingEffectiveFrom}
                   </span>
                 )}
               </p>
             )}
             {!isBrandings && showingMasterFallback && (
-              <p className={styles.stateInfo} style={{ marginTop: 8, color: '#0c3f39' }}>
+              <p className={styles.stateInfo} style={{ marginTop: 8, color: '#2F55E0' }}>
                 No supplier-specific pricing yet — showing the master baseline.
                 Hit Edit + Save to override.
               </p>
@@ -2005,7 +2005,7 @@ const SofaCompartmentsList = ({
                     width: 48,
                     height: 48,
                     background: hasImage ? '#fff' : '#EFEAE0',
-                    border: '1px solid #d6d9d2',
+                    border: '1px solid #E5E7EB',
                     borderRadius: 'var(--radius-sm)',
                     display: 'flex',
                     alignItems: 'center',
@@ -2052,7 +2052,7 @@ const SofaCompartmentsList = ({
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
                     ) : (
-                      <span style={{ fontSize: 'var(--fs-10)', color: '#767b6e' }}>+ photo</span>
+                      <span style={{ fontSize: 'var(--fs-10)', color: '#6B7280' }}>+ photo</span>
                     )}
                     <input
                       type="file"
@@ -2125,8 +2125,8 @@ const SofaCompartmentsList = ({
                       fontFamily: 'var(--font-mono)',
                       fontSize: 'var(--fs-14)',
                       fontWeight: 600,
-                      background: '#f4f6f3',
-                      border: '1px solid #16695f',
+                      background: '#F8F9FA',
+                      border: '1px solid #1B1B39',
                       borderRadius: 'var(--radius-sm)',
                       padding: '4px 8px',
                       outline: 'none',
@@ -2142,7 +2142,7 @@ const SofaCompartmentsList = ({
                     style={{
                       fontFamily: 'var(--font-sans)',
                       fontSize: 'var(--fs-13)',
-                      background: '#f4f6f3',
+                      background: '#F8F9FA',
                       border: '1px solid #c2c6bd',
                       borderRadius: 'var(--radius-sm)',
                       padding: '4px 8px',
@@ -2159,7 +2159,7 @@ const SofaCompartmentsList = ({
                       fontFamily: 'var(--font-mono)',
                       fontSize: 'var(--fs-14)',
                       fontWeight: 600,
-                      color: '#11140f',
+                      color: '#111827',
                     }}
                   >
                     {code}
@@ -2168,7 +2168,7 @@ const SofaCompartmentsList = ({
                     style={{
                       fontFamily: 'var(--font-sans)',
                       fontSize: 'var(--fs-13)',
-                      color: resolved.description ? '#9aa093' : '#767b6e',
+                      color: resolved.description ? '#9aa093' : '#6B7280',
                     }}
                   >
                     {resolved.description ?? '(no design — leave blank)'}
@@ -2197,7 +2197,7 @@ const SofaCompartmentsList = ({
                   style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 'var(--fs-14)',
-                    background: '#f4f6f3',
+                    background: '#F8F9FA',
                     border: '1px solid #c2c6bd',
                     borderRadius: 'var(--radius-sm)',
                     padding: '4px 8px',
@@ -2237,7 +2237,7 @@ const SofaCompartmentsList = ({
             ) : (
               <span style={{
                 fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-11)',
-                color: entryIsActive ? '#1a7a3a' : '#767b6e',
+                color: entryIsActive ? '#1a7a3a' : '#6B7280',
               }}>
                 {entryIsActive ? 'Active' : 'Inactive'}
               </span>
@@ -2264,7 +2264,7 @@ const SofaCompartmentsList = ({
           className={styles.maintRow}
           style={{
             background: '#fff',
-            borderColor: '#16695f',
+            borderColor: '#1B1B39',
             gridTemplateColumns: '32px 1fr auto',
           }}
         >
@@ -2278,8 +2278,8 @@ const SofaCompartmentsList = ({
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 'var(--fs-14)',
-              background: '#f4f6f3',
-              border: '1px solid #d6d9d2',
+              background: '#F8F9FA',
+              border: '1px solid #E5E7EB',
               borderRadius: 'var(--radius-sm)',
               padding: '6px 10px',
               outline: 'none',
@@ -2419,8 +2419,8 @@ const SofaQuickPresetsList = ({
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--fs-12)',
                 fontWeight: 600,
-                background: '#f4f6f3',
-                border: '1px solid #16695f',
+                background: '#F8F9FA',
+                border: '1px solid #1B1B39',
                 borderRadius: 'var(--radius-sm)',
                 padding: '4px 6px',
                 outline: 'none',
@@ -2448,8 +2448,8 @@ const SofaQuickPresetsList = ({
                   fontFamily: 'var(--font-sans)',
                   fontSize: 'var(--fs-14)',
                   fontWeight: 600,
-                  background: '#f4f6f3',
-                  border: '1px solid #16695f',
+                  background: '#F8F9FA',
+                  border: '1px solid #1B1B39',
                   borderRadius: 'var(--radius-sm)',
                   padding: '4px 8px',
                   outline: 'none',
@@ -2462,7 +2462,7 @@ const SofaQuickPresetsList = ({
                 fontFamily: 'var(--font-sans)',
                 fontSize: 'var(--fs-14)',
                 fontWeight: 600,
-                color: '#11140f',
+                color: '#111827',
               }}>
                 {p.label}
               </span>
@@ -2474,7 +2474,7 @@ const SofaQuickPresetsList = ({
               color: '#9aa093',
             }}>
               {p.modules.length === 0 ? (
-                <span style={{ color: '#767b6e', fontStyle: 'italic' }}>
+                <span style={{ color: '#6B7280', fontStyle: 'italic' }}>
                   No modules selected
                 </span>
               ) : (
@@ -2486,7 +2486,7 @@ const SofaQuickPresetsList = ({
                 display: 'flex', flexWrap: 'wrap', gap: 4,
                 padding: 6,
                 background: '#fff',
-                border: '1px dashed #d6d9d2',
+                border: '1px dashed #E5E7EB',
                 borderRadius: 'var(--radius-sm)',
               }}>
                 {compartmentPool.map((code) => {
@@ -2500,9 +2500,9 @@ const SofaQuickPresetsList = ({
                         fontFamily: 'var(--font-mono)',
                         fontSize: 'var(--fs-11)',
                         fontWeight: 600,
-                        background: on ? '#16695f' : '#fff',
-                        color: on ? '#fff' : '#11140f',
-                        border: `1px solid ${on ? '#16695f' : '#c2c6bd'}`,
+                        background: on ? '#1B1B39' : '#fff',
+                        color: on ? '#fff' : '#111827',
+                        border: `1px solid ${on ? '#1B1B39' : '#c2c6bd'}`,
                         borderRadius: 'var(--radius-sm)',
                         padding: '2px 8px',
                         cursor: 'pointer',
@@ -2524,7 +2524,7 @@ const SofaQuickPresetsList = ({
               style={{
                 fontFamily: 'var(--font-sans)',
                 fontSize: 'var(--fs-12)',
-                background: '#f4f6f3',
+                background: '#F8F9FA',
                 border: '1px solid #c2c6bd',
                 borderRadius: 'var(--radius-sm)',
                 padding: '4px 6px',
@@ -2565,7 +2565,7 @@ const SofaQuickPresetsList = ({
           ) : (
             <span style={{
               fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-11)',
-              color: p.active === false ? '#767b6e' : '#1a7a3a',
+              color: p.active === false ? '#6B7280' : '#1a7a3a',
             }}>
               {p.active === false ? 'Inactive' : 'Active'}
             </span>
@@ -2591,7 +2591,7 @@ const SofaQuickPresetsList = ({
           className={styles.maintRow}
           style={{
             background: '#fff',
-            borderColor: '#16695f',
+            borderColor: '#1B1B39',
             gridTemplateColumns: '32px 32px 1fr auto',
           }}
         >
@@ -2890,7 +2890,7 @@ const MaintenanceList = ({
                 <span className={styles.maintRowIcon} />
                 <span className={styles.maintRowIdx}>{i + 1}</span>
                 <span className={styles.maintRowValue}>{v}</span>
-                <span style={{ fontSize: 'var(--fs-11)', color: '#767b6e', fontWeight: 600 }}>
+                <span style={{ fontSize: 'var(--fs-11)', color: '#6B7280', fontWeight: 600 }}>
                   suggested
                 </span>
               </div>
@@ -2927,8 +2927,8 @@ const MaintenanceList = ({
                         fontFamily: 'var(--font-mono)',
                         fontSize: 'var(--fs-14)',
                         fontWeight: 600,
-                        background: '#f4f6f3',
-                        border: '1px solid #16695f',
+                        background: '#F8F9FA',
+                        border: '1px solid #1B1B39',
                         borderRadius: 'var(--radius-sm)',
                         padding: '4px 8px',
                         outline: 'none',
@@ -2936,7 +2936,7 @@ const MaintenanceList = ({
                       }}
                       title="Size code (e.g. K)"
                     />
-                    <span style={{ color: '#767b6e', fontWeight: 700 }}>·</span>
+                    <span style={{ color: '#6B7280', fontWeight: 700 }}>·</span>
                     <input
                       type="text"
                       placeholder="Label e.g. 6FT"
@@ -2945,7 +2945,7 @@ const MaintenanceList = ({
                       style={{
                         fontFamily: 'var(--font-sans)',
                         fontSize: 'var(--fs-14)',
-                        background: '#f4f6f3',
+                        background: '#F8F9FA',
                         border: '1px solid #c2c6bd',
                         borderRadius: 'var(--radius-sm)',
                         padding: '4px 8px',
@@ -2953,7 +2953,7 @@ const MaintenanceList = ({
                         width: 110,
                       }}
                     />
-                    <span style={{ color: '#767b6e', fontWeight: 700 }}>·</span>
+                    <span style={{ color: '#6B7280', fontWeight: 700 }}>·</span>
                     <input
                       type="text"
                       placeholder="Dimensions e.g. 183X190CM"
@@ -2962,7 +2962,7 @@ const MaintenanceList = ({
                       style={{
                         fontFamily: 'var(--font-sans)',
                         fontSize: 'var(--fs-14)',
-                        background: '#f4f6f3',
+                        background: '#F8F9FA',
                         border: '1px solid #c2c6bd',
                         borderRadius: 'var(--radius-sm)',
                         padding: '4px 8px',
@@ -2980,8 +2980,8 @@ const MaintenanceList = ({
                       fontFamily: 'var(--font-sans)',
                       fontSize: 'var(--fs-16)',
                       fontWeight: 600,
-                      background: '#f4f6f3',
-                      border: '1px solid #16695f',
+                      background: '#F8F9FA',
+                      border: '1px solid #1B1B39',
                       borderRadius: 'var(--radius-sm)',
                       padding: '4px 8px',
                       outline: 'none',
@@ -3022,7 +3022,7 @@ const MaintenanceList = ({
             ) : (
               <span style={{
                 fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-11)',
-                color: entryIsActive ? '#1a7a3a' : '#767b6e',
+                color: entryIsActive ? '#1a7a3a' : '#6B7280',
               }}>
                 {entryIsActive ? 'Active' : 'Inactive'}
               </span>
@@ -3049,7 +3049,7 @@ const MaintenanceList = ({
             className={styles.maintRow}
             style={{
               background: '#fff',
-              borderColor: '#16695f',
+              borderColor: '#1B1B39',
               gridTemplateColumns: '32px 1fr auto',
             }}
           >
@@ -3070,8 +3070,8 @@ const MaintenanceList = ({
                     fontFamily: 'var(--font-mono)',
                     fontSize: 'var(--fs-14)',
                     fontWeight: 600,
-                    background: '#f4f6f3',
-                    border: '1px solid #16695f',
+                    background: '#F8F9FA',
+                    border: '1px solid #1B1B39',
                     borderRadius: 'var(--radius-sm)',
                     padding: '4px 8px',
                     outline: 'none',
@@ -3079,7 +3079,7 @@ const MaintenanceList = ({
                   }}
                   title="Size code (e.g. K)"
                 />
-                <span style={{ color: '#767b6e', fontWeight: 700 }}>·</span>
+                <span style={{ color: '#6B7280', fontWeight: 700 }}>·</span>
                 <input
                   type="text"
                   placeholder="Label e.g. 6FT"
@@ -3089,7 +3089,7 @@ const MaintenanceList = ({
                   style={{
                     fontFamily: 'var(--font-sans)',
                     fontSize: 'var(--fs-14)',
-                    background: '#f4f6f3',
+                    background: '#F8F9FA',
                     border: '1px solid #c2c6bd',
                     borderRadius: 'var(--radius-sm)',
                     padding: '4px 8px',
@@ -3097,7 +3097,7 @@ const MaintenanceList = ({
                     width: 110,
                   }}
                 />
-                <span style={{ color: '#767b6e', fontWeight: 700 }}>·</span>
+                <span style={{ color: '#6B7280', fontWeight: 700 }}>·</span>
                 <input
                   type="text"
                   placeholder="Dimensions e.g. 183X190CM"
@@ -3107,7 +3107,7 @@ const MaintenanceList = ({
                   style={{
                     fontFamily: 'var(--font-sans)',
                     fontSize: 'var(--fs-14)',
-                    background: '#f4f6f3',
+                    background: '#F8F9FA',
                     border: '1px solid #c2c6bd',
                     borderRadius: 'var(--radius-sm)',
                     padding: '4px 8px',
@@ -3126,8 +3126,8 @@ const MaintenanceList = ({
                 style={{
                   fontFamily: 'var(--font-sans)',
                   fontSize: 'var(--fs-14)',
-                  background: '#f4f6f3',
-                  border: '1px solid #d6d9d2',
+                  background: '#F8F9FA',
+                  border: '1px solid #E5E7EB',
                   borderRadius: 'var(--radius-sm)',
                   padding: '6px 10px',
                   outline: 'none',
@@ -3210,8 +3210,8 @@ const MaintenanceList = ({
                   fontFamily: 'var(--font-sans)',
                   fontSize: 'var(--fs-16)',
                   fontWeight: 600,
-                  background: '#f4f6f3',
-                  border: '1px solid #16695f',
+                  background: '#F8F9FA',
+                  border: '1px solid #1B1B39',
                   borderRadius: 'var(--radius-sm)',
                   padding: '4px 8px',
                   outline: 'none',
@@ -3247,8 +3247,8 @@ const MaintenanceList = ({
                     textAlign: 'right',
                     fontFamily: 'var(--font-mono)',
                     fontSize: 'var(--fs-14)',
-                    background: '#f4f6f3',
-                    border: '1px solid #16695f',
+                    background: '#F8F9FA',
+                    border: '1px solid #1B1B39',
                     borderRadius: 'var(--radius-sm)',
                     padding: '4px 8px',
                     outline: 'none',
@@ -3292,7 +3292,7 @@ const MaintenanceList = ({
             ) : (
               <span style={{
                 fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-11)',
-                color: opt.active === false ? '#767b6e' : '#1a7a3a',
+                color: opt.active === false ? '#6B7280' : '#1a7a3a',
               }}>
                 {opt.active === false ? 'Inactive' : 'Active'}
               </span>
@@ -3317,7 +3317,7 @@ const MaintenanceList = ({
           className={styles.maintRow}
           style={{
             background: '#fff',
-            borderColor: '#16695f',
+            borderColor: '#1B1B39',
             gridTemplateColumns: '32px 1fr auto',
           }}
         >
@@ -3331,8 +3331,8 @@ const MaintenanceList = ({
             style={{
               fontFamily: 'var(--font-sans)',
               fontSize: 'var(--fs-14)',
-              background: '#f4f6f3',
-              border: '1px solid #d6d9d2',
+              background: '#F8F9FA',
+              border: '1px solid #E5E7EB',
               borderRadius: 'var(--radius-sm)',
               padding: '6px 10px',
               outline: 'none',
@@ -3353,8 +3353,8 @@ const MaintenanceList = ({
                 textAlign: 'right',
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--fs-14)',
-                background: '#f4f6f3',
-                border: '1px solid #d6d9d2',
+                background: '#F8F9FA',
+                border: '1px solid #E5E7EB',
                 borderRadius: 'var(--radius-sm)',
                 padding: '6px 8px',
                 outline: 'none',
@@ -3485,8 +3485,8 @@ const CodeFormatPanel = ({
     padding: 'var(--space-3) var(--space-4)',
     border: '1px solid #c2c6bd',
     borderRadius: 'var(--radius-sm)',
-    background: editMode ? '#fff' : '#f4f6f3',
-    color: '#11140f',
+    background: editMode ? '#fff' : '#F8F9FA',
+    color: '#111827',
     width: '100%',
     outline: 'none',
   } as const;
@@ -3503,7 +3503,7 @@ const CodeFormatPanel = ({
           onChange={(e) => update(f.codeKey, e.target.value)}
           style={inputStyle}
         />
-        <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+        <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-12)', color: '#6B7280' }}>
           Default if blank: <code>{f.codeDefault}</code>
         </p>
       </div>
@@ -3518,35 +3518,35 @@ const CodeFormatPanel = ({
           onChange={(e) => update(f.nameKey, e.target.value)}
           style={inputStyle}
         />
-        <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+        <p style={{ margin: '6px 0 0', fontSize: 'var(--fs-12)', color: '#6B7280' }}>
           Default if blank: <code>{f.nameDefault}</code>
         </p>
       </div>
 
       <div style={{
-        background: '#f4f6f3',
-        border: '1px solid #d6d9d2',
+        background: '#F8F9FA',
+        border: '1px solid #E5E7EB',
         borderRadius: 'var(--radius-md)',
         padding: 'var(--space-4)',
       }}>
         <div className="t-eyebrow" style={{ marginBottom: 8 }}>Live preview · sample row</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-12)', color: '#6B7280' }}>
             code
-            <code style={{ marginLeft: 12, background: '#16695f', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+            <code style={{ marginLeft: 12, background: '#1B1B39', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
               {exampleCode}
             </code>
           </div>
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-12)', color: '#6B7280' }}>
             name
-            <code style={{ marginLeft: 12, background: '#16695f', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
+            <code style={{ marginLeft: 12, background: '#1B1B39', color: '#fff', padding: '2px 8px', borderRadius: 4, fontWeight: 600 }}>
               {exampleName}
             </code>
           </div>
         </div>
       </div>
 
-      <div style={{ fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+      <div style={{ fontSize: 'var(--fs-12)', color: '#6B7280' }}>
         <strong>Available placeholders:</strong> {f.placeholderHint}
       </div>
     </div>
@@ -3570,7 +3570,7 @@ const FabricsMaintenancePanel = () => {
         <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
           <Search
             {...ICON_PROPS}
-            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#767b6e', pointerEvents: 'none' }}
+            style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6B7280', pointerEvents: 'none' }}
           />
           <input
             type="search"
@@ -3582,10 +3582,10 @@ const FabricsMaintenancePanel = () => {
               fontFamily: 'var(--font-sans)',
               fontSize: 'var(--fs-14)',
               background: '#fff',
-              border: '1px solid #d6d9d2',
+              border: '1px solid #E5E7EB',
               borderRadius: 'var(--radius-md)',
               padding: 'var(--space-2) var(--space-3) var(--space-2) var(--space-7)',
-              color: '#11140f',
+              color: '#111827',
               outline: 'none',
             }}
           />
@@ -3596,7 +3596,7 @@ const FabricsMaintenancePanel = () => {
         <a
           href="/scm/fabric-tracking"
           style={{
-            fontSize: 'var(--fs-13)', color: '#0c3f39',
+            fontSize: 'var(--fs-13)', color: '#2F55E0',
             textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
           }}>
           <Plus {...ICON_PROPS} />
@@ -3803,7 +3803,7 @@ const ProductSuppliersDrawer = ({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#f4f6f3',
+          background: '#F8F9FA',
           border: '1px solid #c2c6bd',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-3)',
@@ -3825,7 +3825,7 @@ const ProductSuppliersDrawer = ({
               <Truck {...ICON_PROPS} style={{ verticalAlign: 'middle', marginRight: 6 }} />
               Suppliers · <span className={styles.codeChip}>{row.code}</span>
             </h2>
-            <p style={{ marginTop: 4, fontSize: 'var(--fs-13)', color: '#767b6e' }}>
+            <p style={{ marginTop: 4, fontSize: 'var(--fs-13)', color: '#6B7280' }}>
               {row.name}{row.description ? ` — ${row.description}` : ''}
             </p>
             {!row.model_id
@@ -3833,7 +3833,7 @@ const ProductSuppliersDrawer = ({
               : (
                 <div style={{ marginTop: 4 }}>
                   <CategorySwapSelect kind="model" id={row.model_id} category={row.category} />
-                  <p style={{ marginTop: 2, fontSize: 'var(--fs-11)', color: '#767b6e' }}>
+                  <p style={{ marginTop: 2, fontSize: 'var(--fs-11)', color: '#6B7280' }}>
                     Belongs to model {modelQ.data?.model.model_code ?? row.base_model ?? ''} — changing the category moves the whole model and all its SKUs.
                   </p>
                 </div>
@@ -3843,7 +3843,7 @@ const ProductSuppliersDrawer = ({
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
               <span style={{
                 fontSize: 'var(--fs-11)', fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.04em', color: '#767b6e',
+                letterSpacing: '0.04em', color: '#6B7280',
               }}>
                 Barcode
               </span>
@@ -3894,18 +3894,18 @@ const ProductSuppliersDrawer = ({
             }
             return (
               <section style={{ marginBottom: 'var(--space-5)' }}>
-                <h3 style={{ fontSize: 'var(--fs-12)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#767b6e', marginBottom: 'var(--space-2)' }}>
+                <h3 style={{ fontSize: 'var(--fs-12)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6B7280', marginBottom: 'var(--space-2)' }}>
                   Available variants
                 </h3>
                 {groups.length === 0 ? (
-                  <p style={{ fontSize: 'var(--fs-13)', color: '#767b6e' }}>
+                  <p style={{ fontSize: 'var(--fs-13)', color: '#6B7280' }}>
                     No variant options configured for this model{row.category ? ` (${mfgCategoryLabel(row.category)})` : ''}.
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                     {groups.map(([label, vals]) => (
                       <div key={label} style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <span style={{ minWidth: 120, fontSize: 'var(--fs-11)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#767b6e' }}>{label}</span>
+                        <span style={{ minWidth: 120, fontSize: 'var(--fs-11)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#6B7280' }}>{label}</span>
                         <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {vals.map((v) => (
                             <span key={v} className={styles.codeChip} style={{ fontSize: 'var(--fs-12)' }}>{v}</span>
@@ -3929,14 +3929,14 @@ const ProductSuppliersDrawer = ({
 
           <ProductPriceTimeline row={row} />
 
-          <h3 style={{ fontSize: 'var(--fs-12)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#767b6e', marginBottom: 'var(--space-2)' }}>
+          <h3 style={{ fontSize: 'var(--fs-12)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6B7280', marginBottom: 'var(--space-2)' }}>
             Suppliers
           </h3>
           {q.isLoading && (
-            <p style={{ textAlign: 'center', color: '#767b6e' }}>Loading suppliers…</p>
+            <p style={{ textAlign: 'center', color: '#6B7280' }}>Loading suppliers…</p>
           )}
           {!q.isLoading && suppliers.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: '#767b6e' }}>
+            <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: '#6B7280' }}>
               <Truck size={32} strokeWidth={1.5} />
               <div style={{ marginTop: 8 }}>No suppliers carry this product yet.</div>
               <div style={{ marginTop: 4, fontSize: 'var(--fs-12)' }}>
@@ -3969,21 +3969,21 @@ const ProductSuppliersDrawer = ({
                   }}>
                     <td style={{ textAlign: 'center' }}>
                       {s.is_main_supplier && (
-                        <Star size={14} strokeWidth={2} style={{ color: '#16695f', fill: '#16695f' }} />
+                        <Star size={14} strokeWidth={2} style={{ color: '#1B1B39', fill: '#1B1B39' }} />
                       )}
                     </td>
                     <td>
                       <div style={{ fontWeight: s.is_main_supplier ? 700 : 400 }}>
                         {s.suppliers?.name ?? '—'}
                       </div>
-                      <div style={{ fontSize: 'var(--fs-11)', color: '#767b6e' }}>
+                      <div style={{ fontSize: 'var(--fs-11)', color: '#6B7280' }}>
                         {s.suppliers?.code ?? ''}{s.suppliers?.phone ? ` · ${formatPhone(s.suppliers.phone)}` : ''}
                       </div>
                     </td>
                     <td>
                       {s.supplier_sku
                         ? <span className={styles.codeChip}>{s.supplier_sku}</span>
-                        : <span style={{ color: '#767b6e' }}>(same as our code)</span>}
+                        : <span style={{ color: '#6B7280' }}>(same as our code)</span>}
                     </td>
                     <td className={styles.numCell} style={{ whiteSpace: 'nowrap' }}>
                       {fmtRmSen(s.unit_price_sen)}{s.currency !== 'MYR' ? ` ${s.currency}` : ''}
@@ -4010,8 +4010,8 @@ const ProductSuppliersDrawer = ({
         </div>
 
         <footer className={styles.drawerFooter}>
-          <p style={{ fontSize: 'var(--fs-12)', color: '#767b6e', marginRight: 'auto' }}>
-            <Star size={11} strokeWidth={2} style={{ verticalAlign: 'middle', color: '#16695f', fill: '#16695f' }} />
+          <p style={{ fontSize: 'var(--fs-12)', color: '#6B7280', marginRight: 'auto' }}>
+            <Star size={11} strokeWidth={2} style={{ verticalAlign: 'middle', color: '#1B1B39', fill: '#1B1B39' }} />
             {' '}Main supplier — used by default when generating POs.
           </p>
           <Button variant="secondary" onClick={onClose}>Close</Button>
@@ -4192,7 +4192,7 @@ const SpecialsMaintenancePanel = ({
     removeRow(i);
   };
 
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 'var(--fs-14)', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-md)', background: '#f4f6f3' };
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', fontSize: 'var(--fs-14)', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-md)', background: '#F8F9FA' };
 
   return (
     <>
@@ -4204,7 +4204,7 @@ const SpecialsMaintenancePanel = ({
             <p className={styles.stateInfo} style={{ marginTop: 8 }}>
               Effective from {latestApplied.effectiveFrom}
               {(historyQ.data ?? []).some((h) => h.isPending) && (
-                <span style={{ color: '#0c3f39', fontWeight: 600 }}> · Pending change scheduled</span>
+                <span style={{ color: '#2F55E0', fontWeight: 600 }}> · Pending change scheduled</span>
               )}
             </p>
           )}
@@ -4257,25 +4257,25 @@ const SpecialsMaintenancePanel = ({
                 display: 'grid', gridTemplateColumns: '28px 1fr auto 80px',
                 alignItems: 'center', gap: 'var(--space-3)',
                 padding: 'var(--space-3) var(--space-4)',
-                background: '#f4f6f3', border: '1px solid #d6d9d2',
+                background: '#F8F9FA', border: '1px solid #E5E7EB',
                 borderRadius: 'var(--radius-md)', opacity: r.active ? 1 : 0.55,
               }}
             >
               <span style={{ fontSize: 'var(--fs-12)', color: '#9aa093' }}>{i + 1}</span>
-              <div style={{ minWidth: 0, fontSize: 'var(--fs-16)', fontWeight: 600, color: '#11140f' }}>
+              <div style={{ minWidth: 0, fontSize: 'var(--fs-16)', fontWeight: 600, color: '#111827' }}>
                 {r.label}
                 {r.optionGroups.length > 0 && (
-                  <span style={{ fontSize: 'var(--fs-11)', color: '#767b6e', marginLeft: 8 }}>
+                  <span style={{ fontSize: 'var(--fs-11)', color: '#6B7280', marginLeft: 8 }}>
                     {r.optionGroups.map((g) => `${g.label} (${g.choices.length})`).join(' · ')}
                   </span>
                 )}
               </div>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-15)', color: '#11140f', textAlign: 'right', whiteSpace: 'nowrap' }}>{senToRmStr(r.costPriceSen)}</span>
-              <span style={{ fontSize: 'var(--fs-12)', fontWeight: 600, textAlign: 'right', color: r.active ? '#1a7a3a' : '#767b6e' }}>{r.active ? 'Active' : 'Inactive'}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-15)', color: '#111827', textAlign: 'right', whiteSpace: 'nowrap' }}>{senToRmStr(r.costPriceSen)}</span>
+              <span style={{ fontSize: 'var(--fs-12)', fontWeight: 600, textAlign: 'right', color: r.active ? '#1a7a3a' : '#6B7280' }}>{r.active ? 'Active' : 'Inactive'}</span>
             </div>
           ))}
           {!list.isLoading && viewRows.length === 0 && (
-            <div style={{ color: '#767b6e', fontSize: 'var(--fs-13)', padding: 'var(--space-3)' }}>
+            <div style={{ color: '#6B7280', fontSize: 'var(--fs-13)', padding: 'var(--space-3)' }}>
               No special add-ons in this category yet — click Edit, then “+ Add special”.
             </div>
           )}
@@ -4304,7 +4304,7 @@ const SpecialsMaintenancePanel = ({
                 <label style={{ display: 'flex', alignItems: 'flex-end', gap: 6, fontSize: 'var(--fs-13)' }}>
                   <input type="checkbox" checked={r.active} onChange={(e) => patchRow(i, { active: e.target.checked })} /> Active
                 </label>
-                <button type="button" onClick={() => void confirmRemove(i, r.label)} style={{ alignSelf: 'flex-end', fontSize: 'var(--fs-12)', background: 'none', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer', color: '#b23a3a' }}>
+                <button type="button" onClick={() => void confirmRemove(i, r.label)} style={{ alignSelf: 'flex-end', fontSize: 'var(--fs-12)', background: 'none', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-sm)', padding: '6px 10px', cursor: 'pointer', color: '#b23a3a' }}>
                   <Trash2 size={13} strokeWidth={1.75} style={{ verticalAlign: 'middle' }} /> Remove
                 </button>
               </div>
@@ -4314,10 +4314,10 @@ const SpecialsMaintenancePanel = ({
               </label>
 
               {/* follow-up questions (追问) */}
-              <div style={{ borderTop: '1px solid #d6d9d2', paddingTop: 'var(--space-3)' }}>
+              <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 'var(--space-3)' }}>
                 <span style={{ display: 'block', fontSize: 'var(--fs-13)', fontWeight: 600, marginBottom: 6 }}>Follow-up questions (optional)</span>
                 {r.optionGroups.map((g, gi) => (
-                  <div key={gi} style={{ border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+                  <div key={gi} style={{ border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
                     <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', marginBottom: 6 }}>
                       <input style={{ ...inputStyle, flex: '1 1 160px' }} placeholder="Question (e.g. Thickness)" value={g.label} onChange={(e) => patchGroup(i, gi, { label: e.target.value })} />
                       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--fs-12)' }}>
@@ -4329,7 +4329,7 @@ const SpecialsMaintenancePanel = ({
                       <div key={ci} style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 4, paddingLeft: 'var(--space-3)' }}>
                         <input style={{ ...inputStyle, flex: '1 1 120px' }} placeholder={'Choice (e.g. 10")'} value={c.label} onChange={(e) => patchChoice(i, gi, ci, { label: e.target.value })} />
                         <input type="number" step={1} style={{ ...inputStyle, width: 120 }} title="Extra RM (can be −)" value={Math.round(c.extraSen) / 100} onChange={(e) => patchChoice(i, gi, ci, { extraSen: Math.round((Number(e.target.value) || 0) * 100) })} />
-                        <button type="button" onClick={() => removeChoice(i, gi, ci)} style={{ fontSize: 'var(--fs-12)', color: '#767b6e', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        <button type="button" onClick={() => removeChoice(i, gi, ci)} style={{ fontSize: 'var(--fs-12)', color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
                       </div>
                     ))}
                     <button type="button" onClick={() => addChoice(i, gi)} style={{ fontSize: 'var(--fs-12)', marginLeft: 'var(--space-3)', background: 'none', border: '1px dashed #c2c6bd', borderRadius: 'var(--radius-sm)', padding: '2px 8px', cursor: 'pointer' }}>+ choice</button>
@@ -4379,7 +4379,7 @@ const SpecialsHistoryDialog = ({
   <div className={styles.drawerBackdrop} onClick={onClose}>
     <div
       onClick={(e) => e.stopPropagation()}
-      style={{ background: '#f4f6f3', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-3)', width: 'min(720px, 95vw)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
+      style={{ background: '#F8F9FA', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-3)', width: 'min(720px, 95vw)', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
     >
       <header className={styles.drawerHeader}>
         <h2 className={styles.drawerTitle}>Specials history · {activeLabel}</h2>
@@ -4387,23 +4387,23 @@ const SpecialsHistoryDialog = ({
       </header>
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-4)' }}>
         {history.length === 0 && (
-          <p style={{ textAlign: 'center', color: '#767b6e' }}>No specials changes yet — the baseline snapshot is the only entry.</p>
+          <p style={{ textAlign: 'center', color: '#6B7280' }}>No specials changes yet — the baseline snapshot is the only entry.</p>
         )}
         {history.map((entry) => {
           const slice = (entry.addons ?? []).filter((a) => Array.isArray(a.categories) && a.categories.includes(category));
           return (
-            <div key={entry.id} style={{ padding: 'var(--space-3)', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', background: entry.isPending ? 'rgba(232, 107, 58, 0.06)' : '#fff' }}>
+            <div key={entry.id} style={{ padding: 'var(--space-3)', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', background: entry.isPending ? 'rgba(232, 107, 58, 0.06)' : '#fff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontFamily: 'var(--font-mark)', fontSize: 'var(--fs-16)', fontWeight: 700, color: '#11140f' }}>Effective from {entry.effectiveFrom}</span>
+                <span style={{ fontFamily: 'var(--font-mark)', fontSize: 'var(--fs-16)', fontWeight: 700, color: '#111827' }}>Effective from {entry.effectiveFrom}</span>
                 {entry.isPending && (
-                  <span style={{ background: 'rgba(232, 107, 58, 0.20)', color: '#0c3f39', padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--fs-11)', fontWeight: 600 }}>PENDING</span>
+                  <span style={{ background: 'rgba(232, 107, 58, 0.20)', color: '#2F55E0', padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--fs-11)', fontWeight: 600 }}>PENDING</span>
                 )}
               </div>
-              <div style={{ marginTop: 4, fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+              <div style={{ marginTop: 4, fontSize: 'var(--fs-12)', color: '#6B7280' }}>
                 Created {fmtDateTime(entry.createdAt)}{entry.createdBy ? ` by ${actorNameOf(entry.createdBy)}` : ''}
               </div>
-              {entry.notes && <p style={{ marginTop: 6, fontSize: 'var(--fs-13)', color: '#11140f' }}>Notes: {entry.notes}</p>}
-              <pre style={{ marginTop: 8, padding: 'var(--space-2)', background: '#f4f6f3', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-sm)', fontSize: 'var(--fs-11)', overflow: 'auto', maxHeight: 200 }}>
+              {entry.notes && <p style={{ marginTop: 6, fontSize: 'var(--fs-13)', color: '#111827' }}>Notes: {entry.notes}</p>}
+              <pre style={{ marginTop: 8, padding: 'var(--space-2)', background: '#F8F9FA', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-sm)', fontSize: 'var(--fs-11)', overflow: 'auto', maxHeight: 200 }}>
                 {JSON.stringify(slice.map((a) => ({ code: a.code, label: a.label, costRM: Math.round(a.costPriceSen) / 100, active: a.active, followUps: (a.optionGroups ?? []).length })), null, 2)}
               </pre>
             </div>
@@ -4440,7 +4440,7 @@ const MaintenanceHistoryDialog = ({
     <div
       onClick={(e) => e.stopPropagation()}
       style={{
-        background: '#f4f6f3',
+        background: '#F8F9FA',
         border: '1px solid #c2c6bd',
         borderRadius: 'var(--radius-xl)',
         boxShadow: 'var(--shadow-3)',
@@ -4456,7 +4456,7 @@ const MaintenanceHistoryDialog = ({
       </header>
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-4)' }}>
         {history.length === 0 && (
-          <p style={{ textAlign: 'center', color: '#767b6e' }}>
+          <p style={{ textAlign: 'center', color: '#6B7280' }}>
             No maintenance changes yet — the baseline migration row is the only entry.
           </p>
         )}
@@ -4465,32 +4465,32 @@ const MaintenanceHistoryDialog = ({
           return (
             <div key={entry.id} style={{
               padding: 'var(--space-3)',
-              border: '1px solid #d6d9d2',
+              border: '1px solid #E5E7EB',
               borderRadius: 'var(--radius-md)',
               marginBottom: 'var(--space-3)',
               background: entry.isPending ? 'rgba(232, 107, 58, 0.06)' : '#fff',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontFamily: 'var(--font-mark)', fontSize: 'var(--fs-16)', fontWeight: 700, color: '#11140f' }}>
+                <span style={{ fontFamily: 'var(--font-mark)', fontSize: 'var(--fs-16)', fontWeight: 700, color: '#111827' }}>
                   Effective from {entry.effectiveFrom}
                 </span>
                 {entry.isPending && (
-                  <span style={{ background: 'rgba(232, 107, 58, 0.20)', color: '#0c3f39', padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--fs-11)', fontWeight: 600 }}>
+                  <span style={{ background: 'rgba(232, 107, 58, 0.20)', color: '#2F55E0', padding: '2px 8px', borderRadius: 'var(--radius-pill)', fontSize: 'var(--fs-11)', fontWeight: 600 }}>
                     PENDING
                   </span>
                 )}
               </div>
-              <div style={{ marginTop: 4, fontSize: 'var(--fs-12)', color: '#767b6e' }}>
+              <div style={{ marginTop: 4, fontSize: 'var(--fs-12)', color: '#6B7280' }}>
                 Created {fmtDateTime(entry.createdAt)}{entry.createdBy ? ` by ${actorNameOf(entry.createdBy)}` : ''}
               </div>
               {entry.notes && (
-                <p style={{ marginTop: 6, fontSize: 'var(--fs-13)', color: '#11140f' }}>Notes: {entry.notes}</p>
+                <p style={{ marginTop: 6, fontSize: 'var(--fs-13)', color: '#111827' }}>Notes: {entry.notes}</p>
               )}
               <pre style={{
                 marginTop: 8,
                 padding: 'var(--space-2)',
-                background: '#f4f6f3',
-                border: '1px solid #d6d9d2',
+                background: '#F8F9FA',
+                border: '1px solid #E5E7EB',
                 borderRadius: 'var(--radius-sm)',
                 fontSize: 'var(--fs-11)',
                 overflow: 'auto',
@@ -4690,7 +4690,7 @@ const ImportSkusDialog = ({ sofaSizes, onClose }: { sofaSizes: string[]; onClose
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#f4f6f3',
+          background: '#F8F9FA',
           border: '1px solid #c2c6bd',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-3)',
@@ -4702,7 +4702,7 @@ const ImportSkusDialog = ({ sofaSizes, onClose }: { sofaSizes: string[]; onClose
           <h2 className={styles.drawerTitle}>Import SKUs</h2>
           <button type="button" className={styles.iconBtn} onClick={onClose}><X {...ICON_PROPS} /></button>
         </header>
-        <p style={{ fontSize: 'var(--fs-13)', color: '#767b6e' }}>
+        <p style={{ fontSize: 'var(--fs-13)', color: '#6B7280' }}>
           A code that is not in SKU Master creates a new SKU (it needs a name and a category);
           a code already there edits that SKU. Start from the template for new SKUs, or from
           Export SKUs to edit prices. A blank cell is left as it was — it never clears a price.
@@ -4725,7 +4725,7 @@ const ImportSkusDialog = ({ sofaSizes, onClose }: { sofaSizes: string[]; onClose
         />
 
         {busy && (
-          <p style={{ marginTop: 'var(--space-3)', fontSize: 'var(--fs-13)', color: '#767b6e' }}>
+          <p style={{ marginTop: 'var(--space-3)', fontSize: 'var(--fs-13)', color: '#6B7280' }}>
             Working…
           </p>
         )}
@@ -4737,11 +4737,11 @@ const ImportSkusDialog = ({ sofaSizes, onClose }: { sofaSizes: string[]; onClose
             <p style={{ fontSize: 'var(--fs-13)' }}>
               <strong>{staged.rows.length}</strong> SKU{staged.rows.length === 1 ? '' : 's'} ready to import
               {staged.tierErrors.length > 0 && (
-                <> · <span style={{ color: '#0c3f39' }}>{staged.tierErrors.length} will be skipped</span></>
+                <> · <span style={{ color: '#2F55E0' }}>{staged.tierErrors.length} will be skipped</span></>
               )}. Blank cells keep the current value. <strong>Nothing is saved until you confirm.</strong>
             </p>
             {staged.tierErrors.length > 0 && (
-              <ul style={{ margin: 'var(--space-2) 0 0', paddingLeft: 'var(--space-4)', fontSize: 'var(--fs-12)', color: '#0c3f39' }}>
+              <ul style={{ margin: 'var(--space-2) 0 0', paddingLeft: 'var(--space-4)', fontSize: 'var(--fs-12)', color: '#2F55E0' }}>
                 {staged.tierErrors.slice(0, 8).map((e) => <li key={e.code}>{e.code}: {e.reason}</li>)}
                 {staged.tierErrors.length > 8 && <li>…and {staged.tierErrors.length - 8} more</li>}
               </ul>
@@ -4765,7 +4765,7 @@ const ImportSkusDialog = ({ sofaSizes, onClose }: { sofaSizes: string[]; onClose
           <div style={{ marginTop: 'var(--space-3)', fontSize: 'var(--fs-13)' }}>
             <div style={{
               fontWeight: 700,
-              color: result.failed > 0 ? '#0c3f39' : '#2F5D4F',
+              color: result.failed > 0 ? '#2F55E0' : '#2F5D4F',
             }}>
               {result.upserted > 0
                 ? `Saved — ${savedSummary(result)}${result.failed > 0 ? ` · ${result.failed} failed` : ''}`
@@ -4774,7 +4774,7 @@ const ImportSkusDialog = ({ sofaSizes, onClose }: { sofaSizes: string[]; onClose
                   : 'Nothing to update — every value already matched what was saved'}
             </div>
             {result.failures.length > 0 && (
-              <ul style={{ marginTop: 'var(--space-2)', paddingLeft: '1.2em', color: '#767b6e' }}>
+              <ul style={{ marginTop: 'var(--space-2)', paddingLeft: '1.2em', color: '#6B7280' }}>
                 {result.failures.slice(0, 5).map((f, i) => (
                   <li key={i}>{f.code || '(no code)'}: {f.reason}</li>
                 ))}

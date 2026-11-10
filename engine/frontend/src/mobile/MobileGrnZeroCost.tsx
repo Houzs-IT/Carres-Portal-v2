@@ -57,7 +57,7 @@ const rm = (sen: number): string => fmtSen(sen);
 
 const inputStyle: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", height: 40, padding: "0 11px", borderRadius: 10,
-  border: "1px solid #e3e6e0", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)",
+  border: "1px solid #EEF0F3", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)",
 };
 const labelStyle: React.CSSProperties = {
   fontSize: 9.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase",
@@ -150,9 +150,9 @@ export function MobileGrnZeroCostSheet({ grnId, refusal, onClose, onPosted }: {
           const k = keyOf(line, i);
           const d = decisionOf(k);
           return (
-            <div key={k} style={{ border: "1px solid #e3e6e0", borderRadius: 12, padding: 12, marginBottom: 12 }}>
+            <div key={k} style={{ border: "1px solid #EEF0F3", borderRadius: 12, padding: 12, marginBottom: 12 }}>
               <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>{line.itemCode} × {line.qtyAccepted}</div>
-              <div style={{ fontSize: 11, color: "#767b6e", marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 10 }}>
                 normally about {rm(line.knownUnitCostSen)} each
               </div>
 
@@ -199,7 +199,7 @@ export function MobileGrnZeroCostSheet({ grnId, refusal, onClose, onPosted }: {
         )}
 
         {!allAnswered && unaddressable.length === 0 && (
-          <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "#767b6e", textAlign: "center" }}>
+          <p style={{ margin: "0 0 10px", fontSize: 11.5, color: "#6B7280", textAlign: "center" }}>
             Give every line above a unit price, or tick "Received free" on it.
           </p>
         )}

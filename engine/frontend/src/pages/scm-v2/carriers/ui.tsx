@@ -1,5 +1,5 @@
 // Carriers & Rates: the pieces its three tabs share, in the Coverage & Fleet
-// look (bg-surface / text-ink / border-border, primary #16695f).
+// look (bg-surface / text-ink / border-border, primary #1B1B39).
 import type { ReactNode } from 'react';
 import { fmtSen } from '@2990s/shared';
 import { cn } from '../../../lib/utils';

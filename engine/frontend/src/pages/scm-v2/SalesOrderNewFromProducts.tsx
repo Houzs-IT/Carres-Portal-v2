@@ -653,7 +653,7 @@ function Catalogue({
                   className="h-10 w-10 shrink-0 rounded-lg border border-border"
                   style={{
                     background:
-                      "repeating-linear-gradient(45deg, #e3e6e0 0 4px, #f4f6f3 4px 8px)",
+                      "repeating-linear-gradient(45deg, #EEF0F3 0 4px, #F8F9FA 4px 8px)",
                   }}
                   aria-hidden
                 />

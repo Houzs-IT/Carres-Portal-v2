@@ -27,7 +27,7 @@ const FLOOR = 2.6;
 const GAP = 0.6;
 const WHEEL_R = 1.35;
 
-const GREEN = '#16695f';
+const GREEN = '#1B1B39';
 const GREEN_DARK = '#0b4740';
 
 const clampPitch = (p: number) => Math.max(MIN_PITCH, Math.min(MAX_PITCH, p));

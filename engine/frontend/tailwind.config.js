@@ -16,49 +16,49 @@ export default {
         // (logo, eyebrows, doc numbers, soft backgrounds).
 
         // ── Canvas ─────────────────────────────────────────
-        bg: "#eef0ec",
+        bg: "#F6F7F9",
         surface: "#ffffff",
-        "surface-2": "#f4f6f3", // table headers, nested/inset surfaces, search fields
-        "surface-dim": "#e3e6e0",
+        "surface-2": "#F8F9FA", // table headers, nested/inset surfaces, search fields
+        "surface-dim": "#EEF0F3",
 
         border: {
-          DEFAULT: "#d6d9d2",
-          subtle: "#e3e6e0",
+          DEFAULT: "#E5E7EB",
+          subtle: "#EEF0F3",
           strong: "#c2c6bd",
         },
 
         // ── Ink ────────────────────────────────────────────
         ink: {
-          DEFAULT: "#11140f",
-          secondary: "#414539",
-          muted: "#767b6e",
+          DEFAULT: "#111827",
+          secondary: "#4B5563",
+          muted: "#6B7280",
         },
 
         // ── Primary (petrol/teal) — NEW functional accent ──
         primary: {
-          DEFAULT: "#16695f",
-          soft: "#e1efed", // selected-row bg, soft chips, month-P&L card
-          ink: "#0c3f39", // text on primary-soft
+          DEFAULT: "#1B1B39",
+          soft: "#DCE6FD", // selected-row bg, soft chips, month-P&L card
+          ink: "#2F55E0", // text on primary-soft
         },
 
         // ── Brass accent (brand only — not primary CTAs) ───
         accent: {
-          DEFAULT: "#a16a2e",
+          DEFAULT: "#D64F20",
           soft: "#f3ece0",
-          bright: "#d8a85a", // gold for text on dark sidebar/headers
+          bright: "#D64F20", // gold for text on dark sidebar/headers
           hover: "#8a5a26",
           ink: "#5a3a14",
         },
 
         // ── Sidebar palette (dark ink-green slab) ──────────
         sidebar: {
-          DEFAULT: "#13201c",
+          DEFAULT: "#1B1B39",
           ink: "#e7eae4",
           "ink-muted": "#8c968a",
           "ink-soft": "#6f786d",
           border: "rgba(231,234,228,0.12)",
           hover: "rgba(231,234,228,0.06)",
-          active: "rgba(22,105,95,0.22)", // petrol 22%
+          active: "rgba(27, 27, 57,0.22)", // petrol 22%
         },
 
         // ── Semantic ───────────────────────────────────────

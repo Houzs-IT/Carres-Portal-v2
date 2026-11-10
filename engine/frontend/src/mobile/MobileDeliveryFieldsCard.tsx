@@ -375,7 +375,7 @@ export function DeliveryFieldsCard({
                   type="checkbox"
                   checked={form.timeConfirmed}
                   onChange={(e) => set("timeConfirmed", e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: "#16695f" }}
+                  style={{ width: 18, height: 18, accentColor: "#1B1B39" }}
                 />
                 <span style={{ fontSize: 12.5, color: "var(--ink2)" }}>Time confirmed with customer</span>
               </label>
@@ -449,7 +449,7 @@ export function DeliveryFieldsCard({
               style={{
                 flex: 1,
                 height: 42,
-                border: "1px solid #d6d9d2",
+                border: "1px solid #E5E7EB",
                 borderRadius: 11,
                 background: "#fff",
                 color: "var(--ink2)",
@@ -469,7 +469,7 @@ export function DeliveryFieldsCard({
                 height: 42,
                 border: "none",
                 borderRadius: 11,
-                background: saving ? "#7fb4ad" : "#16695f",
+                background: saving ? "#7fb4ad" : "#1B1B39",
                 color: "#fff",
                 fontFamily: "inherit",
                 fontSize: 13,

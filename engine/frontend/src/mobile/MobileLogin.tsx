@@ -81,7 +81,7 @@ export function MobileLogin() {
 
   return (
     <div className="hz-m" style={{ position: "fixed", inset: 0, background: "var(--dark)", overflow: "hidden" }}>
-      <div className="hz-glow" style={{ position: "absolute", right: -70, top: -50, width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle,rgba(22,105,95,.5),transparent 70%)", pointerEvents: "none" }} />
+      <div className="hz-glow" style={{ position: "absolute", right: -70, top: -50, width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle,rgba(27, 27, 57,.5),transparent 70%)", pointerEvents: "none" }} />
       <div className="hz-glow hz-glow-b" style={{ position: "absolute", left: -90, bottom: -30, width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle,rgba(161,106,46,.22),transparent 70%)", pointerEvents: "none" }} />
       <AmbientSnow />
 

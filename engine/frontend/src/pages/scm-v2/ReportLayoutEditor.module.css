@@ -130,5 +130,5 @@
 .parked {
   position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px;
   margin: 0 16px 8px; padding: 8px 12px; border: 1px solid var(--fin-petrol-line, #b9d6d1); border-radius: 8px;
-  background: var(--fin-petrol-pale, #e1efed); color: var(--fin-petrol-ink, #0c3f39); font-size: 12.5px;
+  background: var(--fin-petrol-pale, #DCE6FD); color: var(--fin-petrol-ink, #2F55E0); font-size: 12.5px;
 }

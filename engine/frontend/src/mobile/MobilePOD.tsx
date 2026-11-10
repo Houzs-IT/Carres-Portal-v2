@@ -586,7 +586,7 @@ function SignaturePad({ canvasRef, onChange, clearNonce }: {
       ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "#16695f";
+      ctx.strokeStyle = "#1B1B39";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

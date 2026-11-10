@@ -74,7 +74,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 /* The collapsed header stat strip — value colour per the design token table. */
 const STAT_INK: Record<'ink' | 'primary' | 'warn' | 'primaryInk', string> = {
-  ink: '#11140f', primary: '#16695f', warn: '#6e4d12', primaryInk: '#0c3f39',
+  ink: '#111827', primary: '#1B1B39', warn: '#6e4d12', primaryInk: '#2F55E0',
 };
 
 /* ── Rack scope (shared across warehouses) ────────────────────────────────
@@ -346,7 +346,7 @@ export const WarehouseRacks = () => {
                   type="button"
                   onClick={() => selectView(v)}
                   className="rounded-[6px] px-3 py-[5px] text-[11.5px] font-semibold transition-colors"
-                  style={view === v ? { background: '#16695f', color: '#ffffff' } : { color: '#767b6e' }}
+                  style={view === v ? { background: '#1B1B39', color: '#ffffff' } : { color: '#6B7280' }}
                 >
                   {v === 'plan' ? 'Floor plan' : 'List'}
                 </button>

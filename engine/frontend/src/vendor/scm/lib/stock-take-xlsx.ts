@@ -26,7 +26,7 @@ export type StockTakeXlsxNames = {
 type Col = { label: string; width: number; num?: boolean; cell: (l: StockTakeLine) => Cell };
 
 const SOFT = '#8a8578';
-const INK = '#11140f';
+const INK = '#111827';
 
 const text = (v: string | null | undefined): Cell => (v ? { value: v, type: String } : null);
 const qty = (v: number | null | undefined): Cell => (v == null ? null : { value: v, type: Number, align: 'right' });

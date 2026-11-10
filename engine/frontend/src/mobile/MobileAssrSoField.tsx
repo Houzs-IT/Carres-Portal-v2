@@ -5,10 +5,10 @@ import { formatPhone } from "../vendor/shared/phone";
 import { type Any, cellEllipsis, get } from "./assr-case-fields";
 import "./mobile.css";
 
-const INK = "#11140f";
-const MUTED = "#767b6e";
+const INK = "#111827";
+const MUTED = "#6B7280";
 const GREY = "#9aa093";
-const DIM = "#e3e6e0";
+const DIM = "#EEF0F3";
 
 /* SO typeahead — mirrors desktop CreatePanel: GET /api/assr/search-so?q=…
    returns { results: [{ doc_no, ref, debtor_name, phone, doc_date,

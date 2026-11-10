@@ -25,7 +25,7 @@ export function PoPriceReference({ poUnitPriceSen, piUnitPriceSen, fmt, align = 
   align?: 'left' | 'right';
 }) {
   const box = { display: 'inline-flex', flexDirection: 'column' as const, alignItems: align === 'right' ? 'flex-end' : 'flex-start', gap: 1 };
-  const muted = { fontSize: 11.5, color: 'var(--fg-muted, #767b6e)' };
+  const muted = { fontSize: 11.5, color: 'var(--fg-muted, #6B7280)' };
   if (poUnitPriceSen == null) {
     return <span style={muted} title="This line has no purchase order behind it">no PO link</span>;
   }
@@ -38,7 +38,7 @@ export function PoPriceReference({ poUnitPriceSen, piUnitPriceSen, fmt, align = 
       <span style={{ ...muted, fontVariantNumeric: 'tabular-nums' }}>PO {fmt(poUnitPriceSen)}</span>
       {cmp.differs && cmp.diffSen != null && (
         <span
-          style={{ fontSize: 11, fontWeight: 600, color: '#a16a2e', fontVariantNumeric: 'tabular-nums' }}
+          style={{ fontSize: 11, fontWeight: 600, color: '#D64F20', fontVariantNumeric: 'tabular-nums' }}
           title="The invoice price is different from the purchase order's price. For reference only."
         >
           {cmp.diffSen > 0 ? '+' : '−'}{fmt(Math.abs(cmp.diffSen))} vs PO

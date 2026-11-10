@@ -28,7 +28,7 @@ const ZONE_COLOUR: Record<string, [string, string]> = {
   PENANG: ['#ebe4f1', '#4b2f6b'], KEDAH: ['#e5ddef', '#4b2f6b'], PERAK: ['#dfd5ea', '#4b2f6b'],
   PAHANG: ['#f3eadb', '#6b3f0e'], EAST: ['#f0e3cf', '#6b3f0e'],
 };
-export const zoneColour = (zone: string): [string, string] => ZONE_COLOUR[zone] ?? ['#eef0ec', '#414539'];
+export const zoneColour = (zone: string): [string, string] => ZONE_COLOUR[zone] ?? ['#F6F7F9', '#4B5563'];
 
 /** Outstation tiles laid out roughly as the peninsula sits (grid col / row). */
 export const OUTSTATION_TILES: { zone: string; col: string; row: string }[] = [

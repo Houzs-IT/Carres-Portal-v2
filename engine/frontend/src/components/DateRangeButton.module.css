@@ -1,8 +1,8 @@
 /* DateRangeButton — the owner's redesign date-range picker. Colours are the
-   design's own (petrol #16695f, brass #a16a2e, band #e1efed), on Theme C, in
+   design's own (petrol #1B1B39, brass #D64F20, band #DCE6FD), on Theme C, in
    the batch-3/4 pattern. */
 
-.root { --ink: #11140f; --text: #414539; --muted: #767b6e; --line: #d6d9d2; --petrol: #16695f; --brass: #a16a2e; --bad: #a83434;
+.root { --ink: #111827; --text: #4B5563; --muted: #6B7280; --line: #E5E7EB; --petrol: #1B1B39; --brass: #D64F20; --bad: #a83434;
   position: relative; display: inline-flex; align-items: center; font-variant-numeric: tabular-nums; }
 
 .trigger {
@@ -22,19 +22,19 @@
 .pop {
   /* On <body>, at the spot lib/popoverPlacement measures (inline left/top). The
      colour tokens live on .root, which a portal is not under, so they repeat here. */
-  --ink: #11140f; --text: #414539; --muted: #767b6e; --line: #d6d9d2; --petrol: #16695f; --brass: #a16a2e; --bad: #a83434;
+  --ink: #111827; --text: #4B5563; --muted: #6B7280; --line: #E5E7EB; --petrol: #1B1B39; --brass: #D64F20; --bad: #a83434;
   position: fixed; z-index: 1000; width: 560px; max-width: calc(100vw - 16px); font-variant-numeric: tabular-nums;
   display: grid; grid-template-columns: 150px minmax(0, 1fr); overflow: hidden;
   border: 1px solid var(--line); border-radius: 12px; background: #ffffff;
   box-shadow: 0 1px 0 rgba(17, 24, 16, 0.06), 0 18px 40px -16px rgba(17, 24, 16, 0.35);
 }
-.presets { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; background: #f9faf8; border-right: 1px solid #eef0ec; }
+.presets { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; background: #f9faf8; border-right: 1px solid #F6F7F9; }
 .preset {
   display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent;
   color: var(--text); font: 500 12.5px 'IBM Plex Sans', system-ui, sans-serif; text-align: left; cursor: pointer;
 }
-.preset:hover { background: #eef0ec; }
-.presetOn, .presetOn:hover { background: #e1efed; color: #0c3f39; font-weight: 600; }
+.preset:hover { background: #F6F7F9; }
+.presetOn, .presetOn:hover { background: #DCE6FD; color: #2F55E0; font-weight: 600; }
 .presetOn svg { color: var(--petrol); }
 .grow { flex: 1; min-width: 0; }
 
@@ -53,23 +53,23 @@
 .monthRow { display: flex; align-items: center; gap: 2px; margin: 12px 0 6px; }
 .monthTitle { flex: 1; font-size: 14px; font-weight: 600; }
 .navBtn { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
-.navBtn:hover { background: #eef0ec; }
+.navBtn:hover { background: #F6F7F9; }
 
 .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 2px; }
 .weekday { height: 26px; display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--muted); }
 .weekend { color: var(--brass); }
 .day { height: 32px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; font: 12.5px 'IBM Plex Sans', system-ui, sans-serif; }
-.band { background: #e1efed; }
+.band { background: #DCE6FD; }
 .bandStart { border-radius: 999px 0 0 999px; }
 .bandEnd { border-radius: 0 999px 999px 0; }
 .bandStart.bandEnd { border-radius: 999px; }
 .dot { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 999px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.day:hover .dot { background: #eef0ec; }
+.day:hover .dot { background: #F6F7F9; }
 .dotOutside { color: #c2c6bd; }
 .dotToday { font-weight: 600; box-shadow: inset 0 0 0 1.5px var(--brass); }
 .dotEdge, .day:hover .dotEdge { background: var(--petrol); color: #ffffff; font-weight: 600; }
 
-.foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eef0ec; }
+.foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #F6F7F9; }
 .hint { font-size: 12px; color: var(--muted); }
 .hintBad { color: var(--bad); }
 .todayLink { padding: 0; border: 0; background: none; color: var(--petrol); font: 600 12.5px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer; }
@@ -83,5 +83,5 @@
 @media (max-width: 640px) {
   .pop { position: fixed; top: 72px; left: 16px; right: 16px; width: auto; max-width: none; max-height: calc(100vh - 96px); overflow-y: auto;
     grid-template-columns: minmax(0, 1fr); }
-  .presets { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid #eef0ec; }
+  .presets { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid #F6F7F9; }
 }

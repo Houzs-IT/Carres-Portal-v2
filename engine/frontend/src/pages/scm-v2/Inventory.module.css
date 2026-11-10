@@ -19,12 +19,12 @@
    .page override cascade, so every var(--c-*)/--fg/--line reference is
    now written as its Ink & Petrol hex (the :root fallbacks in
    vendor/design-system/tokens.css differ: --c-cream #ffffff, --c-paper
-   #f4f6f3, --line rgba(34,31,32,.12) — they would have silently
+   #F8F9FA, --line rgba(34,31,32,.12) — they would have silently
    reskinned these tables). Mapping used:
-     primary      #16695f   primary-dark #0c3f39
-     ink          #11140f   ink-muted    #767b6e   ink-soft #9aa093
-     border       #d6d9d2   border-strong #c2c6bd
-     surface      #ffffff   surface-2    #f4f6f3   primary-soft #e1efed
+     primary      #1B1B39   primary-dark #2F55E0
+     ink          #111827   ink-muted    #6B7280   ink-soft #9aa093
+     border       #E5E7EB   border-strong #c2c6bd
+     surface      #ffffff   surface-2    #F8F9FA   primary-soft #DCE6FD
      success      #2f8a5b   err          #b23a3a
    Structural tokens (--space-*, --fs-*, --font-*, --shadow-*,
    --radius-*) are :root-global and stay as var().
@@ -49,7 +49,7 @@
   left: var(--space-3);
   top: 50%;
   transform: translateY(-50%);
-  color: #767b6e;
+  color: #6B7280;
   pointer-events: none;
 }
 .searchInput {
@@ -57,13 +57,13 @@
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   background: #fff;
-  border: 1px solid #d6d9d2;
+  border: 1px solid #E5E7EB;
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3) var(--space-2) var(--space-7);
-  color: #11140f;
+  color: #111827;
   outline: none;
 }
-.searchInput:focus { border-color: #c2c6bd; background: #f4f6f3; }
+.searchInput:focus { border-color: #c2c6bd; background: #F8F9FA; }
 
 /* ── Movements table filter (owner 2026-09-18) — a compact row above the
    Stock Card MOVEMENTS ledger. Type chips reuse .chip; the source-doc box
@@ -87,7 +87,7 @@
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #767b6e;
+  color: #6B7280;
 }
 .mvTypeChips {
   display: flex;
@@ -99,13 +99,13 @@
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   background: #fff;
-  border: 1px solid #d6d9d2;
+  border: 1px solid #E5E7EB;
   border-radius: var(--radius-md);
   padding: 0 var(--space-2);
-  color: #11140f;
+  color: #111827;
   outline: none;
 }
-.mvSelect:focus { border-color: #c2c6bd; background: #f4f6f3; }
+.mvSelect:focus { border-color: #c2c6bd; background: #F8F9FA; }
 .mvDateRange {
   display: flex;
   align-items: center;
@@ -126,7 +126,7 @@
 }
 .mvCount {
   font-size: var(--fs-13);
-  color: #767b6e;
+  color: #6B7280;
   white-space: nowrap;
 }
 .mvClearBtn {
@@ -134,13 +134,13 @@
   font-size: var(--fs-12);
   font-weight: 700;
   letter-spacing: 0.03em;
-  color: #16695f;
+  color: #1B1B39;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
 }
-.mvClearBtn:hover { color: #0c3f39; text-decoration: underline; }
+.mvClearBtn:hover { color: #2F55E0; text-decoration: underline; }
 .mvRunningNote {
   padding: 6px var(--space-3) 0;
   font-size: var(--fs-12);
@@ -180,20 +180,20 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: 20px;
-  border: 1px solid #d6d9d2;
+  border: 1px solid #E5E7EB;
   background: #fff;
-  color: #767b6e;
+  color: #6B7280;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .chip:hover {
-  background: #e1efed;
-  color: #11140f;
+  background: #DCE6FD;
+  color: #111827;
   border-color: #bcdcd6;
 }
 .chip[data-active='true'] {
-  border-color: #16695f;
-  background: #16695f;
+  border-color: #1B1B39;
+  background: #1B1B39;
   color: #fff;
 }
 
@@ -205,10 +205,10 @@
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #0c3f39;
+  color: #2F55E0;
   margin: 0;
   padding-left: var(--space-2);
-  border-left: 3px solid #16695f;
+  border-left: 3px solid #1B1B39;
   line-height: 1.25;
 }
 
@@ -226,15 +226,15 @@
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: 600;
-  color: #11140f;
+  color: #111827;
   background: #fff;
-  border: 1px solid #d6d9d2;
+  border: 1px solid #E5E7EB;
   border-radius: var(--radius-md);
   cursor: pointer;
   white-space: nowrap;
 }
-.whFilterButton:hover { border-color: #c2c6bd; background: #f4f6f3; }
-.whFilterButton[data-active='true'] { border-color: #16695f; color: #0c3f39; }
+.whFilterButton:hover { border-color: #c2c6bd; background: #F8F9FA; }
+.whFilterButton[data-active='true'] { border-color: #1B1B39; color: #2F55E0; }
 .whFilterLabel {
   max-width: 200px;
   overflow: hidden;
@@ -254,7 +254,7 @@
   width: 300px;
   max-width: 80vw;
   background: #fff;
-  border: 1px solid #d6d9d2;
+  border: 1px solid #E5E7EB;
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(17, 20, 15, 0.14);
   overflow: hidden;
@@ -264,9 +264,9 @@
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   border: none;
-  border-bottom: 1px solid #d6d9d2;
+  border-bottom: 1px solid #E5E7EB;
   padding: var(--space-2) var(--space-3);
-  color: #11140f;
+  color: #111827;
   outline: none;
 }
 .whFilterList {
@@ -284,31 +284,31 @@
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: 600;
-  color: #11140f;
+  color: #111827;
   background: transparent;
   border: none;
   cursor: pointer;
 }
-.whFilterOption:hover { background: #f4f6f3; }
+.whFilterOption:hover { background: #F8F9FA; }
 .whFilterOptionTick { display: flex; align-items: center; gap: 6px; }
-.whFilterOption[data-active='true'] { background: #e1efed; color: #0c3f39; }
+.whFilterOption[data-active='true'] { background: #DCE6FD; color: #2F55E0; }
 .whFilterOptionCode { font-weight: 700; }
 .whFilterOptionSub {
   font-size: var(--fs-11);
   font-weight: 500;
-  color: #767b6e;
+  color: #6B7280;
 }
 .whFilterEmpty {
   padding: var(--space-3);
   font-size: var(--fs-12);
-  color: #767b6e;
+  color: #6B7280;
   text-align: center;
 }
 
 /* ── Tables ────────────────────────────────────────────────────────── */
 .tableCard {
   background: #fff;
-  border: 1px solid #d6d9d2;
+  border: 1px solid #E5E7EB;
   border-radius: var(--radius-sm, 6px);
   box-shadow: none;
   overflow: hidden;
@@ -329,31 +329,31 @@
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--c-ink, #11140f);
+  color: var(--c-ink, #111827);
   text-align: left;
   padding: var(--space-2) var(--space-3);
-  background: #e3e6e0;
-  border-bottom: 2px solid #d6d9d2;
+  background: #EEF0F3;
+  border-bottom: 2px solid #E5E7EB;
 }
 
 .table tbody td {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid #d6d9d2;
+  border-bottom: 1px solid #E5E7EB;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  color: #11140f;
+  color: #111827;
 }
 
 .table tbody tr:last-child td { border-bottom: none; }
-.table tbody tr:hover { background: #f4f6f3; }
+.table tbody tr:hover { background: #F8F9FA; }
 
 .codeChip {
   display: inline-block;
   font-family: var(--font-mono);
   font-size: var(--fs-12);
-  background: #f4f6f3;
-  color: #11140f;
-  border: 1px solid #d6d9d2;
+  background: #F8F9FA;
+  color: #111827;
+  border: 1px solid #E5E7EB;
   padding: 2px 8px;
   border-radius: var(--radius-pill);
 }
@@ -363,7 +363,7 @@
   font-size: var(--fs-13);
   text-align: right;
   font-weight: 600;
-  color: #11140f;
+  color: #111827;
 }
 
 .numCellPos { color: #2f8a5b; }
@@ -404,7 +404,7 @@
 
 .movementIn  { background: rgba(47, 138, 91, 0.12); color: #2f8a5b; }
 .movementOut { background: rgba(178, 58, 58, 0.10); color: #b23a3a; }
-.movementAdj { background: #e1efed;                 color: #0c3f39; }
+.movementAdj { background: #DCE6FD;                 color: #2F55E0; }
 
 /* Assigned-vs-free split (owner 2026-07-25, dead-stock view). ASSIGNED = MRP
    allocated on-hand stock to an SO (green, like a covered position). FREE =
@@ -417,14 +417,14 @@
 .docLink {
   font-family: var(--font-mono);
   font-size: var(--fs-12);
-  color: #16695f;
+  color: #1B1B39;
   text-decoration: none;
 }
 .docLink:hover { text-decoration: underline; }
 
 .emptyRow {
   text-align: center;
-  color: #767b6e;
+  color: #6B7280;
   padding: var(--space-6);
 }
 

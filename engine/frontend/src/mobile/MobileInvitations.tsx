@@ -20,8 +20,8 @@ import type { Invitation } from "../types";
 
 const SMALL_BTN: CSSProperties = {
   border: "1px solid #bcdcd7",
-  background: "#e1efed",
-  color: "#16695f",
+  background: "#DCE6FD",
+  color: "#1B1B39",
   fontSize: 11.5,
   fontWeight: 700,
   borderRadius: 8,
@@ -186,7 +186,7 @@ export function MobileInvitations() {
             style={{
               transform: open ? "rotate(90deg)" : "none",
               transition: "transform .15s",
-              color: "var(--ink3, #767b6e)",
+              color: "var(--ink3, #6B7280)",
             }}
           >
             ›
@@ -262,7 +262,7 @@ export function MobileInvitations() {
                   gap: 6,
                   marginTop: 4,
                   fontSize: 11.5,
-                  color: "var(--ink3, #767b6e)",
+                  color: "var(--ink3, #6B7280)",
                 }}
               >
                 {inv.role_name && <span className="badge b-brand">{inv.role_name}</span>}

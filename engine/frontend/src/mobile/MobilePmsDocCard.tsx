@@ -83,15 +83,15 @@ export function humanize(s: string): string {
 // checklist item's `role_label` (BD / PURCHASER / DRIVER / SALES PIC …).
 const ROLE_COLOR: Record<string, string> = {
   BD: "#7a5c86",
-  PURCHASER: "#a16a2e",
+  PURCHASER: "#D64F20",
   DRIVER: "#2a6f9e",
-  "SALES PIC": "#16695f",
-  SALES: "#16695f",
+  "SALES PIC": "#1B1B39",
+  SALES: "#1B1B39",
   LOGISTIC: "#2f8a5b",
   // Shared sales+driver deliverables (the Defect List pair, owner 2026-07-29).
-  "SALES PIC & DRIVER": "#16695f",
+  "SALES PIC & DRIVER": "#1B1B39",
 };
-export const roleColor = (label: string) => ROLE_COLOR[label.toUpperCase()] ?? "#767b6e";
+export const roleColor = (label: string) => ROLE_COLOR[label.toUpperCase()] ?? "#6B7280";
 // Owner 2026-07-15: badges should read sentence-case ("Purchaser", "Driver",
 // "Sales PIC") instead of shouting all-caps — but keep genuine acronyms
 // (BD, PIC) uppercase, matching how the app writes them elsewhere.
@@ -168,10 +168,10 @@ export function BigFilePreview({
         style={{ cursor: "pointer" }}
       >
         {isImage ? (
-          <R2Thumb r2Key={media.r2_key} style={{ width: "100%", height, borderRadius: 10, border: "1px solid #e3e6e0" }} />
+          <R2Thumb r2Key={media.r2_key} style={{ width: "100%", height, borderRadius: 10, border: "1px solid #EEF0F3" }} />
         ) : (
-          <div className="ph" style={{ height: 92, borderRadius: 10, border: "1px solid #e3e6e0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#767b6e", background: "rgba(255,255,255,.85)", border: "1px solid #d6d9d2", borderRadius: 7, padding: "3px 9px" }}>
+          <div className="ph" style={{ height: 92, borderRadius: 10, border: "1px solid #EEF0F3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: "#6B7280", background: "rgba(255,255,255,.85)", border: "1px solid #E5E7EB", borderRadius: 7, padding: "3px 9px" }}>
               {(media.content_type === "application/pdf" ? "PDF" : "FILE")} · tap to view
             </span>
           </div>
@@ -223,8 +223,8 @@ export function UploadGlyph() {
 // The mockup's "Reason:" strip — a per-photo remark under its preview.
 export function RemarkStrip({ label = "Remark", text }: { label?: string; text: string }) {
   return (
-    <div style={{ background: "#faf9f5", borderLeft: "3px solid #d8a85a", borderRadius: 7, padding: "7px 10px", fontSize: 11.5, lineHeight: 1.45, color: "#414539", marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-      <b style={{ color: "#a16a2e" }}>{label}:</b> {text}
+    <div style={{ background: "#faf9f5", borderLeft: "3px solid #D64F20", borderRadius: 7, padding: "7px 10px", fontSize: 11.5, lineHeight: 1.45, color: "#4B5563", marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+      <b style={{ color: "#D64F20" }}>{label}:</b> {text}
     </div>
   );
 }
@@ -584,10 +584,10 @@ export function SalesDocsCard({
           const isDefect = isDefectTile(t);
           const compactRows = isStockTransferTitle(t.item?.title);
           return (
-            <div key={t.label} style={{ border: "1px solid #d6d9d2", borderRadius: 12, background: "#fff", padding: "10px 11px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div key={t.label} style={{ border: "1px solid #E5E7EB", borderRadius: 12, background: "#fff", padding: "10px 11px", display: "flex", flexDirection: "column", gap: 8 }}>
               {/* Block header — name · count badge · role chips · review badge */}
               <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#11140f", marginRight: "auto" }}>{t.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginRight: "auto" }}>{t.label}</span>
                 {/* Owner 2026-07-23: oversight viewers (mgt/BD/owner/SD/
                     logistic) see WHO owns each deliverable — the task's
                     role chip, same colours as the old tasklist rows. */}
@@ -613,7 +613,7 @@ export function SalesDocsCard({
                   tabIndex={0}
                   onClick={() => { if (!busy) void openRemark(t); }}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!busy) void openRemark(t); } }}
-                  style={{ background: "#faf9f5", border: "1px solid #eceee9", borderRadius: 9, padding: "8px 10px", fontSize: 11.5, lineHeight: 1.45, color: remarkText ? "#414539" : "#9aa093", cursor: "pointer", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                  style={{ background: "#faf9f5", border: "1px solid #eceee9", borderRadius: 9, padding: "8px 10px", fontSize: 11.5, lineHeight: 1.45, color: remarkText ? "#4B5563" : "#9aa093", cursor: "pointer", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
                 >
                   {remarkText || (editable && t.remarkTile ? "Tap to write the remark…" : "No remark yet.")}
                 </div>
@@ -627,13 +627,13 @@ export function SalesDocsCard({
                   <span
                     role="button"
                     onClick={() => setView({ items: t.files, idx: i })}
-                    style={{ flex: "none", width: 54, height: 44, borderRadius: 7, overflow: "hidden", border: "1px solid #e3e6e0", cursor: "pointer", display: "block" }}
+                    style={{ flex: "none", width: 54, height: 44, borderRadius: 7, overflow: "hidden", border: "1px solid #EEF0F3", cursor: "pointer", display: "block" }}
                   >
                     {/^image\//.test(t.files[i]?.content_type ?? "")
                       ? <R2Thumb r2Key={a.r2_key} style={{ width: 54, height: 44 }} />
                       : <span className="ph" style={{ display: "block", width: 54, height: 44 }} />}
                   </span>
-                  <span style={{ flex: 1, minWidth: 80, fontSize: 11, color: "#414539" }}>{a.file_name || "Record"}</span>
+                  <span style={{ flex: 1, minWidth: 80, fontSize: 11, color: "#4B5563" }}>{a.file_name || "Record"}</span>
                   <button type="button" className="tinybtn" onClick={() => setView({ items: t.files, idx: i })}>View</button>
                   {editable && canDeleteFiles && (
                     <button
@@ -678,7 +678,7 @@ export function SalesDocsCard({
                   tabIndex={0}
                   onClick={() => { if (busy) return; if (editable) { void startUpload(t); } else { void notify({ title: `${t.label} not uploaded`, body: "Nothing has been uploaded here yet.", tone: "info" }); } }}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (e.currentTarget as HTMLElement).click(); } }}
-                  style={{ border: "1px dashed #d6d9d2", borderRadius: 9, padding: "13px 10px", textAlign: "center", fontSize: 11, color: "#9aa093", cursor: "pointer" }}
+                  style={{ border: "1px dashed #E5E7EB", borderRadius: 9, padding: "13px 10px", textAlign: "center", fontSize: 11, color: "#9aa093", cursor: "pointer" }}
                 >
                   {editable ? "No file yet — tap to upload" : "No file yet"}
                 </div>
@@ -696,7 +696,7 @@ export function SalesDocsCard({
               {isDefect && t.item && editable && (
                 <button
                   className="tinybtn"
-                  style={{ width: "100%", background: t.item.status === "na" ? "#f4f6f3" : "#fff", color: "#767b6e" }}
+                  style={{ width: "100%", background: t.item.status === "na" ? "#F8F9FA" : "#fff", color: "#6B7280" }}
                   disabled={busy}
                   onClick={async () => {
                     const next = t.item!.status === "na" ? "pending" : "na";

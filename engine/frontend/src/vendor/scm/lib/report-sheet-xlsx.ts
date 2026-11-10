@@ -15,10 +15,10 @@ import type { Cell, Row, SheetData } from 'write-excel-file';
 import { sheetWithTotalsBelow, type ReportSheet, type SheetColumn, type SheetRow, type SheetRowKind, type SheetTable } from './report-sheet';
 
 /* The screen's own colours (tokens.css): ink, soft text, the two shades. */
-const INK = '#11140f';
+const INK = '#111827';
 const SOFT = '#8a8578';
 const TOTAL_FILL = '#eceeea';
-const NET_FILL = '#e3e6e0';
+const NET_FILL = '#EEF0F3';
 const RULE = '#c9c7c0';
 
 /** 1,234.56 — a negative in parentheses, as every Finance report reads it. */

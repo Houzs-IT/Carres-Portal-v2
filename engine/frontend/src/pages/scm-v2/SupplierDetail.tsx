@@ -494,7 +494,7 @@ export const SupplierDetail = () => {
         <section className={styles.card}>
           <header className={styles.cardHeader}>
             <h2 className={styles.cardTitle}>
-              <Tag {...ICON} style={{ color: '#0c3f39' }} />
+              <Tag {...ICON} style={{ color: '#2F55E0' }} />
               Combo Pricing · {supplier.name}
             </h2>
           </header>
@@ -605,7 +605,7 @@ const SupplierOverviewPanel = ({
     <section className={styles.card}>
       <header className={styles.cardHeader}>
         <h2 className={styles.cardTitle}>
-          <TrendingUp {...ICON} style={{ color: '#0c3f39' }} />
+          <TrendingUp {...ICON} style={{ color: '#2F55E0' }} />
           Last 10 Purchase Orders
           <span className={styles.cardTitleCount}>({score?.totalPOs ?? 0} total)</span>
         </h2>
@@ -738,9 +738,9 @@ const SupplierSkuPricingPanel = ({
       >
         <h2 className={styles.cardTitle}>
           {open
-            ? <ChevronDown {...SM_ICON} style={{ color: '#767b6e' }} />
-            : <ChevronRight {...SM_ICON} style={{ color: '#767b6e' }} />}
-          <Package {...ICON} style={{ color: '#0c3f39' }} />
+            ? <ChevronDown {...SM_ICON} style={{ color: '#6B7280' }} />
+            : <ChevronRight {...SM_ICON} style={{ color: '#6B7280' }} />}
+          <Package {...ICON} style={{ color: '#2F55E0' }} />
           SKU Mappings
           <span className={styles.cardTitleCount}>
             {bindings.length === 0
@@ -844,7 +844,7 @@ const SupplierPricingPanel = ({
     <section className={styles.card}>
       <header className={styles.cardHeader}>
         <h2 className={styles.cardTitle}>
-          <Tag {...ICON} style={{ color: '#0c3f39' }} />
+          <Tag {...ICON} style={{ color: '#2F55E0' }} />
           Maintenance · {supplierName}
           {supplierCategory && (
             <span className={styles.cardTitleCount}>
@@ -897,17 +897,17 @@ const CategorySection = ({
      to the .subGroupHead class (fs-9/700 letter-spacing 0.12em). Matches the
      other card eyebrows on this page. */
   return (
-    <div style={{ borderTop: '1px solid #d6d9d2' }}>
+    <div style={{ borderTop: '1px solid #E5E7EB' }}>
       <button
         type="button"
         onClick={toggleOpen}
         aria-expanded={open}
         className={styles.subGroupHead}
-        style={{ borderBottom: open ? '1px solid #d6d9d2' : 'none' }}
+        style={{ borderBottom: open ? '1px solid #E5E7EB' : 'none' }}
       >
         {open
-          ? <ChevronDown size={10} strokeWidth={1.75} style={{ color: '#767b6e' }} />
-          : <ChevronRight size={10} strokeWidth={1.75} style={{ color: '#767b6e' }} />}
+          ? <ChevronDown size={10} strokeWidth={1.75} style={{ color: '#6B7280' }} />
+          : <ChevronRight size={10} strokeWidth={1.75} style={{ color: '#6B7280' }} />}
         <span>{label}</span>
         <span className={styles.subGroupHeadCount}>
           {count} {count === 1 ? 'code' : 'codes'}
@@ -1291,11 +1291,11 @@ const SofaSkuMappingsTable = ({
           alignItems: 'center',
           gap: 'var(--space-2)',
           padding: '4px var(--space-3)',
-          borderBottom: '1px solid #d6d9d2',
+          borderBottom: '1px solid #E5E7EB',
           background: '#fff',
         }}
       >
-        <span style={{ fontSize: 'var(--fs-9)', fontWeight: 700, color: '#767b6e', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+        <span style={{ fontSize: 'var(--fs-9)', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
           Fabric tier
         </span>
         {SOFA_TIER_CHIPS.map((c) => (
@@ -1310,9 +1310,9 @@ const SofaSkuMappingsTable = ({
               fontWeight: 600,
               padding: '1px 10px',
               borderRadius: 'var(--radius-pill)',
-              border: selectedTier === c.value ? '1px solid #11140f' : '1px solid #d6d9d2',
-              background: selectedTier === c.value ? '#11140f' : '#fff',
-              color: selectedTier === c.value ? '#f4f6f3' : '#11140f',
+              border: selectedTier === c.value ? '1px solid #111827' : '1px solid #E5E7EB',
+              background: selectedTier === c.value ? '#111827' : '#fff',
+              color: selectedTier === c.value ? '#F8F9FA' : '#111827',
               cursor: 'pointer',
             }}
           >
@@ -1437,7 +1437,7 @@ const MainStarCell = ({
         size={16}
         strokeWidth={1.75}
         fill={binding.is_main_supplier ? 'currentColor' : 'none'}
-        style={{ color: binding.is_main_supplier ? '#0c3f39' : '#767b6e' }}
+        style={{ color: binding.is_main_supplier ? '#2F55E0' : '#6B7280' }}
       />
     </button>
     {binding.is_main_supplier && <span className={styles.mainPill}>Main</span>}
@@ -1518,7 +1518,7 @@ const AnchorCell = ({
           size={16}
           strokeWidth={1.75}
           fill={anchored ? 'currentColor' : 'none'}
-          style={{ color: anchored ? '#0c3f39' : '#767b6e' }}
+          style={{ color: anchored ? '#2F55E0' : '#6B7280' }}
         />
       </button>
       {anchored && <span className={styles.mainPill}>Anchor</span>}
@@ -2119,17 +2119,17 @@ const SkuFormDialog = ({
               <div
                 className={styles.formGridFull}
                 style={{
-                  fontSize: 'var(--fs-11)', color: '#767b6e',
+                  fontSize: 'var(--fs-11)', color: '#6B7280',
                   padding: '6px 2px', lineHeight: 1.5,
                 }}
               >
                 <span style={{
                   fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
-                  letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0c3f39',
+                  letterSpacing: '0.06em', textTransform: 'uppercase', color: '#2F55E0',
                 }}>Supplier SKU → </span>
-                <code style={{ fontWeight: 700, color: '#11140f' }}>{skuPreview.composed}</code>
+                <code style={{ fontWeight: 700, color: '#111827' }}>{skuPreview.composed}</code>
                 {skuPreview.overridden && (
-                  <span> · overridden (using <code style={{ fontWeight: 700, color: '#11140f' }}>{skuPreview.current}</code>)</span>
+                  <span> · overridden (using <code style={{ fontWeight: 700, color: '#111827' }}>{skuPreview.current}</code>)</span>
                 )}
               </div>
             )}
@@ -2250,7 +2250,7 @@ const BindingPriceTimeline = ({ supplierId, binding }: { supplierId: string; bin
   return (
     <div className={styles.formGridFull} style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--line)', paddingTop: 'var(--space-3)' }}>
       <span className={styles.fieldLabel}>Supplier price timeline</span>
-      <p style={{ fontSize: 'var(--fs-11)', color: '#767b6e', margin: '2px 0 10px' }}>
+      <p style={{ fontSize: 'var(--fs-11)', color: '#6B7280', margin: '2px 0 10px' }}>
         The unit cost this supplier charges, by date. A scheduled price becomes the current cost on its date (POs and the Product Maintenance cost follow). Past orders are never touched.
       </p>
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 'var(--space-3)' }}>
@@ -2369,8 +2369,8 @@ const SupplierInfoCard = ({
       >
         <h2 className={styles.cardTitle}>
           {bodyVisible
-            ? <ChevronDown {...SM_ICON} style={{ color: '#767b6e' }} />
-            : <ChevronRight {...SM_ICON} style={{ color: '#767b6e' }} />}
+            ? <ChevronDown {...SM_ICON} style={{ color: '#6B7280' }} />
+            : <ChevronRight {...SM_ICON} style={{ color: '#6B7280' }} />}
           Supplier Info
         </h2>
         {/* stopPropagation so the Edit / Save / Cancel buttons don't also
@@ -2875,7 +2875,7 @@ const ModelSkuPickerDialog = ({
             <label
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontSize: 'var(--fs-12)', color: '#767b6e', cursor: 'pointer',
+                fontSize: 'var(--fs-12)', color: '#6B7280', cursor: 'pointer',
               }}
               title="Switch to per-SKU picker (for Models needing different codes per size)"
             >
@@ -2905,9 +2905,9 @@ const ModelSkuPickerDialog = ({
                       fontFamily: 'var(--font-button)', fontSize: 'var(--fs-13)', fontWeight: 600,
                       padding: 'var(--space-2) var(--space-3)',
                       borderRadius: 'var(--radius-pill)',
-                      border: category === c.value ? '1px solid #11140f' : '1px solid #d6d9d2',
-                      background: category === c.value ? '#11140f' : '#fff',
-                      color: category === c.value ? '#f4f6f3' : '#11140f',
+                      border: category === c.value ? '1px solid #111827' : '1px solid #E5E7EB',
+                      background: category === c.value ? '#111827' : '#fff',
+                      color: category === c.value ? '#F8F9FA' : '#111827',
                       cursor: 'pointer',
                     }}
                   >
@@ -2915,7 +2915,7 @@ const ModelSkuPickerDialog = ({
                   </button>
                 ))}
                 <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                  <Search {...ICON} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#767b6e', pointerEvents: 'none' }} />
+                  <Search {...ICON} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6B7280', pointerEvents: 'none' }} />
                   <input
                     type="search"
                     placeholder="Search Model or SKU code / name…"
@@ -2923,7 +2923,7 @@ const ModelSkuPickerDialog = ({
                     onChange={(e) => setSearch(e.target.value)}
                     style={{
                       width: '100%', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-14)',
-                      background: '#fff', border: '1px solid #d6d9d2',
+                      background: '#fff', border: '1px solid #E5E7EB',
                       borderRadius: 'var(--radius-md)',
                       padding: 'var(--space-2) var(--space-3) var(--space-2) var(--space-7)',
                       outline: 'none',
@@ -2931,7 +2931,7 @@ const ModelSkuPickerDialog = ({
                   />
                 </div>
               </div>
-              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)' }}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
@@ -2989,7 +2989,7 @@ const ModelSkuPickerDialog = ({
                           <td>
                             {model.name}
                             {inactive && (
-                              <span style={{ marginLeft: 6, fontSize: 'var(--fs-11)', fontWeight: 700, color: '#0c3f39', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              <span style={{ marginLeft: 6, fontSize: 'var(--fs-11)', fontWeight: 700, color: '#2F55E0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                 · Inactive
                               </span>
                             )}
@@ -3005,8 +3005,8 @@ const ModelSkuPickerDialog = ({
                                   status.tone === 'all'
                                     ? 'var(--c-secondary-a, #2F5D4F)'
                                     : status.tone === 'mixed'
-                                      ? '#0c3f39'
-                                      : '#767b6e',
+                                      ? '#2F55E0'
+                                      : '#6B7280',
                               }}
                             >
                               {status.label}
@@ -3047,7 +3047,7 @@ const ModelSkuPickerDialog = ({
               <p className={styles.infoLabel} style={{ marginBottom: 'var(--space-2)' }}>
                 Fill each Model's supplier code + note. Save binds every active SKU under it (same code + price). Prices here are COST, not selling.
               </p>
-              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)' }}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
@@ -3095,7 +3095,7 @@ const ModelSkuPickerDialog = ({
                                   marginTop: 2,
                                   fontSize: 'var(--fs-12)',
                                   cursor: d.skus.length === 0 ? 'default' : 'pointer',
-                                  color: expanded ? '#0c3f39' : '#767b6e',
+                                  color: expanded ? '#2F55E0' : '#6B7280',
                                   textDecoration: 'underline',
                                   textUnderlineOffset: 2,
                                 }}
@@ -3119,16 +3119,16 @@ const ModelSkuPickerDialog = ({
                                   to expand the SKU list below. */}
                               {previewMap && toMap.length > 0 && (
                                 <div style={{
-                                  marginTop: 4, fontSize: 'var(--fs-11)', color: '#767b6e',
+                                  marginTop: 4, fontSize: 'var(--fs-11)', color: '#6B7280',
                                   lineHeight: 1.4,
                                 }}>
                                   <span style={{
                                     fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
-                                    letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0c3f39',
+                                    letterSpacing: '0.06em', textTransform: 'uppercase', color: '#2F55E0',
                                   }}>becomes → </span>
                                   {toMap.slice(0, 2).map((c, i) => (
                                     <span key={c}>
-                                      <code style={{ fontWeight: 700, color: '#11140f' }}>{previewMap[c]}</code>
+                                      <code style={{ fontWeight: 700, color: '#111827' }}>{previewMap[c]}</code>
                                       {i < Math.min(2, toMap.length) - 1 ? ', ' : ''}
                                     </span>
                                   ))}
@@ -3181,9 +3181,9 @@ const ModelSkuPickerDialog = ({
                           {expanded && d.skus.length > 0 && (
                             <tr>
                               <td colSpan={7} style={{
-                                background: '#f4f6f3',
+                                background: '#F8F9FA',
                                 padding: 'var(--space-2) var(--space-3)',
-                                borderTop: '1px dashed #d6d9d2',
+                                borderTop: '1px dashed #E5E7EB',
                               }}>
                                 <SkuPreviewStrip
                                   toMap={toMap}
@@ -3374,9 +3374,9 @@ const MultiSkuPickerDialog = ({
                       fontFamily: 'var(--font-button)', fontSize: 'var(--fs-13)', fontWeight: 600,
                       padding: 'var(--space-2) var(--space-3)',
                       borderRadius: 'var(--radius-pill)',
-                      border: category === c.value ? '1px solid #11140f' : '1px solid #d6d9d2',
-                      background: category === c.value ? '#11140f' : '#fff',
-                      color: category === c.value ? '#f4f6f3' : '#11140f',
+                      border: category === c.value ? '1px solid #111827' : '1px solid #E5E7EB',
+                      background: category === c.value ? '#111827' : '#fff',
+                      color: category === c.value ? '#F8F9FA' : '#111827',
                       cursor: 'pointer',
                     }}
                   >
@@ -3384,7 +3384,7 @@ const MultiSkuPickerDialog = ({
                   </button>
                 ))}
                 <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-                  <Search {...ICON} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#767b6e', pointerEvents: 'none' }} />
+                  <Search {...ICON} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6B7280', pointerEvents: 'none' }} />
                   <input
                     type="search"
                     placeholder="Search code / name / description…"
@@ -3392,7 +3392,7 @@ const MultiSkuPickerDialog = ({
                     onChange={(e) => setSearch(e.target.value)}
                     style={{
                       width: '100%', fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-14)',
-                      background: '#fff', border: '1px solid #d6d9d2',
+                      background: '#fff', border: '1px solid #E5E7EB',
                       borderRadius: 'var(--radius-md)',
                       padding: 'var(--space-2) var(--space-3) var(--space-2) var(--space-7)',
                       outline: 'none',
@@ -3400,7 +3400,7 @@ const MultiSkuPickerDialog = ({
                   />
                 </div>
               </div>
-              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)' }}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
@@ -3477,7 +3477,7 @@ const MultiSkuPickerDialog = ({
               <p className={styles.infoLabel} style={{ marginBottom: 'var(--space-3)' }}>
                 Fill in each product's supplier-side code + price + lead time. Leave Supplier SKU blank to use our internal code.
               </p>
-              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)' }}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
@@ -3581,7 +3581,7 @@ export function SkuPreviewStrip({
     }}>
       <span style={{
         fontSize: 'var(--fs-11)',
-        color: '#767b6e',
+        color: '#6B7280',
         textTransform: 'uppercase',
         letterSpacing: '0.04em',
         marginRight: 8,
@@ -3589,7 +3589,7 @@ export function SkuPreviewStrip({
         Will bulk-map →
       </span>
       {toMap.length === 0 ? (
-        <span style={{ color: '#767b6e', fontSize: 'var(--fs-12)' }}>
+        <span style={{ color: '#6B7280', fontSize: 'var(--fs-12)' }}>
           All SKUs already mapped.
         </span>
       ) : toMap.map((c) => {
@@ -3601,16 +3601,16 @@ export function SkuPreviewStrip({
               fontFamily: 'var(--font-mono)',
               fontSize: 'var(--fs-12)',
               background: '#fff',
-              border: '1px solid #d6d9d2',
+              border: '1px solid #E5E7EB',
               borderRadius: 'var(--radius-sm)',
               padding: '2px 8px',
             }}
           >
             {c}
             {resolved && (
-              <span style={{ color: '#767b6e' }}>
+              <span style={{ color: '#6B7280' }}>
                 {' → '}
-                <span style={{ color: '#0c3f39', fontWeight: 600 }}>{resolved}</span>
+                <span style={{ color: '#2F55E0', fontWeight: 600 }}>{resolved}</span>
               </span>
             )}
           </code>
@@ -3620,7 +3620,7 @@ export function SkuPreviewStrip({
         <>
           <span style={{
             fontSize: 'var(--fs-11)',
-            color: '#767b6e',
+            color: '#6B7280',
             textTransform: 'uppercase',
             letterSpacing: '0.04em',
             margin: '0 8px',
@@ -3633,11 +3633,11 @@ export function SkuPreviewStrip({
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--fs-12)',
-                background: '#f4f6f3',
-                border: '1px dashed #d6d9d2',
+                background: '#F8F9FA',
+                border: '1px dashed #E5E7EB',
                 borderRadius: 'var(--radius-sm)',
                 padding: '2px 8px',
-                color: '#767b6e',
+                color: '#6B7280',
                 textDecoration: 'line-through',
               }}
             >
@@ -3653,8 +3653,8 @@ export function SkuPreviewStrip({
 const smallInputStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-13)',
-  background: '#f4f6f3',
-  border: '1px solid #d6d9d2',
+  background: '#F8F9FA',
+  border: '1px solid #E5E7EB',
   borderRadius: 'var(--radius-sm)',
   padding: '4px 8px',
   outline: 'none',

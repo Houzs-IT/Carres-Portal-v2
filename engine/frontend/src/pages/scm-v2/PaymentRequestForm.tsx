@@ -263,7 +263,7 @@ export function RequestForm({ initial, hasEvents, onDone, onCancel, seed }: {
             <span className={styles.fieldLabel}>Pay by</span>
             {/* Dressed like the fields beside it — the date field's own pill stood out in the row. */}
             <DateField fullWidth value={v.dueDate ?? ''} onChange={(iso) => set({ dueDate: iso || null })} className={styles.fieldInput} aria-label="Pay by"
-              style={{ background: '#fff', border: '1px solid #d6d9d2', borderRadius: 8 }} />
+              style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8 }} />
           </label>
         </div>
       </FormSection>
@@ -277,7 +277,7 @@ export function RequestForm({ initial, hasEvents, onDone, onCancel, seed }: {
         {fromRow ? (
           <div className={styles.field}>
             <span className={styles.fieldLabel}>Event — the PMS row's own</span>
-            <div className={styles.fieldInput} role="note" aria-label="Event" style={{ background: 'var(--c-paper, #f4f6f3)' }}>{rowEventLabel}</div>
+            <div className={styles.fieldInput} role="note" aria-label="Event" style={{ background: 'var(--c-paper, #F8F9FA)' }}>{rowEventLabel}</div>
           </div>
         ) : hasEvents && (
           <label className={styles.field}>
