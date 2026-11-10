@@ -25,6 +25,7 @@ import {
 import { parseJsonBody, fail } from "../lib/route-helpers";
 import { userClient } from "../lib/supabase";
 import type { AppEnv } from "../types";
+import { refuseWhenOldCasesOff } from "../lib/old-order-flows";
 
 // ---------------------------------------------------------------------------
 // Guarantee packages (migrations 0261-0263, 2026-07-26).
@@ -248,7 +249,7 @@ guaranteesRouter.get("/order/:orderId", async (c) => {
 // Every rule (delivered · in-window · unclaimed) is enforced inside the RPC;
 // this handler only shapes the payload and translates the error.
 // ---------------------------------------------------------------------------
-guaranteesRouter.post("/:id/claim", async (c) => {
+guaranteesRouter.post("/:id/claim", refuseWhenOldCasesOff, async (c) => {
   claimRoleOnly(c);
   const id = c.req.param("id");
   const parsed = await parseJsonBody(c, guaranteeClaimInputSchema);

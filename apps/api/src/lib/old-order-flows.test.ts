@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { signTestJwt, useTestJwks } from "../test/jwt";
 import app from "../index";
 import { _setJwksForTesting } from "../middleware/auth";
-import { OLD_ORDERS_OFF } from "./old-order-flows";
+import { OLD_CASES_OFF, OLD_ORDERS_OFF } from "./old-order-flows";
 
 const USER = "11111111-1111-1111-1111-000000000997";
 const env = {
@@ -35,6 +35,19 @@ describe("new orders into the old supply chain, while it is turned off", () => {
     it(`${path} is untouched when the switch is unset`, async () => {
       const res = await post(path, {});
       expect(res.status).not.toBe(409);
+    });
+  }
+});
+
+describe("new cases into the old Service Cases, while it is turned off", () => {
+  for (const path of ["/api/ops/service-cases", "/api/ops/service-notes", "/api/guarantees/00000000-0000-0000-0000-000000000001/claim"]) {
+    it(`${path} refuses with the plain sentence`, async () => {
+      const res = await post(path, { OLD_ORDER_FLOWS: "off" });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "old_cases_off", message: OLD_CASES_OFF });
+    });
+    it(`${path} is untouched when the switch is unset`, async () => {
+      expect((await post(path, {})).status).not.toBe(409);
     });
   }
 });

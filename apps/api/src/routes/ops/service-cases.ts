@@ -47,6 +47,7 @@ import { parseBody } from "../../lib/route-helpers";
 import { todayIsoMYT } from "../../lib/delivery-order-issue";
 import serviceCaseRemedyRouter from "./service-case-remedy";
 import { issueSurveyToken, sendCompletionSurvey, surveyLink } from "../../lib/service-survey";
+import { refuseWhenOldCasesOff } from "../../lib/old-order-flows";
 
 /**
  * Service Cases (SC) — migration 0210. The case / 病历 parent layer above
@@ -684,7 +685,7 @@ scRouter.get("/", requireOperationOrPrincipal, async (c) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST / — create (auto case_no)
 // ─────────────────────────────────────────────────────────────────────────────
-scRouter.post("/", requireOperationOrPrincipal, async (c) => {
+scRouter.post("/", refuseWhenOldCasesOff, requireOperationOrPrincipal, async (c) => {
   const parsed = await parseBody(c, createServiceCaseInputSchema);
   const sb     = userClient(c.env, c.var.auth.jwt);
 
