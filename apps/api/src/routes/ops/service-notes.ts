@@ -9,6 +9,7 @@ import { userClient } from "../../lib/supabase";
 import { todayIsoMYT } from "../../lib/today";
 import type { AppEnv } from "../../types";
 import { parseBody } from "../../lib/route-helpers";
+import { refuseWhenOldCasesOff } from "../../lib/old-order-flows";
 
 /**
  * Service Notes (SN) — migration 0140.
@@ -52,7 +53,7 @@ snRouter.get("/", requireOperationOrPrincipal, async (c) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST / — create
 // ─────────────────────────────────────────────────────────────────────────────
-snRouter.post("/", requireOperationOrPrincipal, async (c) => {
+snRouter.post("/", refuseWhenOldCasesOff, requireOperationOrPrincipal, async (c) => {
   const parsed = await parseBody(c, createServiceNoteInputSchema);
   const sb     = userClient(c.env, c.var.auth.jwt);
 

@@ -6333,3 +6333,4 @@ The old Carres supply chain is turned off in production (`VITE_OLD_SUPPLY_CHAIN`
 | Meaning | Use exactly |
 |---|---|
 | A new order refused (sales portal, POS, imports, rental) | `New orders are turned off here for now. Orders are made in Supply Chain.` |
+| A new case refused (service case, service note, guarantee claim) | `New service cases are turned off here for now. Cases are made in Service Cases.` |
