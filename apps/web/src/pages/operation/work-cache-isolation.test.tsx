@@ -236,7 +236,7 @@ describe("one cache key per read — the keys", () => {
 
   it("every `/api/ops/tasks` reader in the web app caches under TASKS_KEY and nothing else caches under it", () => {
     const src = (p: string) => readFileSync(resolve(__dirname, p), "utf8");
-    for (const file of ["components/GlobalTopBar.tsx", "OperationOrdersControl.tsx"]) {
+    for (const file of ["components/GlobalTopBar.tsx"]) {
       const text = src(file);
       expect(text).toMatch(/queryKey:\s*TASKS_KEY,\s*\n\s*queryFn:\s*\(\)\s*=>\s*apiFetch\("\/api\/ops\/tasks"\)/);
       expect(text).not.toMatch(/\["operation",\s*"work"\]/);

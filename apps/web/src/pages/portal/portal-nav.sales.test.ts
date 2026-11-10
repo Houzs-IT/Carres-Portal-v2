@@ -4,6 +4,7 @@ import {
   PORTAL_NAV,
   navBlocks,
   navItemHref,
+  retiredRedirect,
   visibleItems,
 } from "./portal-nav";
 
@@ -61,7 +62,7 @@ describe("the approved Sales Orders navigation", () => {
     const byKey = Object.fromEntries(
       visibleItems(OPERATIONS, "operation").map((i) => [i.key, i]),
     );
-    expect(navItemHref(OPERATIONS, byKey.orders)).toBe("/operation/orders");
+    expect(navItemHref(OPERATIONS, byKey.orders)).toBe("/operation/sc/orders");
     expect(navItemHref(OPERATIONS, byKey.rental)).toBe("/operation?tab=rental");
   });
 
@@ -86,7 +87,7 @@ describe("the approved Sales Orders navigation", () => {
     expect(rental[0].label).toBe("Subscription");
   });
 
-  it("Service Cases carries its five pages, in order", () => {
+  it("Service Cases carries its four pages, in order", () => {
     const care = visibleItems(OPERATIONS, "operation").filter(
       (i) => i.section === "Customer Care",
     );
@@ -95,7 +96,6 @@ describe("the approved Sales Orders navigation", () => {
       "Service Cases",
       "Service Maintenance",
       "My Cases",
-      "Guarantees",
     ]);
   });
 
@@ -112,12 +112,14 @@ describe("the approved Sales Orders navigation", () => {
   });
 
   /* ONE DESTINATION, ONE WORD. A principal stands in Operations AND Admin at
-     once, and both rows address `/operation/orders`. */
+     once; the Admin row keeps its old `/operation/orders` address, which opens
+     the Operations row's own `/operation/sc/orders`. */
   it("the Admin jump to the same register says the same word", () => {
-    const admin = ADMIN.items.find((i) => i.path === "/operation/orders");
-    const ops = OPERATIONS.items.find((i) => i.path === "/operation/orders");
+    const admin = ADMIN.items.find((i) => i.key === "orders");
+    const ops = OPERATIONS.items.find((i) => i.key === "orders");
     expect(ops?.label).toBe("Sales Orders");
     expect(admin?.label).toBe(ops?.label);
+    expect(retiredRedirect(admin!.path!, "")).toBe(ops?.path);
   });
 
   /* The shared parent is NAVIGATION ONLY. Procurement keeps its own module, and

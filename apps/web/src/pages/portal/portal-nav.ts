@@ -2,14 +2,12 @@ import {
   LayoutDashboard,
   CalendarDays,
   ClipboardList,
-  ShoppingBag,
   Boxes,
   Repeat,
   ArrowLeftRight,
   Wallet,
   BookOpen,
   Truck,
-  Route,
   LifeBuoy,
   ArrowDownLeft,
   ArrowUpRight,
@@ -184,12 +182,10 @@ export interface PortalModule {
 }
 
 /** WHERE THE COLLAPSED WAREHOUSE ICON GOES — a NAMED destination, never "the
- *  first live row" (the same law Purchasing follows; owner review 2026-08-20).
- *  `Arrival Schedule` is where the warehouse day OPENS (Stock MASTER §7): the
- *  first question of the morning is what is coming in, because goods that have
- *  not arrived are the ones that stop every other job. Named, never derived
- *  from row order — owner ruling 2026-09-14 moved it off the retired Monitor. */
-export const WAREHOUSE_LANDING_KEY = "wh-arrival-schedule";
+ *  first live row" (owner review 2026-08-20): `Loading List`, the first page of
+ *  Houzs's Warehouse (the engine page). Arrival Schedule, the landing before, was
+ *  removed with the old Carres pages (11 Nov 2026). */
+export const WAREHOUSE_LANDING_KEY = "wh-loading-list";
 
 /** The collapsed Payments icon lands on `Monitor` — the daily collection
  *  desk — by name, never by row order (owner ruling 2026-09-12). */
@@ -310,50 +306,19 @@ export const PORTAL_NAV: PortalNavGroup[] = [
     label: "Operations",
     base: "/operation",
     roles: ["operation", "principal"],
-    defaultTab: "dashboard",
+    // The Operations landing is the Houzs Sales Orders page (the old Carres Overview is removed).
+    defaultTab: "orders",
     items: [
-      /* THE ORDER IN THIS ARRAY IS THE ORDER ON SCREEN, section by section. The
-       * rows, words and nesting follow Houzs-ERP frontend/src/components/Sidebar.tsx
-       * (Weisiang, WhatsApp 2026-11-01); a row marked Carres-only has no Houzs row
-       * and stays in the closest place. Every address is unchanged, so bookmarks
-       * and in-page links still land. Pages taken off the rail earlier
-       * (`/operation/old-orders`, `?tab=auto-schedule`, `?tab=trips`, `?tab=fleet`, `?tab=stock-plan`,
-       * `?tab=movements`) stay mounted in OperationApp. */
+      /* THE ORDER IN THIS ARRAY IS THE ORDER ON SCREEN, section by section.
+       *
+       * Service Cases, Projects and Supply Chain are Houzs's own screens, run by the engine (engine/, the
+       * Houzs-ERP code): these rows carry Houzs's words and order (Houzs frontend/src/components/Sidebar.tsx)
+       * and every one opens its engine page, at its own `/operation/sc/<row>` address (ENGINE_PAGES). The
+       * Carres pages these areas used to have are removed (owner, 11 Nov 2026); their old addresses open the
+       * nearest engine page (RETIRED_ADDRESSES). The other rows are Carres modules outside those areas. */
 
-      /* WORKSPACE — Sidebar.tsx:239-280. */
-      { key: "dashboard", label: "Overview", icon: LayoutDashboard, mIcon: "dashboard", section: "Workspace" },
-
-      /* SERVICE CASES — Sidebar.tsx:311-363. */
-      { key: "service-quality", label: "Quality Overview", icon: BarChart3, tab: "service-notes", query: "view=quality", section: "Customer Care" },
-      {
-        key: "service-notes",
-        label: "Service Cases",
-        icon: LifeBuoy,
-        badge: "service-notes",
-        section: "Customer Care",
-      },
-      { key: "service-maintenance", label: "Service Maintenance", icon: SlidersHorizontal, path: "/operation/settings/service", section: "Customer Care" },
-      { key: "service-mine", label: "My Cases", icon: UserCheck, tab: "service-notes", query: "mine=1", section: "Customer Care" },
-      // Carres-only (0261-0263): the claim desk, where a claim ends up.
-      { key: "guarantees", label: "Guarantees", icon: ShieldCheck, section: "Customer Care" },
-
-      /* PROJECTS — Houzs Sidebar.tsx "Projects": its four rows, each the engine's page (ENGINE_PAGES). */
-      { key: "project-overview", label: "Project Overview", icon: BarChart3, path: "/operation/sc/project-overview", section: "Projects" },
-      { key: "projects", label: "Project List", icon: ClipboardList, section: "Projects" },
-      { key: "project-calendar", label: "Calendar", icon: CalendarDays, path: "/operation/sc/project-calendar", section: "Projects" },
-      { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, section: "Projects" },
-
-      /* SALES ORDER — Sidebar.tsx:533-546. */
-      {
-        key: "orders",
-        label: "Sales Orders",
-        crumb: "Sales Order",
-        icon: ClipboardList,
-        path: "/operation/orders",
-        badge: "orders",
-        section: "Sales",
-      },
-      { key: "orders-shortcut", label: "Sales Orders", icon: ShoppingCart, mIcon: "shopping_cart", path: "/operation/orders", shortcut: true, section: "Workspace" },
+      /* WORKSPACE */
+      { key: "orders-shortcut", label: "Sales Orders", icon: ShoppingCart, mIcon: "shopping_cart", path: "/operation/sc/orders", shortcut: true, section: "Workspace" },
       /* The one Workspace row shown by a grant, not a role (0645; Chew 2026-10-03,
        * Finance MASTER §3.3). The page lives in Finance. */
       {
@@ -368,137 +333,72 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only: My Work / Team Work and a person's own leave (0670).
       { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
       { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
+
+      /* SERVICE CASES */
+      { key: "service-quality", label: "Quality Overview", icon: BarChart3, path: "/operation/sc/service-quality", section: "Customer Care" },
+      { key: "service-notes", label: "Service Cases", icon: LifeBuoy, path: "/operation/sc/service-notes", section: "Customer Care" },
+      { key: "service-maintenance", label: "Service Maintenance", icon: SlidersHorizontal, path: "/operation/sc/service-maintenance", section: "Customer Care" },
+      { key: "service-mine", label: "My Cases", icon: UserCheck, path: "/operation/sc/service-mine", section: "Customer Care" },
+
+      /* PROJECTS */
+      { key: "project-overview", label: "Project Overview", icon: BarChart3, path: "/operation/sc/project-overview", section: "Projects" },
+      { key: "projects", label: "Project List", icon: ClipboardList, path: "/operation/sc/projects", section: "Projects" },
+      { key: "project-calendar", label: "Calendar", icon: CalendarDays, path: "/operation/sc/project-calendar", section: "Projects" },
+      { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, path: "/operation/sc/project-maintenance", section: "Projects" },
+
+      /* SUPPLY CHAIN · SALES ORDER */
+      { key: "orders", label: "Sales Orders", crumb: "Sales Order", icon: ClipboardList, path: "/operation/sc/orders", section: "Sales" },
       { key: "fair-pending", label: "Fair Links to Settle", icon: MapPin, path: "/operation/sc/fair-pending", section: "Sales" },
-      { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/amendments", section: "Sales" },
+      { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/sc/amendments", section: "Sales" },
       { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", section: "Sales" },
-      {
-        key: "delivery-orders",
-        label: "Delivery Orders",
-        icon: FileText,
-        path: "/operation/delivery-orders",
-        activeFor: ["path:/operation/delivery-orders"],
-        section: "Sales",
-      },
+      { key: "delivery-orders", label: "Delivery Orders", icon: FileText, path: "/operation/sc/delivery-orders", section: "Sales" },
+      // Carres Finance's own page: it feeds the Carres books.
       { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/finance/sales-invoices", activeFor: ["path:/finance/sales-invoices"], section: "Sales" },
-      { key: "delivery-returns", label: "Delivery Returns", icon: Undo2, tab: "delivery-returns", section: "Sales" },
-      // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order. Last, so the Houzs rows above keep Houzs's order.
+      { key: "delivery-returns", label: "Delivery Returns", icon: Undo2, path: "/operation/sc/delivery-returns", section: "Sales" },
+      // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order. Last, so the Houzs rows keep Houzs's order.
       { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
 
-      /* CONSIGNMENT — Sidebar.tsx:558-567. */
-      { key: "customer-consignment-orders", label: "Consignment Order", icon: FileText, tab: "customer-consignment-orders", section: "Consignment" },
-      { key: "consignment-notes", label: "Consignment Note", icon: FileText, tab: "consignment-notes", section: "Consignment" },
-      { key: "customer-consignment-returns", label: "Consignment Return", icon: Undo2, tab: "customer-consignment-returns", section: "Consignment" },
+      /* SUPPLY CHAIN · CONSIGNMENT */
+      { key: "customer-consignment-orders", label: "Consignment Order", icon: FileText, path: "/operation/sc/customer-consignment-orders", section: "Consignment" },
+      { key: "consignment-notes", label: "Consignment Note", icon: FileText, path: "/operation/sc/consignment-notes", section: "Consignment" },
+      { key: "customer-consignment-returns", label: "Consignment Return", icon: Undo2, path: "/operation/sc/customer-consignment-returns", section: "Consignment" },
       { key: "purchase-consignment-orders", label: "Purchase Consignment Order", icon: HandCoins, path: "/operation/sc/purchase-consignment-orders", section: "Consignment" },
       { key: "product-requests", label: "Product Request", icon: Sofa, path: "/operation/sc/product-requests", section: "Consignment" },
-      { key: "consignment-receives", label: "Purchase Consignment Receive", icon: PackageCheck, section: "Consignment" },
-      { key: "consignment-returns", label: "Purchase Consignment Return", icon: Undo2, section: "Consignment" },
-      // Carres-only, not built: goods Carres buys for a floor.
-      { key: "display-requests", label: "Display Requests", icon: Store, soon: true, section: "Consignment" },
+      { key: "consignment-receives", label: "Purchase Consignment Receive", icon: PackageCheck, path: "/operation/sc/consignment-receives", section: "Consignment" },
+      { key: "consignment-returns", label: "Purchase Consignment Return", icon: Undo2, path: "/operation/sc/consignment-returns", section: "Consignment" },
 
-      /* PROCUREMENT — Sidebar.tsx:579-588. A flat list, as in Houzs. */
-      { key: "procurement-overview", label: "Procurement Overview", icon: LayoutDashboard, section: "Purchasing" },
-      { key: "op-catalog", label: "Products & Maintenance", icon: BookOpen, section: "Purchasing" },
-      { key: "suppliers", label: "Suppliers", icon: Truck, section: "Purchasing" },
-      // Carres-only: what each supplier sells, beside the supplier list.
-      { key: "supplier-items", label: "Supplier items", icon: Boxes, section: "Purchasing" },
-      /* Read-only Needed, In Stock, On PO, Shortage (YH, 30 Oct 2026). */
-      { key: "mrp", label: "MRP · Stock Status", icon: BarChart3, section: "Purchasing" },
-      /* Carres-only: the three ways a buy starts, before the PO they make.
-       * `SO Batch Purchase` answers to both its entrances, one active row. */
-      {
-        key: "purchase",
-        label: "SO Batch Purchase",
-        icon: ShoppingBag,
-        activeFor: ["tab:purchase", "path:/operation/to-order"],
-        section: "Purchasing",
-      },
-      { key: "forecast-purchase", label: "Forecast Purchase", icon: TrendingUp, section: "Purchasing" },
-      { key: "manual-purchase", label: "Manual Purchase Request", icon: ClipboardList, section: "Purchasing" },
-      {
-        // `operation:procurement` counts POs in the Pickup-action bucket.
-        key: "purchase-orders",
-        label: "Purchase Orders",
-        icon: FileText,
-        path: "/operation/procurement",
-        badge: "procurement",
-        section: "Purchasing",
-      },
-      { key: "po-amendments", label: "PO Amendments", icon: BadgeCheck, section: "Purchasing" },
-      { key: "po-cancellation-requests", label: "Cancellation Requests", icon: ClipboardX, section: "Purchasing" },
-      { key: "receiving", label: "Goods Receipt", icon: PackageCheck, section: "Purchasing" },
-      { key: "purchase-invoices", label: "Purchase Invoices", icon: Receipt, section: "Purchasing" },
-      { key: "purchase-returns", label: "Purchase Returns", icon: Undo2, section: "Purchasing" },
-      // Carres-only: what you open when the goods are wrong, after the return.
-      { key: "claims", label: "Supplier Claims", icon: Scale, section: "Purchasing" },
-      { key: "repair-orders", label: "Repair Orders", icon: ArrowUpRight, section: "Purchasing" },
+      /* SUPPLY CHAIN · PROCUREMENT */
+      { key: "procurement-overview", label: "Procurement Overview", icon: LayoutDashboard, path: "/operation/sc/procurement-overview", section: "Purchasing" },
+      { key: "op-catalog", label: "Products & Maintenance", icon: BookOpen, path: "/operation/sc/op-catalog", section: "Purchasing" },
+      { key: "suppliers", label: "Suppliers", icon: Truck, path: "/operation/sc/suppliers", section: "Purchasing" },
+      { key: "mrp", label: "MRP · Stock Status", icon: BarChart3, path: "/operation/sc/mrp", section: "Purchasing" },
+      { key: "purchase-orders", label: "Purchase Orders", icon: FileText, path: "/operation/sc/purchase-orders", section: "Purchasing" },
+      { key: "po-amendments", label: "PO Amendments", icon: BadgeCheck, path: "/operation/sc/po-amendments", section: "Purchasing" },
+      { key: "po-cancellation-requests", label: "Cancellation Requests", icon: ClipboardX, path: "/operation/sc/po-cancellation-requests", section: "Purchasing" },
+      { key: "receiving", label: "Goods Receipt", icon: PackageCheck, path: "/operation/sc/receiving", section: "Purchasing" },
+      { key: "purchase-invoices", label: "Purchase Invoices", icon: Receipt, path: "/operation/sc/purchase-invoices", section: "Purchasing" },
+      { key: "purchase-returns", label: "Purchase Returns", icon: Undo2, path: "/operation/sc/purchase-returns", section: "Purchasing" },
 
-      /* TRANSPORTATION — Sidebar.tsx:601-664. */
-      { key: "logistic-overview", label: "Logistic Overview", icon: LayoutDashboard, section: "Delivery" },
-      // Carres-only: the calendar where delivery results are recorded.
-      {
-        key: "delivery",
-        label: "Monitor",
-        icon: Route,
-        activeFor: ["tab:delivery"],
-        section: "Delivery",
-      },
-      { key: "delivery-planning", label: "Delivery Planning", icon: CalendarDays, tab: "delivery-planning", section: "Delivery" },
+      /* SUPPLY CHAIN · TRANSPORTATION */
+      { key: "logistic-overview", label: "Logistic Overview", icon: LayoutDashboard, path: "/operation/sc/logistic-overview", section: "Delivery" },
+      { key: "delivery-planning", label: "Delivery Planning", icon: CalendarDays, path: "/operation/sc/delivery-planning", section: "Delivery" },
       { key: "delivery-planning-driver", label: "Last Mile Delivery (Driver)", icon: ClipboardList, path: "/operation/sc/delivery-planning-driver", section: "Delivery" },
-      { key: "dp-orders", label: "DP Orders", icon: ClipboardList, tab: "dp-orders", section: "Delivery" },
-      { key: "fleet-day", label: "Last Mile Delivery", icon: Users, section: "Delivery" },
-      { key: "crew-leave", label: "Crew Leave", icon: CalendarOff, section: "Delivery" },
-      // Carres-only (0716): DOs marked Delivered by load scan.
-      { key: "load-scan", label: "Load Scan", icon: PackageCheck, tab: "load-scan", section: "Delivery" },
-      { key: "coverage-fleet", label: "Coverage & Fleet", icon: Truck, section: "Delivery", pageGroup: "transportation-maintenance" },
-      { key: "delivery-zones", label: "Delivery Zones", icon: MapPin, section: "Delivery", pageGroup: "transportation-maintenance" },
-      { key: "rate-cards", label: "Carriers & Rates", icon: Receipt, section: "Delivery", pageGroup: "transportation-maintenance" },
-      { key: "fleet-health", label: "Fleet Health", icon: ShieldCheck, section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "dp-orders", label: "DP Orders", icon: ClipboardList, path: "/operation/sc/dp-orders", section: "Delivery" },
+      { key: "fleet-day", label: "Last Mile Delivery", icon: Users, path: "/operation/sc/fleet-day", section: "Delivery" },
+      { key: "crew-leave", label: "Crew Leave", icon: CalendarOff, path: "/operation/sc/crew-leave", section: "Delivery" },
+      { key: "coverage-fleet", label: "Coverage & Fleet", icon: Truck, path: "/operation/sc/coverage-fleet", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "delivery-zones", label: "Delivery Zones", icon: MapPin, path: "/operation/sc/delivery-zones", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "rate-cards", label: "Carriers & Rates", icon: Receipt, path: "/operation/sc/rate-cards", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "fleet-health", label: "Fleet Health", icon: ShieldCheck, path: "/operation/sc/fleet-health", section: "Delivery", pageGroup: "transportation-maintenance" },
 
-      /* WAREHOUSE — Sidebar.tsx:679-696. Loading List and Racks & Bins are views
-       * of the one Warehouses page. */
-      { key: "wh-loading-list", label: "Loading List", icon: ClipboardList, tab: "warehouses", query: "view=loading", section: "Warehouse" },
-      { key: "wh-warehouses", label: "Warehouses", icon: Warehouse, tab: "warehouses", section: "Warehouse" },
-      { key: "wh-racks", label: "Racks & Bins", icon: Boxes, tab: "warehouses", query: "view=bins", section: "Warehouse" },
-      { key: "stock", label: "Inventory", icon: Boxes, tab: "stock-onhand", section: "Warehouse" },
-      { key: "stock-adjustments", label: "Adjustments", icon: SlidersHorizontal, tab: "stock-adjustments", section: "Warehouse" },
-      { key: "stock-transfers", label: "Transfers", icon: ArrowLeftRight, tab: "stock-transfers", section: "Warehouse" },
-      { key: "stock-takes", label: "Stock Take", icon: ClipboardList, tab: "stock-takes", section: "Warehouse" },
-      /* Carres-only (owner ruling 2026-09-14). `?tab=warehouse-monitor` and
-       * `?tab=warehouse-dashboard` still land on Arrival Schedule and light it, so
-       * the row's own tab is listed beside them (`activeFor` replaces the match). */
-      {
-        key: "wh-arrival-schedule",
-        label: "Arrival Schedule",
-        icon: CalendarDays,
-        tab: "warehouse-arrival-schedule",
-        activeFor: [
-          "tab:warehouse-arrival-schedule",
-          "tab:warehouse-monitor",
-          "tab:warehouse-dashboard",
-        ],
-        section: "Warehouse",
-      },
-      {
-        key: "wh-pickup-schedule",
-        label: "Pickup Schedule",
-        icon: CalendarDays,
-        tab: "warehouse-pickup-schedule",
-        section: "Warehouse",
-      },
-      {
-        key: "wh-inbound",
-        label: "Inbound",
-        icon: ArrowDownLeft,
-        tab: "warehouse-inbound",
-        section: "Warehouse",
-      },
-      {
-        key: "wh-outbound",
-        label: "Outbound",
-        icon: ArrowUpRight,
-        tab: "warehouse-outbound",
-        section: "Warehouse",
-      },
+      /* SUPPLY CHAIN · WAREHOUSE */
+      { key: "wh-loading-list", label: "Loading List", icon: ClipboardList, path: "/operation/sc/wh-loading-list", section: "Warehouse" },
+      { key: "wh-warehouses", label: "Warehouses", icon: Warehouse, path: "/operation/sc/wh-warehouses", section: "Warehouse" },
+      { key: "wh-racks", label: "Racks & Bins", icon: Boxes, path: "/operation/sc/wh-racks", section: "Warehouse" },
+      { key: "stock", label: "Inventory", icon: Boxes, path: "/operation/sc/stock", section: "Warehouse" },
+      { key: "stock-adjustments", label: "Adjustments", icon: SlidersHorizontal, path: "/operation/sc/stock-adjustments", section: "Warehouse" },
+      { key: "stock-transfers", label: "Transfers", icon: ArrowLeftRight, path: "/operation/sc/stock-transfers", section: "Warehouse" },
+      { key: "stock-takes", label: "Stock Take", icon: ClipboardList, path: "/operation/sc/stock-takes", section: "Warehouse" },
 
       /* Carres-only: PAYMENTS (owner ruling 2026-09-12). Operation staff have no
        * Finance area, and `/finance/*` admits them to these two (§12). `path`, not
@@ -521,16 +421,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
         section: "Payments",
       },
 
-      /* Carres-only: SHOWROOM, ISSUE TRACKER and the Operations report pages. */
-      { key: "showroom", label: "Carres", icon: Store, section: "Showroom" },
-      { key: "dealer-showroom", label: "Dealer", icon: Store, soon: true, section: "Showroom" },
+      /* Carres-only: ISSUE TRACKER and the Sales Invoices report (Carres Finance's invoices). */
       { key: "issue-tracker", label: "Issue Tracker", icon: ClipboardX, mIcon: "assignment_late", path: "/operation/issues", section: "Issue Tracker" },
-      { key: "purchasing-report", label: "Purchasing report", icon: BarChart3, section: "Reports" },
-      { key: "receiving-report", label: "Receiving report", icon: BarChart3, section: "Reports" },
-      { key: "delivery-report", label: "Delivery report", icon: BarChart3, section: "Reports" },
-      { key: "delivery-return-lines", label: "Delivery return lines", icon: BarChart3, section: "Reports" },
-      { key: "sales-order-lines", label: "Sales order lines", icon: BarChart3, section: "Reports" },
-      { key: "delivery-order-lines", label: "Delivery order lines", icon: BarChart3, section: "Reports" },
       { key: "sales-invoice-lines", label: "Sales invoice lines", icon: BarChart3, section: "Reports" },
     ],
   },
@@ -718,94 +610,96 @@ export const PORTAL_NAV: PortalNavGroup[] = [
     ],
   },
 ];
-/** Service Cases and Supply Chain rows whose address now opens the engine's own page (engine/, the Houzs
- *  screens) in a frame (owner, 9 Nov 2026: the engine replaces the older pages). Keyed by row, valued by the
- *  engine address. A row with no engine page keeps its own page. */
+/** Service Cases, Projects and Supply Chain: each row's engine page (engine/, Houzs's own screens), shown in a
+ *  frame at the row's `/operation/sc/<row>` address. Keyed by row, valued by the engine address. */
 export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "service-quality": "/assr?view=metrics", "service-notes": "/assr?view=cases",
   "service-maintenance": "/assr?view=settings", "service-mine": "/my-cases",
   "project-overview": "/projects?view=finances", projects: "/projects?view=list",
   "project-calendar": "/projects?view=calendar", "project-maintenance": "/projects?view=maintenance",
-  "fair-pending": "/scm/fair-pending", "payment-backdate-requests": "/scm/payment-backdate-requests",
+  orders: "/scm/sales-orders", "orders-shortcut": "/scm/sales-orders",
+  "fair-pending": "/scm/fair-pending", amendments: "/scm/amendments",
+  "payment-backdate-requests": "/scm/payment-backdate-requests",
+  "delivery-orders": "/scm/delivery-orders", "delivery-returns": "/scm/delivery-returns",
   "customer-consignment-orders": "/scm/consignment-orders", "consignment-notes": "/scm/consignment-notes",
   "customer-consignment-returns": "/scm/consignment-returns", "purchase-consignment-orders": "/scm/purchase-consignment-orders",
   "product-requests": "/scm/product-requests", "consignment-receives": "/scm/purchase-consignment-receives",
-  "consignment-returns": "/scm/purchase-consignment-returns", "delivery-planning-driver": "/scm/delivery-planning-driver",
-  orders: "/scm/sales-orders", "orders-shortcut": "/scm/sales-orders", amendments: "/scm/amendments",
-  "delivery-orders": "/scm/delivery-orders", "delivery-returns": "/scm/delivery-returns",
-  // Sales Invoices stays Carres Finance's own page (/finance/sales-invoices): it feeds the Carres books.
+  "consignment-returns": "/scm/purchase-consignment-returns",
   "procurement-overview": "/scm/procurement-overview", "op-catalog": "/scm/products", suppliers: "/scm/suppliers",
   mrp: "/scm/mrp", "purchase-orders": "/scm/purchase-orders", "po-amendments": "/scm/po-amendments",
   "po-cancellation-requests": "/scm/cancel-requests", receiving: "/scm/grns",
   "purchase-invoices": "/scm/purchase-invoices", "purchase-returns": "/scm/purchase-returns",
-  "logistic-overview": "/scm/logistic-overview", "delivery-planning": "/scm/delivery-planning", "dp-orders": "/scm/dp-orders",
-  "fleet-day": "/scm/fleet-day",
-  "crew-leave": "/scm/driver-leave", "coverage-fleet": "/scm/delivery-maintenance", "delivery-zones": "/scm/delivery-zones",
-  "rate-cards": "/scm/delivery-rate-cards", "fleet-health": "/fleet-health",
+  "logistic-overview": "/scm/logistic-overview", "delivery-planning": "/scm/delivery-planning",
+  "delivery-planning-driver": "/scm/delivery-planning-driver", "dp-orders": "/scm/dp-orders",
+  "fleet-day": "/scm/fleet-day", "crew-leave": "/scm/driver-leave", "coverage-fleet": "/scm/delivery-maintenance",
+  "delivery-zones": "/scm/delivery-zones", "rate-cards": "/scm/delivery-rate-cards", "fleet-health": "/fleet-health",
   "wh-loading-list": "/scm/loading-list", "wh-warehouses": "/scm/warehouses", "wh-racks": "/scm/warehouses/racks",
   stock: "/scm/inventory", "stock-adjustments": "/scm/stock-adjustments", "stock-transfers": "/scm/stock-transfers",
   "stock-takes": "/scm/stock-takes",
 };
-/** The old Carres supply chain, turned off in production (owner, 10 Nov 2026; `.env.production`): its rows with
- *  no engine page leave the menu and every old supply chain address opens the nearest engine page. Nothing is
- *  deleted; tests and local dev keep it on. Sales Invoices stays: it is Carres Finance's own page. */
-export const OLD_SUPPLY_CHAIN_OFF = import.meta.env.VITE_OLD_SUPPLY_CHAIN === "off";
-const OLD_SECTIONS: Readonly<Record<string, string>> = {
-  "Customer Care": "/assr?view=cases", Sales: "/scm/sales-orders", Consignment: "/scm/sales-orders",
-  Purchasing: "/scm/purchase-orders", Delivery: "/scm/delivery-planning", Warehouse: "/scm/inventory",
-  Showroom: "/scm/inventory",
-};
-const KEPT_OLD_ROWS = new Set(["sales-invoices"]);
-/** Old supply chain addresses outside the menu (records, stage views, forms), by path, longest first. */
-const OLD_PATHS: ReadonlyArray<readonly [string, string]> = [
-  ["/operation/purchase-invoices", "/scm/purchase-invoices"], ["/operation/delivery-orders", "/scm/delivery-orders"],
-  ["/operation/delivery/edit", "/scm/delivery-orders"], ["/operation/procurement", "/scm/purchase-orders"],
-  ["/operation/purchasing", "/scm/purchase-orders"], ["/operation/old-orders", "/scm/sales-orders"],
-  ["/operation/amendments", "/scm/amendments"], ["/operation/stock/unit", "/scm/inventory"],
-  ["/operation/to-order", "/scm/sales-orders"], ["/operation/orders", "/scm/sales-orders"],
+
+/** The Carres pages these three areas had before the engine, removed 11 Nov 2026 (owner). Their addresses
+ *  (bookmarks, links in old messages) open the row of the nearest engine page. Paths match on whole segments,
+ *  longest first; `?tab=` keys are the old tab-driven pages. */
+const RETIRED_PATHS: ReadonlyArray<readonly [string, string]> = [
+  ["/operation/purchase-invoices", "purchase-invoices"], ["/operation/delivery-orders", "delivery-orders"],
+  ["/operation/delivery/edit", "delivery-orders"], ["/operation/procurement", "purchase-orders"],
+  ["/operation/purchasing", "purchase-orders"], ["/operation/old-orders", "orders"],
+  ["/operation/amendments", "amendments"], ["/operation/stock/unit", "stock"],
+  ["/operation/to-order", "purchase-orders"], ["/operation/orders", "orders"],
+  ["/operation/settings/service", "service-maintenance"], ["/operation/settings/purchasing", "procurement-overview"],
+  ["/operation/settings/delivery", "coverage-fleet"],
 ];
+const RETIRED_TABS: Readonly<Record<string, string>> = {
+  dashboard: "orders", "service-notes": "service-notes", guarantees: "service-notes", projects: "projects",
+  "project-maintenance": "project-maintenance", orders: "orders", "all-orders": "orders",
+  "delivery-returns": "delivery-returns", "load-scan": "delivery-orders",
+  "customer-consignment-orders": "customer-consignment-orders", "consignment-notes": "consignment-notes",
+  "customer-consignment-returns": "customer-consignment-returns", "consignment-receives": "consignment-receives",
+  "consignment-returns": "consignment-returns", "display-requests": "customer-consignment-orders",
+  "procurement-overview": "procurement-overview", "op-catalog": "op-catalog", catalog: "op-catalog",
+  suppliers: "suppliers", "supplier-items": "suppliers", mrp: "mrp", purchase: "purchase-orders",
+  "purchase-demands": "purchase-orders", "forecast-purchase": "purchase-orders", "manual-purchase": "purchase-orders",
+  procurement: "purchase-orders", "po-amendments": "po-amendments", "po-cancellation-requests": "po-cancellation-requests",
+  receiving: "receiving", "purchase-invoices": "purchase-invoices", "purchase-returns": "purchase-returns",
+  claims: "purchase-returns", "repair-orders": "purchase-returns", "purchasing-settings": "procurement-overview",
+  "purchasing-report": "procurement-overview", "receiving-report": "receiving",
+  "logistic-overview": "logistic-overview", delivery: "delivery-planning", "delivery-planning": "delivery-planning",
+  "dp-orders": "dp-orders", "auto-schedule": "delivery-planning", trips: "delivery-planning",
+  "fleet-day": "fleet-day", "fleet-map": "coverage-fleet", "fleet-capacity": "coverage-fleet", fleet: "coverage-fleet",
+  "crew-leave": "crew-leave", "coverage-fleet": "coverage-fleet", "delivery-zones": "delivery-zones",
+  "rate-cards": "rate-cards", "fleet-health": "fleet-health", "delivery-report": "logistic-overview",
+  "delivery-return-lines": "delivery-returns", "sales-order-lines": "orders", "delivery-order-lines": "delivery-orders",
+  warehouses: "wh-warehouses", "stock-onhand": "stock", stock: "stock", showroom: "stock", warehouse: "stock",
+  movements: "stock", "stock-plan": "stock", "ops-ready": "stock", "ops-reserved": "stock", "ops-repair": "stock",
+  "ops-inventory": "stock", "ops-import": "orders", "ops-inbox": "orders",
+  "stock-adjustments": "stock-adjustments", "stock-transfers": "stock-transfers", "stock-takes": "stock-takes",
+  "warehouse-arrival-schedule": "receiving", "warehouse-monitor": "receiving", "warehouse-dashboard": "receiving",
+  "warehouse-pickup-schedule": "wh-loading-list", "warehouse-inbound": "receiving",
+  "warehouse-outbound": "delivery-orders", "arrival-source": "receiving",
+};
 
-/** A menu row of the old supply chain that has no engine page (hidden while it is off). */
-export function isOldSupplyChainRow(item: PortalNavItem): boolean {
-  return !!item.section && item.section in OLD_SECTIONS && !ENGINE_PAGES[item.key] && !KEPT_OLD_ROWS.has(item.key);
-}
-
-/** Where an old supply chain address goes while it is off: the menu address of the engine row that shows
- *  its nearest engine page, so the title, the lit row and the address agree; null for every other address. */
-export function oldSupplyChainRedirect(pathname: string, search: string): string | null {
-  const page = oldSupplyChainTarget(pathname, search);
-  const operation = PORTAL_NAV.find((g) => g.area === "operation");
-  const row = page && operation?.items.find((i) => !i.shortcut && ENGINE_PAGES[i.key] === page);
-  return row && operation ? navItemHref(operation, row) : null;
-}
-
-/** The engine page an old supply chain address opens while it is off; null for every other address. */
-export function oldSupplyChainTarget(pathname: string, search: string): string | null {
-  const hit = OLD_PATHS.find(([root]) => pathname === root || pathname.startsWith(`${root}/`));
+/** The engine row a retired address opens, by key; null for every other address. */
+export function retiredTarget(pathname: string, search: string): string | null {
+  const hit = RETIRED_PATHS.find(([root]) => pathname === root || pathname.startsWith(`${root}/`));
   if (hit) return hit[1];
-  const operation = PORTAL_NAV.find((g) => g.area === "operation");
+  if (pathname !== "/operation" && pathname !== "/operation/") return null;
   const tab = new URLSearchParams(search).get("tab");
-  if (!operation || pathname !== operation.base || tab === null) return null;
-  const row = operation.items.find((i) => isOldSupplyChainRow(i) && (i.tab ?? i.key) === tab);
-  return row?.section ? OLD_SECTIONS[row.section] : null;
+  return RETIRED_TABS[tab ?? "dashboard"] ?? null;
 }
 
-/** The engine page for this address, when it is one of the replaced rows' own address: the row's link
- *  (bare path, or tab plus view) opens the engine page in place of the older Carres page. Every other address,
- *  record pages and record or search links included, is untouched. */
-export function engineFor(pathname: string, search: string): string | null {
-  const operation = PORTAL_NAV.find((g) => g.area === "operation");
-  if (!operation) return null;
-  const tab = new URLSearchParams(search).get("tab");
-  for (const item of operation.items) {
-    const page = ENGINE_PAGES[item.key];
-    if (!page) continue;
-    // A path row only on its bare address: with a query (?po=, ?search=) it is a record or a search link
-    // into the Carres page, which stays.
-    if (item.path ? pathname === item.path && (!search || search === "?") : pathname === operation.base && tab !== null && rowMatchesTab(operation, item, tab, search)) return page;
-  }
-  return null;
+/** Where a retired address goes: the engine row's own address, so the title, the lit row and the address agree. */
+export function retiredRedirect(pathname: string, search: string): string | null {
+  const key = retiredTarget(pathname, search);
+  return key ? `/operation/sc/${key}` : null;
 }
+
+/** The engine page for this address: an engine row's own `/operation/sc/<row>` address. */
+export function engineFor(pathname: string, _search = ""): string | null {
+  const m = /^\/operation\/sc\/([a-z0-9-]+)\/?$/.exec(pathname);
+  return (m && ENGINE_PAGES[m[1]]) || null;
+}
+
 
 /** The area-groups a given role may see (preserves PORTAL_NAV order). */
 export function visibleGroups(role: Role | null): PortalNavGroup[] {
@@ -821,8 +715,7 @@ export function visibleItems(
   caps: ReadonlySet<NavCapability> = NO_CAPS,
 ): PortalNavItem[] {
   return group.items.filter((it) =>
-    (!it.roles || (role != null && it.roles.includes(role))) && (!it.needs || caps.has(it.needs))
-    && !(OLD_SUPPLY_CHAIN_OFF && isOldSupplyChainRow(it)));
+    (!it.roles || (role != null && it.roles.includes(role))) && (!it.needs || caps.has(it.needs)));
 }
 
 /** The href a nav item points at. */
@@ -963,10 +856,12 @@ export function menuGroups(
  *  `activeFor` matchers, then the `?tab=` it links to. */
 function activeItem(group: PortalNavGroup, pathname: string, search: string): PortalNavItem | undefined {
   const tab = new URLSearchParams(search).get("tab") ?? group.defaultTab;
-  const onPath = (prefix: string) => pathname.startsWith(prefix);
+  // Whole segments: `/operation/sc/stock` is not standing on `/operation/sc/stock-adjustments`.
+  const onPath = (prefix: string) => pathname === prefix || pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`);
+  // A shortcut repeats a page that has its own row; the row, not the shortcut, is where the URL stands.
   const pathItem = group.items.find(
     (it) =>
-      (it.path && onPath(it.path)) ||
+      (it.path && !it.shortcut && onPath(it.path)) ||
       (it.financePath && onPath(it.financePath)) ||
       it.activeFor?.some((m) => m.startsWith("path:") && onPath(m.slice(5))),
   );

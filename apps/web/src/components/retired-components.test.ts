@@ -51,7 +51,6 @@ const RETIRED: Record<string, { file: string; replacement: string; allow: string
       "pages/hr/HrPersonDrawer.tsx",
       "pages/hr/HrSetupTab.tsx",
       "pages/hr/HrTeamTab.tsx",
-      "pages/operation/ArrivalSourceWorkspace.tsx",
       "pages/operation/components/OrderDetailDrawer.tsx",
     ],
   },

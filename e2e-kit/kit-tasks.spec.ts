@@ -67,7 +67,7 @@ async function expectKit(page: Page, width: number, state: string) {
 
 for (const width of WIDTHS) {
   test(`Tasks panel: the list and a Purchase Order task, every tab, at ${width}`, async ({ page }) => {
-    await openTasks(page, width, "/so-batch-shell-preview.html");
+    await openTasks(page, width, `/work-preview.html?shell=1&pw=1&at=${encodeURIComponent("/operation?tab=work")}`);
     await expectKit(page, width, "the list");
 
     await page.locator("[data-task-card]").first().click();
@@ -115,7 +115,7 @@ for (const width of WIDTHS) {
      page, and an internal task opens as the one task view with `Steps` and
      `History` only, because it serves no order and holds no document. */
   test(`Tasks panel: + Task, its dialog and an internal task at ${width}`, async ({ page }) => {
-    await openTasks(page, width, "/so-batch-shell-preview.html");
+    await openTasks(page, width, `/work-preview.html?shell=1&pw=1&at=${encodeURIComponent("/operation?tab=work")}`);
     const open = page.locator(`${TASKS} [data-testid="new-task-open"]`);
     await expect(open).toHaveText("Task");
     expect(await open.evaluate((button) => button.closest("aside")!.children[0]!.contains(button)), "the button is in the title row").toBe(true);

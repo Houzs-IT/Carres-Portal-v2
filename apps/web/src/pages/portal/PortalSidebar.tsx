@@ -275,8 +275,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     }
 
     if (item.path) {
-      // operation path-driven section (orders / procurement)
-      return location.pathname.startsWith(item.path);
+      // Whole segments: `/operation/sc/stock` must not light on `/operation/sc/stock-adjustments`,
+      // nor Delivery Planning on Last Mile Delivery (Driver). Same rule as portal-nav activeItem.
+      const p = location.pathname;
+      return p === item.path || p.startsWith(item.path.endsWith("/") ? item.path : `${item.path}/`);
     }
     // tab-driven: a path-driven section is active → no tab item is.
     if (onPathSection(group)) return false;

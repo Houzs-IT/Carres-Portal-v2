@@ -100,7 +100,7 @@ describe("the empty query", () => {
         "operation:orders",
         "operation:stock",
         "operation:payments",
-        "operation:delivery",
+        "operation:receiving",
         "operation:suppliers",
       ]),
     );
@@ -125,10 +125,10 @@ describe("the empty query", () => {
       "InventoryOperations",
       // `operation:payments` is the Payments module's `Monitor` since the
       // 2026-09-12 ruling — same key, same recent, the sidebar's own word.
-      // Three modules now own a `Monitor` (Delivery · Warehouse · Payments),
-      // so a shared label carries its module word.
-      "Payments · MonitorOperations",
-      "Transportation · MonitorOperations",
+      // The Transportation and Warehouse monitors left with the old Carres
+      // pages (11 Nov 2026), so the word is unique again and wears no module.
+      "MonitorOperations",
+      "Goods ReceiptOperations",
     ]);
     expect(labels.filter((l) => l === "SuppliersOperations")).toHaveLength(1);
     expect(screen.getByText("Recent")).toBeInTheDocument();
@@ -152,9 +152,10 @@ describe("what typing searches", () => {
     // rail, so Jump To may not offer them either — a demand is a hidden record,
     // not a destination.
     //
-    // Starts-with ranks first, in NAV order — the two consignment pages sit
-    // before Procurement in the Houzs tree (2026-11-01) — then contains, in NAV
-    // order: `SO Batch Purchase` then `Manual Purchase Request`.
+    // Starts-with ranks first, in NAV order — the consignment pages sit before
+    // Procurement in the Houzs tree (2026-11-01). Nothing merely contains the
+    // word since SO Batch, Forecast and Manual Purchase and the Purchasing
+    // report left with the old Carres pages (11 Nov 2026).
     expect(
       matchDestinations(permittedDestinations("operation"), "purch").map((d) => d.label),
     ).toEqual([
@@ -169,12 +170,6 @@ describe("what typing searches", () => {
          beside Goods Receipt (YH, 2026-10-30). */
       "Purchase Invoices",
       "Purchase Returns",
-      /* The Purchasing REPORT page under DATA → Reports (owner 2026-10-08) —
-         a real page, so a real destination, named as a report. */
-      "Purchasing report",
-      "SO Batch Purchase",
-      "Forecast Purchase",
-      "Manual Purchase Request",
     ]);
   });
 
@@ -189,6 +184,12 @@ describe("what typing searches", () => {
       "Consignment Overview",
       "Consignment Receipts",
       "Manual Purchase Requests",
+      /* Removed with the old Carres Supply Chain pages (owner, 11 Nov 2026). */
+      "SO Batch Purchase",
+      "Forecast Purchase",
+      "Manual Purchase Request",
+      "Supplier Claims",
+      "Repair Orders",
     ]) {
       expect(all, word).not.toContain(word);
     }
@@ -303,7 +304,7 @@ describe("the keyboard", () => {
 describe("navigate-only", () => {
   it("selecting a destination only opens it — and remembers it as recent", () => {
     renderJump();
-    fireEvent.change(openSurface(), { target: { value: "Payments · Monitor" } });
+    fireEvent.change(openSurface(), { target: { value: "Monitor" } });
     fireEvent.click(screen.getByTestId("jump-to-destination"));
     expect(screen.getByTestId("here")).toHaveTextContent("/finance/monitor");
     expect(JSON.parse(localStorage.getItem("carres-jump-recent") ?? "[]")).toEqual([

@@ -1,7 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const apiFetch = vi.fn();
@@ -311,44 +308,5 @@ describe("PO sent to supplier — only the person's press records it (Jess 2026-
     expect(screen.getByTestId("so-batch-evidence-confirm")).toBeDisabled();
     fireEvent.change(recipient, { target: { value: "Hooka Purchasing Group" } });
     await waitFor(() => expect(screen.getByTestId("so-batch-evidence-confirm")).not.toBeDisabled());
-  });
-});
-
-describe("both surfaces use THIS component — one law, not two", () => {
-  const HERE = dirname(fileURLToPath(import.meta.url));
-
-  it("SO Batch Purchase mounts it", () => {
-    const src = readFileSync(
-      join(HERE, "..", "so-batch", "SoBatchIssueWorkspace.tsx"),
-      "utf8",
-    );
-    expect(src).toContain("PoIssueEvidence");
-  });
-
-  // The live Purchase Order page. These rules used to read
-  // `OperationPurchaseOrders.tsx`, which only re-exported this page and kept
-  // an unrendered legacy copy below it — so they guarded code nobody saw.
-  const PO_PAGE = ["..", "purchase-orders", "PurchaseOrdersPage.tsx"];
-
-  // The PO page now uses the shared supplier-send presentation (same
-  // confirm-sent writer plus unknown Email recovery). Its runtime mount and
-  // exact PO/version scope are covered by PurchaseOrdersPage.test.tsx.
-
-  it("Purchase Order detail no longer claims there is no `I've sent` action", () => {
-    const src = readFileSync(join(HERE, ...PO_PAGE), "utf8");
-    expect(src).not.toMatch(/There is still no "I've sent" button/);
-  });
-
-  it("neither surface spells its own confirmation door", () => {
-    for (const rel of [
-      ["..", "so-batch", "SoBatchIssueWorkspace.tsx"],
-      PO_PAGE,
-    ]) {
-      // Comments stripped: a comment may name the endpoint; code may not.
-      const src = readFileSync(join(HERE, ...rel), "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
-      expect(src, rel.join("/")).not.toContain("confirm-sent");
-    }
   });
 });

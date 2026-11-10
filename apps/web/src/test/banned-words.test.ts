@@ -74,17 +74,6 @@ describe("no banned word reaches the screen (C12 · portal-wide)", () => {
    */
   describe("SO Batch Purchase", () => {
     itSaysNoBannedWord(
-      join(PAGES, "operation", "so-batch", "SoBatchRegister.tsx"),
-      /* Card 02-B — `Not counted yet` left with the retired Stock column; the
-         coverage absence is the string the file is now known to contain. */
-      { minStrings: 40, expectString: "Not ordered yet" },
-    );
-    /* The By sales order view's words live in its model file (13 Oct 2026). */
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "so-batch", "by-sales-order.ts"),
-      { minStrings: 20, expectString: "Stock you can use" },
-    );
-    itSaysNoBannedWord(
       join(PAGES, "operation", "so-batch", "SoBatchIssueWorkspace.tsx"),
       { minStrings: 20, expectString: "Goods must arrive" },
     );
@@ -102,12 +91,6 @@ describe("no banned word reaches the screen (C12 · portal-wide)", () => {
    * for the customer. A guard that stops at the page and not at the panel is the
    * same hole this file exists to close, one level down.
    */
-  describe("the claim panel", () => {
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "components", "SupplierClaimPanel.tsx"),
-      { minStrings: 40, expectString: "Record supplier reply" },
-    );
-  });
 });
 
 /**

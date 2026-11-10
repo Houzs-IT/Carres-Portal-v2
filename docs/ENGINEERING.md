@@ -63,6 +63,14 @@ and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, i
 Rule: the engine's screens match Houzs except the theme; Carres edits live only in `engine/frontend/src/carres/`,
 the files the commits below name, and the Carres config files.
 
+**The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
+the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription, Issue Tracker,
+Sales invoice lines, Settings); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
+values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still
+in the tree because Finance imports its shared components; no menu row or address opens it. Old Carres tables
+and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
+orders in the old order book (`OLD_ORDER_FLOWS`).
+
 **Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.

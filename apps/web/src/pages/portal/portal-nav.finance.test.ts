@@ -143,15 +143,7 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
     const opsReports = PORTAL_NAV.filter((g) => g.area !== "finance").flatMap((g) =>
       g.items.filter((it) => it.section === "Reports").map((it) => `${g.area}:${it.key}`),
     );
-    expect(opsReports).toEqual([
-      "operation:purchasing-report",
-      "operation:receiving-report",
-      "operation:delivery-report",
-      "operation:delivery-return-lines",
-      "operation:sales-order-lines",
-      "operation:delivery-order-lines",
-      "operation:sales-invoice-lines",
-    ]);
+    expect(opsReports).toEqual(["operation:sales-invoice-lines"]);
     const financeKeys = new Set(FINANCE.items.map((it) => it.key));
     for (const key of opsReports) expect(financeKeys.has(key.split(":")[1]!), key).toBe(false);
   });
