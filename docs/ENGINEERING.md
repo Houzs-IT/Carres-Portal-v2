@@ -54,6 +54,27 @@ from the browser to Supabase Auth. Everything after login goes through Hono with
 never in a committed `.env`, never referenced from `apps/web`, never logged, never in a
 response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must be 0.**
 
+### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
+
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`5036fa2cc`**, run as its
+own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
+frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu: every Service Cases, Projects
+and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, in Houzs's order and words.
+Rule: the engine's screens match Houzs except the theme; Carres edits live only in `engine/frontend/src/carres/`,
+the files the commits below name, and the Carres config files.
+
+**Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
+1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
+2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
+3. Re-apply the Carres edits: `git diff <recoloured old import> origin/main -- engine/` with `git apply --3way`.
+   The first import (`f6e9ca924`) itself changed 16 files (Carres wrangler settings, dev fallbacks to
+   localhost); check they survived. **Check both `wrangler.toml` files name the Carres account, buckets and
+   URLs, never Houzs's** — a conflict there once reverted to Houzs's production settings.
+4. Copy Houzs `backend/src/db/migrations-pg/*.sql` newer than the last copied one into
+   `engine/backend/scripts/carres-db/migrations/` as the next `11xx_<original name>`, verbatim.
+   Build a throwaway database from that folder (PGlite) before merging; the owner applies them to the
+   engine database with `engine/backend/scripts/carres-db/apply.mjs`.
+
 ---
 
 ## 3 · RLS performance — three rules that are not optional

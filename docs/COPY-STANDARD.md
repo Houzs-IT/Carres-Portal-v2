@@ -5165,20 +5165,21 @@ matched payments to add up to the day's Sales total, and no matched payment may 
 The 2026-09-22 ruling's `Today` / `This week` / `This month` are the names of RANGE CHOICES in a select,
 which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`.
 
-## Sidebar words follow Houzs — Weisiang, WhatsApp 2026-11-01
+## Sidebar words follow Houzs — Weisiang, WhatsApp 2026-11-01; Houzs menu re-read 11 Nov 2026
 
-**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx`. Page and document words are not changed by this table.
+**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx` at Houzs `5036fa2cc` (the code `engine/` now carries). Service Cases, Projects and Supply Chain rows each open the engine page of the same name (portal-nav `ENGINE_PAGES`). Page and document words are not changed by this table.
 
 | Place | Exact words |
 |---|---|
 | Top | `Workspace` · `Operations` · `Supply Chain` (row, inside Operations) |
 | Supply Chain modules | `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
-| Sales Order | `Sales Orders` · `Sales Order Amendment` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
-| Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
+| Sales Order | `Sales Orders` · `Fair Links to Settle` · `Sales Order Amendment` · `Payment Backdate Requests` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
+| Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Order` · `Product Request` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
 | Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
-| Transportation | `Logistic Overview` · `Delivery Planning` · `DP Orders` · `Last Mile Delivery` · `Lorry Live Map` · `Lorry Capacity` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
+| Transportation | `Logistic Overview` · `Delivery Planning` · `Last Mile Delivery (Driver)` · `DP Orders` · `Last Mile Delivery` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
+| Projects | `Project Overview` · `Project List` · `Calendar` · `Project Maintenance` |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
