@@ -67,6 +67,7 @@ import {
   matchEarnedGiftRows,
 } from "../lib/replace-lines-helpers";
 import type { AppEnv } from "../types";
+import { refuseWhenOldOrdersOff } from "../lib/old-order-flows";
 
 /**
  * 2026-05-12 (Loo) — `SalesOrderData` is the JSON shape the
@@ -456,7 +457,7 @@ ordersRouter.get("/customer-search", async (c) => {
 // body-dealerId branch — their JWT dealer always wins.
 const ORDER_CREATE_INTERNAL_ROLES = new Set<string>(["principal", "operation", "finance", "bd"]);
 
-ordersRouter.post("/", async (c) => {
+ordersRouter.post("/", refuseWhenOldOrdersOff, async (c) => {
   const auth = c.var.auth;
 
   if (auth.role !== "dealer" && auth.role !== "salesperson" && auth.role !== "showroom" &&
@@ -1139,7 +1140,7 @@ function sanitizeRawLineAttrs(
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
-ordersRouter.post("/raw", async (c) => {
+ordersRouter.post("/raw", refuseWhenOldOrdersOff, async (c) => {
   const auth = c.var.auth;
   if (!ORDER_RAW_CREATE_ROLES.has(auth.role)) {
     throw new HTTPException(403, { message: "Raw order creation is internal-only" });

@@ -124,7 +124,7 @@ import OperationGuarantees from "./OperationGuarantees";
 import ShellHeader, { ShellHeaderContext, useShellHeaderHost } from "./components/ShellHeader";
 import ShellTasks, { useShellTasks } from "./components/ShellTasks";
 import { useTasksHost } from "./tasks/tasks-host";
-import { activeNavTitle, engineFor } from "@/pages/portal/portal-nav";
+import { activeNavTitle, engineFor, OLD_SUPPLY_CHAIN_OFF, oldSupplyChainTarget } from "@/pages/portal/portal-nav";
 import type { MovementsFilters } from "@/lib/queries";
 
 /**
@@ -225,7 +225,9 @@ export default function OperationApp({purchaseRequestContext=false}:{purchaseReq
      page, Houzs's /purchase-invoices/new and /from-grn. The list stays the
      `?tab=purchase-invoices` module. */
   const isPurchaseInvoiceFormUrl = location.pathname.startsWith("/operation/purchase-invoices/");
-  const enginePage = engineFor(location.pathname, location.search);
+  // The engine's page for a replaced row; with the old supply chain off, its other addresses too.
+  const enginePage = engineFor(location.pathname, location.search)
+    ?? (OLD_SUPPLY_CHAIN_OFF ? oldSupplyChainTarget(location.pathname, location.search) : null);
   const isUrlDriven =
     isProcurementUrl || isToOrderUrl || isOrdersUrl || isOldOrdersUrl || isPurchaseInvoiceFormUrl ||
     /* Edit Delivery (2026-08-24) is a real route. Its flag joined the

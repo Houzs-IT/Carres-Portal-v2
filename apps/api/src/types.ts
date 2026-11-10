@@ -33,6 +33,8 @@ export type Bindings = {
   // Supply Chain engine (routes/operation/scm-engine.ts): its API and site, and the sign-on secret it shares
   // with this Worker. Worker secrets; any unset => the route answers 501.
   SCM_ENGINE_API?: string;
+  /** "off": new orders into the old supply chain are refused (lib/old-order-flows.ts). */
+  OLD_ORDER_FLOWS?: string;
   SCM_ENGINE_SITE?: string;
   SCM_ENGINE_SSO_SECRET?: string;
   /** The engine Worker itself (service binding, production); unset => SCM_ENGINE_API over the internet. */

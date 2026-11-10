@@ -733,6 +733,41 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   stock: "/scm/inventory", "stock-adjustments": "/scm/stock-adjustments", "stock-transfers": "/scm/stock-transfers",
   "stock-takes": "/scm/stock-takes",
 };
+/** The old Carres supply chain, turned off in production (owner, 10 Nov 2026; `.env.production`): its rows with
+ *  no engine page leave the menu and every old supply chain address opens the nearest engine page. Nothing is
+ *  deleted; tests and local dev keep it on. Sales Invoices stays: it is Carres Finance's own page. */
+export const OLD_SUPPLY_CHAIN_OFF = import.meta.env.VITE_OLD_SUPPLY_CHAIN === "off";
+const OLD_SECTIONS: Readonly<Record<string, string>> = {
+  "Customer Care": "/assr?view=cases", Sales: "/scm/sales-orders", Consignment: "/scm/sales-orders",
+  Purchasing: "/scm/purchase-orders", Delivery: "/scm/delivery-planning", Warehouse: "/scm/inventory",
+  Showroom: "/scm/inventory",
+};
+const KEPT_OLD_ROWS = new Set(["sales-invoices"]);
+/** Old supply chain addresses outside the menu (records, stage views, forms), by path, longest first. */
+const OLD_PATHS: ReadonlyArray<readonly [string, string]> = [
+  ["/operation/purchase-invoices", "/scm/purchase-invoices"], ["/operation/delivery-orders", "/scm/delivery-orders"],
+  ["/operation/delivery/edit", "/scm/delivery-orders"], ["/operation/procurement", "/scm/purchase-orders"],
+  ["/operation/purchasing", "/scm/purchase-orders"], ["/operation/old-orders", "/scm/sales-orders"],
+  ["/operation/amendments", "/scm/amendments"], ["/operation/stock/unit", "/scm/inventory"],
+  ["/operation/to-order", "/scm/sales-orders"], ["/operation/orders", "/scm/sales-orders"],
+];
+
+/** A menu row of the old supply chain that has no engine page (hidden while it is off). */
+export function isOldSupplyChainRow(item: PortalNavItem): boolean {
+  return !!item.section && item.section in OLD_SECTIONS && !ENGINE_PAGES[item.key] && !KEPT_OLD_ROWS.has(item.key);
+}
+
+/** The engine page an old supply chain address opens while it is off; null for every other address. */
+export function oldSupplyChainTarget(pathname: string, search: string): string | null {
+  const hit = OLD_PATHS.find(([root]) => pathname === root || pathname.startsWith(`${root}/`));
+  if (hit) return hit[1];
+  const operation = PORTAL_NAV.find((g) => g.area === "operation");
+  const tab = new URLSearchParams(search).get("tab");
+  if (!operation || pathname !== operation.base || tab === null) return null;
+  const row = operation.items.find((i) => isOldSupplyChainRow(i) && (i.tab ?? i.key) === tab);
+  return row?.section ? OLD_SECTIONS[row.section] : null;
+}
+
 /** The engine page for this address, when it is one of the replaced rows' own address: the row's link
  *  (bare path, or tab plus view) opens the engine page in place of the older Carres page. Every other address,
  *  record pages and record or search links included, is untouched. */
@@ -764,7 +799,8 @@ export function visibleItems(
   caps: ReadonlySet<NavCapability> = NO_CAPS,
 ): PortalNavItem[] {
   return group.items.filter((it) =>
-    (!it.roles || (role != null && it.roles.includes(role))) && (!it.needs || caps.has(it.needs)));
+    (!it.roles || (role != null && it.roles.includes(role))) && (!it.needs || caps.has(it.needs))
+    && !(OLD_SUPPLY_CHAIN_OFF && isOldSupplyChainRow(it)));
 }
 
 /** The href a nav item points at. */

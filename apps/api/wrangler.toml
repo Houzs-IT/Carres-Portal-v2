@@ -41,6 +41,9 @@ routes = [
 
 [env.production.vars]
 PUBLIC_WEB_URL = "https://pos.carresofficial.com"
+# The old supply chain is turned off (owner, 10 Nov 2026): new orders into it are refused (lib/old-order-flows.ts).
+# Remove this line to turn it back on; nothing was deleted.
+OLD_ORDER_FLOWS = "off"
 
 # The supply chain engine, called Worker to Worker (routes/operation/scm-engine.ts). Cloudflare refuses a
 # Worker fetching another Worker of the same account through its public workers.dev address.

@@ -6325,3 +6325,11 @@ The supply chain and service case screens run as their own site (engine/), frame
 | Frame | `Supply Chain` (read aloud) |
 | While it opens | `Opening Supply Chain` (read aloud) |
 | Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |
+
+## Old supply chain turned off · owner decision (10 Nov 2026)
+
+The old Carres supply chain is turned off in production (`VITE_OLD_SUPPLY_CHAIN`, `OLD_ORDER_FLOWS`): its rows with no engine page leave the menu, and starting a new order there is refused. These words are admitted for that refusal.
+
+| Meaning | Use exactly |
+|---|---|
+| A new order refused (sales portal, POS, imports, rental) | `New orders are turned off here for now. Orders are made in Supply Chain.` |
