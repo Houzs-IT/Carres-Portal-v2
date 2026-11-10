@@ -56,7 +56,7 @@ response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must
 
 ### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
 
-`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`5036fa2cc`**, run as its
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`83f24d437`**, run as its
 own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
 frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu: every Service Cases, Projects
 and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, in Houzs's order and words.

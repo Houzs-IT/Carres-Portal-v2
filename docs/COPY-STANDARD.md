@@ -5167,7 +5167,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 
 ## Sidebar words follow Houzs — Weisiang, WhatsApp 2026-11-01; Houzs menu re-read 11 Nov 2026
 
-**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx` at Houzs `5036fa2cc` (the code `engine/` now carries). Service Cases, Projects and Supply Chain rows each open the engine page of the same name (portal-nav `ENGINE_PAGES`). Page and document words are not changed by this table.
+**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx` at Houzs `83f24d437` (the code `engine/` now carries). Service Cases, Projects and Supply Chain rows each open the engine page of the same name (portal-nav `ENGINE_PAGES`). Page and document words are not changed by this table.
 
 | Place | Exact words |
 |---|---|
