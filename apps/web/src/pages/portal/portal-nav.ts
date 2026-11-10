@@ -757,6 +757,15 @@ export function isOldSupplyChainRow(item: PortalNavItem): boolean {
   return !!item.section && item.section in OLD_SECTIONS && !ENGINE_PAGES[item.key] && !KEPT_OLD_ROWS.has(item.key);
 }
 
+/** Where an old supply chain address goes while it is off: the menu address of the engine row that shows
+ *  its nearest engine page, so the title, the lit row and the address agree; null for every other address. */
+export function oldSupplyChainRedirect(pathname: string, search: string): string | null {
+  const page = oldSupplyChainTarget(pathname, search);
+  const operation = PORTAL_NAV.find((g) => g.area === "operation");
+  const row = page && operation?.items.find((i) => !i.shortcut && ENGINE_PAGES[i.key] === page);
+  return row && operation ? navItemHref(operation, row) : null;
+}
+
 /** The engine page an old supply chain address opens while it is off; null for every other address. */
 export function oldSupplyChainTarget(pathname: string, search: string): string | null {
   const hit = OLD_PATHS.find(([root]) => pathname === root || pathname.startsWith(`${root}/`));

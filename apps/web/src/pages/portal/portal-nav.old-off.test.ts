@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PORTAL_NAV, isOldSupplyChainRow, oldSupplyChainTarget } from "./portal-nav";
+import { PORTAL_NAV, engineFor, isOldSupplyChainRow, oldSupplyChainRedirect, oldSupplyChainTarget } from "./portal-nav";
 
 const operation = PORTAL_NAV.find((g) => g.area === "operation")!;
 const row = (key: string) => operation.items.find((i) => i.key === key)!;
@@ -23,6 +23,18 @@ describe("the old supply chain, turned off (owner, 10 Nov 2026)", () => {
     expect(oldSupplyChainTarget("/operation/delivery-orders/do-1", "")).toBe("/scm/delivery-orders");
     expect(oldSupplyChainTarget("/operation", "?tab=claims")).toBe("/scm/purchase-orders");
     expect(oldSupplyChainTarget("/operation", "?tab=guarantees")).toBe("/assr?view=cases");
+  });
+
+  it("moves the address to the engine row's own, which opens the same engine page", () => {
+    for (const [path, search] of [["/operation", "?tab=claims"], ["/operation/orders/so/abc", ""], ["/operation/procurement", "?po=PO-1"],
+      ["/operation/delivery-orders/do-1", ""], ["/operation", "?tab=guarantees"], ["/operation/stock/unit/U1", ""]] as const) {
+      const to = oldSupplyChainRedirect(path, search)!;
+      expect(to, path + search).toBeTruthy();
+      const url = new URL(to, "http://t");
+      expect(engineFor(url.pathname, url.search), to).toBe(oldSupplyChainTarget(path, search));
+    }
+    expect(oldSupplyChainRedirect("/operation", "?tab=claims")).toBe("/operation/procurement");
+    expect(oldSupplyChainRedirect("/operation", "?tab=projects")).toBeNull();
   });
 
   it("leaves every other address alone", () => {
