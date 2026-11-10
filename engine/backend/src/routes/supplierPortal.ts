@@ -162,7 +162,7 @@ app.get("/case", async (c) => {
 
 app.post("/stage", (c) =>
   c.json(
-    { error: "Stage updates were removed from the supplier portal — Carres Operations advances the case." },
+    { error: "Stage updates were removed from the supplier portal — Houzs Operations advances the case." },
     410
   )
 );

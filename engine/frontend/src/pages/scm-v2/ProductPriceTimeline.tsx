@@ -54,11 +54,11 @@ export const ProductPriceTimeline = ({ row }: { row: MfgProductRow }) => {
 
   const h3 = {
     fontSize: 'var(--fs-12)', fontWeight: 700, textTransform: 'uppercase' as const,
-    letterSpacing: '0.06em', color: '#6B7280', marginBottom: 'var(--space-2)',
+    letterSpacing: '0.06em', color: '#767b6e', marginBottom: 'var(--space-2)',
   };
   const fieldLabel = {
     fontSize: 'var(--fs-11)', fontWeight: 700, textTransform: 'uppercase' as const,
-    letterSpacing: '0.04em', color: '#6B7280', marginBottom: 4, display: 'block',
+    letterSpacing: '0.04em', color: '#767b6e', marginBottom: 4, display: 'block',
   };
   const inputBox = {
     background: '#fff', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-sm)',
@@ -76,7 +76,7 @@ export const ProductPriceTimeline = ({ row }: { row: MfgProductRow }) => {
           background: '#fff', border: '1px solid #c2c6bd', borderRadius: 'var(--radius-pill)',
           fontSize: 'var(--fs-12)', color: '#3a3f36',
         }}>
-          <span style={{ color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 'var(--fs-11)', fontWeight: 700 }}>Now</span>
+          <span style={{ color: '#767b6e', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 'var(--fs-11)', fontWeight: 700 }}>Now</span>
           {fmtSen(current)}
         </span>
         {pending && (
@@ -129,9 +129,9 @@ export const ProductPriceTimeline = ({ row }: { row: MfgProductRow }) => {
 
       {/* Dated history — newest first. */}
       {q.isLoading ? (
-        <p style={{ color: '#6B7280', fontSize: 'var(--fs-13)' }}>Loading price timeline…</p>
+        <p style={{ color: '#767b6e', fontSize: 'var(--fs-13)' }}>Loading price timeline…</p>
       ) : history.length === 0 ? (
-        <p style={{ color: '#6B7280', fontSize: 'var(--fs-13)' }}>
+        <p style={{ color: '#767b6e', fontSize: 'var(--fs-13)' }}>
           No scheduled prices yet. The flat price {fmtSen(current)} applies until you schedule one.
         </p>
       ) : (
@@ -157,7 +157,7 @@ export const ProductPriceTimeline = ({ row }: { row: MfgProductRow }) => {
                   </td>
                   <td className={styles.numCell}>{fmtSen(h.sell_price_sen)}</td>
                   <td style={{ color: '#3a3f36' }}>{h.created_by || '—'}</td>
-                  <td style={{ color: '#6B7280', fontSize: 'var(--fs-12)' }}>{h.notes || ''}</td>
+                  <td style={{ color: '#767b6e', fontSize: 'var(--fs-12)' }}>{h.notes || ''}</td>
                 </tr>
               );
             })}

@@ -13,6 +13,7 @@ import { outstandingEmptyReason, type OutstandingScope } from "../lib/outstandin
 import "./mobile.css";
 import { SI_TRANSFERABLE_DO_STATES } from '../vendor/shared/do-shipped-states';
 import { soCanRaiseDo } from '../vendor/shared/so-deliverable-states';
+import { soOffersTransferToDo } from '../lib/so-transfer-to-do';
 import { customerRefOf } from '../lib/customer-ref';
 import { matchesSearch } from '../lib/so-ref-search';
 /* The word, from the desktop picker's own component, so the phone and the desk
@@ -20,6 +21,9 @@ import { matchesSearch } from '../lib/so-ref-search';
    "Label: value" (see "Supplier SKU:" below), not uppercase — the WORD is
    shared, the presentation stays per surface. */
 import { DESCRIPTION_2_LABEL } from '../vendor/scm/components/VariantDescription';
+import { lineDiscountShare } from '../vendor/shared/line-discount-share';
+import { FormTouchScope } from "../components/FormTouchScope";
+import { useFormTouched, useGuardedBack, useLeaveGuard } from "../hooks/useLeaveGuard";
 
 /* ---------------------------------------------------------------------------
  * MobileConvertWizard — mobile CREATE-by-CONVERT flow for the four downstream
@@ -133,6 +137,8 @@ type SoListRow = {
   doc_no: string; debtor_name: string | null; status: string | null; on_hold?: boolean | null;
   so_date: string | null; local_total_sen: number | null; total_revenue_sen: number | null;
   ref?: string | null; customer_so_no?: string | null;
+  /** Server-derived (lib/so-list-rows.ts): something is still left to put on a DO. */
+  has_undelivered?: boolean | null;
 };
 type DoListRow = {
   id: string; do_number: string; debtor_name: string | null; status: string | null;
@@ -157,12 +163,14 @@ type SoDeliverableLine = {
   soItemId: string; docNo: string; itemCode: string; description: string | null;
   itemGroup: string | null; variants: unknown;
   qty: number; remaining: number; unitPriceSen: number; debtorName: string | null;
+  discountSen?: number;
   notReady: { reason: string } | null;
 };
 type DoInvoiceableLine = {
   doItemId: string; doNumber: string; itemCode: string; description: string | null;
   itemGroup: string | null; variants: unknown;
   remaining: number; unitPriceSen: number; debtorName: string | null;
+  delivered?: number; discountSen?: number;
 };
 // SO→PO — the OUTSTANDING axis (qty − po_qty_picked + sofa MRP rollup), from
 // /mfg-purchase-orders/outstanding-so-items (the SAME stock-aware shortage view
@@ -220,9 +228,21 @@ type PickLine = {
   origQty: number;       // the source line's ordered qty (0 when the GET omits it)
   remaining: number;     // outstanding qty still convertible
   unitPriceSen: number;
+  /* The source line's whole-line discount, its quantity and what earlier
+     documents already took: a pick shows only ITS share (lineDiscountShare),
+     the same split the server writes. 0 / 0 / 0 for SO→PO (no sales discount). */
+  discountSen: number;
+  discountBaseQty: number;
+  discountMovedQty: number;
   checked: boolean;
   qty: string;           // as typed (the qty to convert this pass)
 };
+
+/** A pick's value: qty x price less ITS share of the source line's discount. */
+const pickLineValueSen = (
+  l: Pick<PickLine, "unitPriceSen" | "discountSen" | "discountBaseQty" | "discountMovedQty">,
+  qty: number,
+): number => l.unitPriceSen * qty - lineDiscountShare(l.discountSen, l.discountBaseQty, l.discountMovedQty, qty);
 
 export function MobileConvertWizard({
   target,
@@ -241,6 +261,9 @@ export function MobileConvertWizard({
      which lands on the prefilled convert screen for that specific SO. */
   initialSourceId?: string | null;
 }) {
+  const { touched: formTouched, markTouched } = useFormTouched();
+  const { allowLeave } = useLeaveGuard(formTouched, null);
+  const guardedBack = useGuardedBack(onBack);
   const meta = META[target];
   const qc = useQueryClient();
   const notify = useNotify();
@@ -330,7 +353,9 @@ export function MobileConvertWizard({
        is pinned equal to it. */
     if (meta.source === "so") {
       return ((data?.salesOrders ?? []) as SoListRow[])
-        .filter((r) => soCanRaiseDo(r.status, r.on_hold ?? null))
+        /* SO -> DO also needs something left to deliver (Conts #699); SO -> PO
+           keeps the status rule alone, since a delivered order may still buy. */
+        .filter((r) => (target === "do" ? soOffersTransferToDo(r) : soCanRaiseDo(r.status, r.on_hold ?? null)))
         .filter((r) => matchesSearch([r.debtor_name, r.doc_no, customerRefOf(r)], needle));
     }
     if (meta.source === "do") {
@@ -344,7 +369,7 @@ export function MobileConvertWizard({
       .filter((r) => isReceivablePo(r.status))
       .filter((r) => !supplierFilter || str(r.supplier?.id) === supplierFilter)
       .filter((r) => !needle || `${str(r.supplier?.name)} ${r.po_number}`.toLowerCase().includes(needle));
-  }, [sourceQuery.data, meta.source, q, supplierFilter]);
+  }, [sourceQuery.data, meta.source, q, supplierFilter, target]);
 
   // Distinct suppliers for the GRN supplier chips (from receivable POs).
   const suppliers = useMemo(() => {
@@ -387,6 +412,9 @@ export function MobileConvertWizard({
             origQty: Number(l.qty) || 0,
             remaining: Number(l.remainingQty) || 0,
             unitPriceSen: Number(l.unitPriceSen) || 0,
+            discountSen: 0,
+            discountBaseQty: 0,
+            discountMovedQty: 0,
             checked: true,
             qty: String(Number(l.remainingQty) || 0),
           }));
@@ -403,6 +431,9 @@ export function MobileConvertWizard({
           origQty: Number(l.qty) || 0,
           remaining: Number(l.remaining) || 0,
           unitPriceSen: Number(l.unitPriceSen) || 0,
+          discountSen: Number(l.discountSen) || 0,
+          discountBaseQty: Number(l.qty) || 0,
+          discountMovedQty: (Number(l.qty) || 0) - (Number(l.remaining) || 0),
           checked: !l.notReady,
           qty: String(Number(l.remaining) || 0),
         }));
@@ -421,6 +452,9 @@ export function MobileConvertWizard({
         origQty: Number(l.remaining) || 0,
         remaining: Number(l.remaining) || 0,
         unitPriceSen: Number(l.unitPriceSen) || 0,
+        discountSen: Number(l.discountSen) || 0,
+        discountBaseQty: Number(l.delivered) || 0,
+        discountMovedQty: (Number(l.delivered) || 0) - (Number(l.remaining) || 0),
         checked: true,
         qty: String(Number(l.remaining) || 0),
       }));
@@ -441,7 +475,7 @@ export function MobileConvertWizard({
     [lines],
   );
   const pickedTotalSen = useMemo(
-    () => picks.reduce((a, l) => a + l.unitPriceSen * clampQty(l.qty, l.remaining), 0),
+    () => picks.reduce((a, l) => a + pickLineValueSen(l, clampQty(l.qty, l.remaining)), 0),
     [picks],
   );
 
@@ -648,6 +682,7 @@ export function MobileConvertWizard({
       // Also refresh the shared/desktop doc lists (source + target) so a desktop
       // tab doesn't read a stale picker/list after a mobile convert.
       invalidateConvertShared(qc);
+      allowLeave();
       onCreated(newDocNo, newDocId || undefined);
     } catch (e) {
       // A declined short-stock / drop-ship confirm surfaces as a thrown marker;
@@ -687,19 +722,20 @@ export function MobileConvertWizard({
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+    <FormTouchScope onTouch={markTouched}>
     <div className="hz-m" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" }}>
       {/* Spec #convert: back "Cancel" chevron, eyebrow, screen-title, source-doc
           sub-line, then the 2-segment step-progress bar + "Step N of 2" label. */}
       <header className="hdr">
         <div className="hdr-row">
-          <button onClick={onBack} className="back" aria-label="Cancel">
+          <button onClick={guardedBack} className="back" aria-label="Cancel">
             <span className="chev">{"‹"}</span> Cancel
           </button>
-          <span style={{ fontSize: 11, color: "#6B7280" }}>Step {step} of 2 · {stepLabel}</span>
+          <span style={{ fontSize: 11, color: "#767b6e" }}>Step {step} of 2 · {stepLabel}</span>
         </div>
-        <div className="ey" style={{ color: "#D64F20", marginTop: 6 }}>{meta.eyebrow}</div>
+        <div className="ey" style={{ color: "#a16a2e", marginTop: 6 }}>{meta.eyebrow}</div>
         <div className="scr-title" style={{ marginTop: 2 }}>{meta.transferTitle}</div>
-        <div className="tnum" style={{ fontSize: 11.5, color: "#6B7280", marginTop: 3 }}>
+        <div className="tnum" style={{ fontSize: 11.5, color: "#767b6e", marginTop: 3 }}>
           {/* Spec sub-line: "From {{source_doc_no}}" once a source is chosen;
               before that, the invitation to pick one. The invitation is SINGULAR
               even where the picker takes several sources — it names the source
@@ -795,13 +831,13 @@ export function MobileConvertWizard({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
             {meta.hasLinePicker ? (
               <>
-                <span style={{ fontSize: 11.5, color: "#6B7280" }}>{picks.length} {picks.length === 1 ? "line" : "lines"}</span>
-                <span className="money" style={{ fontSize: 17, fontWeight: 800, color: "#2F55E0" }}>{fmtSen(pickedTotalSen)}</span>
+                <span style={{ fontSize: 11.5, color: "#767b6e" }}>{picks.length} {picks.length === 1 ? "line" : "lines"}</span>
+                <span className="money" style={{ fontSize: 17, fontWeight: 800, color: "#0c3f39" }}>{fmtSen(pickedTotalSen)}</span>
               </>
             ) : (
               <>
-                <span style={{ fontSize: 11.5, color: "#6B7280" }}>{grnPicks.length} {grnPicks.length === 1 ? "line" : "lines"}</span>
-                <span className="money" style={{ fontSize: 17, fontWeight: 800, color: "#2F55E0" }}>{fmtSen(grnPickedTotalSen)}</span>
+                <span style={{ fontSize: 11.5, color: "#767b6e" }}>{grnPicks.length} {grnPicks.length === 1 ? "line" : "lines"}</span>
+                <span className="money" style={{ fontSize: 17, fontWeight: 800, color: "#0c3f39" }}>{fmtSen(grnPickedTotalSen)}</span>
               </>
             )}
           </div>
@@ -822,6 +858,7 @@ export function MobileConvertWizard({
         </footer>
       )}
     </div>
+    </FormTouchScope>
   );
 }
 
@@ -846,7 +883,7 @@ function SourceStep({
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
         {supplierFilter && selectedPoIds.length > 0 && (
-          <div style={{ fontSize: 11, color: "#D64F20", padding: "0 2px" }}>
+          <div style={{ fontSize: 11, color: "#a16a2e", padding: "0 2px" }}>
             One supplier per Goods Receipt — tap more of this supplier's POs to combine.
           </div>
         )}
@@ -858,17 +895,17 @@ function SourceStep({
                 <span className="so-row-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {str(r.supplier?.name) || str(r.po_number)}
                 </span>
-                <span className="spill" style={{ background: on ? "#DCE6FD" : "#F8F9FA", color: on ? "#2F55E0" : "#6B7280", border: on ? "none" : "1px solid #EEF0F3", flex: "none" }}>
+                <span className="spill" style={{ background: on ? "#e1efed" : "#f4f6f3", color: on ? "#0c3f39" : "#767b6e", border: on ? "none" : "1px solid #e3e6e0", flex: "none" }}>
                   {on ? "Selected" : str(r.status) || "—"}
                 </span>
               </div>
               <div className="so-grid">
                 <span className="so-k">Order</span>
-                <span className="so-v money" style={{ fontWeight: 700, color: "#2F55E0" }}>{str(r.po_number) || "—"}</span>
+                <span className="so-v money" style={{ fontWeight: 700, color: "#0c3f39" }}>{str(r.po_number) || "—"}</span>
                 <span className="so-k">Date</span>
                 <span className="so-v">{dm(r.po_date)}</span>
                 <span className="so-k">Total</span>
-                <span className="so-v money" style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>{fmtSen(r.total_sen)}</span>
+                <span className="so-v money" style={{ fontSize: 14, fontWeight: 800, color: "#11140f" }}>{fmtSen(r.total_sen)}</span>
               </div>
               {on && <Check />}
             </div>
@@ -895,16 +932,16 @@ function SourceStep({
                 {str(r.debtor_name) || docNo}
               </span>
               {r.status && (
-                <span className="spill" style={{ background: "#F8F9FA", color: "#6B7280", border: "1px solid #EEF0F3", flex: "none" }}>{str(r.status)}</span>
+                <span className="spill" style={{ background: "#f4f6f3", color: "#767b6e", border: "1px solid #e3e6e0", flex: "none" }}>{str(r.status)}</span>
               )}
             </div>
             <div className="so-grid">
               <span className="so-k">{kind === "so" ? "Order" : "Delivery"}</span>
-              <span className="so-v money" style={{ fontWeight: 700, color: "#2F55E0" }}>{docNo || "—"}</span>
+              <span className="so-v money" style={{ fontWeight: 700, color: "#0c3f39" }}>{docNo || "—"}</span>
               <span className="so-k">Date</span>
               <span className="so-v">{dm(date)}</span>
               <span className="so-k">Total</span>
-              <span className="so-v money" style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>{fmtSen(totalC)}</span>
+              <span className="so-v money" style={{ fontSize: 14, fontWeight: 800, color: "#11140f" }}>{fmtSen(totalC)}</span>
             </div>
           </div>
         );
@@ -965,22 +1002,22 @@ function LinesStep({
                   type="checkbox"
                   checked={l.checked}
                   onChange={(e) => onSetLine(l.lineId, { checked: e.target.checked })}
-                  style={{ marginTop: 2, width: 16, height: 16, flex: "none", accentColor: "#1B1B39" }}
+                  style={{ marginTop: 2, width: 16, height: 16, flex: "none", accentColor: "#16695f" }}
                 />
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.label}</span>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#11140f", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.label}</span>
                   {/* Owner rule 2026-08-19 — the variant summary, so three sofa
                       modules under one model name are three DIFFERENT rows on
                       the phone too. Wraps (no ellipsis): a truncated
                       "BF-01 / SEAT 24 / LEG …" is the same ambiguity again. */}
                   {l.variantLine && (
-                    <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "#6B7280" }}><span>{DESCRIPTION_2_LABEL}: </span><span>{l.variantLine}</span></span>
+                    <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "#767b6e" }}><span>{DESCRIPTION_2_LABEL}: </span><span>{l.variantLine}</span></span>
                   )}
                   {l.notReadyReason && (
-                    <span style={{ display: "block", marginTop: 3, fontSize: 11, fontWeight: 600, color: "#D64F20" }}>Not ready: {l.notReadyReason}</span>
+                    <span style={{ display: "block", marginTop: 3, fontSize: 11, fontWeight: 600, color: "#a16a2e" }}>Not ready: {l.notReadyReason}</span>
                   )}
                   {/* Spec #convert meta: "Outstanding ×{outstanding} of {qty}". */}
-                  <span className="tnum" style={{ display: "block", marginTop: 3, fontSize: 11, color: "#6B7280" }}>
+                  <span className="tnum" style={{ display: "block", marginTop: 3, fontSize: 11, color: "#767b6e" }}>
                     Outstanding ×{l.remaining} of {ofQty} · {fmtSen(l.unitPriceSen)} each
                   </span>
                 </span>
@@ -988,13 +1025,13 @@ function LinesStep({
               {l.checked && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 9, paddingTop: 9, borderTop: "1px solid #eceee9" }}>
                   {/* Spec stepper: − {convert_qty} + , clamped 1..remaining. */}
-                  <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #d6d9d2", borderRadius: 8 }}>
                     <button
                       type="button"
                       aria-label="Decrease quantity"
                       onClick={dec}
                       disabled={qtyNum <= 1}
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum <= 1 ? "#c2c6bd" : "#1B1B39", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum <= 1 ? "default" : "pointer" }}
+                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum <= 1 ? "#c2c6bd" : "#16695f", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum <= 1 ? "default" : "pointer" }}
                     >
                       −
                     </button>
@@ -1005,19 +1042,19 @@ function LinesStep({
                       onChange={(e) => onSetLine(l.lineId, { qty: e.target.value })}
                       onBlur={() => onSetLine(l.lineId, { qty: String(clampQty(l.qty, l.remaining)) })}
                       aria-label="Quantity to convert"
-                      style={{ width: 40, height: 30, textAlign: "center", border: "none", borderLeft: "1px solid #eceee9", borderRight: "1px solid #eceee9", background: "none", outline: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#111827" }}
+                      style={{ width: 40, height: 30, textAlign: "center", border: "none", borderLeft: "1px solid #eceee9", borderRight: "1px solid #eceee9", background: "none", outline: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#11140f" }}
                     />
                     <button
                       type="button"
                       aria-label="Increase quantity"
                       onClick={inc}
                       disabled={qtyNum >= l.remaining}
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum >= l.remaining ? "#c2c6bd" : "#1B1B39", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum >= l.remaining ? "default" : "pointer" }}
+                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum >= l.remaining ? "#c2c6bd" : "#16695f", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum >= l.remaining ? "default" : "pointer" }}
                     >
                       +
                     </button>
                   </div>
-                  <span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: "#2F55E0" }}>{fmtSen(l.unitPriceSen * qtyNum)}</span>
+                  <span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: "#0c3f39" }}>{fmtSen(pickLineValueSen(l, qtyNum))}</span>
                 </div>
               )}
             </div>
@@ -1069,7 +1106,7 @@ function GrnLinesStep({
   return (
     <>
       <ChangeSource onClick={onChangeSource} label="Change selection" />
-      <div style={{ fontSize: 11, color: "#D64F20", padding: "0 2px 10px" }}>
+      <div style={{ fontSize: 11, color: "#a16a2e", padding: "0 2px 10px" }}>
         Set the quantity received per line. This creates a DRAFT Goods Receipt — review it and post it from the receipt to move stock (nothing is received yet).
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
@@ -1086,37 +1123,37 @@ function GrnLinesStep({
                   type="checkbox"
                   checked={l.checked}
                   onChange={(e) => onSetLine(l.poItemId, { checked: e.target.checked })}
-                  style={{ marginTop: 2, width: 16, height: 16, flex: "none", accentColor: "#1B1B39" }}
+                  style={{ marginTop: 2, width: 16, height: 16, flex: "none", accentColor: "#16695f" }}
                 />
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.description || l.itemCode}</span>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#11140f", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.description || l.itemCode}</span>
                   {/* Owner rule 2026-08-19 — RECEIVING is where getting the
                       module wrong costs the most: the stock lands under a code
                       whose variants nobody checked. GrnPickLine already carried
                       itemGroup + variants (they are needed to CREATE the GRN
                       line); only the render was missing them. */}
                   {variantLine && (
-                    <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "#6B7280" }}><span>{DESCRIPTION_2_LABEL}: </span><span>{variantLine}</span></span>
+                    <span style={{ display: "block", marginTop: 2, fontSize: 11, color: "#767b6e" }}><span>{DESCRIPTION_2_LABEL}: </span><span>{variantLine}</span></span>
                   )}
                   {l.supplierSku && (
-                    <span style={{ display: "block", marginTop: 2, fontSize: 11, fontWeight: 600, color: "#6B7280", fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <span style={{ display: "block", marginTop: 2, fontSize: 11, fontWeight: 600, color: "#767b6e", fontFamily: "var(--font-mono, monospace)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       Supplier SKU: {l.supplierSku}
                     </span>
                   )}
-                  <span className="tnum" style={{ display: "block", marginTop: 3, fontSize: 11, color: "#6B7280" }}>
+                  <span className="tnum" style={{ display: "block", marginTop: 3, fontSize: 11, color: "#767b6e" }}>
                     Outstanding ×{l.remaining} of {ofQty} · {fmtSen(l.unitPriceSen)} each
                   </span>
                 </span>
               </label>
               {l.checked && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 9, paddingTop: 9, borderTop: "1px solid #eceee9" }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #E5E7EB", borderRadius: 8 }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #d6d9d2", borderRadius: 8 }}>
                     <button
                       type="button"
                       aria-label="Decrease quantity"
                       onClick={dec}
                       disabled={qtyNum <= 1}
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum <= 1 ? "#c2c6bd" : "#1B1B39", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum <= 1 ? "default" : "pointer" }}
+                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum <= 1 ? "#c2c6bd" : "#16695f", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum <= 1 ? "default" : "pointer" }}
                     >
                       −
                     </button>
@@ -1127,19 +1164,19 @@ function GrnLinesStep({
                       onChange={(e) => onSetLine(l.poItemId, { qty: e.target.value })}
                       onBlur={() => onSetLine(l.poItemId, { qty: String(clampQty(l.qty, l.remaining)) })}
                       aria-label="Quantity received"
-                      style={{ width: 40, height: 30, textAlign: "center", border: "none", borderLeft: "1px solid #eceee9", borderRight: "1px solid #eceee9", background: "none", outline: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#111827" }}
+                      style={{ width: 40, height: 30, textAlign: "center", border: "none", borderLeft: "1px solid #eceee9", borderRight: "1px solid #eceee9", background: "none", outline: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 700, color: "#11140f" }}
                     />
                     <button
                       type="button"
                       aria-label="Increase quantity"
                       onClick={inc}
                       disabled={qtyNum >= l.remaining}
-                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum >= l.remaining ? "#c2c6bd" : "#1B1B39", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum >= l.remaining ? "default" : "pointer" }}
+                      style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: qtyNum >= l.remaining ? "#c2c6bd" : "#16695f", background: "none", border: "none", fontFamily: "inherit", fontSize: 17, cursor: qtyNum >= l.remaining ? "default" : "pointer" }}
                     >
                       +
                     </button>
                   </div>
-                  <span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: "#2F55E0" }}>{fmtSen(l.unitPriceSen * qtyNum)}</span>
+                  <span className="tnum" style={{ fontSize: 13, fontWeight: 800, color: "#0c3f39" }}>{fmtSen(l.unitPriceSen * qtyNum)}</span>
                 </div>
               )}
             </div>
@@ -1170,7 +1207,7 @@ function ChangeSource({ onClick, label = "Change source" }: { onClick: () => voi
   return (
     <span
       onClick={onClick}
-      style={{ display: "inline-flex", alignItems: "center", gap: 3, marginBottom: 11, fontSize: 12.5, fontWeight: 600, color: "#1B1B39", cursor: "pointer" }}
+      style={{ display: "inline-flex", alignItems: "center", gap: 3, marginBottom: 11, fontSize: 12.5, fontWeight: 600, color: "#16695f", cursor: "pointer" }}
     >
       <span style={{ fontSize: 15, lineHeight: 1 }}>{"‹"}</span> {label}
     </span>

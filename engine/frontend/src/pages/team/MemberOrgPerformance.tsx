@@ -470,7 +470,7 @@ function AttainmentHero({
           className="h-full rounded-md"
           style={{
             width: `${fillPct}%`,
-            background: "linear-gradient(90deg, var(--tw-color-primary, #1B1B39), #2f8a5b)",
+            background: "linear-gradient(90deg, var(--tw-color-primary, #16695f), #2f8a5b)",
             backgroundColor: "#2f8a5b",
           }}
         />

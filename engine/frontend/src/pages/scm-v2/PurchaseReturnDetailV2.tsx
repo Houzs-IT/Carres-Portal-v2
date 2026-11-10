@@ -35,6 +35,7 @@ import {
   usePostPurchaseReturn,
   useCompletePurchaseReturn,
   useCancelPurchaseReturn,
+  useUpdatePurchaseReturnHeader,
 } from "../../vendor/scm/lib/purchase-return-queries";
 import { useSetBreadcrumbs } from "../../hooks/useBreadcrumbs";
 import { purchaseReturnReasonLabel } from "../../vendor/shared/purchase-return-reasons";
@@ -46,6 +47,8 @@ import { PrintPreviewModal, useOpenPrintPreviewFromUrl, usePrintPreview } from "
 import type { PdfAction } from "../../vendor/scm/lib/pdf-common";
 import { statusLabel } from "../../vendor/scm/lib/status-pill";
 import { cn } from "../../lib/utils";
+import { supplierEmailList } from "../../vendor/shared/supplier-emails";
+import { FlowDocFilesCard } from "../../vendor/scm/components/FlowDocFilesCard";
 
 type PrStatus = "DRAFT" | "POSTED" | "COMPLETED" | "CANCELLED" | string;
 
@@ -59,6 +62,8 @@ type PrHeader = {
      coming back). Absent from a pre-2026-09-28 response, so read defensively. */
   kind?: string | null;
   repair_warehouse_id?: string | null;
+  /* HC-0221: false = no replacement coming, the PO stays received. */
+  supplier_replaces?: boolean | null;
   credit_note_ref?: string | null;
   refund_sen?: number;
   notes?: string | null;
@@ -284,6 +289,7 @@ function PurchaseReturnDetailV2ReadOnly() {
   const postPr = usePostPurchaseReturn();
   const completePr = useCompletePurchaseReturn();
   const cancelPr = useCancelPurchaseReturn();
+  const updateHeader = useUpdatePurchaseReturnHeader();
   const notify = useNotify();
   const askConfirm = useConfirm();
   const askPrompt = usePrompt();
@@ -367,6 +373,20 @@ function PurchaseReturnDetailV2ReadOnly() {
       danger: true,
     })) {
       cancelPr.mutate(purchaseReturn.id);
+    }
+  };
+  const supplierReplaces = purchaseReturn?.supplier_replaces !== false;
+  const doToggleReplacement = async () => {
+    if (!purchaseReturn) return;
+    const next = !supplierReplaces;
+    if (await askConfirm({
+      title: next ? "Supplier sends a replacement?" : "No replacement coming?",
+      body: next
+        ? "The returned units re-open the purchase order, waiting for the replacement."
+        : "The purchase order stays received and leaves Purchase Outstanding — nothing more is coming.",
+      confirmLabel: next ? "Yes, replacement coming" : "No replacement",
+    })) {
+      updateHeader.mutate({ id: purchaseReturn.id, supplierReplaces: next });
     }
   };
 
@@ -584,7 +604,7 @@ function PurchaseReturnDetailV2ReadOnly() {
                 <Field label="Supplier code" value={supplierCodeOf(purchaseReturn)} mono />
                 <Field label="Contact" value={purchaseReturn.supplier?.contact_person || "—"} muted={!purchaseReturn.supplier?.contact_person} />
                 <Field label="Phone" value={purchaseReturn.supplier?.phone || "Not provided"} muted={!purchaseReturn.supplier?.phone} mono={!!purchaseReturn.supplier?.phone} />
-                <Field label="Email" value={purchaseReturn.supplier?.email || "Not provided"} muted={!purchaseReturn.supplier?.email} />
+                <Field label="Email" value={supplierEmailList(purchaseReturn.supplier).join(", ") || "Not provided"} muted={supplierEmailList(purchaseReturn.supplier).length === 0} />
                 <Field label="Address" value={purchaseReturn.supplier?.address || "—"} muted={!purchaseReturn.supplier?.address} />
               </div>
             </Section>
@@ -596,6 +616,19 @@ function PurchaseReturnDetailV2ReadOnly() {
                 <Field label="Credit note ref" value={purchaseReturn.credit_note_ref || "—"} muted={!purchaseReturn.credit_note_ref} mono={!!purchaseReturn.credit_note_ref} />
                 <Field label="Currency" value={purchaseReturn.currency} />
               </div>
+              {!isRepairReturn && (
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Field
+                    label="Supplier sends a replacement"
+                    value={supplierReplaces ? "Yes — the PO stays open for it" : "No — the PO is done"}
+                  />
+                  {effectiveOf(purchaseReturn) !== "cancelled" && (
+                    <Button variant="secondary" icon={<Edit3 size={14} />} onClick={doToggleReplacement} disabled={updateHeader.isPending}>
+                      Change answer
+                    </Button>
+                  )}
+                </div>
+              )}
               {purchaseReturn.notes && (
                 <div className="mt-4 rounded-lg border border-warning-text/25 bg-warning-bg px-4 py-3">
                   <div className="font-mono text-[9.5px] font-semibold uppercase tracking-brand text-warning-text">Note</div>
@@ -615,6 +648,7 @@ function PurchaseReturnDetailV2ReadOnly() {
                 emptyLabel="No line items"
               />
             </Section>
+            <FlowDocFilesCard kind="purchase-return" docId={String(purchaseReturn.id)} status={purchaseReturn.status} />
           </DetailMain>
 
           <DetailAside>

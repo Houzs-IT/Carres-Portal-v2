@@ -18,7 +18,6 @@ import {
   createLogistics,
   patchLogistics,
   logActivity,
-  nextServicePONumber,
   setCaseCreditorManual,
   setItemRemark,
   setItemSupplierRemark,
@@ -26,6 +25,7 @@ import {
   setItemCartonQty,
 } from "../services/assr";
 import { normalizeSlaHours } from "../services/assrSla";
+import { assignServicePoNumber, nextManualCreditorCode } from "../services/assrNumbers";
 import { assrWindow } from "./lib/assr-window";
 import { openSupplierReturnRoute, patchSupplierReturnRoute, archiveSupplierReturnRoute } from "../services/assrSupplierReturns";
 import { reopenCaseRoute } from "../services/assrReopen";
@@ -63,8 +63,8 @@ import { pickupTrackingError } from "../scm/shared/assr-pickup-tracking";
 import { verificationFieldsError } from "../scm/shared/assr-verification-fields";
 import { getVerificationNotes, saveVerificationNotes, takeVerificationNotes } from "../services/assrVerificationNotes";
 import { sendCompletionSurvey } from "../services/assrCompletionSurvey";
-import { sendServiceCaseReceivedAck } from "../services/assrConnectAck";
 import { overviewFilter, withOverviewFilter } from "./lib/assr-overview-filter";
+import { todayMyt } from "../scm/lib/my-time";
 
 /* The context the extracted handlers below receive. They are exported so the
    route tests can drive them directly; the shape is exactly what app.get/post
@@ -1001,10 +1001,7 @@ app.post("/creditors/create", requirePermission("service_cases.write"), async (c
 
   let code = (body.creditor_code || "").trim();
   if (!code) {
-    const row = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM creditors WHERE creditor_code LIKE 'MAN-%'`
-    ).first<{ n: number }>();
-    code = `MAN-${String(Number(row?.n ?? 0) + 1).padStart(4, "0")}`;
+    code = await nextManualCreditorCode(c.env);
   }
 
   const dup = await c.env.DB.prepare(
@@ -1269,7 +1266,7 @@ app.get("/export.csv", requireServiceCaseAccess(), async (c) => {
     lines.push(fields.map((f) => esc(f === "po_amount" && r[f] != null && Number.isFinite(Number(r[f])) ? Number(r[f]).toFixed(2) : r[f])).join(","));
   }
   const csv = "\uFEFF" + lines.join("\r\n");
-  const date = new Date().toISOString().slice(0, 10);
+  const date = todayMyt();
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
@@ -1871,8 +1868,7 @@ app.post(
         userIds: [row.assigned_to, row.assigned_to_2, row.created_by],
         agentNames: [row.sales_agent],
       });
-      // Customer WhatsApp ack via Houzs Connect (best-effort, create-only; doc_no = SO/ref_1) — see assrConnectAck.ts.
-      await sendServiceCaseReceivedAck(c.env, result.assr_no, row.doc_no, row.customer_name, row.phone);
+      // No customer WhatsApp on create (HC-0222, Operation 2026-11): staff only.
     }
   } catch (e) {
     console.error("[assr.create] notify failed:", (e as Error).message);
@@ -2771,12 +2767,9 @@ app.post("/:id/generate-po", requirePermission("service_cases.manage"), async (c
     return c.json({ error: `PO already exists: ${existing.po_no}`, po_no: existing.po_no }, 409);
   }
 
-  const poNo = await nextServicePONumber(c.env);
-  await c.env.DB.prepare(
-    `UPDATE assr_cases SET po_no = ?, updated_at = datetime('now') WHERE id = ?`
-  )
-    .bind(poNo, id)
-    .run();
+  const claim = await assignServicePoNumber(c.env, id);
+  if (!claim.ok) return c.json({ error: `PO already exists: ${claim.poNo ?? ""}`, po_no: claim.poNo }, 409);
+  const poNo = claim.poNo;
 
   // Name when the mirror has the creditor, else the raw code — a case can carry
   // a creditor_code the mirror has not synced yet, and the code still tells the
@@ -2890,7 +2883,7 @@ function noteCategory(v?: string): "service" | "customer" | "supplier" | "sales"
   return NOTE_CATEGORIES.has(v ?? "") ? (v as any) : "service";
 }
 
-app.post("/:id/notes", requirePermission("service_cases.write"), async (c) => {
+app.post("/:id/notes", requireAnyPermission(["service_cases.write", "service_cases.create", "service_cases.manage"]), async (c) => {
   const id = parseInt(c.req.param("id"), 10);
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
   const userId = (c as any).get?.("userId") ?? 0;

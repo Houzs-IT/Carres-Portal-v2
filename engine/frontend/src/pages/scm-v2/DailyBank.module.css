@@ -2,16 +2,16 @@
    Colours are the design's own, on the ERP's Theme C. No monospace figures. */
 
 .page {
-  --fin-ink: #111827;
-  --fin-text: #4B5563;
+  --fin-ink: #11140f;
+  --fin-text: #414539;
   --fin-detail: #5f6459;
-  --fin-muted: #6B7280;
-  --fin-line: #E5E7EB;
-  --fin-rule: #EEF0F3;
-  --fin-paper: #F8F9FA;
-  --fin-petrol: #1B1B39;
-  --fin-petrol-ink: #2F55E0;
-  --fin-brass: #D64F20;
+  --fin-muted: #767b6e;
+  --fin-line: #d6d9d2;
+  --fin-rule: #e3e6e0;
+  --fin-paper: #f4f6f3;
+  --fin-petrol: #16695f;
+  --fin-petrol-ink: #0c3f39;
+  --fin-brass: #a16a2e;
   --fin-green: #2f8a5b;
   --fin-red: #a83434;
   display: flex; flex-direction: column; gap: 16px; color: var(--fin-ink); font-variant-numeric: tabular-nums;
@@ -69,7 +69,7 @@
 .barIn { --bar: var(--fin-green); --val: var(--fin-green); }
 .barOut { --bar: var(--fin-brass); --val: var(--fin-brass); }
 .barNow { --bar: var(--fin-text); --val: var(--fin-ink); }
-.barAwaiting { --bar: #D64F20; --val: var(--fin-brass); }
+.barAwaiting { --bar: #d8a85a; --val: var(--fin-brass); }
 .barMove { --bar: var(--fin-petrol); --val: var(--fin-petrol); }
 .bridgeRow:last-child .bridgeValue { font-weight: 700; }
 
@@ -95,7 +95,7 @@
 .listTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .listLink { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--fin-petrol); text-decoration: none; }
 .listLink:hover { text-decoration: underline; }
-.listRow { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid #F6F7F9; font-size: 12.5px; }
+.listRow { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-top: 1px solid #eef0ec; font-size: 12.5px; }
 .listTitle + .listRow, .listTitleRow + .listRow { margin-top: 8px; border-top: 0; }
 .acq { flex: none; min-width: 44px; font-weight: 700; }
 .listDetail { flex: 1; min-width: 0; color: var(--fin-text); }
@@ -120,7 +120,7 @@
 .tableWrap { overflow-x: auto; }
 .acctTable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .acctTable th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--fin-detail); padding: 8px 12px; border-bottom: 1px solid var(--fin-rule); white-space: nowrap; }
-.acctTable td { padding: 8px 12px; border-top: 1px solid #F6F7F9; vertical-align: top; }
+.acctTable td { padding: 8px 12px; border-top: 1px solid #eef0ec; vertical-align: top; }
 .acctTable tbody tr:first-child td { border-top: 0; }
 .num { text-align: right !important; white-space: nowrap; }
 .docCell { font-weight: 600; white-space: nowrap; }
@@ -148,7 +148,7 @@
 .diffOther { color: #7a5a1e; font-weight: 600; }
 .rmInput { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 1px solid #c2c6bd; border-radius: 6px; background: #ffffff; color: var(--fin-muted); font-size: 12px; }
 .rmInput input { width: 96px; border: 0; outline: none; background: transparent; text-align: right; font: 600 13px 'IBM Plex Sans', system-ui, sans-serif; color: var(--fin-ink); }
-.rmInputDue { border-color: var(--fin-petrol); box-shadow: 0 0 0 2px #DCE6FD; }
+.rmInputDue { border-color: var(--fin-petrol); box-shadow: 0 0 0 2px #e1efed; }
 .closeNote { font-size: 12.5px; color: var(--fin-text); }
 .closeButtons { display: flex; gap: 8px; }
 .solidButton {

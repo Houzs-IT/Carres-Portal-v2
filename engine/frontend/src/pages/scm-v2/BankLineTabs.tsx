@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useBookBankReceipt, useMatchBankLine, type BankLine, type LedgerEntry } from './bank-queries';
 import { BookAllMatched, DepWd, DoneLine, OpenLine, certainAllocation, decisionKey } from './BankStatementTab';
 import { useReconcilePick } from './bank-reconcile-pick';
+import { EntryDocument, entryDocText } from './bank-entry-doc';
 import { ICON, fmt, refusalText } from './settlement-ui';
 import { monthShort } from './BankStatementsTop';
 import { fmtDate, fmtDateOrDash } from '../../vendor/shared/format';
@@ -31,6 +32,8 @@ export function bankLineTab(l: BankLine, chooseAnyway: ReadonlySet<number>): Lin
   if (l.state === 'POSTED') return 'matched';
   if (l.state === 'IGNORED') return 'set-aside';
   if (chooseAnyway.has(l.id)) return 'to-choose';
+  /* A day's DuitNow QR money (owner 2026-11-09): ready to match to its sales, or still waiting on a link. */
+  if (l.kind === 'QR') return l.qr_sales?.ready ? 'to-match' : 'to-choose';
   if (certainAllocation(l) != null) return 'to-match';
   if (l.kind === 'OTHER' && l.entryCandidates.length === 1) return 'to-match';
   if ((l.kind === 'OTHER' || l.kind === 'PAYOUT_NO_BATCH') && l.entryCandidates.length === 0 && l.candidates.length === 0) return 'no-entry';
@@ -110,7 +113,7 @@ function ToMatchRow({ line, locked, onNotThis }: { line: BankLine; locked: boole
         <div className={grid.sub} style={{ wordBreak: 'break-word' }}>{line.description}</div>
       </td>
       <DepWd amountSen={line.amount_sen} />
-      <td>{report ? <b>{report.fileName ?? `report ${report.id}`}</b> : <b>{entry?.reference ?? ([entry?.sourceType, entry?.sourceDocNo].filter(Boolean).join(' · ') || '—')}</b>}</td>
+      <td>{report ? <b>{report.fileName ?? `report ${report.id}`}</b> : <b>{entry ? <EntryDocument text={entryDocText(entry)} /> : '—'}</b>}</td>
       <td>{report ? `${line.acquirer_code ?? ''} card payout` : entry?.who ?? entry?.partyName ?? '—'}</td>
       <td>{entry ? <>{entry.jeNo}{entry.daysApart > 0 && <span className={grid.sub}> · {entry.daysApart}d apart</span>}</> : <span className={grid.sub}>posted on Money received</span>}</td>
       <td className={look.actionsCell}>
@@ -160,7 +163,7 @@ function NotOnBankYet({ entries, open, chooseAnyway, periodTo }: { entries: Ledg
             <tr key={e.jeNo} className={pick.pickedEntries.includes(e.jeNo) ? look.picked : undefined}>
               <td><input type="checkbox" checked={pick.pickedEntries.includes(e.jeNo)} onChange={() => pick.toggleEntry(e.jeNo)} aria-label={`Entry ${e.jeNo} for the picked movements`} /></td>
               <td className={look.dateCell}>{fmtDateOrDash(e.entryDate)}</td>
-              <td><b>{e.reference ?? ([e.sourceType, e.sourceDocNo].filter(Boolean).join(' · ') || '—')}</b></td>
+              <td><b><EntryDocument text={entryDocText(e)} /></b></td>
               <td>{e.who ?? e.partyName ?? e.notes ?? '—'}</td>
               <td className={grid.num}>{e.debitSen > 0 ? fmt(e.debitSen) : ''}</td>
               <td className={grid.num}>{e.creditSen > 0 ? fmt(e.creditSen) : ''}</td>

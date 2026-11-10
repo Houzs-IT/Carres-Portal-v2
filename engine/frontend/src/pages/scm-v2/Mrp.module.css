@@ -20,12 +20,12 @@
    used to read their colours from the .page override cascade, so every
    var(--c-*)/--fg/--line reference is now written as its Ink & Petrol
    hex (the :root fallbacks in vendor/design-system/tokens.css differ:
-   --c-cream #ffffff, --c-paper #F8F9FA, --line rgba(34,31,32,.12) —
+   --c-cream #ffffff, --c-paper #f4f6f3, --line rgba(34,31,32,.12) —
    they would have silently reskinned this table). Mapping used:
-     primary      #1B1B39   primary-dark #2F55E0
-     ink          #111827   ink-muted    #6B7280
-     border       #E5E7EB   border-strong #c2c6bd
-     surface      #ffffff   surface-2    #F8F9FA
+     primary      #16695f   primary-dark #0c3f39
+     ink          #11140f   ink-muted    #767b6e
+     border       #d6d9d2   border-strong #c2c6bd
+     surface      #ffffff   surface-2    #f4f6f3
    Structural tokens (--space-*, --fs-*, --font-*, --shadow-*,
    --radius-*) are :root-global and stay as var().
    ==================================================================== */
@@ -51,26 +51,26 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6B7280;
+  color: #767b6e;
 }
 .filterSelect {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: 600;
-  color: #111827;
+  color: #11140f;
   background: #fff;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   border-radius: var(--radius-md);
   padding: 6px var(--space-3);
   cursor: pointer;
   min-width: 160px;
 }
 .filterSelect:hover { border-color: #c2c6bd; }
-.filterSelect:focus { outline: none; border-color: #1B1B39; }
+.filterSelect:focus { outline: none; border-color: #16695f; }
 
 /* ── Report table ──────────────────────────────────────────────────── */
 .tableWrap {
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   border-radius: var(--radius-lg);
   background: #fff;
   /* The bordered BOX only. It carries the sticky offset when the header is
@@ -99,17 +99,17 @@
 .table thead th {
   /* Batch 2 theme skin (owner 2026-07-28: MRP keeps its hand-built tree,
      visuals align to the SO-sample DataTable header): sans 10px/700
-     uppercase, tracking-brand 0.18em, surface-dim #EEF0F3, ink text,
+     uppercase, tracking-brand 0.18em, surface-dim #e3e6e0, ink text,
      2px bottom rule — the same measured spec every converted table renders. */
   text-align: left;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #111827;
+  color: #11140f;
   padding: var(--space-2) var(--space-3);
-  border-bottom: 2px solid #E5E7EB;
-  background: #EEF0F3;
+  border-bottom: 2px solid #d6d9d2;
+  background: #e3e6e0;
   white-space: nowrap;
 }
 /* Frozen header — owner 2026-07-24, "每个table的header都要freeze". Applied to
@@ -125,7 +125,7 @@
   position: sticky;
   top: 0;
   z-index: 3;
-  box-shadow: inset 0 -2px 0 #E5E7EB;
+  box-shadow: inset 0 -2px 0 #d6d9d2;
 }
 .num {
   text-align: right;
@@ -139,19 +139,19 @@
 
 .skuRow {
   cursor: pointer;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid #d6d9d2;
 }
-.skuRow:hover { background: #F8F9FA; }
+.skuRow:hover { background: #f4f6f3; }
 .skuRow > td {
   padding: var(--space-2) var(--space-3);
-  color: #111827;
+  color: #11140f;
   vertical-align: middle;
 }
 .skuRowShort {
-  background: rgba(27, 27, 57, 0.08);
+  background: rgba(22, 105, 95, 0.08);
   box-shadow: inset 3px 0 0 #08352e;
 }
-.skuRowShort:hover { background: rgba(27, 27, 57, 0.13); }
+.skuRowShort:hover { background: rgba(22, 105, 95, 0.13); }
 
 .codeCell { font-weight: 700; white-space: nowrap; }
 /* DataTable cells default to nowrap+ellipsis; setting white-space on this inner
@@ -159,7 +159,7 @@
    the inherited nowrap so long bedframe specs wrap instead of being clipped
    (owner 2026-09-11). The column also carries a fixed width so it wraps within
    bounds rather than stretching the table. */
-.descCell { color: #6B7280; white-space: normal; overflow-wrap: anywhere; }
+.descCell { color: #767b6e; white-space: normal; overflow-wrap: anywhere; }
 
 /* Per-warehouse MRP (Commander 2026-05-31) — each Model row is scoped to one
    warehouse; the tag makes the binding visible at a glance. */
@@ -168,38 +168,38 @@
   display: inline-block;
   padding: 1px 8px;
   border-radius: var(--radius-pill);
-  background: #F8F9FA;
-  border: 1px solid #E5E7EB;
-  color: #111827;
+  background: #f4f6f3;
+  border: 1px solid #d6d9d2;
+  color: #11140f;
   font-size: var(--fs-11);
   font-weight: 700;
   white-space: nowrap;
 }
-.whNone { color: #6B7280; }
+.whNone { color: #767b6e; }
 
 /* Variant sub-rows (3-level General view: Model → Variant → orders). */
 .variantRow {
   cursor: pointer;
-  border-bottom: 1px solid #E5E7EB;
-  background: #F8F9FA;
+  border-bottom: 1px solid #d6d9d2;
+  background: #f4f6f3;
 }
 .variantRow:hover { background: rgba(0, 0, 0, 0.03); }
 .variantRow > td {
   padding: var(--space-1) var(--space-3);
-  color: #111827;
+  color: #11140f;
   vertical-align: middle;
 }
 .variantRowShort {
-  background: rgba(27, 27, 57, 0.08);
+  background: rgba(22, 105, 95, 0.08);
   box-shadow: inset 3px 0 0 rgba(8, 53, 46, 0.85);
 }
-.variantRowShort:hover { background: rgba(27, 27, 57, 0.13); }
+.variantRowShort:hover { background: rgba(22, 105, 95, 0.13); }
 .variantDescCell {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
-.variantBranch { color: #6B7280; font-weight: 700; }
+.variantBranch { color: #767b6e; font-weight: 700; }
 
 /* Single-variant model — spec label shown above the SO orders (2-level). */
 .singleSpec {
@@ -215,9 +215,9 @@
   margin-left: var(--space-2);
   padding: 1px 8px;
   border-radius: var(--radius-pill);
-  background: #F8F9FA;
-  border: 1px solid #E5E7EB;
-  color: #6B7280;
+  background: #f4f6f3;
+  border: 1px solid #d6d9d2;
+  color: #767b6e;
   font-size: var(--fs-11);
   font-weight: 700;
   white-space: nowrap;
@@ -234,8 +234,8 @@
   max-width: 100%;
   padding: 1px 8px;
   border-radius: var(--radius-md);
-  background: #DCE6FD;
-  color: #2F55E0;
+  background: #e1efed;
+  color: #0c3f39;
   font-size: var(--fs-11);
   font-weight: 700;
   white-space: normal;
@@ -243,7 +243,7 @@
 }
 /* Shortage = the actionable "must order" number. Owner 2026-08-03 wanted the
    SAME petrol hue, just deeper so it stands out ("一样颜色的,只是加深一点,让它显得明显").
-   The mid-petrol #1B1B39 read too light against the white column to spot at a
+   The mid-petrol #16695f read too light against the white column to spot at a
    glance; deepened to a dark petrol #08352e — higher contrast on white = more
    obvious — same bold weight. Hue unchanged (not red), only darker.
    The row highlights below take the same deepening. No solid fill (rejected 2026-05-29). */
@@ -264,22 +264,22 @@
   gap: 5px;
   font-size: var(--fs-12);
   font-weight: 600;
-  color: #6B7280;
+  color: #767b6e;
   white-space: nowrap;
 }
 .supplierSelect {
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: 600;
-  color: #111827;
-  background: #F8F9FA;
-  border: 1px solid #E5E7EB;
+  color: #11140f;
+  background: #f4f6f3;
+  border: 1px solid #d6d9d2;
   border-radius: var(--radius-md);
   padding: 3px var(--space-2);
   cursor: pointer;
   max-width: 160px;
 }
-.supplierSelect:hover { border-color: #1B1B39; }
+.supplierSelect:hover { border-color: #16695f; }
 
 /* Shortage rows in the report table (now DataTable) — the actionable ones.
    The same light petrol wash + deep-petrol left bar .skuRowShort gave them on
@@ -290,17 +290,17 @@
    background, so the wash shows on every cell without making a pinned cell see-
    through. [data-vrow] = the data row only; DataTable copies this class onto the
    expanded drill-down row too, which keeps its own grey ground. */
-.rowShort[data-vrow] > td { box-shadow: inset 0 0 0 9999px rgba(27, 27, 57, 0.08); }
-.rowShort[data-vrow] > td:first-child { box-shadow: inset 3px 0 0 #08352e, inset 0 0 0 9999px rgba(27, 27, 57, 0.08); }
+.rowShort[data-vrow] > td { box-shadow: inset 0 0 0 9999px rgba(22, 105, 95, 0.08); }
+.rowShort[data-vrow] > td:first-child { box-shadow: inset 3px 0 0 #08352e, inset 0 0 0 9999px rgba(22, 105, 95, 0.08); }
 /* The same row as a phone card (DataTable's stacked cards below `sm`). */
-.rowShort[data-mobile-card] { box-shadow: inset 3px 0 0 #08352e, inset 0 0 0 9999px rgba(27, 27, 57, 0.08); }
+.rowShort[data-mobile-card] { box-shadow: inset 3px 0 0 #08352e, inset 0 0 0 9999px rgba(22, 105, 95, 0.08); }
 
 /* ── Child detail (drilldown) ──────────────────────────────────────── */
 /* The expanded body sits inside DataTable's full-width expanded cell; give it
    the same soft ground the old inline drilldown row had. The child tables carry
    their own side margins, so this only needs the tint + a little breathing room. */
-.drilldown { padding: var(--space-2) 0 var(--space-3); background: #F8F9FA; }
-.detailRow > td { padding: 0 0 var(--space-3) 0; background: #F8F9FA; }
+.drilldown { padding: var(--space-2) 0 var(--space-3); background: #f4f6f3; }
+.detailRow > td { padding: 0 0 var(--space-3) 0; background: #f4f6f3; }
 .childTable {
   width: 100%;
   border-collapse: collapse;
@@ -315,15 +315,15 @@
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #6B7280;
+  color: #767b6e;
   padding: var(--space-2) var(--space-3);
 }
 .childTable tbody td {
   padding: 5px var(--space-3);
-  border-top: 1px solid #E5E7EB;
-  color: #111827;
+  border-top: 1px solid #d6d9d2;
+  color: #11140f;
 }
-.childShort { background: rgba(27, 27, 57, 0.09); }
+.childShort { background: rgba(22, 105, 95, 0.09); }
 /* SO-line child tables (HC-0143, Sim 2026-10-22): each expanded row draws its
    own table, and auto layout sized every one from its own content, so the
    Processing Date column landed at a different x per group and the eye could
@@ -363,12 +363,12 @@
   flex: none;
 }
 .tagStock { background: rgba(47, 138, 91, 0.10); color: #2f8a5b; border-color: rgba(47, 138, 91, 0.30); }
-.tagPo    { background: #DCE6FD; color: #2F55E0; border-color: rgba(27, 27, 57, 0.30); }
+.tagPo    { background: #e1efed; color: #0c3f39; border-color: rgba(22, 105, 95, 0.30); }
 .tagShort { background: rgba(178, 58, 58, 0.10); color: #b23a3a; border-color: rgba(178, 58, 58, 0.35); }
 
 .stateCell {
   text-align: center;
-  color: #6B7280;
+  color: #767b6e;
   padding: var(--space-6);
 }
 
@@ -395,13 +395,13 @@
   font-family: var(--font-title);
   font-weight: 700;
   font-size: var(--fs-18, 18px);
-  color: #111827;
+  color: #11140f;
   margin: 0 0 var(--space-2);
 }
 .dialogBody {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  color: #111827;
+  color: #11140f;
   margin: 0 0 var(--space-4);
   white-space: pre-wrap;
   line-height: 1.5;

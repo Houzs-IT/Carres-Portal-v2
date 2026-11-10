@@ -86,7 +86,7 @@ const BACK_LINK =
    relative R2 path resolved against the backend origin → 404.) */
 const API_URL =
   ((import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD ? '' : 'http://localhost:8787')) as string) +
+    (import.meta.env.PROD ? '' : 'https://autocount-sync-api.houzs-erp.workers.dev')) as string) +
   '/api/scm';
 const resolveModelPhotoUrl = (u: string | null | undefined): string | undefined => {
   if (!u) return undefined;
@@ -665,16 +665,16 @@ export const ProductModelDetail = ({
               placeholder="e.g. 31 (for AKKA-FIRM)"
               /* Hex-pinned: --line-strong / --c-paper only resolved through
                  the removed .page cascade (:root has them as
-                 rgba(34,31,32,.28) / #F8F9FA — this input would have gained a
+                 rgba(34,31,32,.28) / #f4f6f3 — this input would have gained a
                  dark border on a grey fill). Now border + surface tokens. */
               style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 'var(--fs-14)',
                 padding: 'var(--space-2) var(--space-3)',
-                border: '1px solid #E5E7EB',
+                border: '1px solid #d6d9d2',
                 borderRadius: 'var(--radius-sm)',
                 background: '#fff',
-                color: '#111827',
+                color: '#11140f',
                 width: '160px',
               }}
             />
@@ -776,7 +776,7 @@ export const ProductModelDetail = ({
                   <button
                     type="button"
                     className={`${styles.statusPill} ${sku.status === 'ACTIVE' ? styles.active : styles.inactive}`}
-                    style={{ cursor: 'pointer', border: '1px solid #E5E7EB' }}
+                    style={{ cursor: 'pointer', border: '1px solid #d6d9d2' }}
                     disabled={statusMut.isPending}
                     onClick={() => statusMut.mutate({ id: sku.id, status: sku.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}
                     title={sku.status === 'ACTIVE'
@@ -797,7 +797,7 @@ export const ProductModelDetail = ({
                     <button
                       type="button"
                       className={`${styles.statusPill} ${styles.inactive}`}
-                      style={{ cursor: 'pointer', border: '1px solid #E5E7EB' }}
+                      style={{ cursor: 'pointer', border: '1px solid #d6d9d2' }}
                       disabled={activateOneShotMut.isPending}
                       onClick={() => activateOneShotMut.mutate({ id: sku.id })}
                       title="Activate this one-shot SKU in POS"

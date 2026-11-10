@@ -1,4 +1,3 @@
-import { CARRES_EMBEDDED } from "../carres/embed";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
@@ -53,25 +52,21 @@ export function Layout({ children }: Props) {
 
   return (
     <div className="flex h-dvh min-h-dvh w-screen overflow-hidden">
-      {/* Carres: inside the portal its menu is the only one (carres/embed.ts). */}
-      {!CARRES_EMBEDDED && (
-        <Sidebar
-          collapsed={collapsed}
-          onToggle={() => setCollapsed((c) => !c)}
-          mobileOpen={false}
-        />
-      )}
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+        mobileOpen={false}
+      />
 
       <main className="paper-grain thin-scroll flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
         {/* Mobile top bar — brand + topbar chrome only. Hidden on lg+. */}
-        {/* Carres: inside the portal its own top bar is the one drawn; the engine keeps only its menu. */}
-        {!CARRES_EMBEDDED && <MobileTopBar />}
+        <MobileTopBar />
 
         {/* Desktop top chrome — ONE 52px bar (2b): workspace tabs inline +
             search / company / bell / avatar. No breadcrumb, no second row.
             Every lg+ sticky below parks at top-[52px]: PageHeader here,
             DetailLayout, the two SCM V2 doc bars. Hidden below lg. */}
-        {!CARRES_EMBEDDED && <TopNavbar />}
+        <TopNavbar />
 
         {writesDisabled && <ReadOnlyBanner />}
 
@@ -97,7 +92,7 @@ export function Layout({ children }: Props) {
           Floating Chat FAB which auto-clears it on mobile. The centre
           "Menu" tab opens its own bottom-sheet modal (no longer
           delegates to the Sidebar drawer), so onOpenDrawer is gone. */}
-      {!CARRES_EMBEDDED && <MobileTabBar />}
+      <MobileTabBar />
     </div>
   );
 }
@@ -205,10 +200,9 @@ interface PageHeaderProps {
    *
    *  This exists because react-router 6 can only block in-app navigation through
    *  `useBlocker`, which requires a DATA router; this app mounts a plain
-   *  `BrowserRouter` + `<Routes>`, so there is no generic blocker to hang a
-   *  guard on. Guarding the affordances a page actually owns is the honest
-   *  substitute — it is not the same thing, and the left nav / workspace tabs
-   *  remain unguarded. */
+   *  `BrowserRouter` + `<Routes>`. A form that holds lib/leaveGuard is asked
+   *  about on every exit (left nav and workspace tabs included) by
+   *  LeaveGuardBridge; this gate is for a page's own, more specific question. */
   beforeBack?: () => boolean | Promise<boolean>;
 }
 
@@ -298,7 +292,7 @@ export function PageHeader({
              content that would otherwise show through. */
         /* 2026-07-19 (fix/so-maintenance-403) — the sticky offsets were
            DESKTOP-ONLY correct. Below lg the chrome above us is MobileTopBar
-           (`sticky top-0 z-20 h-14`, 56 px), not TopNavbar (`sticky top-0 z-30
+           (`sticky top-0 z-20 h-14`, 56 px), not TopNavbar (`sticky top-0 z-40
            h-12`, 48 px). Parking at top-12 on every breakpoint left this header
            8 px INSIDE the mobile app bar, and z-20 TIED with it — a tie the
            later-painted element wins, so the pinned page header covered the

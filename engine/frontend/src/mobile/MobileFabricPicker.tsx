@@ -45,8 +45,8 @@ export function MobileFabricPicker({ itemCode, fabricSeries, current, onPick, on
         <div className="grab" />
         <div className="sheet-head">
           <div>
-            <div className="ey" style={{ color: "#D64F20" }}>Fabric</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 2 }}>Pick a fabric / colour</div>
+            <div className="ey" style={{ color: "#a16a2e" }}>Fabric</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#11140f", marginTop: 2 }}>Pick a fabric / colour</div>
           </div>
           <button className="sheet-x" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -82,8 +82,8 @@ export function MobileFabricPicker({ itemCode, fabricSeries, current, onPick, on
                   onClick={() => { onPick(c); onClose(); }}
                   style={{
                     textAlign: "left", width: "100%", boxSizing: "border-box",
-                    border: on ? "1px solid #1B1B39" : "1px solid rgba(34,31,32,.12)",
-                    background: on ? "#DCE6FD" : "#fff",
+                    border: on ? "1px solid #16695f" : "1px solid rgba(34,31,32,.12)",
+                    background: on ? "#e1efed" : "#fff",
                     borderRadius: 11, padding: "10px 12px", cursor: "pointer", fontFamily: "inherit",
                     display: "flex", alignItems: "center", gap: 10,
                   }}
@@ -92,12 +92,12 @@ export function MobileFabricPicker({ itemCode, fabricSeries, current, onPick, on
                     <span style={{ width: 22, height: 22, flex: "none", borderRadius: 6, background: c.swatchHex, border: "1px solid rgba(34,31,32,.15)" }} />
                   )}
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#111827" }}>{c.colourId}</span>
-                    <span style={{ display: "block", fontSize: 10.5, color: "#6B7280", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#11140f" }}>{c.colourId}</span>
+                    <span style={{ display: "block", fontSize: 10.5, color: "#767b6e", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {fabricColourMeta(series, c.colourId, c.label)}
                     </span>
                   </span>
-                  {on && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M20 6 9 17l-5-5" /></svg>}
+                  {on && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M20 6 9 17l-5-5" /></svg>}
                 </button>
               );
             })
@@ -127,7 +127,7 @@ export function FabricField({ value, colourLabel, invalid, onOpen }: {
           ...(invalid ? { borderColor: "#b23a3a", boxShadow: "0 0 0 2px rgba(178,58,58,.12)" } : null),
         }}
       >
-        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value ? "#111827" : "#9aa093", fontWeight: value ? 700 : 400 }}>
+        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value ? "#11140f" : "#9aa093", fontWeight: value ? 700 : 400 }}>
           {value ? (name ? `${value} — ${name}` : value) : "Select fabric…"}
         </span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa093" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>

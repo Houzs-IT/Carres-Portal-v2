@@ -208,13 +208,45 @@ export function placeholderIsTextFunnelled(sqlText, n) {
   return re.test(stripSqlComments(sqlText));
 }
 
+/** The text that follows the n-th (1-based) `?` placeholder of a D1-style
+ *  statement, or null when there are fewer. `?` inside a SQL string literal is
+ *  skipped. */
+export function textAfterQuestionMark(sqlText, n) {
+  const s = stripSqlComments(sqlText);
+  let seen = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "'") { const end = s.indexOf("'", i + 1); if (end === -1) return null; i = end; continue; }
+    if (s[i] === '?') { seen++; if (seen === n) return s.slice(i + 1, i + 40); }
+  }
+  return null;
+}
+
 /**
  * Scan one source file's text for pre-serialized values bound as parameters.
  * Pure: takes text, returns findings. `file` is only used for reporting.
  *
- * @returns {Array<{file:string, line:number, kind:'template'|'unsafe', snippet:string}>}
+ * `strictBind`: a D1-compat `.prepare(sql).bind(...)` argument that is a
+ * stringified value must go through `?::text::jsonb` whatever its column.
+ * Off by default because a TEXT column (audit meta, roles.permissions) rightly
+ * takes the string, and the scanner cannot see column types; on for code whose
+ * every such column is jsonb (the AI agents). With it off, only a placeholder
+ * that names its own json cast (`?::jsonb`) is a finding.
+ *
+ * @returns {Array<{file:string, line:number, kind:'template'|'unsafe'|'bind', snippet:string}>}
  */
-export function scanSource(file, rawText) {
+/** A bare identifier naming a `const X = \`...\`` (or '...' / "...") in the same
+ *  file resolves to that literal's text; anything else is returned unchanged. */
+export function resolveSqlConst(fileText, expr) {
+  const name = expr.trim();
+  if (!/^[A-Za-z_$][\w$]*$/.test(name)) return expr;
+  const m = new RegExp(String.raw`(?:const|let|var)\s+` + name + String.raw`\s*=\s*([\x60'"])`).exec(fileText);
+  if (!m) return expr;
+  const start = m.index + m[0].length;
+  const end = fileText.indexOf(m[1], start);
+  return end === -1 ? expr : fileText.slice(start, end);
+}
+
+export function scanSource(file, rawText, opts = { strictBind: false }) {
   const findings = [];
   // Comments are blanked position-for-position: a prose WARNING about this trap
   // must not read as an instance of it, and line numbers must stay true.
@@ -298,7 +330,10 @@ export function scanSource(file, rawText) {
     if (close === -1) continue;
     const args = splitTopLevel(text, open, close);
     if (args.length < 2) { unsafeRe.lastIndex = open + 1; continue; }
-    const sqlText = args[0].text;
+    /* `.unsafe(BOARD_SQL, [...])`: the statement is a constant declared in this file.
+       Read the funnel off its text; without this every such call was a finding
+       whatever its SQL said, and the only "fix" left was hiding the stringify. */
+    const sqlText = resolveSqlConst(text, args[0].text);
     // The params argument is an array literal; if it is a variable we cannot
     // index it, so fall back to flagging any stringify inside it.
     const paramsSpan = args[1];
@@ -328,6 +363,32 @@ export function scanSource(file, rawText) {
       });
     }
     unsafeRe.lastIndex = open + 1;
+  }
+
+  // ---- shape 3: D1-compat .prepare(sqlText).bind(...params). d1-compat runs
+  // it as postgres.js .unsafe(text, params), so the same driver rule applies:
+  // `?::jsonb` with JSON.stringify(x) is stored as a jsonb STRING.
+  const prepareRe = /\.prepare\s*\(/g;
+  while ((m = prepareRe.exec(text)) !== null) {
+    const open = m.index + m[0].length - 1;
+    const close = matchBracket(text, open);
+    if (close === -1) continue;
+    const bindM = /^\s*\.bind\s*\(/.exec(text.slice(close + 1));
+    prepareRe.lastIndex = open + 1;
+    if (!bindM) continue;
+    // Drop the JS string delimiters: a single-quoted JS string would otherwise
+    // read as one SQL string literal and hide every placeholder in it.
+    const sqlText = splitTopLevel(text, open, close)[0].text.trim().replace(/^(['"`])([\s\S]*)\1$/, '$2');
+    const bOpen = close + bindM[0].length;
+    const bClose = matchBracket(text, bOpen);
+    if (bClose === -1) continue;
+    splitTopLevel(text, bOpen, bClose).forEach((p, idx) => {
+      if (!isStringified(p.text)) return;
+      const after = textAfterQuestionMark(sqlText, idx + 1) ?? '';
+      if (/^\s*::\s*text\b/i.test(after)) return;
+      if (!opts.strictBind && !/^\s*::\s*jsonb?\b/i.test(after)) return;
+      findings.push({ file, line: lineOf(text, p.start), kind: 'bind', snippet: `?${idx + 1} <- ${p.text.trim().slice(0, 80)}` });
+    });
   }
 
   return findings.sort((a, b) => a.line - b.line);

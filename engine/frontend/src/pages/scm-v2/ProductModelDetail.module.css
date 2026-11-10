@@ -24,14 +24,14 @@
    var(--line...), var(--fg...) and var(--bg) reference is now written as
    its Ink & Petrol hex — the :root fallbacks in
    vendor/design-system/tokens.css DIFFER (--c-cream #ffffff, --c-paper
-   #F8F9FA, --line rgba(34,31,32,.12), --line-strong rgba(34,31,32,.28))
+   #f4f6f3, --line rgba(34,31,32,.12), --line-strong rgba(34,31,32,.28))
    and --c-ink-secondary / --c-ink-muted / --c-accent-soft are not
    defined at :root AT ALL, so they would have silently reskinned this
    page. Mapping used (same as Inventory.module.css):
-     primary      #1B1B39   primary-dark  #2F55E0
-     ink          #111827   ink-muted     #6B7280   ink-soft #9aa093
-     border       #E5E7EB   border-strong #c2c6bd   border-subtle #EEF0F3
-     surface      #ffffff   surface-2     #F8F9FA   primary-soft  #DCE6FD
+     primary      #16695f   primary-dark  #0c3f39
+     ink          #11140f   ink-muted     #767b6e   ink-soft #9aa093
+     border       #d6d9d2   border-strong #c2c6bd   border-subtle #e3e6e0
+     surface      #ffffff   surface-2     #f4f6f3   primary-soft  #e1efed
      success      #2f8a5b   err           #b23a3a
    Structural tokens (--space-*, --fs-*, --font-*, --shadow-*,
    --radius-*) are :root-global and stay as var().
@@ -43,7 +43,7 @@
   font-size: var(--fs-12);
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   background: #fff;
   letter-spacing: 0.04em;
 }
@@ -56,8 +56,8 @@
 }
 /* INACTIVE — quiet surface-2 slab (was a raw rgba(150,150,150,.12) grey). */
 .statusPill.inactive {
-  background: #F8F9FA;
-  color: #6B7280;
+  background: #f4f6f3;
+  color: #767b6e;
 }
 
 /* ── Section header + sub-copy ──────────────────────────────────────── */
@@ -75,7 +75,7 @@
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #2F55E0;
+  color: #0c3f39;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -86,7 +86,7 @@
 }
 .cardSub {
   margin: 0;
-  color: #6B7280;
+  color: #767b6e;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
 }
@@ -107,22 +107,22 @@
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   border-radius: var(--radius-sm);
   background: #fff;
-  color: #111827;
+  color: #11140f;
   resize: vertical;
 }
 /* Petrol border + soft ring — the same focus recipe the shared
    <SearchInput> uses (focus:border-primary focus:ring-2 ring-primary/20). */
 .field input:focus, .field textarea:focus {
   outline: none;
-  border-color: #1B1B39;
-  box-shadow: 0 0 0 2px rgba(27, 27, 57, 0.2);
+  border-color: #16695f;
+  box-shadow: 0 0 0 2px rgba(22, 105, 95, 0.2);
 }
 .readonly {
-  background: #F8F9FA !important;
-  color: #6B7280 !important;
+  background: #f4f6f3 !important;
+  color: #767b6e !important;
   cursor: not-allowed;
 }
 
@@ -138,8 +138,8 @@
   width: 220px;
   height: 220px;
   border-radius: var(--radius-md);
-  background: #F8F9FA;
-  border: 1px solid #E5E7EB;
+  background: #f4f6f3;
+  border: 1px solid #d6d9d2;
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -157,13 +157,13 @@
   height: 220px;
   border-radius: var(--radius-md);
   border: 1px dashed #c2c6bd;
-  background: #F8F9FA;
+  background: #f4f6f3;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  color: #6B7280;
+  color: #767b6e;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   cursor: pointer;
@@ -171,9 +171,9 @@
   flex-shrink: 0;
 }
 .photoEmpty:hover {
-  border-color: #1B1B39;
-  color: #1B1B39;
-  background: #DCE6FD;
+  border-color: #16695f;
+  color: #16695f;
+  background: #e1efed;
 }
 .photoSide {
   display: flex;
@@ -195,7 +195,7 @@
   justify-content: center;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  color: #6B7280;
+  color: #767b6e;
 }
 .hiddenInput {
   position: absolute;
@@ -220,7 +220,7 @@
   gap: var(--space-3);
 }
 .optHint {
-  color: #6B7280;
+  color: #767b6e;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
 }
@@ -241,15 +241,15 @@
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   background: #fff;
-  color: #6B7280;
+  color: #767b6e;
   cursor: pointer;
   transition: all 120ms ease-out;
 }
 .optBulkBtn:hover {
-  border-color: #1B1B39;
-  color: #1B1B39;
+  border-color: #16695f;
+  color: #16695f;
 }
 .chipRow {
   display: flex;
@@ -261,26 +261,26 @@
   font-size: var(--fs-12);
   padding: 4px 12px;
   border-radius: 999px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   background: #fff;
-  color: #111827;
+  color: #11140f;
   cursor: pointer;
   transition: all 120ms ease-out;
 }
 .chip:hover {
-  border-color: #1B1B39;
-  background: #DCE6FD;
+  border-color: #16695f;
+  background: #e1efed;
 }
 .chipOn {
-  background: #1B1B39;
+  background: #16695f;
   color: #fff;
-  border-color: #1B1B39;
+  border-color: #16695f;
 }
 /* Must out-specify .chip:hover (same 0,2,0 weight, declared later) or an
    already-on chip would flash primary-soft under the cursor. */
 .chipOn:hover {
-  background: #2F55E0;
-  border-color: #2F55E0;
+  background: #0c3f39;
+  border-color: #0c3f39;
 }
 
 /* ── SKU table ──────────────────────────────────────────────────────── */
@@ -292,7 +292,7 @@
 }
 .skuTable th, .skuTable td {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid #d6d9d2;
   text-align: left;
 }
 /* Batch 3 theme skin — head row takes the SO-sample DataTable header spec
@@ -303,19 +303,19 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: var(--c-ink, #111827);
-  background: #EEF0F3;
+  color: var(--c-ink, #11140f);
+  background: #e3e6e0;
   border-bottom-width: 2px;
 }
-.skuTable tbody tr:hover { background: #F8F9FA; }
+.skuTable tbody tr:hover { background: #f4f6f3; }
 .skuTable tbody tr:last-child td { border-bottom: none; }
 .skuTable code {
   font-family: var(--font-mono);
   font-size: var(--fs-12);
-  background: #F8F9FA;
+  background: #f4f6f3;
   /* Hairline keeps the chip readable once the row hover paints the same
      surface-2 behind it. */
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -325,15 +325,15 @@
   margin: 0;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  color: #6B7280;
+  color: #767b6e;
 }
 .modalEmpty {
   padding: var(--space-5);
   text-align: center;
-  background: #F8F9FA;
-  border: 1px dashed #E5E7EB;
+  background: #f4f6f3;
+  border: 1px dashed #d6d9d2;
   border-radius: var(--radius-md);
-  color: #6B7280;
+  color: #767b6e;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
 }
@@ -351,51 +351,51 @@
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
   border-radius: var(--radius-sm);
   background: #fff;
   cursor: pointer;
 }
 .modalRow:hover {
-  border-color: #1B1B39;
-  background: #DCE6FD;
+  border-color: #16695f;
+  background: #e1efed;
 }
 .modalRowExisting {
   opacity: 0.55;
-  background: #F8F9FA;
+  background: #f4f6f3;
   cursor: not-allowed;
 }
 /* Declared after .modalRow:hover so an already-existing row stays inert. */
 .modalRowExisting:hover {
-  border-color: #E5E7EB;
-  background: #F8F9FA;
+  border-color: #d6d9d2;
+  background: #f4f6f3;
 }
 .modalCode {
   font-family: var(--font-mono);
   font-size: var(--fs-13);
-  background: #F8F9FA;
+  background: #f4f6f3;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #E5E7EB;
+  border: 1px solid #d6d9d2;
 }
 .modalName {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  color: #111827;
+  color: #11140f;
 }
 .modalExistsPill {
   font-family: var(--font-mono);
   font-size: var(--fs-11);
   padding: 2px 8px;
   border-radius: 999px;
-  background: #F8F9FA;
-  color: #6B7280;
+  background: #f4f6f3;
+  color: #767b6e;
   letter-spacing: 0.04em;
 }
 .modalCount {
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  color: #6B7280;
+  color: #767b6e;
 }
 
 /* Phone (Houzs 2026-06-24) — element-level overflow clamp. (The .page

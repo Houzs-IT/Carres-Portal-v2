@@ -22,6 +22,7 @@ import { useEnrichedSoListRows } from "../vendor/scm/lib/sales-order-queries";
 import { identityStorageKey } from "../lib/storageIdentity";
 import { useDebouncedSearchTerm, useSearchResultTransition } from "../hooks/useServerSearch";
 import { appendSoListFilterParams, useSoListFilters } from "../vendor/scm/lib/so-list-filter-state";
+import { soDatePresetRange, soTodayYmd } from "../vendor/shared/so-list-filter-model";
 import { MobileSoFilterSheet } from "./MobileSoFilterSheet";
 import "./mobile.css";
 
@@ -136,16 +137,13 @@ const RANGES: [Range, string][] = [
   ["next-month", "Next month"], ["this-year", "This year"],
 ];
 const PAGE_SIZE = 30;
-/* Local yyyy-mm-dd (never UTC-shifted — the so_date column is a plain date). */
-const ymd = (d: Date) =>
-  `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}-${`${d.getDate()}`.padStart(2, "0")}`;
+/* The same windows the desktop SO filter uses, counted from today in Malaysia —
+   not the phone's own clock and zone (owner 2026-11-09). */
 function rangeToDates(range: Range): { from?: string; to?: string } {
   if (range === "all") return {};
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
-  if (range === "this-year") return { from: ymd(new Date(y, 0, 1)), to: ymd(new Date(y, 11, 31)) };
-  const base = range === "this-month" ? m : range === "last-month" ? m - 1 : m + 1; // next-month
-  // Day 0 of the following month = last day of `base` (year-wrap safe).
-  return { from: ymd(new Date(y, base, 1)), to: ymd(new Date(y, base + 1, 0)) };
+  const today = soTodayYmd(new Date());
+  if (range === "this-year") return { from: `${today.slice(0, 4)}-01-01`, to: `${today.slice(0, 4)}-12-31` };
+  return soDatePresetRange(range === "this-month" ? "this_month" : range === "last-month" ? "last_month" : "next_month", today);
 }
 
 /* Status filter → the endpoint's exact `status` value. One entry per backend
@@ -503,17 +501,17 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
             {/* Item 3 — Select toggle: enters/exits DRAFT multiselect. In select
                 mode it reads "Done" and clears the picks. */}
             {selectMode ? (
-              <button onClick={exitSelect} className="iconbtn" aria-label="Exit selection" style={{ width: "auto", padding: "0 12px", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, color: "#1B1B39" }}>
+              <button onClick={exitSelect} className="iconbtn" aria-label="Exit selection" style={{ width: "auto", padding: "0 12px", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, color: "#16695f" }}>
                 Done
               </button>
             ) : (
               <button onClick={() => setSelectMode(true)} className="iconbtn" aria-label="Select orders" title="Select drafts to confirm">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#414539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
               </button>
             )}
             {!selectMode && (
               <button onClick={onScan} aria-label="Scan slip" className="iconbtn">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /><circle cx="12" cy="13" r="3" /></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /><circle cx="12" cy="13" r="3" /></svg>
               </button>
             )}
           </div>
@@ -525,7 +523,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
           </div>
           <SearchProgress active={searchTransition.isSearching} label="Searching…" />
           <button onClick={() => setFilterOpen(true)} className="iconbtn" style={{ position: "relative" }} aria-label="Filter by status">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#414539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
             {filterActive && <span style={{ position: "absolute", top: -3, right: -3, width: 9, height: 9, borderRadius: "50%", background: "var(--gold)", border: "1.5px solid #fff" }} />}
           </button>
         </div>
@@ -620,7 +618,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
                   {/* Line 2b — warehouse on its own line so it never crowds the ids */}
                   {warehouse && (
                     <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, marginTop: 4, fontSize: 11.5, fontWeight: 600, color: "var(--ink2)" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M3 21V8l9-5 9 5v13" /><path d="M7 21v-8h10v8" /></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M3 21V8l9-5 9 5v13" /><path d="M7 21v-8h10v8" /></svg>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{warehouse}</span>
                     </div>
                   )}
@@ -726,7 +724,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
                 onClick={() => { setFabOpen(false); onNew(); }}
                 style={{ justifyContent: "flex-start", gap: 10 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></svg>
                 <span className="ml">New Sales Order</span>
               </button>
               <button
@@ -734,7 +732,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
                 onClick={() => { setFabOpen(false); onNewCase?.(); }}
                 style={{ justifyContent: "flex-start", gap: 10 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z" /></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z" /></svg>
                 <span className="ml">New Service Case</span>
               </button>
             </div>

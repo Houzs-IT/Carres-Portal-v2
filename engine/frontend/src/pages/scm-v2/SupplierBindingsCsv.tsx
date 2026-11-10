@@ -22,6 +22,8 @@ import type { MfgProductRow } from '../../vendor/scm/lib/mfg-products-queries';
 import { composeSupplierSku } from '../../vendor/scm/lib/supplier-sku-helpers';
 import styles from './SupplierDetail.module.css';
 import { readImportGrid, resolveImportHeaders } from '../../lib/import-sheet';
+import { todayMyt } from '../../vendor/scm/lib/dates';
+import { guardFormula } from '../../lib/csv';
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -67,7 +69,7 @@ const SOFA_TIERS_FOR_EXPORT: readonly ('P1' | 'P2' | 'P3' | 'P4')[] = ['P1', 'P2
 /** RFC4180 quote when a cell contains comma / quote / newline. */
 function csvCell(v: unknown): string {
   if (v == null) return '';
-  const s = String(v);
+  const s = guardFormula(String(v));
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -183,7 +185,7 @@ export function exportBindingsCsv(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `supplier-${supplierCode}-bindings-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `supplier-${supplierCode}-bindings-${todayMyt()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -661,7 +663,7 @@ export const ImportBindingsDialog = ({
           </button>
         </header>
         <div className={styles.modalBody}>
-          <p style={{ fontSize: 'var(--fs-12)', color: '#6B7280', marginBottom: 'var(--space-3)' }}>
+          <p style={{ fontSize: 'var(--fs-12)', color: '#767b6e', marginBottom: 'var(--space-3)' }}>
             Upload a CSV or Excel file (exported via <strong>Export Bindings</strong>, or the
             worklist columns <code>internal_code / supplier_sku / price_rm</code>). Both the
             <strong> long</strong> and legacy <strong>wide</strong> layouts are detected
@@ -678,15 +680,15 @@ export const ImportBindingsDialog = ({
           />
           {preview && (
             <div style={{
-              fontSize: 'var(--fs-13)', color: '#111827', padding: 'var(--space-2) var(--space-3)',
-              background: '#fff', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-2)',
+              fontSize: 'var(--fs-13)', color: '#11140f', padding: 'var(--space-2) var(--space-3)',
+              background: '#fff', border: '1px solid #d6d9d2', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-2)',
             }}>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>
                 {preview.format} format · {preview.creates.length} to create · {preview.updates.length} to update
               </div>
               {preview.creates.length > 0 && (
                 <div style={{ maxHeight: 180, overflowY: 'auto', marginTop: 4 }}>
-                  <div style={{ fontSize: 'var(--fs-11)', color: '#6B7280', marginBottom: 2 }}>New bindings:</div>
+                  <div style={{ fontSize: 'var(--fs-11)', color: '#767b6e', marginBottom: 2 }}>New bindings:</div>
                   {preview.creates.map((c) => (
                     <div key={c.itemCode} style={{ fontSize: 'var(--fs-12)', fontFamily: 'var(--font-mono, monospace)' }}>
                       {c.itemCode} → {c.supplierSku} · {fmtRm(c.unitPriceSen)}{c.priceMatrix ? ' · matrix' : ''}
@@ -697,17 +699,17 @@ export const ImportBindingsDialog = ({
             </div>
           )}
           {progress.total > 0 && running && (
-            <p style={{ fontSize: 'var(--fs-12)', color: '#6B7280' }}>
+            <p style={{ fontSize: 'var(--fs-12)', color: '#767b6e' }}>
               Updating {progress.done} / {progress.total}…
             </p>
           )}
           {summary && (
             <p style={{
               fontSize: 'var(--fs-13)',
-              color: '#111827',
+              color: '#11140f',
               padding: 'var(--space-2) var(--space-3)',
               background: '#fff',
-              border: '1px solid #E5E7EB',
+              border: '1px solid #d6d9d2',
               borderRadius: 'var(--radius-md)',
               marginTop: 'var(--space-2)',
             }}>

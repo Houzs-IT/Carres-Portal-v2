@@ -412,7 +412,7 @@ export function buildLogisticsPnl(input: PnlInput): LogisticsPnl {
   const rows: PnlRow[] = [
     money('do_value', 'Delivery Order', doValue),
     money('do_income', `Transport Income (${pctText}% of DO)`, doIncome),
-    money('ti_houzs', 'Transport Income (Carres)', ti.houzs),
+    money('ti_houzs', 'Transport Income (Houzs)', ti.houzs),
     money('ti_conts', 'Transport Income (The Conts)', ti.conts),
     money('ti_hookka', 'Transport Income (Hookka)', ti.hookka),
     money('sd_income', 'Set/Dismantle Income (In-house)', sdIncome),

@@ -54,7 +54,7 @@ const COL_PENDING = "#8a6a2e"; // --amber
 const COL_OVERDUE = "#b23a3a"; // --red
 const COL_DONE = "#2f8a5b"; // --green
 const COL_NA = "#9aa093"; // --mut2
-const COL_BLOCKED = "#111827"; // --ink
+const COL_BLOCKED = "#11140f"; // --ink
 
 function isoOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -222,7 +222,7 @@ export function MobileGantt({
         })}
       </div></div></div>
 
-      <div style={{ fontSize: 11.5, color: "#6B7280", lineHeight: 1.5, padding: "8px 2px 0" }}>
+      <div style={{ fontSize: 11.5, color: "#767b6e", lineHeight: 1.5, padding: "8px 2px 0" }}>
         Diamonds sit on each task's due date, coloured by status; the lock badge marks a permission-gated task. Hatched columns are Malaysia holidays. Tap a diamond to open that task in the checklist.
       </div>
     </>

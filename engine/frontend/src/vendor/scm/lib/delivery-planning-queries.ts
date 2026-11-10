@@ -11,6 +11,7 @@
 // HOUZS VENDOR NOTE: the source has NO `import { supabase } from './supabase'`
 // to drop (it only used authedFetch). Everything else is copied verbatim.
 
+import { rememberSavedCrew, withSavedCrew, type CrewSnapshot } from './saved-crew';
 import { useRef } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { authedFetch } from './authed-fetch';
@@ -200,7 +201,7 @@ export type PlanningOrder = {
   amend_reason_from_customer?: string | null;
   effective_delivery_date: string | null;
   processing_date: string | null;
-  /* Owner 2026-08-12 (2990 only) — a live PO already claims one of this SO's
+  /* Owner 2026-08-12 (every company since 2026-11-09) — a live PO already claims one of this SO's
      lines, so the SO is soft-locked with no processing date involved. Read by
      DeliveryFieldsDrawer's procLockActive call to route a replacement_disposal
      change into an amendment instead of a direct save. */
@@ -294,6 +295,9 @@ export type PlanningOrder = {
     driver_2_name: string | null;
     helper_1_name: string | null; helper_2_name: string | null;
     lorry_plate: string | null;
+    /** True when the driver was only TYPED on the DO form: no fleet record, so no
+     *  IC / phone. The board asks for the real driver to be picked. */
+    driver_1_typed?: boolean;
   } | null;
   delivery_orders: Array<{ id: string; do_number: string; status: string }>;
   /* ── Arrangement pipeline (owner spec 2026-08-07) — DERIVED server-side by
@@ -427,6 +431,7 @@ export function useDeliveryPlanning(opts: { region?: string; state?: string }) {
     // Switching region / state tabs keeps the previous board on screen while the
     // next slice loads, instead of flashing an empty table (keepPreviousData).
     placeholderData: (prev) => prev,
+    select: withSavedCrew,
     staleTime: 30_000,
   });
 }
@@ -1101,6 +1106,10 @@ export type ScheduleDeliveryVars = {
   /* ASSR-only: forwarded so the backend knows which job (pickup vs delivery) is
      being scheduled. Ignored for 'so' | 'do'. */
   jobKind?: AssrJobKind | null;
+  /* ASSR-only: the leg status dropdown — delivered / cancelled / pending (owner
+     2026-11-06). Writes the leg's actual_* / cancelled_* marker; leg-only, never
+     closes the case. Cancelled drops the leg off the board. */
+  assrLegStatus?: 'delivered' | 'cancelled' | 'pending';
   /* Trip wiring: the origin warehouse for a find-or-created trip, or an explicit
      trip to append to. warehouseId lets the Phase 3 drawer pin the trip origin to
      the routed depot; both were already accepted by the backend schedule schema. */
@@ -1139,12 +1148,13 @@ export type ScheduleDeliveryResult = {
 export function useScheduleDelivery() {
   const qc = useQueryClient();
   return useMutation<ScheduleDeliveryResult, Error, ScheduleDeliveryVars, { snapshots: Array<[readonly unknown[], PlanningResponse]> }>({
-    mutationFn: ({ type, id, scheduleDate, deliveryState, driverId, lorryId, helper1Id, helper2Id, jobKind, warehouseId, tripId, tripDate, stopNo, etaOffsetS, legDistanceM, legDurationS, threePlCostSen }) => {
+    mutationFn: ({ type, id, scheduleDate, deliveryState, assrLegStatus, driverId, lorryId, helper1Id, helper2Id, jobKind, warehouseId, tripId, tripDate, stopNo, etaOffsetS, legDistanceM, legDurationS, threePlCostSen }) => {
       /* Only include keys the caller actually set, so an unrelated field is never
          nulled out by an inline single-field edit. */
       const body: Record<string, unknown> = {};
       if (scheduleDate !== undefined) body.scheduleDate = scheduleDate;
       if (deliveryState !== undefined) body.deliveryState = deliveryState;
+      if (assrLegStatus !== undefined) body.assrLegStatus = assrLegStatus;
       if (driverId !== undefined) body.driverId = driverId;
       if (lorryId !== undefined) body.lorryId = lorryId;
       if (helper1Id !== undefined) body.helper1Id = helper1Id;
@@ -1179,13 +1189,17 @@ export function useScheduleDelivery() {
                dp_order id (the board row's so_doc_no is `DP:<id>`); SO/DO rows
                key on so_doc_no. */
             const matches = vars.type === 'assr'
-              ? o.row_type === 'assr' && String(o.assr_id ?? '') === vars.id
+              ? o.row_type === 'assr' && String(o.assr_id ?? '') === vars.id && (vars.jobKind == null || o.job_kind === vars.jobKind)
               : vars.type === 'dp'
                 ? o.row_type === 'dp' && o.so_doc_no === `DP:${vars.id}`
                 : o.so_doc_no === vars.id;
             if (!matches) return o;
             const next: PlanningOrder = { ...o };
             if (vars.deliveryState !== undefined && vars.deliveryState !== null) next.delivery_state = vars.deliveryState;
+            // Leg status dropdown: Delivered → Delivered tab; pending → back to pending.
+            // Cancelled drops the leg off the board — left to the invalidate on settle.
+            if (vars.assrLegStatus === 'delivered') next.delivery_state = 'DELIVERED';
+            else if (vars.assrLegStatus === 'pending') next.delivery_state = 'PENDING_DELIVERY';
             if (vars.scheduleDate !== undefined) next.amended_delivery_date = vars.scheduleDate;
             if (vars.driverNameOptimistic !== undefined || vars.lorryPlateOptimistic !== undefined) {
               const crew = { ...(o.crew ?? { driver: null, helper: null, lorry: null, driver_1_name: null, driver_1_ic: null, driver_1_contact: null, driver_2_name: null, helper_1_name: null, helper_2_name: null, lorry_plate: null }) };
@@ -1255,10 +1269,17 @@ export function useAssignDoCrew() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ doId, ...body }: DoCrewVars) =>
-      authedFetch<{ ok: true }>(`/delivery-orders-mfg/${doId}/crew`, {
+      authedFetch<{ crew?: CrewSnapshot | null }>(`/delivery-orders-mfg/${doId}/crew`, {
         method: 'PUT', body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onSuccess: (res, vars) => {
+      // Keep what the server saved on screen, even if the slow board reload
+      // times out or comes back stale (saved-crew.ts).
+      if (res.crew) {
+        rememberSavedCrew(vars.doId, res.crew);
+        qc.setQueriesData<PlanningResponse>({ queryKey: ['delivery-planning'] }, (d) => withSavedCrew(d));
+        qc.setQueriesData<PlanningResponse>({ queryKey: ['mobile-delivery-planning'] }, (d) => withSavedCrew(d));
+      }
       // The run and its other DOs follow a DO crew edit (server side). Coalesced
       // so a run of seat edits reconciles once the operator stops, not per seat;
       // the picker's own local state shows the chosen crew immediately meanwhile.

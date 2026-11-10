@@ -11,19 +11,22 @@ import {
   sortSoLinesByGroupRank,
 } from '@2990s/shared/so-line-display';
 import { formatPhone } from '@2990s/shared/phone';
-import { COMPANY, DOC_TABLE_HEAD_STYLES, DOC_TABLE_STYLES, deliverPdf, drawHeader, drawInfoColumns, drawSignatureBoxes, ensurePdfCjkFont, fmtRm, safeName, fmtDocDate, type PdfAction } from './pdf-common';
+import { docPageLabel, COMPANY, DOC_TABLE_HEAD_STYLES, DOC_TABLE_STYLES, deliverPdf, drawHeader, drawInfoColumns, warehousePrintName, drawSignatureBoxes, ensurePdfCjkFont, fmtRm, safeName, fmtDocDate, type PdfAction } from './pdf-common';
 import { supplierBlock } from './pdf-party-blocks';
 import { loadSupplierDocData, supplierCodeFor, docVariantLine } from './supplier-doc-data';
 /* The status WORD comes from the one home for it, never from a caser here:
    what this document prints and what the screen shows must be the same word.
    docs/modules/document-status-vocabulary.md §1. */
 import { statusLabel } from './status-pill';
+import { PDF_COMPRESS } from './pdf-options';
 
 type GrnHeader = {
   grn_number: string; status: string;
   received_at: string; delivery_note_ref: string | null;
   notes: string | null; posted_at: string | null;
   supplier_id?: string | null;
+  warehouse_name?: string | null;
+  warehouse_code?: string | null;
   supplier?: { code: string; name: string };
   purchase_order?: { id: string; po_number: string };
 };
@@ -102,6 +105,7 @@ export async function renderGrnInto(
       rows: [
         [opts?.docNoLabel ?? 'GRN No', header.grn_number],
         ['Received', fmtDocDate(header.received_at)],
+        ['Warehouse', warehousePrintName(header)],
         ['DN Ref', header.delivery_note_ref],
         ['PO Ref', header.purchase_order?.po_number],
         ['Posted', header.posted_at ? fmtDocDate(header.posted_at) : null],
@@ -175,7 +179,7 @@ export async function renderGrnInto(
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
     doc.text(header.grn_number, margin, 290);
     doc.text(`${COMPANY.portalLabel} · ${fmtDocDate(header.received_at)}`, pageW / 2, 290, { align: 'center' });
-    doc.text(`Page ${p} of ${pageCount}`, pageW - margin, 290, { align: 'right' });
+    doc.text(docPageLabel(p, startPage, pageCount), pageW - margin, 290, { align: 'right' });
     doc.setTextColor(0);
   }
 }
@@ -189,7 +193,7 @@ export async function generateGrnPdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4' });
   await renderGrnInto(doc, autoTable, header, items, opts);
   deliverPdf(doc, `${header.grn_number}-${safeName(header.supplier?.name ?? 'supplier')}.pdf`, opts?.action);
 }
@@ -202,7 +206,7 @@ export async function generateCombinedGrnPdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4' });
   for (let i = 0; i < docs.length; i += 1) {
     if (i > 0) doc.addPage();
     await renderGrnInto(doc, autoTable, docs[i]!.header, docs[i]!.items, opts);

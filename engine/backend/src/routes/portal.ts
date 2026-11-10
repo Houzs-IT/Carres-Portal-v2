@@ -106,7 +106,7 @@ app.get("/case", async (c) => {
       } else if (a.action === "survey_submitted") {
         base.label = "Satisfaction survey submitted";
       } else if (a.action === "note" && a.category === "customer") {
-        base.label = "Note from Carres";
+        base.label = "Note from Houzs";
         base.note = a.note;
       } else {
         base.label = a.action;

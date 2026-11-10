@@ -10,26 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { TableLoadError } from "./TableLoadError";
+import { scrollPanelNearRow } from "./dataTableScrollToRow";
 import {
-  Download,
-  Upload,
-  Search,
-  ArrowUp,
-  ArrowDown,
-  ArrowDownAZ,
-  ArrowUpAZ,
-  ChevronsUpDown,
-  ChevronRight,
-  LayoutList,
-  Table as TableIcon,
-  Pin,
-  PinOff,
-  EyeOff,
-  Eye,
-  MoveHorizontal,
-  Filter,
-  Rows3,
-  WrapText,
+  Download, Upload, Search, ArrowUp, ArrowDown, ArrowDownAZ, ArrowUpAZ, ChevronsUpDown, ChevronRight, LayoutList,
+  Table as TableIcon, Pin, PinOff, EyeOff, Eye, MoveHorizontal, Filter, Rows3, WrapText,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { headerLabel } from "../lib/columnHeaderLabel";
@@ -38,9 +23,11 @@ import { rowsToTsv } from "./dataTableClipboard";
 import { useCellRange } from "./dataTableCellRange";
 import { tickedOrAll } from "./dataTableTicked";
 import { DataTableFreezeItems, keysThrough } from "./DataTableFreezeItems";
+import { DataTableExportItems, HEADER_MENU_ITEM_CLASS, sheetExportLabel } from "./DataTableExportItems";
 import { parseUrlColFilters, serializeUrlColFilters, UrlFilterResync } from "./dataTableUrlFilters";
 import { useInRouterContext } from "react-router-dom";
 import { ResetFiltersButton } from "./ResetFiltersButton";
+import { ActiveFiltersChip, FilteredEmptyNotice, activeFilterSummary } from "./DataTableFilterNotice";
 import { TableSkeleton } from "./Skeleton";
 import {
   CUSTOM_FIELDS_GROUP,
@@ -83,11 +70,13 @@ import {
 } from "../lib/tableLayouts";
 import { isSharedDataGridStorageKey } from "../vendor/scm/components/dataGridLayoutStorage";
 import { useUdf, type UseUdfResult } from "../hooks/useUdf";
-import { downloadCSV, isoForExport, toCSV, type CSVColumn } from "../lib/csv";
+import { downloadCSV, toCSV } from "../lib/csv";
 import { applyColumnFilters, facetedFilterValues, sortTableRows } from "./dataTableRows";
 import {
   buildLineExportMatrix,
+  csvColumnsOf,
   exportableColumns,
+  tablePdfViewOf,
   writeLineExportFile,
   type DataTableLineExport,
   type ExportCell,
@@ -97,11 +86,10 @@ import { SearchScopeHint } from "./SearchScopeHint";
 import { DataTableConditionSection } from "./DataTableConditionSection";
 import { DataTableGroupBanner } from "./DataTableGroupBanner";
 import { gridLayoutToTableLayout, readLegacyGridLayout } from "./dataTableLegacyGridLayout";
-import { buildSearchBlob, conditionToken, isConditionToken, parseCondition } from "./dataTableConditionFilters";
+import { buildSearchBlob, conditionToken, isConditionToken, looksLikeDateColumn, parseCondition } from "./dataTableConditionFilters";
 import { MobileVirtualList } from "../mobile/MobileVirtualList";
 import { reorderKeys } from "../lib/reorder";
 import { useDragAutoScroll } from "./useDragAutoScroll";
-
 import type { Column, DataTableProps, SortDir, SortState } from "./dataTableTypes";
 import { DataRowCells } from "./DataTableRowCells";
 import {
@@ -118,6 +106,7 @@ import {
   sanitizeStringList,
   useViewportClampedPos,
 } from "./dataTableHelpers";
+import { todayMyt } from "../vendor/scm/lib/dates";
 
 export type { Column, ColumnLayoutPreset, DataTableProps } from "./dataTableTypes";
 
@@ -175,6 +164,7 @@ function DataTableInner<T, L>({
   onExport,
   exportLines,
   exportXlsx,
+  onExportPdf, onShownColumnsChange,
   toolbarExtra,
   onColFiltersChange,
   onImport,
@@ -851,10 +841,9 @@ function DataTableInner<T, L>({
     return set;
   }, [allColumns, userHidden, userShown, baselineLayout]);
 
-  const visibleColumns = useMemo(
-    () => allColumns.filter((c) => c.alwaysVisible || !effectiveHidden.has(c.key)),
-    [allColumns, effectiveHidden]
-  );
+  const visibleColumns = useMemo(() => allColumns.filter((c) => c.alwaysVisible || !effectiveHidden.has(c.key)), [allColumns, effectiveHidden]);
+  /* Told to a page whose export reaches past this table (Payments not matched yet's Export all). */
+  useEffect(() => { onShownColumnsChange?.(visibleColumns); }, [visibleColumns, onShownColumnsChange]);
 
   const mobileColumns = useMemo(() => {
     const byKey = new Map(visibleColumns.map((column) => [column.key, column]));
@@ -1618,7 +1607,7 @@ function DataTableInner<T, L>({
       const fetched = await spec.fetchRows({ exportKeys: cols.map((c) => c.key), filterKeys });
       const kept = tickedOrAll(sortTableRows(applyColumnFilters(fetched, colFilters, allColumns), sort, allColumns, Boolean(serverSort), defaultSort ?? null), selection?.selectedIds, getRowKey).rows;
       const matrix = buildLineExportMatrix(kept, spec.linesOf, cols);
-      const date = new Date().toISOString().slice(0, 10);
+      const date = todayMyt();
       await writeLineExportFile(matrix, spec.sheetName, `${exportName || tableId || "export"}-${date}.xlsx`);
     } catch (e) {
       spec.onError(e instanceof Error ? e : new Error(String(e)));
@@ -1632,16 +1621,10 @@ function DataTableInner<T, L>({
     if (exportLines) { void handleLineExport(exportLines); return; }
     // Optional override: the caller exports a broader/full dataset (e.g. all
     // pages, ignoring a screen-only filter) with the same columns.
-    const csvCols: CSVColumn<T>[] = visibleColumns
-      .filter((c) => typeof c.getValue === "function" || typeof c.exportValue === "function")
-      .map((c) => ({
-        key: c.key,
-        label: c.exportLabel || c.label || c.key,
-        getValue: (r: T) => (c.exportValue ? c.exportValue(r) : isoForExport(c.getValue!(r) as string | number | null)),
-      }));
+    const csvCols = csvColumnsOf(visibleColumns as Column<T, L>[]);
     if (onExport) { onExport(csvCols); return; }
     if (!actionRows || actionRows.rows.length === 0 || csvCols.length === 0) return;
-    const date = new Date().toISOString().slice(0, 10), outRows = actionRows.rows;
+    const date = todayMyt(), outRows = actionRows.rows;
     if (exportXlsx) {
       // No lines: one sheet row per list row, keeping each column's exportFormat.
       const matrix = buildLineExportMatrix(outRows, () => [], exportableColumns(visibleColumns as Column<T, L>[]));
@@ -1823,6 +1806,14 @@ function DataTableInner<T, L>({
     const searched = searchBlobs && q ? rows.filter((r) => (searchBlobs.get(r) ?? "").includes(q)) : rows;
     return applyColumnFilters(searched, colFilters, allColumns);
   }, [rows, colFilters, allColumns, searchBlobs, clientQuery]);
+  /* Rows exist but the funnels / search hide every one: say so and name them,
+     never the page's "nothing here" label (DP Overdue, owner 2026-11-10). */
+  const activeFilters = useMemo(() => activeFilterSummary(colFilters, allColumns), [colFilters, allColumns]);
+  const clearFunnelsAndSearch = () => { setColFilters({}); if (clientQueryActive) setClientQuery(""); };
+  const hiddenByFilters = (rows?.length ?? 0) > 0 && filteredRows?.length === 0 && (activeFilters.length > 0 || clientQueryActive);
+  const emptyContent = hiddenByFilters
+    ? <FilteredEmptyNotice hiddenCount={rows?.length ?? 0} filters={activeFilters} query={clientQueryActive ? clientQuery.trim() : null} onClear={clearFunnelsAndSearch} />
+    : emptyLabel;
 
   const sortedRows = useMemo(
     () => (filteredRows ? sortTableRows(filteredRows, sort, allColumns, Boolean(serverSort), defaultSort ?? null) : filteredRows),
@@ -1846,8 +1837,7 @@ function DataTableInner<T, L>({
     [sortedRows, selection?.selectedIds]);
   const footerTotals = actionRows?.rows.length && displayColumns.some((c) => c.total) ? actionRows : null;
   const loadMore = () => setRowLimit((n) => (n ?? 0) + (initialRowLimit ?? 200));
-
-  /* Drag-to-reorder + edge auto-scroll (owner 2026-09): rows drag only while no column sort; a drop reports the whole new order, persisted by the caller via `defaultSort`. */
+  /* Drag-to-reorder + edge auto-scroll (owner 2026-09): rows drag only while no column sort (the toolbar offers to clear one); a drop reports the new order of the shown rows, persisted by the caller via `defaultSort`. */
   const rowReorderable = !!onRowReorder && sort == null;
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -2097,8 +2087,7 @@ function DataTableInner<T, L>({
       wrap.scrollTop = offset;
       wrap.dispatchEvent(new Event("scroll"));
     } else if (tbodyRef.current) {
-      window.scrollTo({ top: window.scrollY + tbodyRef.current.getBoundingClientRect().top + offset - window.innerHeight / 2 });
-      window.dispatchEvent(new Event("scroll"));
+      scrollPanelNearRow(tbodyRef.current, offset);
     }
     const raf = requestAnimationFrame(() => requestAnimationFrame(settle));
     return () => cancelAnimationFrame(raf);
@@ -2207,6 +2196,7 @@ function DataTableInner<T, L>({
             onReset={handleResetFilters}
             label={resetFilters?.label}
           />
+          <ActiveFiltersChip filters={activeFilters} onClear={() => setColFilters({})} />
           <div className="flex items-center gap-2 text-[11px] font-medium text-ink-secondary">
             {caption && (
               <>
@@ -2226,6 +2216,7 @@ function DataTableInner<T, L>({
                 <span className="font-mono text-ink">{visibleColumns.length}</span>
                 <span className="ml-1 text-ink-muted">of {allColumns.length} cols</span>
                 {copiedNote && <span role="status" className="ml-2 text-primary">{copiedNote}</span>}
+                {onRowReorder && sort && <button type="button" className="ml-2 text-primary underline" onClick={() => { setSort(null); reportServerSort(null); }}>Clear sort to drag rows</button>}
               </span>
             ) : (
               <span className="text-ink-muted">Loading…</span>
@@ -2680,8 +2671,7 @@ function DataTableInner<T, L>({
                     colSpan={totalColSpan}
                     className="px-3 py-14 text-center text-sm text-err"
                   >
-                    <div className="font-semibold">Failed to load</div>
-                    <div className="mt-1 text-xs text-ink-muted">{error}</div>
+                    <TableLoadError error={String(error)} />
                   </td>
                 </tr>
               )}
@@ -2691,7 +2681,7 @@ function DataTableInner<T, L>({
                     colSpan={totalColSpan}
                     className="px-3 py-20 text-center text-sm text-ink-muted"
                   >
-                    {emptyLabel}
+                    {emptyContent}
                   </td>
                 </tr>
               )}
@@ -3016,13 +3006,12 @@ function DataTableInner<T, L>({
         )}
         {!effectiveLoading && error && (
           <div className="rounded-lg border border-err/40 bg-err/5 p-4 text-center text-sm text-err">
-            <div className="font-semibold">Failed to load</div>
-            <div className="mt-1 text-xs text-ink-muted">{error}</div>
+            <TableLoadError error={String(error)} />
           </div>
         )}
         {!effectiveLoading && !error && sortedRows && sortedRows.length === 0 && (
           <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-ink-muted">
-            {emptyLabel}
+            {emptyContent}
           </div>
         )}
         {!effectiveLoading && !error && sortedRows && sortedRows.length > 0 && (
@@ -3169,6 +3158,7 @@ function DataTableInner<T, L>({
              See facetedFilterValues for the exact rule (0-count options drop
              unless they are fixed vocabulary or currently ticked). */
           const values = facetedFilterValues(rows ?? [], colFilters, col, allColumns);
+          const filterType = col.filterType ?? (looksLikeDateColumn(values.map(([v]) => v)) ? "date" : undefined);
           const allTokens = colFilters[col.key] ?? [];
           const conditionTokens = allTokens.filter(isConditionToken);
           const selected = new Set(allTokens.filter((v) => !isConditionToken(v)));
@@ -3200,7 +3190,7 @@ function DataTableInner<T, L>({
           return createPortal(
             <div
               ref={filterMenuRef}
-              className="fixed z-[120] flex w-[236px] flex-col overflow-hidden rounded-md border border-border bg-surface shadow-slab"
+              className="fixed z-[120] flex w-[236px] flex-col overflow-y-auto overscroll-contain rounded-md border border-border bg-surface shadow-slab"
               style={{ top: filterMenuPos.top, bottom: filterMenuPos.bottom, left: filterMenuPos.left, maxHeight: filterMenuPos.maxHeight }}
               onClick={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
@@ -3265,10 +3255,10 @@ function DataTableInner<T, L>({
                 <DataTableFreezeItems className={sortBtn} anyFrozen={pinnedSet.size > 0} onFreezeUpTo={() => { freezeUpTo(col.key); setFilterMenu(null); }} onUnfreezeAll={() => { setPinned([]); setFilterMenu(null); }} />
               </div>
 
-              {col.filterType && (
+              {filterType && (
                 <DataTableConditionSection
                   key={col.key}
-                  filterType={col.filterType}
+                  filterType={filterType}
                   current={currentCondition}
                   onChange={(next) =>
                     setColumnFilter(col.key, [...(next ? [conditionToken(next)] : []), ...selected])
@@ -3319,9 +3309,9 @@ function DataTableInner<T, L>({
 
               {/* Value checklist — its own scroller. `overscroll-contain` so a
                   wheel that hits the top/bottom of the list doesn't chain into
-                  a page scroll (which closes the popover); `min-h-0` lets it
-                  shrink when the viewport-capped flex column runs short. */}
-              <div className="max-h-[240px] min-h-0 overflow-y-auto overscroll-contain py-1">
+                  a page scroll (which closes the popover). `shrink-0`: never
+                  squeezed to one row; the whole popover scrolls (2990-0054). */}
+              <div className="max-h-[240px] shrink-0 overflow-y-auto overscroll-contain py-1">
                 {shown.length === 0 && (
                   <div className="px-3 py-2 text-[12px] text-ink-muted">No values</div>
                 )}
@@ -3353,8 +3343,7 @@ function DataTableInner<T, L>({
           const sortable = canSortColumn(col);
           const isPinned = pinnedSet.has(col.key);
           const canHide = !col.alwaysVisible;
-          const itemCls =
-            "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] text-ink transition-colors hover:bg-surface-dim disabled:cursor-not-allowed disabled:text-ink-muted disabled:hover:bg-transparent";
+          const itemCls = HEADER_MENU_ITEM_CLASS;
           const pos = headerMenuPos ?? { top: headerMenu.y, left: headerMenu.x };
           return createPortal(
             <div
@@ -3366,6 +3355,9 @@ function DataTableInner<T, L>({
               onClick={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
             >
+              <DataTableExportItems className={itemCls} disabled={rowActionsDisabled || exporting || !sortedRows?.length} onSheet={() => { setHeaderMenu(null); handleExport(); }}
+                sheetLabel={sheetExportLabel({ lines: Boolean(exportLines), custom: Boolean(onExport), xlsx: exportXlsx, exportLabel, picked: actionRows?.picked ? actionRows.rows.length : null })}
+                onPdf={onExportPdf && actionRows ? () => { setHeaderMenu(null); onExportPdf(tablePdfViewOf(actionRows.rows, visibleColumns as Column<T, L>[])); } : undefined} />
               <button
                 type="button"
                 className={itemCls}

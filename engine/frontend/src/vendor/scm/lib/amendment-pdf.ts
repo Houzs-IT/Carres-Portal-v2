@@ -22,7 +22,8 @@
 // NO EMOJI anywhere (owner rule, extends to all product copy).
 // ----------------------------------------------------------------------------
 
-import { COMPANY, deliverPdf, drawHeader, ensurePdfCjkFont, fmtDocDate, fmtDocStamp, safeName, type PdfAction } from './pdf-common';
+import { COMPANY, DOC_TABLE_HEAD_STYLES, DOC_TABLE_STYLES, deliverPdf, drawHeader, ensurePdfCjkFont, fmtDocDate, fmtDocStamp, safeName, type PdfAction } from './pdf-common';
+import { PDF_COMPRESS } from './pdf-options';
 
 /* One changed line on the amendment. `kind` drives the tint semantics: a CHANGE
    shows before (red) -> after (green); an ADD has no before; a REMOVE has no
@@ -89,7 +90,7 @@ export async function generateAmendmentPdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4' });
 
   // CJK-safe: a China supplier's name or a Chinese item description is the likely
   // non-WinAnsi text here. No-op / no fetch for a pure-Latin document.
@@ -169,14 +170,15 @@ export async function generateAmendmentPdf(
     // Dept = the responsible department this changed field routes to (accountability).
     head: [['Item', 'Field', 'Before', 'After', 'Dept']],
     body,
-    theme: 'grid',
+    /* The house table (pdf-common DOC_TABLE_*), like every other printed
+       document: no decorative header band (owner 2026-08-07). The "grid" theme
+       this used paints its own teal header fill, which overriding only the
+       weight left in place. The red/green before/after fills below STAY —
+       those carry meaning, and a change sheet that loses them loses the change. */
+    theme: 'plain',
     margin: { left: margin, right: margin },
-    styles: { font: 'helvetica', fontSize: 9, cellPadding: 2, overflow: 'linebreak', valign: 'middle' },
-    /* No black band (owner 2026-08-07: no decorative fills on printed
-       documents). The grid theme already rules every cell, so the header only
-       needs weight. The red/green before/after fills below STAY — those carry
-       meaning, and a change sheet that loses them loses the change. */
-    headStyles: { fontStyle: 'bold' },
+    styles: { ...DOC_TABLE_STYLES, font: 'helvetica', fontSize: 9, overflow: 'linebreak', valign: 'middle' },
+    headStyles: DOC_TABLE_HEAD_STYLES,
     columnStyles: {
       0: { cellWidth: 44 },
       1: { cellWidth: 24 },

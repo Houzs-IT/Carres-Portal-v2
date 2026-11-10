@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, "", "");
   const target =
     env.VITE_DEV_API_PROXY_TARGET ||
-    "http://localhost:8787"; // Carres: never proxy to the Houzs server by default
+    "https://autocount-sync-api.houzs-erp.workers.dev";
 
   const proxyRule = {
     target,

@@ -322,7 +322,7 @@ export function PortalCaseDetailPage() {
 
         {/* Status hero — black card. Friendly copy per stage; NO SLA
             countdown, only a soft "expected update by" date chip. */}
-        <div className="relative overflow-hidden rounded-2xl bg-[#1B1B39] p-6 text-white shadow-stone">
+        <div className="relative overflow-hidden rounded-2xl bg-[#13201c] p-6 text-white shadow-stone">
           <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[.14em] text-[#c79a5a]">
             {stageCopy.eyebrow}
           </div>

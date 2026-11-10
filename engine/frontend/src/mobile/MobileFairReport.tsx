@@ -173,7 +173,7 @@ export function MobileFairReport({ onBack }: { onBack: () => void }) {
             <div className="scr-title">Sales Report</div>
           </div>
           <button onClick={() => setSheetOpen(true)} className="iconbtn" style={{ position: "relative", width: "auto", padding: "0 12px", gap: 6, fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, color: "var(--ink2)" }} aria-label="Filters">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#414539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
             Filters
             {activeFilterCount > 0 && (
               <span style={{ background: "var(--gold)", color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 999, minWidth: 15, height: 15, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{activeFilterCount}</span>

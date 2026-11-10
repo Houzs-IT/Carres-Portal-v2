@@ -11,16 +11,16 @@
    overrides and the token-override cascade) is gone. Only the two cell
    primitives the DataGrid column factory still references survive here;
    their values map to the Tailwind "Ink & Petrol" tokens:
-     primary  #1B1B39   ink-muted #6B7280
+     primary  #16695f   ink-muted #767b6e
    ==================================================================== */
 
 /* Doc. No. cell — the row identifier, coloured in the petrol accent. */
 .codeCell {
   font-weight: 600;
-  color: #1B1B39;
+  color: #16695f;
 }
 
 /* Muted dash / secondary cell text. */
 .muted {
-  color: #6B7280;
+  color: #767b6e;
 }

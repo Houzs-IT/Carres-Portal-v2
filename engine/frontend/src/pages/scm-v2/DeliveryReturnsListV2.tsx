@@ -83,6 +83,7 @@ import {
 } from "../../vendor/scm/lib/return-line-export-columns";
 import { fetchDeliveryReturnExportRows } from "../../vendor/scm/lib/return-list-export";
 import { returnGridColumns, type ReturnColumnValues } from "./return-list-line-columns";
+import { todayMyt } from "../../vendor/scm/lib/dates";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Subset of the DR header (see DeliveryReturnsList.tsx for the full 40-field
@@ -784,10 +785,11 @@ export function DeliveryReturnsListV2() {
   // The backend delivery-returns endpoint accepts a status arg but not our
   // compressed buckets — pull the full set and filter client-side (matches
   // the DO V2 pattern).
-  const { data, isLoading, error } = useDeliveryReturns(undefined);
+  const { data, isLoading, error, refetch } = useDeliveryReturns(undefined);
   // These tiles are reduces over a row set that is [] until the fetch lands (and
   // stays [] if it fails), so a settled-looking "Refund Value RM 0.00" would
   // describe a list nobody has read yet.
+  const statsFailed = Boolean(error);
   const statsPending = isLoading || Boolean(error);
   const updateStatus = useUpdateDeliveryReturnStatus();
 
@@ -938,7 +940,7 @@ export function DeliveryReturnsListV2() {
       for (const r of chosen) bundles.push(await fetchDrBundle(r.id));
       if (how === "one") {
         await generateCombinedDeliveryReturnPdf(bundles as never, {
-          fileName: `delivery-returns-${new Date().toISOString().slice(0, 10)}.pdf`,
+          fileName: `delivery-returns-${todayMyt()}.pdf`,
           action,
         });
       } else {
@@ -1518,7 +1520,7 @@ export function DeliveryReturnsListV2() {
 
           <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Total Returns"
               value={stats.total.toLocaleString("en-MY")}
               subtitle="Scoped to current filter"
@@ -1526,7 +1528,7 @@ export function DeliveryReturnsListV2() {
               active
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Refund Value"
               value={fmtRm(stats.refundSen)}
               subtitle="Money owed back"
@@ -1534,7 +1536,7 @@ export function DeliveryReturnsListV2() {
               rail="bg-err"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Pending"
               value={stats.pendingCount.toLocaleString("en-MY")}
               subtitle="Received · awaiting refund"
@@ -1542,7 +1544,7 @@ export function DeliveryReturnsListV2() {
               rail="bg-accent-bright"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Refunded"
               value={stats.refundedCount.toLocaleString("en-MY")}
               subtitle="Refunded / credit noted"

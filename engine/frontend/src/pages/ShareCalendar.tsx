@@ -32,6 +32,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { correlatedFetch } from "../lib/requestCorrelation";
 import { fmtDate, fmtDateTime } from "../vendor/shared/format";
 import { formatCurrency } from "../lib/utils";
+import { todayMyt } from "../vendor/scm/lib/dates";
+import { PDF_COMPRESS } from "../vendor/scm/lib/pdf-options";
 
 export type ShareMode = "contractor" | "brand";
 
@@ -82,7 +84,7 @@ const EXPORT_FAIL = "Could not prepare the export just now. Please try again in 
 
 const apiBase = (): string =>
   (import.meta.env.VITE_API_URL as string) ||
-  (import.meta.env.PROD ? "" : "http://localhost:8787");
+  (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
 
 const API_SEGMENT: Record<ShareMode, string> = {
   contractor: "contractor-calendar",
@@ -250,7 +252,7 @@ export function ShareCalendar({ mode }: { mode: ShareMode }) {
   const [data, setData] = useState<ShareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const today = useMemo(() => new Date(), []);
+  const today = useMemo(() => parseDay(todayMyt()) ?? new Date(), []);
   const [cursor, setCursor] = useState<{ y: number; m: number }>({ y: today.getFullYear(), m: today.getMonth() });
   // The event whose panel is open, and what the server said about it.
   const [open, setOpen] = useState<ShareEvent | null>(null);
@@ -285,7 +287,7 @@ export function ShareCalendar({ mode }: { mode: ShareMode }) {
           if (!silent) {
             setError(
               res.status === 404
-                ? "This link is not valid. Please ask Carres for a current link."
+                ? "This link is not valid. Please ask Houzs for a current link."
                 : "Could not load the schedule just now. Please try again in a moment.",
             );
           }
@@ -474,7 +476,7 @@ export function ShareCalendar({ mode }: { mode: ShareMode }) {
       }
       const orient = (p: PlanPage) => (p.size && p.size.h > p.size.w ? "portrait" : "landscape");
       const { jsPDF } = await import("jspdf");
-      const doc = new jsPDF({ unit: "mm", format: "a4", orientation: orient(pages[0]) });
+      const doc = new jsPDF({ ...PDF_COMPRESS, unit: "mm", format: "a4", orientation: orient(pages[0]) });
       pages.forEach((p, i) => {
         if (i > 0) doc.addPage("a4", orient(p));
         drawPlanPage(doc, p);
@@ -498,7 +500,7 @@ export function ShareCalendar({ mode }: { mode: ShareMode }) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
         <div className="max-w-sm text-center">
-          <div className="text-lg font-semibold text-gray-800">Carres Event Schedule</div>
+          <div className="text-lg font-semibold text-gray-800">Houzs Event Schedule</div>
           <p className="mt-2 text-sm text-gray-500">{error}</p>
         </div>
       </div>
@@ -517,7 +519,7 @@ export function ShareCalendar({ mode }: { mode: ShareMode }) {
     <div className="min-h-screen bg-[#0F766E]/5 text-gray-900">
       <div className="mx-auto max-w-5xl px-3 py-4 sm:px-5 sm:py-6">
         <div className="mb-4 min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#0F766E]">Carres Event Schedule</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#0F766E]">Houzs Event Schedule</div>
           <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">{party}</h1>
           <p className="mt-0.5 text-[12px] text-gray-500">
             {mode === "brand" ? "Confirmed events for your brand" : "Confirmed events you are in charge of"} · {eventCount} total · view-only
@@ -626,7 +628,7 @@ export function ShareCalendar({ mode }: { mode: ShareMode }) {
         </div>
 
         <p className="mt-3 text-center text-[11px] text-gray-400">
-          Live schedule from Carres · updates automatically · tap an event for details · this link is private to you
+          Live schedule from Houzs · updates automatically · tap an event for details · this link is private to you
         </p>
       </div>
 
@@ -717,7 +719,7 @@ function EventPanel({
             <p className="text-[13px] text-gray-500">Loading floorplan…</p>
           ) : files.length === 0 ? (
             <p className="text-[13px] text-gray-500">
-              No {PLAN_LABEL[mode].toLowerCase()} has been uploaded for this event yet. Please check back later or ask Carres.
+              No {PLAN_LABEL[mode].toLowerCase()} has been uploaded for this event yet. Please check back later or ask Houzs.
             </p>
           ) : (
             <ul className="space-y-4">

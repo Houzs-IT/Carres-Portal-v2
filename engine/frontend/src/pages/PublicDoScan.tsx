@@ -111,7 +111,7 @@ const errorText = (e: unknown): string =>
 
 const apiBase = () =>
   (import.meta.env.VITE_API_URL as string) ||
-  (import.meta.env.PROD ? "" : "http://localhost:8787");
+  (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
 
 export function PublicDoScan() {
   /* Read from the LOCATION, not a router param: this surface is chosen before

@@ -58,7 +58,7 @@ const linkBtn: React.CSSProperties = { background: 'none', border: 'none', paddi
 /* The line tables draw their own skin: SalesOrderDetail's .table pins
    nth-child widths for the sales-line layout, which these columns are not. */
 const lineTable: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-12)' };
-const th: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', textAlign: 'left', padding: '4px 6px', background: '#EEF0F3', borderBottom: '2px solid #E5E7EB', whiteSpace: 'nowrap' };
+const th: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', textAlign: 'left', padding: '4px 6px', background: '#e3e6e0', borderBottom: '2px solid #d6d9d2', whiteSpace: 'nowrap' };
 const td: React.CSSProperties = { padding: '4px 6px', borderBottom: '1px solid var(--line, #ece9e2)', verticalAlign: 'top' };
 
 const StatusChip = ({ r }: { r: Pick<ProductRequest, 'status'> }) => (
@@ -549,7 +549,7 @@ export function RequestForm({ initial, onDone, onCancel }: { initial: ProductReq
   };
 
   const grid = (min: number): React.CSSProperties => ({ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))`, gap: 'var(--space-3)' });
-  const cell: React.CSSProperties = { fontSize: 'var(--fs-12)', padding: '4px 6px', border: '1px solid #E5E7EB', borderRadius: 6, background: '#fff', width: '100%', minWidth: 0 };
+  const cell: React.CSSProperties = { fontSize: 'var(--fs-12)', padding: '4px 6px', border: '1px solid #d6d9d2', borderRadius: 6, background: '#fff', width: '100%', minWidth: 0 };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -672,7 +672,7 @@ export function RequestForm({ initial, onDone, onCancel }: { initial: ProductReq
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Expected delivery date</span>
             <DateField fullWidth value={v.expectedDeliveryDate ?? ''} onChange={(iso) => set({ expectedDeliveryDate: iso || null })} className={styles.fieldInput} aria-label="Expected delivery date"
-              style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8 }} />
+              style={{ background: '#fff', border: '1px solid #d6d9d2', borderRadius: 8 }} />
           </label>
         </div>
         <label className={styles.field}>

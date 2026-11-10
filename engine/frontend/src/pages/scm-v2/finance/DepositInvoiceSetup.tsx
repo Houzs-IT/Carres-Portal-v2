@@ -68,7 +68,7 @@ export function DepositInvoiceSetup() {
               <button type="button" className={css.btnSolid} onClick={onSave} disabled={save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</button>
             )}
             <span className={css.grow} />
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: saved.enabled ? '#2f8a5b' : '#6B7280' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: saved.enabled ? '#2f8a5b' : '#767b6e' }}>
               {saved.enabled ? `On · payments dated from ${fmtDate(saved.fromDate)}` : 'Off'}
             </span>
           </div>

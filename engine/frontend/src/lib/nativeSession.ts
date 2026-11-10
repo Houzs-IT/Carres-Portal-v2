@@ -136,8 +136,8 @@ export async function restoreNativeSession(): Promise<boolean> {
     if ((await p.isAvailable()).isAvailable !== true) return false;
 
     await p.verifyIdentity({
-      reason: "Unlock Carres",
-      title: "Unlock Carres",
+      reason: "Unlock Houzs ERP",
+      title: "Unlock Houzs ERP",
       subtitle: "",
       description: "Use Face ID or your fingerprint to continue where you left off.",
     });

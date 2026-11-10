@@ -121,7 +121,7 @@ export const ScheduleDpOrderDrawer = ({ dpRow, onClose }: { dpRow: ScheduleDpOrd
 
   const fieldRow: CSSProperties = { display: 'block', marginBottom: 'var(--space-3)' };
   const inputStyle: CSSProperties = { width: '100%' };
-  const hintStyle: CSSProperties = { textTransform: 'none', color: 'var(--c-muted, #6B7280)' };
+  const hintStyle: CSSProperties = { textTransform: 'none', color: 'var(--c-muted, #767b6e)' };
 
   const jobType = dpJobTypeLabel(dpRow.dp_job_type);
   const summary = [dpRow.debtor_name, dpRow.address].filter(Boolean).join(' · ');

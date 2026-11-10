@@ -1,4 +1,3 @@
-import { carresNavOnly } from "../carres/navOnly";
 import { NavLink, useLocation } from "react-router-dom";
 import { BACKDATE_DECIDER_PERMS } from "../vendor/scm/lib/payment-backdate-perms";
 import { markWorkspaceOpenIntent } from "../lib/workspaceTabs";
@@ -250,8 +249,7 @@ export interface NavTab {
  * Management). Tabs declare permission via `perm` / `anyPerm`; the
  * filter recurses so groups with no visible kids hide entirely.
  */
-/** Houzs's whole registry, before Carres trims it (carres/navOnly.ts). Exported for the tests that pin its shape. */
-export const ALL_NAV_TABS: NavTab[] = [
+export const NAV_TABS: NavTab[] = [
   // ══ WORKSPACE ════════════════════════════════════════════════
   {
     section: "workspace",
@@ -632,8 +630,6 @@ export const ALL_NAV_TABS: NavTab[] = [
           // Maintenance (2026-08-02): it is reference-data upkeep on the in-house
           // lorries, not a daily dispatch view. The lorry/driver REGISTRY
           // (/scm/fleet) is in Maintenance too.
-          { to: "/scm/lorry-live-map", label: "Lorry Live Map", icon: MapPinned, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.lorry_map"], hideForSalesRep: true },
-          { to: "/scm/lorry-capacity", label: "Lorry Capacity", icon: BarChart3, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.lorry_capacity"], hideForSalesRep: true },
           { to: "/scm/driver-leave", label: "Crew Leave", icon: CalendarOff, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.crew_leave"], hideForSalesRep: true },
           /* "Drivers" (/scm/drivers) retired 2026-07-17 — it duplicated the Drivers
              section of Fleet above, and sat here with the SAME Truck icon and the
@@ -668,7 +664,7 @@ export const ALL_NAV_TABS: NavTab[] = [
             anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.drivers", "scm.transportation.coverage"], hideForSalesRep: true,
             children: [
               { to: "/scm/delivery-maintenance", label: "Coverage & Fleet", icon: Map, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.coverage"], hideForSalesRep: true },
-              { to: "/scm/delivery-zones", label: "Delivery Zones", icon: MapPinned, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.coverage"], hideForSalesRep: true },
+              { to: "/scm/delivery-zones", label: "Delivery Zones", icon: MapPinned, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.drivers"], hideForSalesRep: true },
               { to: "/scm/delivery-rate-cards", label: "Carriers & Rates", icon: Handshake, anyPerm: ["*", "scm.access"], anyAccess: ["scm.transportation.coverage"], hideForSalesRep: true },
               /* Fleet Health joined Maintenance 2026-08-02 (owner: "你把 Fleet
                  Health 加进去 Maintenance 的地方"). It keeps its OWN gate —
@@ -796,6 +792,8 @@ export const ALL_NAV_TABS: NavTab[] = [
           // design's three pages first, then the ERP's own, kept where the owner
           // put them. Every permission gate is as it was.
           { to: "/scm/payment-vouchers", label: "Payment vouchers", icon: Wallet, anyPerm: ["*", "scm.access", "scm.payment_voucher.create", "scm.payment_voucher.write", "scm.payment_voucher.post", "scm.payment_voucher.cancel"], anyAccess: ["scm.finance.money_out"] },
+          // The day's payments, a line each with the bank (owner 2026-11-08: 每天要过账的listing).
+          { to: "/scm/payment-listing", label: "Payment listing", icon: ListChecks, anyPerm: ["*", "scm.access", "scm.payment_voucher.create", "scm.payment_voucher.write", "scm.payment_voucher.post", "scm.payment_voucher.cancel"], anyAccess: ["scm.finance.money_out"] },
           // 申请付款 (owner 2026-09-30) — the requests waiting for a voucher.
           { to: "/scm/payment-requests", label: "Payment requests", icon: HandCoins, anyPerm: ["*", "scm.payment_voucher.create"], badge: "payment-requests-waiting" },
           { to: "/scm/ap-invoices", label: "Supplier bills", icon: FileText, anyPerm: ["*", "scm.access", "scm.payment_voucher.create"], anyAccess: ["scm.finance.money_out"] },
@@ -1106,9 +1104,6 @@ export const ALL_NAV_TABS: NavTab[] = [
     anyPerm: ["*", "pos.manage"],
   },
 ];
-
-// Carres: Supply Chain and Service Cases only (see src/carres/navOnly.ts).
-export const NAV_TABS: NavTab[] = carresNavOnly(ALL_NAV_TABS);
 
 // Accordion sibling map — each expandable group's same-level peers. Opening a
 // group collapses its siblings (top-level groups are mutually exclusive; so are
@@ -1424,7 +1419,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Prop
           // and the no-logo fallback is a two-letter glyph.
           <CompanyMark
             variant="mark"
-            imgClassName="h-9 w-9 object-contain"
+            imgClassName="h-9 w-9 object-contain brightness-0 invert"
             uploadedImgClassName="h-9 w-9 object-contain"
             textClassName="text-[15px] font-bold tracking-wide text-sidebar-ink"
           />
@@ -1433,7 +1428,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Prop
           // The 1:4 aspect ratio + h-10 yields a comfortable ~40×160 box.
           <CompanyMark
             variant="wordmark"
-            imgClassName="h-10 w-auto max-w-[160px] object-contain"
+            imgClassName="h-10 w-auto max-w-[160px] object-contain brightness-0 invert"
             uploadedImgClassName="h-10 w-auto max-w-[160px] object-contain"
             textClassName="truncate text-[15px] font-bold tracking-tight text-sidebar-ink"
           />

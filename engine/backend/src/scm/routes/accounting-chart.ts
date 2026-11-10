@@ -28,6 +28,10 @@ import { hasHouzsPerm } from '../lib/houzs-perms';
 import { ACCOUNT_SECTIONS, defaultSectionFor, isAccountSection, sectionType } from '../lib/account-sections';
 import { PMS_ROWS, PMS_ROW_LABELS, isPmsRow } from '../lib/event-accounts';
 import { LOGISTICS_ROWS, isLogisticsRow, logisticsRowLabel, logisticsRowType } from '../lib/logistics-rows';
+import {
+  assertAuditWritable, auditUnavailableBody, compactChanges, fieldChange, recordEntityAudit,
+  type AuditAction, type FieldChange,
+} from '../lib/entity-audit';
 
 const requireChartPerm = (c: any): boolean => hasHouzsPerm(c, 'scm.payment_voucher.post');
 
@@ -39,7 +43,27 @@ const ACCOUNT_TYPES = new Set(['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENS
    customer deposits), SBS balance-sheet stock. The owner's 2026-09-03 call:
    lock them — 由模块自动过账. */
 const SPECIAL_RE = /^[A-Z]{2,4}$/;
-const CONTROL_SPECIALS = new Set(['SDC', 'SCC', 'SBS']);
+const CONTROL_SPECIALS: ReadonlySet<string> = new Set(['SDC', 'SCC', 'SBS']);
+export const isControlSpecial = (special: string | null | undefined): boolean =>
+  !!special && CONTROL_SPECIALS.has(special);
+
+/* The ONE rule for "may a hand-picked binding or line name this account".
+   Every door asks it (requireLeafAccount for voucher lines, the item-group
+   bind) so the doors cannot drift apart; the frontend's postableAccounts in
+   vendor/scm/lib/accounting-queries.ts is the display mirror of this rule.
+   A header (any child, retired ones included: the GL gate counts every child)
+   never books — 父户不记账. A control account — a CONTROL_ROLES holder the
+   caller resolved, or an SDC/SCC/SBS special — belongs to its module. */
+export type NotPostable = { kind: 'header' } | { kind: 'control'; label: string };
+export const whyNotPostable = (a: {
+  hasChildren: boolean;
+  specialType?: string | null;
+  controlRole?: string | null;
+}): NotPostable | null => {
+  if (a.hasChildren) return { kind: 'header' };
+  const label = a.controlRole || (isControlSpecial(a.specialType) ? a.specialType! : null);
+  return label ? { kind: 'control', label } : null;
+};
 const ACCOUNT_CODE_RE = /^\d{3}-[A-Za-z0-9]{4}$/;
 
 type AccountRow = {
@@ -74,6 +98,34 @@ const allowedIds = (c: any): number[] => {
   const active = c.get('companyId') as number | undefined;
   return typeof active === 'number' ? [active] : [];
 };
+
+/* The audit rule (who, when, from -> to) on the chart: an edit here decides
+   where every later posting lands, in every company carrying the code, and
+   before 2026-11-10 it left no trace. The pre-flight runs BEFORE the first
+   write so a refusal can truthfully say nothing changed (entity-audit.ts);
+   the rows are written after, one per company touched, so each company's
+   trail reads whole. */
+const chartAuditRefusal = async (c: any, code: string | null, action: AuditAction): Promise<Response | null> => {
+  const pf = await assertAuditWritable(c.get('supabase'), { entityType: 'GL_ACCOUNT', entityId: code, action, companyId: null });
+  return pf.ok ? null : c.json(auditUnavailableBody(), 409);
+};
+
+type ChartAuditEntry = { code: string; companyId: number | null; action: AuditAction; changes: Array<FieldChange | null>; note?: string };
+
+const recordChartAudit = async (c: any, entries: ChartAuditEntry[]): Promise<void> => {
+  for (const e of entries) {
+    await recordEntityAudit(c.get('supabase'), {
+      entityType: 'GL_ACCOUNT', entityId: e.code, entityDocNo: e.code, action: e.action,
+      actor: c.get('houzsUser'), companyId: e.companyId, fieldChanges: compactChanges(e.changes),
+      source: 'chart-of-accounts', ...(e.note ? { note: e.note } : {}),
+    });
+  }
+};
+
+const AUDITED_FIELDS = ['account_name', 'account_type', 'parent_code', 'acc_money', 'special_type', 'section', 'needs_event', 'pms_row', 'logistics_row', 'is_active'] as const;
+
+const definitionChanges = (before: Record<string, unknown> | null, after: Record<string, unknown>): Array<FieldChange | null> =>
+  AUDITED_FIELDS.filter((f) => after[f] !== undefined).map((f) => fieldChange(f, before?.[f] ?? null, after[f]));
 
 /* ── GET /accounting/chart — the union, one row per code ─────────────────── */
 export const chartUnionHandler = async (c: any): Promise<Response> => {
@@ -147,6 +199,8 @@ export const chartTickHandler = async (c: any): Promise<Response> => {
   }
   if (!code) return c.json({ error: 'code_required' }, 400);
   const sb = c.get('supabase');
+  const auditRefused = await chartAuditRefusal(c, code, 'UPDATE');
+  if (auditRefused) return auditRefused;
 
   if (active) {
     /* Ticking may have to INSTANTIATE the row (and its parent — a child never
@@ -167,6 +221,10 @@ export const chartTickHandler = async (c: any): Promise<Response> => {
       if (!lookRes.data) return c.json({ error: 'code_unknown', message: `${cursor} exists in no company's chart.` }, 404);
       cursor = (lookRes.data as AccountRow).parent_code;
     }
+    const wasRes = await sb.from('accounts').select('account_code, is_active')
+      .eq('company_id', companyId).in('account_code', chain);
+    if (wasRes.error) return c.json({ error: 'load_failed', reason: wasRes.error.message }, 500);
+    const was = new Map(((wasRes.data ?? []) as Array<{ account_code: string; is_active: boolean }>).map((r) => [r.account_code, r.is_active]));
     for (const step of chain) {
       const defRes = await sb
         .from('accounts')
@@ -193,6 +251,10 @@ export const chartTickHandler = async (c: any): Promise<Response> => {
       }, { onConflict: 'company_id,account_code' });
       if (upErr) return c.json({ error: 'save_failed', reason: upErr.message }, 500);
     }
+    await recordChartAudit(c, chain.filter((step) => was.get(step) !== true).map((step) => ({
+      code: step, companyId, action: was.has(step) ? 'UPDATE' : 'CREATE',
+      changes: [fieldChange('is_active', was.has(step) ? false : null, true)],
+    })));
     return c.json({ ok: true, companyId, code, active: true, instantiated: chain });
   }
 
@@ -213,12 +275,17 @@ export const chartTickHandler = async (c: any): Promise<Response> => {
     frontier = ((kids ?? []) as Array<{ account_code: string }>).map((k) => k.account_code);
     toDisable.push(...frontier);
   }
-  const { error: offErr } = await sb
+  const { data: turnedOff, error: offErr } = await sb
     .from('accounts')
     .update({ is_active: false })
     .eq('company_id', companyId)
-    .in('account_code', toDisable);
+    .in('account_code', toDisable)
+    .eq('is_active', true)
+    .select('account_code');
   if (offErr) return c.json({ error: 'save_failed', reason: offErr.message }, 500);
+  await recordChartAudit(c, ((turnedOff ?? []) as Array<{ account_code: string }>).map((r) => ({
+    code: r.account_code, companyId, action: 'UPDATE' as const, changes: [fieldChange('is_active', true, false)],
+  })));
   return c.json({ ok: true, companyId, code, active: false, disabled: toDisable });
 };
 
@@ -288,9 +355,26 @@ export const chartImportHandler = async (c: any): Promise<Response> => {
     is_active: true,
   }));
 
+  const importRefused = await chartAuditRefusal(c, null, 'UPDATE');
+  if (importRefused) return importRefused;
+  /* Chunked: up to 1000 codes would not fit one request URL. */
+  const beforeRows: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < clean.length; i += 150) {
+    const beforeRes = await sb.from('accounts').select(`company_id, is_active, ${DEFINITION_FIELDS}`)
+      .in('account_code', clean.slice(i, i + 150).map((r) => r.code));
+    if (beforeRes.error) return c.json({ error: 'load_failed', reason: beforeRes.error.message }, 500);
+    beforeRows.push(...((beforeRes.data ?? []) as Array<Record<string, unknown>>).map((r) => ({ ...r })));
+  }
+  const importAudit = (companyId: number, upserted: Array<Record<string, unknown>>): ChartAuditEntry[] => upserted.map((row): ChartAuditEntry => {
+    const was = beforeRows.find((b) => Number(b.company_id) === companyId && b.account_code === row.account_code) ?? null;
+    return { code: String(row.account_code), companyId, action: was ? 'UPDATE' : 'CREATE', changes: definitionChanges(was, row), note: 'Chart import' };
+  }).filter((e) => compactChanges(e.changes).length > 0);
+  const audit: ChartAuditEntry[] = [];
+
   const { error: mainErr } = await sb.from('accounts')
     .upsert(toUpsert(targetId, clean), { onConflict: 'company_id,account_code' });
   if (mainErr) return c.json({ error: 'save_failed', reason: mainErr.message }, 500);
+  audit.push(...importAudit(targetId, toUpsert(targetId, clean)));
 
   /* 选择性公用: rows the caller marked shared land in EVERY granted company
      (the classification — skeleton shared, banks/related-party/director
@@ -309,7 +393,9 @@ export const chartImportHandler = async (c: any): Promise<Response> => {
     const { error: shErr } = await sb.from('accounts')
       .upsert(toUpsert(id, sharedRows), { onConflict: 'company_id,account_code' });
     if (shErr) return c.json({ error: 'save_failed', reason: `company ${id}: ${shErr.message}` }, 500);
+    audit.push(...importAudit(id, toUpsert(id, sharedRows)));
   }
+  await recordChartAudit(c, audit);
 
   return c.json({
     ok: true,
@@ -343,7 +429,7 @@ export const requireLeafAccount = async (
     .eq('parent_code', code)
     .limit(1);
   if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
-  if (((kids ?? []) as unknown[]).length > 0) {
+  if (whyNotPostable({ hasChildren: ((kids ?? []) as unknown[]).length > 0 })) {
     return c.json({
       error: 'not_a_leaf_account',
       message: `${code} is a header with sub-accounts (retired ones count too) — 父户不记账: pick the specific sub-account instead.`,
@@ -358,10 +444,11 @@ export const requireLeafAccount = async (
     .maybeSingle();
   if (selfRes.error) return c.json({ error: 'load_failed', reason: selfRes.error.message }, 500);
   const special = (selfRes.data as { special_type?: string | null } | null)?.special_type ?? null;
-  if (special && CONTROL_SPECIALS.has(special)) {
+  const blocked = whyNotPostable({ hasChildren: false, specialType: special });
+  if (blocked?.kind === 'control') {
     return c.json({
       error: 'control_account_locked',
-      message: `${code} is a control account (${special}) — 由模块自动过账 (AR/AP/stock post through their own flows); pick an ordinary account instead.`,
+      message: `${code} is a control account (${blocked.label}) — 由模块自动过账 (AR/AP/stock post through their own flows); pick an ordinary account instead.`,
     }, 400);
   }
   return null;
@@ -436,6 +523,8 @@ export const chartCreateHandler = async (c: any): Promise<Response> => {
   }
 
   const sb = c.get('supabase');
+  const createRefused = await chartAuditRefusal(c, code, 'CREATE');
+  if (createRefused) return createRefused;
   for (const candidate of dep ? [code, dep.code] : [code]) {
     const { data: exists, error: exErr } = await sb
       .from('accounts').select('company_id').eq('account_code', candidate).limit(1);
@@ -523,6 +612,11 @@ export const chartCreateHandler = async (c: any): Promise<Response> => {
       if (depErr) return c.json({ error: 'save_failed', reason: depErr.message }, 500);
     }
   }
+  const created: Record<string, unknown> = { account_name: name, account_type: type, parent_code: parent, acc_money: money, special_type: special, section, is_active: true };
+  await recordChartAudit(c, targets.flatMap((companyId) => [
+    { code, companyId, action: 'CREATE' as const, changes: definitionChanges(null, created) },
+    ...(dep ? [{ code: dep.code, companyId, action: 'CREATE' as const, changes: definitionChanges(null, { ...created, account_name: dep.name, acc_money: false, special_type: 'SAD' }), note: `Depreciation account of ${code}` }] : []),
+  ]));
   return c.json({ ok: true, code, companies: targets, ...(dep ? { depreciationCode: dep.code } : {}) });
 };
 
@@ -545,12 +639,15 @@ export const chartRenameHandler = async (c: any): Promise<Response> => {
     return c.json({ error: 'bad_code', message: `${newCode} is not in the NNN-XXXX account-code shape.` }, 400);
   }
   const sb = c.get('supabase');
+  const renameRefused = await chartAuditRefusal(c, oldCode, 'UPDATE');
+  if (renameRefused) return renameRefused;
   const { data, error } = await sb.rpc('acc_rename_account', { p_old: oldCode, p_new: newCode });
   if (error) {
     const msg = String(error.message ?? '');
     const refused = /already exists|does not exist|account-code shape|two different codes/.test(msg);
     return c.json({ error: refused ? 'rename_refused' : 'rename_failed', message: msg }, refused ? 400 : 500);
   }
+  await recordChartAudit(c, [{ code: newCode, companyId: null, action: 'UPDATE', changes: [fieldChange('account_code', oldCode, newCode)] }]);
   return c.json({ ok: true, oldCode, newCode, moved: data ?? {} });
 };
 
@@ -711,6 +808,11 @@ export const chartUpdateHandler = async (c: any): Promise<Response> => {
   }
 
   if (Object.keys(patch).length === 0) return c.json({ error: 'nothing_to_change' }, 400);
+  const updateRefused = await chartAuditRefusal(c, code, 'UPDATE');
+  if (updateRefused) return updateRefused;
+  const priorRes = await sb.from('accounts').select(`company_id, is_active, ${DEFINITION_FIELDS}`).eq('account_code', code);
+  if (priorRes.error) return c.json({ error: 'load_failed', reason: priorRes.error.message }, 500);
+  const prior = ((priorRes.data ?? []) as Array<Record<string, unknown>>).map((r) => ({ ...r }));
 
   if (isLogisticsRow(patch.logistics_row)) {
     let type = patch.account_type as string | undefined;
@@ -745,6 +847,11 @@ export const chartUpdateHandler = async (c: any): Promise<Response> => {
   if (error) return c.json({ error: 'save_failed', reason: error.message }, 500);
   const touched = ((data ?? []) as Array<{ company_id: number }>);
   if (touched.length === 0) return c.json({ error: 'code_unknown', message: `${code} exists in no company's chart.` }, 404);
+  await recordChartAudit(c, touched.map((t) => ({
+    code, companyId: t.company_id, action: 'UPDATE' as const,
+    changes: definitionChanges(prior.find((r) => Number(r.company_id) === t.company_id) ?? null, patch),
+    ...(sectionCodes && sectionCodes.length > 1 ? { note: `Sub-accounts moved with it: ${sectionCodes.slice(1).join(', ')}` } : {}),
+  })));
 
   /* A re-parented child must find its header in EVERY company it lives in —
      instantiate the parent chain from the master definition where missing
@@ -826,6 +933,11 @@ export const chartDeleteHandler = async (c: any): Promise<Response> => {
     }, 409);
   }
 
+  const deleteRefused = await chartAuditRefusal(c, code, 'DELETE');
+  if (deleteRefused) return deleteRefused;
+  const doomedRes = await sb.from('accounts').select(`company_id, is_active, ${DEFINITION_FIELDS}`).eq('account_code', code);
+  if (doomedRes.error) return c.json({ error: 'load_failed', reason: doomedRes.error.message }, 500);
+  const doomed = (doomedRes.data ?? []) as Array<Record<string, unknown>>;
   const { data: gone, error: delErr } = await sb
     .from('accounts')
     .delete()
@@ -834,5 +946,9 @@ export const chartDeleteHandler = async (c: any): Promise<Response> => {
   if (delErr) return c.json({ error: 'delete_failed', reason: delErr.message }, 500);
   const removed = ((gone ?? []) as unknown[]).length;
   if (removed === 0) return c.json({ error: 'code_unknown', message: `${code} exists in no company's chart.` }, 404);
+  await recordChartAudit(c, ((gone ?? []) as Array<{ company_id: number }>).map((g) => {
+    const was = doomed.find((r) => Number(r.company_id) === g.company_id) ?? {};
+    return { code, companyId: g.company_id, action: 'DELETE' as const, changes: AUDITED_FIELDS.map((f) => fieldChange(f, was[f] ?? null, null)) };
+  }));
   return c.json({ ok: true, code, companies: removed });
 };

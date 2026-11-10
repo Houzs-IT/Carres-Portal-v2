@@ -47,6 +47,7 @@ export interface CreateAssrInput {
   /** Operations PIC — assr_cases.assigned_to. When provided, overrides
    *  the admin-configured default assignee. */
   assigned_to?: number | null;
+  delivery_order?: string | null; // the DO, set by a crew POD issue report
   created_by?: number;
   /** Multi-company (Phase 0b) — the active company (companies.id) resolved
    *  from the request via activeCompanyId(c). Left undefined pre-migration /
@@ -218,34 +219,6 @@ export async function getActiveLeadTimeProfileId(env: Env): Promise<number | nul
 }
 
 // ── PO number generator (internal / service-issued) ───────────
-
-/**
- * Generates the next internal service PO number in format
- * APO/YYMM-NNN (Assr Purchase Order). Sequence resets each month
- * and is based on the highest existing po_no in assr_cases that
- * matches the prefix — no dedicated counter table.
- */
-export async function nextServicePONumber(env: Env): Promise<string> {
-  const now = new Date();
-  const yy = String(now.getUTCFullYear()).slice(-2);
-  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const prefix = `APO/${yy}${mm}`;
-
-  const row = await env.DB.prepare(
-    `SELECT po_no FROM assr_cases
-      WHERE po_no LIKE ?
-      ORDER BY po_no DESC LIMIT 1`
-  )
-    .bind(`${prefix}-%`)
-    .first<{ po_no: string }>();
-
-  let next = 1;
-  if (row?.po_no) {
-    const seq = parseInt(row.po_no.split("-")[1] ?? "", 10);
-    if (!isNaN(seq)) next = seq + 1;
-  }
-  return `${prefix}-${String(next).padStart(3, "0")}`;
-}
 
 // ── ASSR number generator ─────────────────────────────────────
 
@@ -586,12 +559,9 @@ export async function createAssrCase(
       // form so a case is created complete rather than backfilled.
       input.customer_email ?? null,
       categories?.display ?? null,
-      // delivery_order / do_date <- the SO's linked DO. The AutoCount
-      // /SalesOrder/getSingle context does not expose a DO doc no or
-      // date, so these stay NULL at create time (case manager fills
-      // them via PATCH). Bound explicitly so the columns stay covered
-      // if the context ever starts carrying DO fields.
-      null,
+      // delivery_order <- only a crew POD issue report knows its DO (getSingle
+      // exposes none); do_date stays NULL: it is the SERVICE delivery leg's date.
+      input.delivery_order ?? null,
       null,
       defaultAssigneeId,
       defaultAssignee2Id,
@@ -966,7 +936,7 @@ export async function transitionStage(
   }
   if (newStage === "completed") {
     sets.push("completion_date = ?");
-    binds.push(nowIso.slice(0, 10));
+    binds.push(todayMyt());
   }
 
   binds.push(id);

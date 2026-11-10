@@ -2,13 +2,13 @@
    (2026-11-02, batch 2). Kind colours are the design's KIND table. */
 
 .wrap {
-  --fin-ink: #111827;
-  --fin-text: #4B5563;
+  --fin-ink: #11140f;
+  --fin-text: #414539;
   --fin-detail: #5f6459;
-  --fin-muted: #6B7280;
-  --fin-line: #E5E7EB;
-  --fin-rule: #EEF0F3;
-  --fin-petrol: #1B1B39;
+  --fin-muted: #767b6e;
+  --fin-line: #d6d9d2;
+  --fin-rule: #e3e6e0;
+  --fin-petrol: #16695f;
   display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start;
   color: var(--fin-ink); font-variant-numeric: tabular-nums;
 }
@@ -24,7 +24,7 @@
   width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--fin-line); border-radius: 6px;
   background: #ffffff; color: var(--fin-text); cursor: pointer;
 }
-.nav:hover { background: #F8F9FA; }
+.nav:hover { background: #f4f6f3; }
 .calTitle { font-size: 15px; font-weight: 600; min-width: 140px; text-align: center; }
 .grow { flex: 1; }
 .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--fin-detail); }
@@ -43,7 +43,7 @@
 .cellOut .num { color: #b5b9b0; }
 .cellSel { box-shadow: inset 0 0 0 2px var(--fin-petrol); }
 .cellToday .num { background: var(--fin-petrol); color: #ffffff; }
-.cellOver { background: #DCE6FD; }
+.cellOver { background: #e1efed; }
 .num {
   align-self: flex-start; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; box-sizing: border-box;
   display: inline-grid; place-items: center; font-size: 11.5px; font-weight: 600; color: var(--fin-text);
@@ -60,10 +60,10 @@
 .more { font-size: 11px; color: var(--fin-muted); padding-left: 2px; }
 
 /* The design's KIND table: dot, ground, ink. */
-.kindPay { --k-dot: #D64F20; --k-bg: #f3ece0; --k-fg: #5a3a14; }
+.kindPay { --k-dot: #a16a2e; --k-bg: #f3ece0; --k-fg: #5a3a14; }
 .kindIn { --k-dot: #2f8a5b; --k-bg: #e2f0e9; --k-fg: #1e5a3b; }
-.kindRoutine { --k-dot: #1B1B39; --k-bg: #DCE6FD; --k-fg: #2F55E0; }
-.kindTask { --k-dot: #4B5563; --k-bg: #F6F7F9; --k-fg: #111827; }
+.kindRoutine { --k-dot: #16695f; --k-bg: #e1efed; --k-fg: #0c3f39; }
+.kindTask { --k-dot: #414539; --k-bg: #eef0ec; --k-fg: #11140f; }
 .kindLate { --k-dot: #b23a3a; --k-bg: #f8eaea; --k-fg: #7a2222; }
 .dot.kindPay, .dot.kindIn, .dot.kindRoutine, .dot.kindTask, .dot.kindLate { background: var(--k-dot); }
 
@@ -85,7 +85,7 @@
   margin-top: 4px; height: 26px; padding: 0 10px; border: 1px solid var(--fin-line); border-radius: 6px; background: #ffffff;
   color: var(--fin-text); font: 600 12px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer;
 }
-.itemAction:hover:not(:disabled) { background: #F8F9FA; }
+.itemAction:hover:not(:disabled) { background: #f4f6f3; }
 .itemAmount { flex: none; font-size: 12.5px; font-weight: 600; }
 .amountIn { color: #2f8a5b; }
 .linkChip {

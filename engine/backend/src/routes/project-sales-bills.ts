@@ -16,6 +16,8 @@
 //        and the latest summary's Total for Total Sales
 //   POST /api/project-sales-bills/:projectId/notify          ask the rep of any
 //        order found under another event to amend its fair
+//   POST /api/project-sales-bills/:projectId/books-gap       take a gap off Books
+//        not complete, or put it back, when the event truly has none
 //   POST /api/project-sales-bills/:projectId/void/:activityId  void a wrongly
 //        pasted chat message: it leaves the chat and stops counting
 //
@@ -39,11 +41,12 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Env, Variables } from "../scm/env";
 import { supabaseAuth } from "../scm/middleware/auth";
 import { getDb } from "../db/client";
-import { projects, project_activity, project_finance, project_sales_attendees, positions, sales_reps, users } from "../db/schema";
+import { projects, project_activity, project_finance, project_sales_attendees, positions, roles, sales_reps, users } from "../db/schema";
 import { activeCompanyId, requireActiveCompanyId, scopeToCompany } from "../scm/lib/companyScope";
 import { paginateAll, chunkIn, type PageResult } from "../scm/lib/paginate-all";
 import { postPersonalNotice } from "../services/personalNotice";
 import { canReassignFair } from "../scm/lib/fair-reassign";
+import { BOOKS_GAPS, isBooksGap } from "../scm/lib/project-data-gaps";
 import {
   canSaveSalesReport,
   collectReport,
@@ -63,9 +66,9 @@ const ONLY_THREE = "Only the Owner, Ummu, Wei Siang, Peter, or an attending rep 
 
 /** The real caller — supabaseAuth has replaced `user` with the pinned scm
  *  staff row by the time a handler runs; the person is in houzsUser. */
-function realUser(c: Ctx): { email?: string | null; position_name?: string | null; id: number } | null {
+function realUser(c: Ctx): { email?: string | null; position_name?: string | null; role_name?: string | null; id: number } | null {
   const hu = c.get("houzsUser");
-  return hu ? { id: hu.id, email: hu.email ?? null, position_name: hu.position_name ?? null } : null;
+  return hu ? { id: hu.id, email: hu.email ?? null, position_name: hu.position_name ?? null, role_name: hu.role_name ?? null } : null;
 }
 
 function parseProjectId(c: Ctx): number | null {
@@ -130,10 +133,12 @@ async function loadNotes(db: Db, projectId: number): Promise<NoteRow[]> {
       created_at: project_activity.created_at,
       author_email: users.email,
       author_position: positions.name,
+      author_role: roles.name,
     })
     .from(project_activity)
     .leftJoin(users, eq(users.id, project_activity.user_id))
     .leftJoin(positions, eq(positions.id, users.position_id))
+    .leftJoin(roles, eq(roles.id, users.role_id))
     .where(and(eq(project_activity.project_id, projectId), eq(project_activity.action, "note"), isNull(project_activity.archived_at)))
     .orderBy(asc(project_activity.created_at), asc(project_activity.id));
   return rows.map((r) => ({
@@ -142,6 +147,7 @@ async function loadNotes(db: Db, projectId: number): Promise<NoteRow[]> {
     created_at: r.created_at,
     author_email: r.author_email,
     author_position: r.author_position,
+    author_role: r.author_role,
   }));
 }
 
@@ -345,6 +351,38 @@ projectSalesBills.post("/:projectId/rename-ref", async (c) => {
     isNull(project_activity.archived_at),
   ));
   await db.insert(project_activity).values({ project_id: project.id, user_id: me.id, action: "sales_report_ref_changed", note: `${from} -> ${to}` });
+  return c.json({ ok: true });
+});
+
+/* Take a gap off Books not complete, or put it back (owner 2026-11-05: the event
+   truly has no rental, report or size). The activity row is the record: who, when,
+   and a line in the event's chat. Writing the state it already has changes nothing. */
+projectSalesBills.post("/:projectId/books-gap", async (c) => {
+  const me = realUser(c);
+  const projectId = parseProjectId(c);
+  if (projectId == null) return c.json({ error: "invalid_project_id" }, 400);
+  let body: { gap?: unknown; waived?: unknown } | null;
+  try { body = await c.req.json() as { gap?: unknown; waived?: unknown }; } catch { return c.json({ error: "invalid_json" }, 400); }
+  const gap = body?.gap;
+  if (!isBooksGap(gap) || typeof body?.waived !== "boolean") return c.json({ error: "invalid_gap" }, 400);
+  if (!me || !canSaveSalesReport(me, null)) return c.json({ error: "Only the Owner, Ummu, Wei Siang or Peter can do this." }, 403);
+  const company = requireActiveCompanyId(c);
+  if (!company.ok) return c.json(company.refusal, 409);
+  const db = getDb(c.env);
+  const project = await loadProject(db, projectId, company.companyId);
+  if (!project) return c.json({ error: "Not found" }, 404);
+  const live = and(
+    eq(project_activity.project_id, project.id),
+    eq(project_activity.action, "books_gap_waived"),
+    eq(project_activity.to_value, gap),
+    isNull(project_activity.archived_at),
+  );
+  if (!body.waived) {
+    await db.update(project_activity).set({ archived_at: sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')` }).where(live);
+    return c.json({ ok: true });
+  }
+  const [had] = await db.select({ id: project_activity.id }).from(project_activity).where(live).limit(1);
+  if (!had) await db.insert(project_activity).values({ project_id: project.id, user_id: me.id, action: "books_gap_waived", to_value: gap, note: BOOKS_GAPS[gap] });
   return c.json({ ok: true });
 });
 

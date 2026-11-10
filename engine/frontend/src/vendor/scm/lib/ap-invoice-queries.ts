@@ -7,6 +7,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authedFetch } from './authed-fetch';
+import { idempotentInit } from '../../../lib/idempotency';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
 import { fetchDocFileBlobUrl, type PvFile, type PvFilePayload } from './payment-voucher-queries';
 
@@ -79,6 +80,26 @@ export const useApInvoices = (kind: ApListKind = 'ALL', docKind?: ApDocKind) => 
   staleTime: 15_000,
 });
 
+/** A supplier bill number booked on more than one live invoice of the same
+    supplier (server: routes/ap-duplicate-bills.ts). Read-only; Finance cancels
+    the wrong copy on its own page. */
+export type DuplicateBillSettlement = { kind: 'PV' | 'CN'; id: string; number: string; status: string; amountSen: number };
+export type DuplicateBillCopy = {
+  id: string; invoiceNumber: string; supplierInvoiceRef: string | null; invoiceDate: string | null;
+  currency: string; totalSen: number; paidSen: number; status: string; settlements: DuplicateBillSettlement[];
+};
+export type DuplicateBillGroup = {
+  kind: 'API' | 'PI'; docKind: ApDocKind; supplierId: string; supplierCode: string | null; supplierName: string | null;
+  billKey: string; paidMoreThanOnce: boolean; copies: DuplicateBillCopy[];
+};
+
+export const useDuplicateSupplierBills = () => useQuery({
+  queryKey: ['ap-invoices', 'duplicate-bills'],
+  queryFn: () => authedFetch<{ groups: DuplicateBillGroup[] }>('/ap-invoices/duplicate-bills'),
+  staleTime: 15_000,
+  retry: retryUnlessClientError,
+});
+
 /** Plan a bill's payment date, or clear the plan (null) — an AP bill or a purchase invoice; posts nothing. */
 export const usePlanBill = () => {
   const qc = useQueryClient();
@@ -114,8 +135,11 @@ export const useCreateApInvoice = () => {
   return useMutation({
     /* paymentRequestId: the 申请付款 this bill answers (owner 2026-09-30, 6.1) —
        the server claims it and copies its files on (requestFilesCopied). */
-    mutationFn: (body: { supplierId: string; supplierInvoiceRef?: string; invoiceDate: string; dueDate?: string | null; notes?: string; lines: ApInvoiceLineInput[]; paymentRequestId?: string; docKind?: ApDocKind }) =>
-      authedFetch<{ ok: boolean; invoice: ApInvoiceHeader; requestFilesCopied?: number }>(`/ap-invoices`, { method: 'POST', body: JSON.stringify(body) }),
+    /* `idempotencyKey`: one per opened form, so a double press (or a retry after
+       the upload or post half failed) answers the SAME bill instead of a second
+       one. The route releases the key on every refusal (noWriteUntilMarked). */
+    mutationFn: ({ idempotencyKey, ...body }: { idempotencyKey: string | null; supplierId: string; supplierInvoiceRef?: string; invoiceDate: string; dueDate?: string | null; notes?: string; lines: ApInvoiceLineInput[]; paymentRequestId?: string; docKind?: ApDocKind }) =>
+      authedFetch<{ ok: boolean; invoice: ApInvoiceHeader; requestFilesCopied?: number }>(`/ap-invoices`, idempotentInit(idempotencyKey ?? undefined, { method: 'POST', body: JSON.stringify(body) })),
     onSuccess: () => invalidate(qc),
   });
 };

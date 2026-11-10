@@ -9,10 +9,10 @@
  * elsewhere in the mobile tree (there is no shared mobile palette module).
  */
 const INK_SEC = "#3f463a";
-const BROWN = "#D64F20";
+const BROWN = "#a16a2e";
 const BROWN_SOFT = "#f6efd9";
 const BROWN_FG = "#8a6a2e";
-const LINE = "#E5E7EB";
+const LINE = "#d6d9d2";
 
 export type LegOwnerOption = { v: string; label: string };
 

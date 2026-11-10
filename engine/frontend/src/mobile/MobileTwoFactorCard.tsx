@@ -141,7 +141,7 @@ export function MobileTwoFactorCard() {
         {totp.status?.enabled ? (
           <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 12.5, color: "var(--ink)" }}>
-              <span style={{ fontWeight: 700, color: "#1B1B39" }}>Enabled</span>
+              <span style={{ fontWeight: 700, color: "#16695f" }}>Enabled</span>
               {" · "}
               {totp.status.backup_codes_remaining} backup code
               {totp.status.backup_codes_remaining === 1 ? "" : "s"} left

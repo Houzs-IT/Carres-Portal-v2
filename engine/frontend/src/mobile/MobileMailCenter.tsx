@@ -37,12 +37,15 @@ import {
 } from "../pages/MailCenter/mail-attachments";
 import { parseRecipients, firstInvalid, addRecipients } from "../pages/MailCenter/mail-recipients";
 import { RecipientPicker } from "../pages/MailCenter/RecipientPicker";
+import { EMAIL_FRAME_SANDBOX_MEASURABLE, emailSrcDoc } from "../pages/MailCenter/mail-email-frame";
 import { MobileMessageAcks, MobileNeedsAck, MobilePendingAcks, MobileReadBy } from "./MobileMailAcks";
 import type { AckState, ThreadReaders } from "../pages/MailCenter/mail-acks";
 import { MobileVisibility } from "./MobileMailPersonal";
 import { useMailVisibility } from "../pages/MailCenter/mail-sidebar";
 import "./mobile.css";
 import { fmtDate, fmtDateTime, fmtTime as fmtClock } from "../vendor/shared/format";
+import { mytDayOf, todayMyt } from "../vendor/scm/lib/dates";
+import { openLoadedTab } from "../lib/openLoadedTab";
 
 // Mobile Mail Center — the email client, wired to /api/mail-center. Kept at
 // desktop feature parity (MailCenter/Inbox.tsx + Thread.tsx) minus the desktop-
@@ -172,7 +175,7 @@ const FOLDERS: [Folder, string][] = [
 ];
 
 // Deterministic avatar colour + initials, matching the design's mailAv/mailIni.
-const AV_COLORS = ["#1B1B39", "#D64F20", "#2a6f9e", "#7a5c86", "#b45309", "#0e7490"];
+const AV_COLORS = ["#16695f", "#a16a2e", "#2a6f9e", "#7a5c86", "#b45309", "#0e7490"];
 const avColor = (s: string) => AV_COLORS[(s || "?").charCodeAt(0) % AV_COLORS.length];
 const initials = (s: string) =>
   (s || "?")
@@ -199,12 +202,9 @@ const fmtTime = (iso: string | null | undefined): string => {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(+d)) return "";
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return fmtClock(d);
-  const yest = new Date(now);
-  yest.setDate(now.getDate() - 1);
-  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  const day = mytDayOf(d.toISOString());
+  if (day === todayMyt()) return fmtClock(d);
+  if (day === todayMyt(-1)) return "Yesterday";
   return fmtDate(d);
 };
 
@@ -461,15 +461,15 @@ export function MobileMailCenter({ onBack }: { onBack?: () => void }) {
       <header className="hdr">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
           {onBack ? (
-            <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#1B1B39", cursor: "pointer" }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+            <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#16695f", cursor: "pointer" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
               Menu
             </span>
           ) : <span />}
           <button
             onClick={() => setCompose({ mode: "new" })}
             className="tinybtn"
-            style={{ background: "#1B1B39", borderColor: "#1B1B39", color: "#fff", display: "flex", alignItems: "center", gap: 5 }}
+            style={{ background: "#16695f", borderColor: "#16695f", color: "#fff", display: "flex", alignItems: "center", gap: 5 }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
             New
@@ -505,7 +505,7 @@ export function MobileMailCenter({ onBack }: { onBack?: () => void }) {
             aria-label="Search all mail"
           />
           {searching && (
-            <span role="status" aria-live="polite" style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: "#1B1B39", whiteSpace: "nowrap" }}>
+            <span role="status" aria-live="polite" style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: "#16695f", whiteSpace: "nowrap" }}>
               Searching…
             </span>
           )}
@@ -619,27 +619,27 @@ function ThreadRow({ t, colorMap, onOpen }: { t: Thread; colorMap: Map<string, s
   return (
     <div
       onClick={onOpen}
-      style={{ display: "flex", gap: 11, background: "#fff", border: `1px solid ${t.unread ? "#bcdcd7" : "#EEF0F3"}`, borderRadius: 13, padding: "11px 12px", cursor: "pointer" }}
+      style={{ display: "flex", gap: 11, background: "#fff", border: `1px solid ${t.unread ? "#bcdcd7" : "#e3e6e0"}`, borderRadius: 13, padding: "11px 12px", cursor: "pointer" }}
     >
       <div style={{ width: 38, height: 38, flex: "none", borderRadius: "50%", background: avColor(who), color: "#fff", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {initials(who)}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: t.unread ? 800 : 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{who}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: t.unread ? 800 : 600, color: "#11140f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{who}</span>
           {t.starred && (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="#D64F20" stroke="#D64F20" strokeWidth="1.5" style={{ flex: "none" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#d8a85a" stroke="#d8a85a" strokeWidth="1.5" style={{ flex: "none" }}>
               <path d="M12 2l3 6 6 .9-4.5 4.3 1 6-5.5-3-5.5 3 1-6L3 8.9 9 8Z" />
             </svg>
           )}
           <span className="money" style={{ fontSize: 10, color: "#9aa093", flex: "none", whiteSpace: "nowrap" }}>{fmtTime(t.lastMessageAt)}</span>
         </div>
-        <div style={{ fontSize: 12.5, fontWeight: t.unread ? 700 : 500, color: "#111827", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ fontSize: 12.5, fontWeight: t.unread ? 700 : 500, color: "#11140f", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {t.lastDirection === "outbound" ? "You: " : ""}
           {t.subject}
           {t.messageCount > 1 && <span style={{ color: "#9aa093", fontWeight: 600 }}> ({t.messageCount})</span>}
         </div>
-        <div style={{ fontSize: 11.5, color: "#6B7280", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.lastSnippet}</div>
+        <div style={{ fontSize: 11.5, color: "#767b6e", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.lastSnippet}</div>
         {t.labels.length > 0 && (
           <div style={{ display: "flex", gap: 5, marginTop: 6, flexWrap: "wrap" }}>
             {t.labels.map((l) => {
@@ -653,7 +653,7 @@ function ThreadRow({ t, colorMap, onOpen }: { t: Thread; colorMap: Map<string, s
           </div>
         )}
       </div>
-      {t.unread && <span style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: "#1B1B39", marginTop: 6 }} />}
+      {t.unread && <span style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: "#16695f", marginTop: 6 }} />}
     </div>
   );
 }
@@ -855,7 +855,7 @@ function MailThread({
           </button>
           {thread && (
             <div style={{ display: "flex", gap: 7 }}>
-              <button onClick={toggleStar} disabled={busy} className="tinybtn" style={thread.starred ? { color: "#D64F20" } : undefined}>
+              <button onClick={toggleStar} disabled={busy} className="tinybtn" style={thread.starred ? { color: "#d8a85a" } : undefined}>
                 {thread.starred ? "★ Starred" : "☆ Star"}
               </button>
               <button onClick={archive} disabled={busy} className="tinybtn">
@@ -953,14 +953,14 @@ function MailThread({
             <button
               onClick={() => onCompose("replyall")}
               className="btn"
-              style={{ flex: 1, fontSize: 13.5, padding: "13px 6px", background: "#fff", color: "#1B1B39", border: "1.5px solid #1B1B39" }}
+              style={{ flex: 1, fontSize: 13.5, padding: "13px 6px", background: "#fff", color: "#16695f", border: "1.5px solid #16695f" }}
             >
               Reply all
             </button>
             <button
               onClick={() => onCompose("forward")}
               className="btn"
-              style={{ flex: 1, fontSize: 13.5, padding: "13px 6px", background: "#fff", color: "#1B1B39", border: "1.5px solid #1B1B39" }}
+              style={{ flex: 1, fontSize: 13.5, padding: "13px 6px", background: "#fff", color: "#16695f", border: "1.5px solid #16695f" }}
             >
               Forward
             </button>
@@ -1018,7 +1018,7 @@ function LabelPicker({
               className="tinybtn"
               style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", background: "#fff", fontSize: 12.5 }}
             >
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: l.color || "#6B7280", flex: "none" }} />
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: l.color || "#767b6e", flex: "none" }} />
               {l.name}
             </button>
           ))}
@@ -1061,7 +1061,7 @@ function MessageBubble({ m, onAcked }: { m: Message; onAcked: () => void }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>{who}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>{who}</span>
           {!out && m.fromAddress && (
             <span style={{ fontSize: 10, color: "#9aa093", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.fromAddress}</span>
           )}
@@ -1071,11 +1071,11 @@ function MessageBubble({ m, onAcked }: { m: Message; onAcked: () => void }) {
           <span style={{ fontSize: 10, color: "#9aa093", marginLeft: "auto", flex: "none" }}>{fmtMsgTime(m)}</span>
         </div>
         {rawHtml ? (
-          <div style={{ background: out ? "#DCE6FD" : "#F8F9FA", borderRadius: 11, padding: "6px 8px", marginTop: 5 }}>
+          <div style={{ background: out ? "#e1efed" : "#f4f6f3", borderRadius: 11, padding: "6px 8px", marginTop: 5 }}>
             <HtmlBody html={rawHtml} attachments={atts} />
           </div>
         ) : (
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: "#4B5563", marginTop: 5, background: out ? "#DCE6FD" : "#F8F9FA", borderRadius: 11, padding: "11px 12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div style={{ fontSize: 13, lineHeight: 1.6, color: "#414539", marginTop: 5, background: out ? "#e1efed" : "#f4f6f3", borderRadius: 11, padding: "11px 12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {plain || "(empty)"}
           </div>
         )}
@@ -1099,7 +1099,7 @@ function MessageBubble({ m, onAcked }: { m: Message; onAcked: () => void }) {
 // resolved falls back to the untouched HTML.
 function HtmlBody({ html, attachments }: { html: string; attachments: Attachment[] }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const [doc, setDoc] = useState<string>(() => emailSrcDoc(html));
+  const [doc, setDoc] = useState<string>(() => emailSrcDoc(html, MOBILE_EMAIL_HEAD));
 
   const inlineImgs = useMemo(
     () => attachments.filter((a) => a.contentId && /^image\//i.test(a.contentType || "")),
@@ -1130,7 +1130,7 @@ function HtmlBody({ html, attachments }: { html: string; attachments: Attachment
           }
         }
       }
-      if (!revoked) setDoc(emailSrcDoc(out));
+      if (!revoked) setDoc(emailSrcDoc(out, MOBILE_EMAIL_HEAD));
     })();
     return () => {
       revoked = true;
@@ -1144,7 +1144,7 @@ function HtmlBody({ html, attachments }: { html: string; attachments: Attachment
       title="Email"
       // allow-same-origin (NOT allow-scripts) — scripts stay blocked, but the
       // frame can be measured on load so it auto-sizes to its content.
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      sandbox={EMAIL_FRAME_SANDBOX_MEASURABLE}
       srcDoc={doc}
       style={{ width: "100%", border: "none", background: "transparent", minHeight: 60 }}
       onLoad={(e) => {
@@ -1164,8 +1164,7 @@ function AttachmentChip({ a }: { a: Attachment }) {
   const open = async () => {
     try {
       // Attachments are served through an authed stream route, not a public URL.
-      const url = await api.fetchBlobUrl(a.url);
-      window.open(url, "_blank", "noopener,noreferrer");
+      await openLoadedTab(() => api.fetchBlobUrl(a.url), 60_000);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't open attachment.");
     }
@@ -1173,14 +1172,14 @@ function AttachmentChip({ a }: { a: Attachment }) {
   return (
     <div
       onClick={open}
-      style={{ border: "1px solid #EEF0F3", borderRadius: 11, padding: "10px 12px", display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }}
+      style={{ border: "1px solid #e3e6e0", borderRadius: 11, padding: "10px 12px", display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 8 12 17a4 4 0 0 1-6-6l9-9a3 3 0 0 1 4 4l-9 9" />
       </svg>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#11140f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</span>
       {a.sizeBytes > 0 && <span style={{ fontSize: 10.5, color: "#9aa093", flex: "none" }}>{fmtBytes(a.sizeBytes)}</span>}
-      <span style={{ fontSize: 11, fontWeight: 700, color: "#D64F20", flex: "none" }}>Download</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "#a16a2e", flex: "none" }}>Download</span>
     </div>
   );
 }
@@ -1658,9 +1657,9 @@ function OutboxList({ q }: { q: string }) {
 
   return (
     <>
-      <div style={{ fontSize: 11, color: "#6B7280", padding: "0 2px 9px" }}>
+      <div style={{ fontSize: 11, color: "#767b6e", padding: "0 2px 9px" }}>
         {counts.sent} sent &middot;{" "}
-        <span style={{ color: counts.failed > 0 ? "#B91C1C" : "#6B7280", fontWeight: counts.failed > 0 ? 800 : 400 }}>
+        <span style={{ color: counts.failed > 0 ? "#B91C1C" : "#767b6e", fontWeight: counts.failed > 0 ? 800 : 400 }}>
           {counts.failed} failed
         </span>{" "}
         &middot; {counts.pending} pending
@@ -1678,21 +1677,21 @@ function OutboxList({ q }: { q: string }) {
               <div
                 key={it.id}
                 onClick={() => setOpenId(it.id)}
-                style={{ background: "#fff", border: `1px solid ${it.status === "FAILED" ? "#e3c4c1" : "#EEF0F3"}`, borderRadius: 13, padding: "11px 12px", cursor: "pointer" }}
+                style={{ background: "#fff", border: `1px solid ${it.status === "FAILED" ? "#e3c4c1" : "#e3e6e0"}`, borderRadius: 13, padding: "11px 12px", cursor: "pointer" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#11140f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {it.toAddress || "(no recipient)"}
                   </span>
                   <span className="money" style={{ fontSize: 10, color: "#9aa093", flex: "none", whiteSpace: "nowrap" }}>
                     {fmtTime(it.sentAt || it.createdAt)}
                   </span>
                 </div>
-                <div style={{ fontSize: 12.5, fontWeight: 500, color: "#111827", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 12.5, fontWeight: 500, color: "#11140f", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {it.subject}
                 </div>
                 {it.snippet && (
-                  <div style={{ fontSize: 11.5, color: "#6B7280", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 11.5, color: "#767b6e", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {it.snippet}
                   </div>
                 )}
@@ -1771,7 +1770,7 @@ function OutboxSheet({ id, onClose }: { id: string; onClose: () => void }) {
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 6, lineHeight: 1.25 }}>{data.subject}</div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
               <span className="rbadge" style={{ background: bg, color: fg }}>{outboxLabel(data.status)}</span>
-              <span style={{ fontSize: 11, color: "#6B7280" }}>To {data.toAddress || "(no recipient)"}</span>
+              <span style={{ fontSize: 11, color: "#767b6e" }}>To {data.toAddress || "(no recipient)"}</span>
               <span style={{ fontSize: 11, color: "#9aa093" }}>
                 {data.sentAt ? `Sent ${fmtDateTime(new Date(data.sentAt))}` : `Queued ${data.createdAt ? fmtDateTime(new Date(data.createdAt)) : "—"}`}
               </span>
@@ -1787,7 +1786,7 @@ function OutboxSheet({ id, onClose }: { id: string; onClose: () => void }) {
             {data.bodyHtml ? (
               <HtmlBody html={data.bodyHtml} attachments={[]} />
             ) : (
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: "#4B5563", background: "#F8F9FA", borderRadius: 11, padding: "11px 12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: "#414539", background: "#f4f6f3", borderRadius: 11, padding: "11px 12px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                 {data.bodyText || "(no content)"}
               </div>
             )}
@@ -1812,15 +1811,7 @@ function looksLikeHtml(s: string | undefined): boolean {
   );
 }
 
-// Wrap raw email HTML in a self-contained document with a responsive base style
-// and a new-tab base target, injected into the existing <head> when present.
-// Ported from the desktop Thread.tsx emailSrcDoc.
-function emailSrcDoc(rawHtml: string): string {
-  const inject = `<base target="_blank"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body{margin:0;padding:10px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:#111827;word-break:break-word;overflow-x:hidden;background:transparent}img{max-width:100%;height:auto}table{max-width:100%}</style>`;
-  if (/<head[^>]*>/i.test(rawHtml)) return rawHtml.replace(/<head([^>]*)>/i, `<head$1>${inject}`);
-  if (/<html[^>]*>/i.test(rawHtml)) return rawHtml.replace(/<html([^>]*)>/i, `<html$1><head>${inject}</head>`);
-  return `<!doctype html><html><head>${inject}</head><body>${rawHtml}</body></html>`;
-}
+const MOBILE_EMAIL_HEAD = `<meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body{margin:0;padding:10px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:#11140f;word-break:break-word;overflow-x:hidden;background:transparent}img{max-width:100%;height:auto}table{max-width:100%}</style>`;
 
 // Strip HTML to a readable plain-text fallback when a message has no textBody.
 function stripHtml(html: string): string {

@@ -37,7 +37,7 @@ import { SkeletonDetailPage } from '../../vendor/scm/components/Skeleton';
 import {
   useMfgSalesOrderDetail,
   useUpdateMfgSalesOrderHeader,
-  useUpdateMfgSalesOrderStatus,
+  useUpdateMfgSalesOrderStatus, useOverrideSoLock,
   useAddMfgSalesOrderItem,
   useUpdateMfgSalesOrderItem,
   useDeleteMfgSalesOrderItem,
@@ -97,6 +97,7 @@ import { DocumentRelationshipMapModal, DocumentChoiceDialog } from '../../compon
 import { useSoRelationshipMap } from './so-relationship-map';
 import { useConfirm } from '../../vendor/scm/components/ConfirmDialog';
 import { SoLockBanner } from './SoLockBanner';
+import { SaveFailedBanner } from './SaveFailedBanner';
 import { soAfterDoMode, soPriceAfterDoOn, afterDoEditableLine, afterDoHeaderFields, afterDoEditFields, afterDoAddFields, afterDoCopyProblem, type AfterDoSave } from '../../vendor/scm/lib/so-after-do-client';
 import { useNotify } from '../../vendor/scm/components/NotifyDialog';
 import { StatusPill } from '../../vendor/scm/components/StatusPill';
@@ -160,6 +161,7 @@ import {
 } from './so-version-conflict';
 import { RevisionsTab } from './so-revisions-tab';
 import styles from './SalesOrderDetail.module.css';
+import { DetailLoadFailure } from './DetailLoadFailure';
 import { PriceAfterDoModal } from './PriceAfterDoModal';
 import { DateField } from "../../vendor/scm/components/DateField";
 import { HoldChip } from "../../vendor/scm/components/HoldChip";
@@ -168,6 +170,8 @@ import { useDiscardDraftAction } from "./use-discard-draft-action";
 
 import { ADD_LINE_LABEL } from '../../vendor/scm/lib/add-line-handoff';
 import { useAddLineHandoff } from '../../vendor/scm/lib/useAddLineHandoff';
+import { FormTouchScope } from '../../components/FormTouchScope';
+import { useFormTouched, useLeaveGuard } from '../../hooks/useLeaveGuard';
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 const SM_ICON = { size: 14, strokeWidth: 1.75 } as const;
 
@@ -513,7 +517,7 @@ export const SalesOrderDetail = () => {
   const addLineHandoff = useAddLineHandoff();  // top-level: see useAddLineHandoff
   const detail = useMfgSalesOrderDetail(docNo ?? null);
   const updateHeader = useUpdateMfgSalesOrderHeader();
-  const updateStatus = useUpdateMfgSalesOrderStatus();
+  const updateStatus = useUpdateMfgSalesOrderStatus(); const overrideLock = useOverrideSoLock(); // unlocks only when the server kept the reason
   const requestCancel = useCancelRequestAction('so');
   const deleteDraft = useDiscardDraftAction();
   const askConfirm = useConfirm();
@@ -671,6 +675,10 @@ export const SalesOrderDetail = () => {
   const [isEditing, setIsEditing] = useState(
     editSearchParams.get('edit') === '1',
   );
+  const { touched: formTouched, markTouched, resetTouched } = useFormTouched();
+  /* Only an edit session has anything to lose. Cancel and Save both drop
+     `?edit=1` on the same path, which the guard does not count as leaving. */
+  useLeaveGuard(isEditing && formTouched, null);
   /* Print preview — the HOOK must live above the isPending / isError early
      returns (owner 2026-08-07). It arrived at its call site further down
      (#1665), which sits PAST those returns: a cold page's first render bails
@@ -835,7 +843,7 @@ export const SalesOrderDetail = () => {
     const deliv = header?.customer_delivery_date ? String(header.customer_delivery_date).slice(0, 10) : '';
     return {
       isEdit: true, hasVenue: true, hasSalesperson: true, fillAddressLater: false, companyCode: null, salesLocation: '', payments: [], ...customerCardRef.current?.fairDayKeys(),
-      phone: customerCardRef.current?.getPhone() ?? header?.phone, debtorName: header?.debtor_name,
+      phone: customerCardRef.current?.getPhone() ?? header?.phone, origPhone: header?.phone ?? '', debtorName: header?.debtor_name,
       address1: header?.address1, postcode: header?.postcode, customerState: header?.customer_state,
       items: editedDraftGroups.map((d) => ({ itemCode: d.itemCode, itemGroup: d.itemGroup, variants: d.variants, qty: d.qty })),
       origItemGroups: items.map((it) => it.item_group),
@@ -856,7 +864,7 @@ export const SalesOrderDetail = () => {
   const openEditBlockingList = () => {
     void notify({ title: saveProblemsTitle(editBlockingProblems.length), body: <SaveProblemsList problems={editBlockingProblems} />, tone: 'error' });
   };
-  const enterEdit  = () => { clearSaveFeedback(); setIsEditing(true); };
+  const enterEdit  = () => { clearSaveFeedback(); resetTouched(); setIsEditing(true); };
   const cancelEdit = () => {
     customerCardRef.current?.reset();
     clearSaveFeedback();
@@ -1182,7 +1190,7 @@ export const SalesOrderDetail = () => {
         method: 'POST',
         body: JSON.stringify({
           isEdit: true, hasVenue: true, hasSalesperson: true, fillAddressLater: false, companyCode: null, salesLocation: '', payments: [], ...handle.fairDayKeys(),
-          processingDate: '', customerDeliveryDate: '', phone: handle.getPhone(), debtorName: header?.debtor_name,
+          processingDate: '', customerDeliveryDate: '', phone: handle.getPhone(), origPhone: header?.phone ?? '', debtorName: header?.debtor_name,
           items: items.map((it) => ({ itemCode: it.item_code, itemGroup: it.item_group, variants: {}, qty: it.qty })),
           origItemGroups: items.map((it) => it.item_group),
         }),
@@ -1599,10 +1607,7 @@ export const SalesOrderDetail = () => {
           <ArrowLeft {...ICON} />
           <span>Back</span>
         </Link>
-        <div className={styles.bannerWarn}>
-          <strong>Sales order not found.</strong>
-          {detail.error instanceof Error ? ` ${detail.error.message}` : null}
-        </div>
+        <DetailLoadFailure noun="Sales order" error={detail.isError ? detail.error : null} onRetry={() => void detail.refetch()} retrying={detail.isFetching} />
       </div>
     );
   }
@@ -1829,6 +1834,7 @@ export const SalesOrderDetail = () => {
     /* Commander 2026-05-29 — a CANCELLED SO greys the whole page so it reads
        as dead/inactive. The Cancel/Reopen buttons + banner stay clickable
        (a CSS filter doesn't block pointer events). */
+    <FormTouchScope onTouch={markTouched}>
     <div className="space-y-4" style={isCancelled ? { filter: 'grayscale(0.7)' } : undefined}>
       {/* ── Header (shared PageHeader — full-bleed, design-system) ── */}
       <PageHeader back beforeBack={guardUnsavedPayments}
@@ -1994,12 +2000,7 @@ export const SalesOrderDetail = () => {
 
       {/* PR-A — Inline error from the page-level Save. Cleared on Edit /
           Cancel / next successful Save. */}
-      {saveError && (
-        <div className={styles.bannerWarn}>
-          <strong>Save failed.</strong>
-          <span>{saveError}</span>
-        </div>
-      )}
+      {saveError && <SaveFailedBanner message={saveError} className={styles.bannerWarn} />}
 
       {versionConflict && (
         <SoVersionConflictBanner
@@ -2082,7 +2083,7 @@ export const SalesOrderDetail = () => {
 
       {/* ── Lock banner + the DEV-32 after-DO notice ───────────── */}
       <SoLockBanner status={header.status} cancelled={isCancelled} migratedReason={migratedLocked ? soMigratedReason(header) : null} overridden={unlockOverride}
-        onOverride={() => { updateStatus.mutate({ docNo: header.doc_no, status: header.status, expectedStatus: header.status }); setUnlockOverride(true); }}
+        onOverride={(reason) => overrideLock.mutate({ docNo: header.doc_no, status: header.status, reason }, { onSuccess: () => setUnlockOverride(true) })}
         onRelock={() => setUnlockOverride(false)} afterDo={afterDo} afterDoTargetId={afterDoTargetId} onPickTarget={setAfterDoTargetId} />
 
       {/* ── Amendment-mode banner (Phase 1-C) ─────────────────────────
@@ -2298,7 +2299,7 @@ export const SalesOrderDetail = () => {
                        (matches this page's Save gate + the backend), so the ` *`
                        marker + red ring stay off on a no-date draft (owner
                        2026-07-14). */
-                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} seedSofaLegDefault={true}
+                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} specLockedReason={null} seedSofaLegDefault={true}
                     attachOptions={attachOptionsById[it.id] ?? null}
                   />
                 </div>
@@ -2324,7 +2325,7 @@ export const SalesOrderDetail = () => {
                     onChange={cb?.onChange ?? ((patch) => patchAddingDraft(staged.key, patch))}
                     onRemove={cb?.onRemove ?? (() => cancelAddLine(staged.key))}
                     canRemove={true} chargeOnly={chargeAdds}
-                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} seedSofaLegDefault={true}
+                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} specLockedReason={null} seedSofaLegDefault={true}
                     attachOptions={attachOptionsById[staged.key] ?? null}
                   />
                 </div>
@@ -2692,6 +2693,7 @@ export const SalesOrderDetail = () => {
       />
       {submitDialog.element}
     </div>
+    </FormTouchScope>
   );
 };
 
@@ -4003,13 +4005,13 @@ const changeTypeLabel = (t: string): string =>
    and emphasised on the After side; untouched fields stay plain, so the eye
    lands on the ask. Inline styles because this table is CSS-modules, not
    Tailwind (the AmendmentDetailV2 job card does the same with utility classes);
-   #2F55E0 is this stylesheet's own brand-dark (see .codeCell) rather than a
+   #0c3f39 is this stylesheet's own brand-dark (see .codeCell) rather than a
    var(--ink)-style token — the desktop app defines no such variable, it is
    scoped to .hz-m in mobile.css, so it would silently resolve to nothing here. */
 const strikeIf = (changed: boolean): CSSProperties | undefined =>
   changed ? { textDecoration: 'line-through', opacity: 0.7 } : undefined;
 const emphasiseIf = (changed: boolean): CSSProperties | undefined =>
-  changed ? { fontWeight: 700, color: '#2F55E0' } : undefined;
+  changed ? { fontWeight: 700, color: '#0c3f39' } : undefined;
 
 /* The responsible department(s) for a row's changed atoms — de-duplicated, for
    the amendment diff modal's Dept column (accountability routing). */

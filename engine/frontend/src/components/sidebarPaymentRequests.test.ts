@@ -1,13 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { NAV_TABS, type NavTab } from "./Sidebar";
 import { makeNavFilter, type NavFilterCtx } from "./navFilter";
 import type { AccessLevel, AuthUser } from "../types";
-
-// Carres: these pin Houzs's whole menu and its gates; the Carres trim is tested in carres/navOnly.test.ts.
-vi.mock("./Sidebar", async (importOriginal) => {
-  const m = await importOriginal<typeof import("./Sidebar")>();
-  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
-});
 
 /**
  * PAYMENT REQUESTS SHOW ONCE (owner 2026-10-08: 你看payment request 同时会出现

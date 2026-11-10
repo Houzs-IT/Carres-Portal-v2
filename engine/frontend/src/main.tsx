@@ -19,12 +19,12 @@ import { LazySlot } from "./components/LazySlot";
 import { registerPwa } from "./pwa";
 import { installGlobalErrorReporting } from "./lib/errorReporter";
 import { installChunkFailureWatch } from "./lib/staleBuild";
+import { CJK_FONT_STYLESHEET, loadDeferredFontStylesheet } from "./lib/deferredFonts";
 import { clearStaleTableSorts } from "./lib/staleSortReset";
 import { consumeCompanyUrlSeed } from "./lib/activeCompany";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { tokenStore } from "./api/client";
-import { consumeCarresSignIn, followCarresMenu } from "./carres/embed";
 import { restoreNativeSession } from "./lib/nativeSession";
 import { registerNativePush } from "./lib/nativePush";
 import { readAuthToken } from "./lib/authToken";
@@ -54,13 +54,12 @@ import { useAppSurface } from "./routing/appSurface";
 const canonicalTarget = canonicalRedirectUrl(window.location.href);
 if (canonicalTarget) window.location.replace(canonicalTarget);
 
-// Carres: the portal's sign-in hand-over, then its menu picks the page (src/carres/embed.ts).
-consumeCarresSignIn();
-followCarresMenu();
-
 // The public surfaces (survey, customer/supplier portal, password reset)
 // are split out of the staff bundle — staff never download them, and the
 // public flows skip the whole dashboard bundle in return.
+// Lazy so the initial bundle does not carry it; it wraps the router a moment
+// after first paint, before anyone has typed into a form.
+const LeaveGuardBridge = lazy(() => import("./components/LeaveGuardBridge").then((m) => ({ default: m.LeaveGuardBridge })));
 const SurveyPublic = lazy(() => import("./pages/SurveyPublic").then((m) => ({ default: m.SurveyPublic })));
 const PortalApp = lazy(() => import("./portal/PortalApp").then((m) => ({ default: m.PortalApp })));
 const PublicDoScan = lazy(() => import("./pages/PublicDoScan").then((m) => ({ default: m.PublicDoScan })));
@@ -91,6 +90,7 @@ if (!canonicalTarget) registerPwa();
 // so even a first-render crash is captured. Prod builds only; reporting never
 // changes behaviour (see lib/errorReporter.ts).
 installGlobalErrorReporting();
+loadDeferredFontStylesheet(document, CJK_FONT_STYLESHEET);
 /* The other half of that: a dynamic import() that rejects inside an async event
    handler is CAUGHT by that handler, so it is never an unhandledrejection and
    installGlobalErrorReporting above cannot see it, and no React boundary sees it
@@ -99,6 +99,8 @@ installGlobalErrorReporting();
    boot is not missed. See lib/staleBuild.ts for exactly what is and is not
    covered. */
 installChunkFailureWatch();
+// Lazy: not needed for first paint, and the entry chunk sits at its size ceiling.
+void import("./lib/numberInputWheel").then((m) => m.installNumberInputWheelGuard());
 /* A PRINT that hits a chunk a deploy deleted reloads once and reopens its
    preview (lib/chunkActionRecovery.ts). That listener installs itself on the
    first tracked print, so it is not imported here: it would add ~0.9 KB gzip to
@@ -299,6 +301,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <ToastProvider>
        <DialogProvider>
         <RootApp />
+        <LazySlot resetKey="leave-guard" fallback={null}><LeaveGuardBridge /></LazySlot>
         <PwaBanners />
        </DialogProvider>
       </ToastProvider>

@@ -4,8 +4,8 @@
   letter-spacing: 0.02em;
   /* Theme C alignment (owner 2026-07-25: "右上角的 button 是黑色,没有贴合
      主题"): shape + palette follow the Houzs Button the SO page uses,
-     MEASURED live - 6px radius, primary #1B1B39, white text; hovers deepen
-     to the primary-ink #2F55E0 instead of 2990's burnt orange. */
+     MEASURED live - 6px radius, primary #16695f, white text; hovers deepen
+     to the primary-ink #0c3f39 instead of 2990's burnt orange. */
   border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
@@ -20,7 +20,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .button:focus-visible {
-  outline: 2px solid #1B1B39;
+  outline: 2px solid #16695f;
   outline-offset: 2px;
 }
 .button:active:not(:disabled) {
@@ -33,11 +33,11 @@
 
 /* Variants */
 .variant-primary {
-  background: #1B1B39;
+  background: #16695f;
   color: #ffffff;
 }
 .variant-primary:hover:not(:disabled) {
-  background: #2F55E0;
+  background: #0c3f39;
 }
 
 .variant-secondary {
@@ -46,8 +46,8 @@
   border-color: var(--line);
 }
 .variant-secondary:hover:not(:disabled) {
-  border-color: #1B1B39;
-  color: #1B1B39;
+  border-color: #16695f;
+  color: #16695f;
 }
 
 .variant-ghost {

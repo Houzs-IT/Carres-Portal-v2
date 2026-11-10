@@ -35,11 +35,8 @@ import { paymentMethodCodeForValue } from "../vendor/scm/lib/payment-methods";
 import { companyRequiresStockLocation } from "../vendor/scm/lib/so-form-validate";
 import { useBranding } from "../hooks/useBranding";
 import { newIdempotencyKey, idempotentInit, useIdempotencyKey } from "../lib/idempotency";
-import {
-  buildAmendmentHeaderChanges,
-  hasAmendmentHeaderChanges,
-  withoutFrozenHeaderFields,
-} from "../vendor/scm/lib/so-amendment-header";
+import { buildAmendmentHeaderChanges, hasAmendmentHeaderChanges, withoutFrozenHeaderFields } from "../vendor/scm/lib/so-amendment-header";
+import { useSubmitLock } from "../lib/submitLock";
 import { SearchableSelect } from "../vendor/scm/components/SearchableSelect";
 import { SgPostcodeField } from "../vendor/scm/components/SgPostcodeField";
 import { diffHeaderPayload, hasHeaderChanges } from "../vendor/scm/lib/so-header-diff";
@@ -117,13 +114,14 @@ import { MFG_CATEGORY_LABELS } from "../vendor/shared/product-categories";
 import { isColourKiv } from "../vendor/shared/variant-summary";
 /* parseInches is imported, not redeclared: this file's private copy also served
    sortNumeric below, and a shared parser serves both readers. */
-import { computeTotalHeight, isTotalHeightCategory, parseInches } from "../vendor/shared/total-height";
+import { computeTotalHeight, isTotalHeightCategory, parseInches, TOTAL_HEIGHT_PARTS } from "../vendor/shared/total-height";
+import { activeCompanyTracksVariants } from "../vendor/scm/lib/binding-mode";
 import { CONSOLE_ATTACH_KEY, consoleAttachOptions, lineIdentity } from "@2990s/shared";
 import { Field, SpecSel } from "./mobile-fields";
 import { normalizePhone } from "../vendor/shared/phone";
 import { PhoneInput } from "../vendor/scm/components/PhoneInput";
 import { fmtSen as fmtSharedSen } from "../vendor/shared/format";
-import "./mobile.css";
+import "./mobile.css"; import { FormTouchScope, useFormGuard } from "../hooks/useLeaveGuard";
 
 /* ---------------------------------------------------------------------------
  * MobileNewSO — mobile New / Edit Sales Order as ONE single scrolling form
@@ -397,20 +395,15 @@ function defaultSofaLegValue(maint: MaintenanceConfig | null | undefined): strin
    the remark + a fresh computed totalHeight for bedframes (kept for the backend
    even though the readout is hidden).
 
-   THE TOTAL HEIGHT IS ASSIGNED UNCONDITIONALLY NOW. This function used to say
-   `if (th > 0) variants.totalHeight = …`, which was a third answer to "what is
-   written when divan/leg/gap are blank" — it both left a STALE height on a line
-   whose parts were cleared (the blob is spread from l.variants, so the old
-   number survived) and omitted the key on a fresh line. Writing '' matches the
-   fourteen purchasing screens; '' and an absent key are interchangeable to
-   every consumer (computeVariantKey drops empty axes, the pricing lookups and
-   the allowed-options gate all short-circuit on a falsy value), so the only
-   thing that changes is that a cleared spec now actually clears. */
+   The total is assigned on every save, so a cleared spec clears, as on the
+   purchasing screens. For a variant-tracked company (binding-mode.ts) a saved
+   line with a total and NO part keys keeps its total, so a re-save cannot move
+   its stock bucket (PR #5609); company 1 keeps the unconditional write. */
 function buildVariants(l: LineItem): Record<string, unknown> {
   const variants: Record<string, unknown> = { ...(l.variants ?? {}) };
   if (l.remark.trim()) variants.remark = l.remark.trim();
   else delete variants.remark;
-  if (isTotalHeightCategory(l.cat)) variants.totalHeight = computeTotalHeight(l.cat, variants);
+  if (isTotalHeightCategory(l.cat) && (!activeCompanyTracksVariants() || TOTAL_HEIGHT_PARTS.some((k) => k in variants))) variants.totalHeight = computeTotalHeight(l.cat, variants);
   return variants;
 }
 
@@ -623,7 +616,7 @@ export function MobileNewSO({
   onSaved?: (docNo: string) => void;
   openAddLine: boolean;
 }) {
-  const qc = useQueryClient();
+  const qc = useQueryClient(); const { markTouched, allowLeave, guardedBack } = useFormGuard(onBack);
   const notify = useNotify();
   const confirm = useConfirm(); const prompt = usePrompt(); const backdateReasonRef = useRef("");
   const submitDialog = useAmendmentSubmitDialog();
@@ -860,6 +853,7 @@ export function MobileNewSO({
      CHANGED (an unchanged past date must not block the save), and the amendment
      needs a before-value for the frozen-field diff. */
   const [origDelivDate, setOrigDelivDate] = useState<string>("");
+  const [origPhone, setOrigPhone] = useState<string>(""); // persisted phone ('' for an import): submit asks for one only if an edit blanks it
   /* PERSISTED State / Postcode / City — the other columns the processing lock
      freezes. Needed to diff what an amendment is actually requesting.
      City joined 2026-07-17: this screen already DISABLED City under the lock
@@ -928,6 +922,7 @@ export function MobileNewSO({
 
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
+  const saveLock = useSubmitLock(); // `submitting` only starts after the validate call; the lock covers the press itself
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
 
@@ -990,6 +985,7 @@ export function MobileNewSO({
         setName(h.debtor_name ?? "");
         setCustRef(h.customer_so_no ?? h.ref ?? "");
         setPhone(toE164(h.phone));
+        setOrigPhone(h.phone ?? "");
         setEmail(h.email ?? "");
         setCustType(h.customer_type ?? "");
         setBuildingType(h.building_type ?? "");
@@ -1442,6 +1438,7 @@ export function MobileNewSO({
     postcode,
     origProcessingDate: origProcDate,
     origDeliveryDate: origDelivDate,
+    origPhone,
     origItemGroups: origItems.map((it) => it.item_group),
     payments: pays.map((p) => ({
       methodLabel: p.method,
@@ -1451,7 +1448,7 @@ export function MobileNewSO({
       convertedFromDocNo: p.convertedFromDocNo ?? "",
       amountSen: toSen(p.amount),
     })),
-  }), [name, phone, namedLines, isEdit, outgoingVenueName, outgoingVenueId, fairPick, noFair, autoFair.why, resolvedVenueName, linkedFair, linkedDay, canChangeSalesperson, outgoingSalespersonId, selfStaffMatch, branding.companyCode, salesLocation, state, procDate, delivDate, addr1, postcode, origProcDate, origDelivDate, origItems, pays]);
+  }), [name, phone, namedLines, isEdit, outgoingVenueName, outgoingVenueId, fairPick, noFair, autoFair.why, resolvedVenueName, linkedFair, linkedDay, canChangeSalesperson, outgoingSalespersonId, selfStaffMatch, branding.companyCode, salesLocation, state, procDate, delivDate, addr1, postcode, origProcDate, origDelivDate, origPhone, origItems, pays]);
 
   /* A slip date outside the window blocks the save (the payments post AFTER the
      create) — except a too-old row, which becomes an admin request (isBackdateRow). */
@@ -1937,7 +1934,8 @@ export function MobileNewSO({
   };
 
   // ---- Mutations ------------------------------------------------------------
-  async function save(asDraft = false) {
+  const save = (asDraft = false) => saveLock.run(() => saveOnce(asDraft));
+  async function saveOnce(asDraft: boolean) {
     setTouched(true);
     const pieces = splitMobileSofaPieces(lines, origItems); // one sofa piece = one line
     if (pieces) { setLines(pieces); await notify(SOFA_PIECES_SPLIT_DIALOG); return; }
@@ -2094,7 +2092,7 @@ export function MobileNewSO({
           /* Two-lane rework — the server classifies (and may split) the request:
              product changes wait on Purchasing, delivery changes on Logistics. */
           void notify(amendmentSubmittedNotice(plan, amendCreatedRes));
-          if (onSaved) onSaved(docNo);
+          allowLeave(); if (onSaved) onSaved(docNo);
           else onBack();
           return;
         }
@@ -2159,7 +2157,7 @@ export function MobileNewSO({
         invalidateSoShared(qc);
         await qc.invalidateQueries({ queryKey: ["mfg-sales-order-detail", docNo] });
         await qc.invalidateQueries({ queryKey: ["mobile-so-list-paged"] });
-        if (onSaved) onSaved(docNo);
+        allowLeave(); if (onSaved) onSaved(docNo);
         else onBack();
         return;
       }
@@ -2209,7 +2207,7 @@ export function MobileNewSO({
          and lands after it, moving the list's paid / outstanding aggregates. */
       invalidateSoShared(qc);
       await qc.invalidateQueries({ queryKey: ["mobile-so-list-paged"] });
-      if (res?.docNo && onSaved) onSaved(res.docNo);
+      allowLeave(); if (res?.docNo && onSaved) onSaved(res.docNo);
       else onBack();
     } catch (e) {
       const heldLease = activeLineLeaseRef.current;
@@ -2281,12 +2279,12 @@ export function MobileNewSO({
 
   // ---- Render ---------------------------------------------------------------
   return (
-    <div className="hz-m" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" }}>
+    <FormTouchScope onTouch={markTouched}><div className="hz-m" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" }}>
       {/* Header — "Cancel" text button, Draft/Editing pill, title. No wizard
           progress bar (single-form). */}
       <header className="hdr">
         <div className="hdr-row">
-          <button type="button" onClick={onBack} style={{ background: "none", border: "none", color: "var(--mut)", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Cancel</button>
+          <button type="button" onClick={guardedBack} style={{ background: "none", border: "none", color: "var(--mut)", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>Cancel</button>
           <span className="badge b-grey">{mode === "edit" ? "EDITING" : "DRAFT"}</span>
         </div>
         <div id="nso-title" className="scr-title" style={{ marginTop: 6 }}>{title}</div>
@@ -2299,8 +2297,8 @@ export function MobileNewSO({
           <>
             {fromScan && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 11, padding: "10px 12px", background: "#eaf2f0", border: "1px solid #cfe1dc", borderRadius: 12 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none", marginTop: 1 }}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /><circle cx="12" cy="13" r="3" /></svg>
-                <div style={{ fontSize: 11.5, color: "#1B1B39", lineHeight: 1.5 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none", marginTop: 1 }}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /><circle cx="12" cy="13" r="3" /></svg>
+                <div style={{ fontSize: 11.5, color: "#16695f", lineHeight: 1.5 }}>
                   Prefilled from your scan. Review every field marked <b>Scanned</b>, correct anything the reader missed, then create the order.
                 </div>
               </div>
@@ -2315,7 +2313,7 @@ export function MobileNewSO({
             <MigratedReadonlyBanner header={migHeader} rounded={12} />
             {!migratedLocked && procLocked && !amendmentMode && (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginBottom: 11, padding: "10px 12px", background: "#fbf3e6", border: "1px solid #ecd9b6", borderRadius: 12 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none", marginTop: 1 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none", marginTop: 1 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 <div style={{ fontSize: 11.5, color: "#8a5a22", lineHeight: 1.5 }}>
                   This order&apos;s processing date has passed, so it is now on order to the supplier. Line items and the delivery <b>State / City / Postcode</b> are locked. You can still update the rest of the customer details, address lines and note.
                 </div>
@@ -2437,7 +2435,7 @@ export function MobileNewSO({
                 )}
                 {!isEdit && !autoFair.hint && autoVenue?.venueId &&
                   (pickedVenueId == null || pickedVenueId === autoVenue.venueId) && (
-                  <div style={{ fontSize: 10, color: "#1B1B39", marginTop: -4 }}>
+                  <div style={{ fontSize: 10, color: "#16695f", marginTop: -4 }}>
                     {autoVenue.source === "SHOWROOM"
                       ? `Auto-filled from your showroom${autoVenue.showroomName ? ` (${autoVenue.showroomName})` : ""}`
                       : autoVenue.projectName
@@ -2575,12 +2573,12 @@ export function MobileNewSO({
                       </Field>
                     </div>
                     {addressIdentityLocked ? (
-                      <div style={{ fontSize: 10, color: "#D64F20", marginTop: -3 }}>
+                      <div style={{ fontSize: 10, color: "#a16a2e", marginTop: -3 }}>
                         {identityLocked ? "The customer details and delivery address are locked — this order already has a Delivery Order or Invoice." : <>State, City, Postcode and the address lines are locked — this order&apos;s processing date has passed and it is now on order to the supplier.</>}
                       </div>
                     ) : null}
                     {amendmentMode && (
-                      <div style={{ fontSize: 10, color: "#D64F20", marginTop: -3 }}>
+                      <div style={{ fontSize: 10, color: "#a16a2e", marginTop: -3 }}>
                         Changing the State, City, Postcode or an address line submits an amendment request — it applies once approved.
                       </div>
                     )}
@@ -2614,8 +2612,8 @@ export function MobileNewSO({
                               was code-first with no instruction behind it, purely
                               because it was copied. minWidth:0 lets a long name
                               wrap instead of shouldering the price off the row. */}
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "#111827", overflowWrap: "anywhere" }}>{lineIdentity({ code: l.itemCode, description: l.name }).primary || "—"} <span style={{ color: "#9aa093" }}>{"×"}{num(l.qty)}</span></span>
-                          <span className="money" style={{ flex: "none", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: 800, color: "#2F55E0" }}>RM {fmt((toSen(l.price) * num(l.qty)) / 100)}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "#11140f", overflowWrap: "anywhere" }}>{lineIdentity({ code: l.itemCode, description: l.name }).primary || "—"} <span style={{ color: "#9aa093" }}>{"×"}{num(l.qty)}</span></span>
+                          <span className="money" style={{ flex: "none", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: 800, color: "#0c3f39" }}>RM {fmt((toSen(l.price) * num(l.qty)) / 100)}</span>
                         </div>
                       </div>
                     )) : <div style={{ fontSize: 11.5, color: "#9aa093", padding: "8px 0" }}>No items.</div>}
@@ -2723,7 +2721,7 @@ export function MobileNewSO({
                 </div>
                 <button className="addline" onClick={() => setPays((p) => [...p, newPayment(selfCollectorId)])}>+ Add Payment</button>
                 {!!pays.length && (
-                  <div style={{ fontSize: 10, color: "#6B7280", marginTop: 6 }}>
+                  <div style={{ fontSize: 10, color: "#767b6e", marginTop: 6 }}>
                     Payments are recorded on the order when you {isEdit ? "Save" : "Create"}. Every payment needs its slip or receipt photo attached first.
                   </div>
                 )}
@@ -2750,7 +2748,7 @@ export function MobileNewSO({
       {!loading && (
         <footer id="nso-footer" className="actbar" style={{ display: "flex", gap: 9 }}>
           {mode === "edit" ? (
-            <button className="btn" disabled={submitting || migratedLocked} onClick={() => save(false)} style={{ flex: 1, opacity: submitting || migratedLocked ? 0.6 : 1 }}>
+            <button className="btn" disabled={submitting || saveLock.locked || migratedLocked} onClick={() => save(false)} style={{ flex: 1, opacity: submitting || migratedLocked ? 0.6 : 1 }}>
               {submitting ? (amendmentMode ? "Submitting…" : "Saving…") : migratedLocked ? "View only" : amendmentMode ? "Submit Amendment" : "Save Changes"}
             </button>
           ) : (
@@ -2759,10 +2757,10 @@ export function MobileNewSO({
                   minWidth:0 so both buttons take exactly half the row regardless
                   of label length, and a shared height so the pair reads balanced
                   (.btn sizes via padding, .btn-ghost via height — pin both to 48). */}
-              <button className="btn-ghost" disabled={submitting} onClick={() => save(true)} style={{ flex: "1 1 0", minWidth: 0, height: 48, opacity: submitting ? 0.6 : 1 }}>
+              <button className="btn-ghost" disabled={submitting || saveLock.locked} onClick={() => save(true)} style={{ flex: "1 1 0", minWidth: 0, height: 48, opacity: submitting ? 0.6 : 1 }}>
                 {submitting ? "Saving…" : "Save draft"}
               </button>
-              <button className="btn" disabled={submitting} onClick={() => save(false)} style={{ flex: "1 1 0", minWidth: 0, height: 48, padding: 0, opacity: submitting ? 0.6 : 1 }}>
+              <button className="btn" disabled={submitting || saveLock.locked} onClick={() => save(false)} style={{ flex: "1 1 0", minWidth: 0, height: 48, padding: 0, opacity: submitting ? 0.6 : 1 }}>
                 {submitting ? "Saving…" : "Create Sales Order"}
               </button>
             </>
@@ -2901,7 +2899,7 @@ export function MobileNewSO({
         );
       })()}
       {submitDialog.element}
-    </div>
+    </div></FormTouchScope>
   );
 }
 
@@ -3060,8 +3058,9 @@ function LineCard({
      REAL category by code and, when it disagrees with the line's cat, rewrite
      cat + itemGroup so the right panel shows and its variants become required.
      For sofa, also default Leg Height to the "Default" option (RM 0.00) when
-     unset, so it is never an empty required field. */
+     unset; for a variant-tracked company only a product PICKED here, not a line merely opened. */
   const skuCategoryQ = useSkuCategoryByCode(line.itemCode || undefined);
+  const itemCodeAtOpen = useRef(line.itemCode);
   useEffect(() => {
     if (!picked) return;
     const resolved = String(skuCategoryQ.data ?? "").toLowerCase();
@@ -3072,7 +3071,7 @@ function LineCard({
       patch.itemGroup = resolved;
     }
     const effCat = patch.cat ?? line.cat;
-    if (effCat === "sofa" && maint
+    if (effCat === "sofa" && maint && (!activeCompanyTracksVariants() || line.itemCode !== itemCodeAtOpen.current)
         && isBlankVar(v.legHeight) && isBlankVar(v.sofaLegHeight)) {
       const def = defaultSofaLegValue(maint);
       if (def) patch.variants = { ...line.variants, ...(patch.variants ?? {}), legHeight: def };
@@ -3129,8 +3128,8 @@ function LineCard({
     /* Owner 2026-07-04 — hairline borders (--line2 #eceee9); the old
        rgba(34,31,32,.12) dividers read visually heavy on the phone. */
     <div style={{ border: "1px solid #eceee9", borderRadius: 11, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#F8F9FA", borderBottom: "1px solid #eceee9" }}>
-        <span style={{ width: 19, height: 19, flex: "none", borderRadius: 6, background: "#1B1B39", color: "#fff", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{index + 1}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#f4f6f3", borderBottom: "1px solid #eceee9" }}>
+        <span style={{ width: 19, height: 19, flex: "none", borderRadius: 6, background: "#16695f", color: "#fff", fontSize: 10.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{index + 1}</span>
         <button
           type="button"
           onClick={onOpenPicker}
@@ -3158,7 +3157,7 @@ function LineCard({
                  the code when a line has no name, so a row is never unidentifiable.
                  The variant is NOT shown here on purpose — the variant panels sit
                  directly below in this same card, so repeating it would duplicate. */
-              <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#111827", overflowWrap: "anywhere" }}>
+              <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#11140f", overflowWrap: "anywhere" }}>
                 {lineIdentity({ code: line.itemCode, description: line.name }).primary}
               </span>
             ) : (
@@ -3209,7 +3208,7 @@ function LineCard({
             {picked ? "" : " — pick a product"}
           </span>
           <span style={{ fontSize: 11, color: "#9aa093" }}>
-            Amount <b className="money" style={{ fontSize: 13, fontWeight: 800, color: "#2F55E0" }}>RM {amt}</b>
+            Amount <b className="money" style={{ fontSize: 13, fontWeight: 800, color: "#0c3f39" }}>RM {amt}</b>
           </span>
         </div>
 
@@ -3268,7 +3267,7 @@ function LineCard({
             {/* Bedframe build — 3 selects stacked in a responsive grid so DIVAN /
                 LEG / GAP each get full width and read completely (owner: the old
                 3-in-a-row cramped them to "No Le"). */}
-            <div style={{ background: "#F8F9FA", border: "1px solid #eceee9", borderRadius: 10, padding: "9px 10px" }}>
+            <div style={{ background: "#f4f6f3", border: "1px solid #eceee9", borderRadius: 10, padding: "9px 10px" }}>
               <div className="fld-l" style={{ marginBottom: 7 }}>Bedframe build</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                 <SpecSel label="Divan" required invalid={showErrors && missing.has("divanHeight")}
@@ -3297,8 +3296,8 @@ function LineCard({
               fontFamily: "inherit", cursor: "pointer",
             }}
           >
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>Special order</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: specialCount > 0 ? "#1B1B39" : "#9aa093" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>Special order</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: specialCount > 0 ? "#16695f" : "#9aa093" }}>
               {specialCount > 0 ? `${specialCount} added` : "None"}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><polyline points="9 6 15 12 9 18" /></svg>
             </span>
@@ -3306,7 +3305,7 @@ function LineCard({
         )}
 
         {picked && pools.ready && line.cat === "mattress" && (
-          <div style={{ fontSize: 10.5, color: "#6B7280", background: "#F8F9FA", border: "1px solid #eceee9", borderRadius: 9, padding: "7px 9px" }}>
+          <div style={{ fontSize: 10.5, color: "#767b6e", background: "#f4f6f3", border: "1px solid #eceee9", borderRadius: 9, padding: "7px 9px" }}>
             Mattress SKUs carry their spec in the item itself — no per-line variants to pick.
           </div>
         )}
@@ -3331,9 +3330,9 @@ function LineCard({
             type="button"
             onClick={() => photoInputRef.current?.click()}
             title="Attach a reference photo"
-            style={{ width: 46, flex: "none", alignSelf: "flex-end", height: 38, border: "1px solid #E5E7EB", borderRadius: 9, background: "#F8F9FA", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            style={{ width: 46, flex: "none", alignSelf: "flex-end", height: 38, border: "1px solid #d6d9d2", borderRadius: 9, background: "#f4f6f3", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
           >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /><circle cx="12" cy="13" r="3" /></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" /><circle cx="12" cy="13" r="3" /></svg>
           </button>
         </div>
 
@@ -3469,8 +3468,8 @@ function SpecialOrderSheet({ line, pools, showPrices, onChange, onClose }: {
         <div className="grab" />
         <div className="sheet-head">
           <div>
-            <div className="ey" style={{ color: "#D64F20" }}>Special order</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 2 }}>Add special orders</div>
+            <div className="ey" style={{ color: "#a16a2e" }}>Special order</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#11140f", marginTop: 2 }}>Add special orders</div>
           </div>
           <button className="sheet-x" onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -3479,7 +3478,7 @@ function SpecialOrderSheet({ line, pools, showPrices, onChange, onClose }: {
 
         <div className="sheet-scroll" style={{ gap: 9 }}>
           {presets.length === 0 && ghostPicks.length === 0 && (
-            <div style={{ fontSize: 12, color: "#6B7280" }}>
+            <div style={{ fontSize: 12, color: "#767b6e" }}>
               No preset special orders for this model — use “Custom / other” below.
             </div>
           )}
@@ -3490,15 +3489,15 @@ function SpecialOrderSheet({ line, pools, showPrices, onChange, onClose }: {
                 key={a.code}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer",
-                  border: on ? "1px solid #1B1B39" : "1px solid rgba(34,31,32,.12)",
-                  background: on ? "#DCE6FD" : "#fff", borderRadius: 11, padding: "11px 12px",
+                  border: on ? "1px solid #16695f" : "1px solid rgba(34,31,32,.12)",
+                  background: on ? "#e1efed" : "#fff", borderRadius: 11, padding: "11px 12px",
                 }}
               >
-                <input type="checkbox" checked={on} onChange={() => toggleSpecial(a.code)} style={{ width: 18, height: 18, flex: "none", accentColor: "#1B1B39" }} />
-                <span style={{ flex: 1, minWidth: 0, color: "#111827", fontWeight: 600 }}>{a.label}</span>
+                <input type="checkbox" checked={on} onChange={() => toggleSpecial(a.code)} style={{ width: 18, height: 18, flex: "none", accentColor: "#16695f" }} />
+                <span style={{ flex: 1, minWidth: 0, color: "#11140f", fontWeight: 600 }}>{a.label}</span>
                 {/* Role gate — non-admin sales sees the NAME only (owner). */}
                 {showPrices && a.sellingPriceSen !== 0 && (
-                  <span className="money" style={{ fontSize: 12, color: "#6B7280", flex: "none" }}>+{fmtSharedSen(a.sellingPriceSen)}</span>
+                  <span className="money" style={{ fontSize: 12, color: "#767b6e", flex: "none" }}>+{fmtSharedSen(a.sellingPriceSen)}</span>
                 )}
               </label>
             );
@@ -3507,8 +3506,8 @@ function SpecialOrderSheet({ line, pools, showPrices, onChange, onClose }: {
               visible + untickable so edit never hides what the order carries. */}
           {ghostPicks.map((c) => (
             <label key={c} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", border: "1px solid rgba(34,31,32,.12)", background: "#fff", borderRadius: 11, padding: "11px 12px" }}>
-              <input type="checkbox" checked onChange={() => toggleSpecial(c)} style={{ width: 18, height: 18, flex: "none", accentColor: "#1B1B39" }} />
-              <span style={{ flex: 1, minWidth: 0, color: "#111827" }}>{String((v.specialLabels as string[] | undefined)?.[pickedSpecials.indexOf(c)] ?? c)}</span>
+              <input type="checkbox" checked onChange={() => toggleSpecial(c)} style={{ width: 18, height: 18, flex: "none", accentColor: "#16695f" }} />
+              <span style={{ flex: 1, minWidth: 0, color: "#11140f" }}>{String((v.specialLabels as string[] | undefined)?.[pickedSpecials.indexOf(c)] ?? c)}</span>
               <span style={{ fontSize: 11, color: "#9aa093", flex: "none" }}>not in model</span>
             </label>
           ))}
@@ -3538,14 +3537,14 @@ function SpecialOrderSheet({ line, pools, showPrices, onChange, onClose }: {
           )}
 
           {/* ── Custom / other ── */}
-          <div style={{ borderTop: "1px dashed #E5E7EB", paddingTop: 11, marginTop: 2 }}>
+          <div style={{ borderTop: "1px dashed #d6d9d2", paddingTop: 11, marginTop: 2 }}>
             <button
               type="button"
               onClick={() => setCustomOpen((o) => !o)}
               style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "4px 2px", background: "transparent", border: "none", fontFamily: "inherit", cursor: "pointer" }}
             >
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>Custom / other</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: hasCustom ? "#1B1B39" : "#9aa093" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#11140f" }}>Custom / other</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: hasCustom ? "#16695f" : "#9aa093" }}>
                 {hasCustom ? "1 added" : ""}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ transform: (customOpen || hasCustom) ? "rotate(180deg)" : "none", transition: "transform .15s" }}><polyline points="6 9 12 15 18 9" /></svg>
               </span>
@@ -3633,8 +3632,8 @@ function PayCard({ pay, staff, convertSources, onChange, onRemove }: { pay: Paym
   return (
     /* Owner 2026-07-04 — hairline borders, matching the LineCard. */
     <div style={{ border: "1px solid #eceee9", borderRadius: 11, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#F8F9FA", borderBottom: "1px solid #eceee9" }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".06em" }}>Method</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#f4f6f3", borderBottom: "1px solid #eceee9" }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: "#767b6e", textTransform: "uppercase", letterSpacing: ".06em" }}>Method</span>
         <select className="fld-i" style={{ flex: 1, fontWeight: 600 }} value={pay.method} onChange={(e) => onChange({ method: e.target.value })}>
           {methodOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -3709,9 +3708,9 @@ function PayCard({ pay, staff, convertSources, onChange, onRemove }: { pay: Paym
               title={pay.slipName || "Attach a payment slip"}
               style={{
                 width: "100%", boxSizing: "border-box", height: 38, borderRadius: 9, cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700,
-                border: pay.slipPhase === "done" ? "1px solid #bcdcd7" : "1px solid #E5E7EB",
-                background: pay.slipPhase === "done" ? "#DCE6FD" : "#F8F9FA",
-                color: pay.slipPhase === "done" ? "#1B1B39" : "#4B5563",
+                border: pay.slipPhase === "done" ? "1px solid #bcdcd7" : "1px solid #d6d9d2",
+                background: pay.slipPhase === "done" ? "#e1efed" : "#f4f6f3",
+                color: pay.slipPhase === "done" ? "#16695f" : "#414539",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6, overflow: "hidden",
               }}
             >

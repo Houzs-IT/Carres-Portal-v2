@@ -13,6 +13,7 @@
 //   PATCH  /purchase-returns/:id/cancel     — → CANCELLED (if not completed)
 // ----------------------------------------------------------------------------
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono, type Context } from 'hono';
 import { supabaseAuth } from '../middleware/auth';
 import type { Env, Variables } from '../env';
@@ -25,6 +26,7 @@ import { todayMyt } from '../lib/my-time';
 import { enrichLinesWithFabricSupplierCode } from '../lib/fabric-supplier-code';
 import { warehouseLabel } from '../lib/warehouse-label';
 import { buildVariantSummary, computeVariantKey, type VariantAttrs } from '../shared';
+import * as bk from '../lib/stock-bucket-key'; // variant-tracked companies only; company 1 keys exactly as before
 import {
   orderSofaModuleRowsWithinBuilds,
   sortSoLinesByGroupRank,
@@ -51,6 +53,7 @@ import {
   PURCHASE_RETURN_REASON_CODES,
 } from '../shared/purchase-return-reasons';
 import { chunkIn } from '../lib/paginate-all';
+import { linesUnreadableBody, unreadableMovementError } from '../lib/failed-read-refusal';
 import {
   PR_HEADER_COLS,
   PR_LIST_SELECT,
@@ -74,8 +77,7 @@ const ITEM =
   'item_group, variants, created_at';
 
 const nextNum = async (sb: any, c: any): Promise<string> => {
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, 'purchase_returns', 'return_number', `${p}PRT-${yymm}`);
 };
@@ -150,12 +152,14 @@ export async function adjustGrnReturnedQty(sb: any, grnItemId: string, _delta?: 
   const rows = (prLines ?? []) as Array<{ qty_returned: number; purchase_return_id: string }>;
   const prIds = [...new Set(rows.map((r) => r.purchase_return_id).filter(Boolean))];
   const cancelled = new Set<string>();
+  /* HC-0221: a CREDIT return the supplier will not replace keeps the PO received. */
+  const noReplacement = new Set<string>();
   if (prIds.length > 0) {
     /* Same rule, opposite direction: an empty `cancelled` from a FAILED read
        reads as "no return here is cancelled", so a cancelled PR's qty is counted
        as still returned and the GRN line stays consumed against a return that
        was voided. */
-    const { data: prs, error: prsErr } = await sb.from('purchase_returns').select('id, status, kind').in('id', prIds);
+    const { data: prs, error: prsErr } = await sb.from('purchase_returns').select('id, status, kind, supplier_replaces').in('id', prIds);
     if (prsErr) {
       /* eslint-disable-next-line no-console */
       console.error('[adjustGrnReturnedQty] PR status read failed — returned_qty left unchanged:', grnItemId, prsErr.message);
@@ -166,19 +170,26 @@ export async function adjustGrnReturnedQty(sb: any, grnItemId: string, _delta?: 
        re-opened the PO as unreceived while the unit sat in KL SERVICE
        (2990-PRT-2610-001 / 2990-PO-2607-018). Only a CREDIT return does.
        It still is not returnable again: the return caps subtract repairHeldQty. */
-    for (const p of (prs ?? []) as Array<{ id: string; status: string; kind: string | null }>) {
+    for (const p of (prs ?? []) as Array<{ id: string; status: string; kind: string | null; supplier_replaces: boolean | null }>) {
       if ((p.status ?? '').toUpperCase() === 'CANCELLED' || p.kind === 'REPAIR') cancelled.add(p.id);
+      else if (p.supplier_replaces === false) noReplacement.add(p.id);
     }
   }
   let returned = 0;
-  for (const r of rows) if (!cancelled.has(r.purchase_return_id)) returned += Number(r.qty_returned ?? 0);
+  let closed = 0;
+  for (const r of rows) {
+    if (cancelled.has(r.purchase_return_id)) continue;
+    returned += Number(r.qty_returned ?? 0);
+    if (noReplacement.has(r.purchase_return_id)) closed += Number(r.qty_returned ?? 0);
+  }
 
   const { data: gi } = await sb.from('grn_items')
     .select('qty_accepted, purchase_order_item_id').eq('id', grnItemId).maybeSingle();
   if (!gi) return;
   const accepted = (gi as { qty_accepted: number }).qty_accepted ?? 0;
   const next = Math.min(accepted, Math.max(0, returned)); // clamp [0, accepted]
-  const { error: updErr } = await sb.from('grn_items').update({ returned_qty: next }).eq('id', grnItemId);
+  const nextClosed = Math.min(next, Math.max(0, closed));
+  const { error: updErr } = await sb.from('grn_items').update({ returned_qty: next, returned_closed_qty: nextClosed }).eq('id', grnItemId);
   if (updErr) {
     /* A rejected UPDATE left returned_qty STALE with nothing logged, and it is
        read by two integrity gates (PO re-open + PI over-bill headroom). Do not
@@ -295,7 +306,7 @@ purchaseReturns.get('/:id', async (c) => {
   const sb = c.get('supabase'); const id = c.req.param('id');
   const [h, i] = await Promise.all([
     scopeToCompany(sb.from('purchase_returns')
-      .select(`${HEADER}, supplier:suppliers(id, code, name, contact_person, phone, email, address), purchase_order:purchase_orders(id, po_number), grn:grns(id, grn_number)`)
+      .select(`${HEADER}, supplier:suppliers(id, code, name, contact_person, phone, email, email2, email3, address), purchase_order:purchase_orders(id, po_number), grn:grns(id, grn_number)`)
       .eq('id', id), c).maybeSingle(),
     sb.from('purchase_return_items').select(ITEM).eq('purchase_return_id', id).order('created_at'),
   ]);
@@ -443,10 +454,11 @@ async function warehouseCodeMap(
   return out;
 }
 
-async function writePurchaseReturnMovements(sb: any, prId: string, returnNumber: string, grnId: string | null, userId: string): Promise<string[]> {
+export async function writePurchaseReturnMovements(sb: any, prId: string, returnNumber: string, grnId: string | null, userId: string): Promise<string[]> {
   // Multi-company: the PR's movements inherit the PR header's company.
-  const { data: prHeader } = await sb.from('purchase_returns')
+  const { data: prHeader, error: prHeaderErr } = await sb.from('purchase_returns')
     .select('company_id, kind, repair_warehouse_id').eq('id', prId).maybeSingle();
+  if (prHeaderErr) return [unreadableMovementError('the purchase return', prHeaderErr)];
   const prHead = prHeader as { company_id?: number | null; kind?: string | null; repair_warehouse_id?: string | null } | null;
   const prCompanyId = prHead?.company_id ?? null;
   /* A REPAIR return does not take the goods off the books: they go to the
@@ -456,10 +468,10 @@ async function writePurchaseReturnMovements(sb: any, prId: string, returnNumber:
      2026-09-28). NULL for a CREDIT return, and the DB CHECK guarantees a REPAIR
      one has it. */
   const repairWarehouseId = prHead?.kind === 'REPAIR' ? (prHead.repair_warehouse_id ?? null) : null;
-  const { data: items } = await sb.from('purchase_return_items')
+  const { data: items, error: itemsErr } = await sb.from('purchase_return_items')
     .select('id, grn_item_id, item_code, material_name, qty_returned, item_group, variants')
     .eq('purchase_return_id', prId);
-  if (!items) return [];
+  if (itemsErr || !items) return itemsErr ? [unreadableMovementError('the purchase return lines', itemsErr)] : [];
   // Per-line warehouse — each line draws OUT of its source GRN line's warehouse,
   // not a single primary-GRN default (a batched PR can span warehouses).
   const lineWh = await resolvePrLineWarehouses(
@@ -504,19 +516,20 @@ async function writePurchaseReturnMovements(sb: any, prId: string, returnNumber:
       }
       for (const m of (inRes.data ?? []) as Array<{ source_doc_id: string; item_code: string; variant_key: string | null; warehouse_id: string; batch_no?: string | null }>) {
         if (m.batch_no == null) continue;
-        batchByBucket.set(`${m.source_doc_id}::${m.warehouse_id}::${m.item_code}::${m.variant_key ?? ''}`, m.batch_no);
+        batchByBucket.set(`${m.source_doc_id}::${m.warehouse_id}::${m.item_code}::${bk.bucketIdFor(prCompanyId, m.variant_key)}`, m.batch_no);
       }
     }
   }
 
+  const prKeyOf = await bk.stockBucketKeyResolver(sb, prCompanyId, itemList.map((it) => bk.stockKeyLine(it, lineWh.get(it.id) ?? null)));
   const movements = itemList
     .filter((it) => it.qty_returned > 0)
     .map((it) => {
       const warehouseId = lineWh.get(it.id) ?? null;
       if (!warehouseId) return null;
-      const variantKey = computeVariantKey(it.item_group, it.variants ?? null);
+      const variantKey = prKeyOf(bk.stockKeyLine(it, warehouseId));
       const srcGrn = lineGrnId.get(it.id) ?? null;
-      const batchNo = srcGrn ? (batchByBucket.get(`${srcGrn}::${warehouseId}::${it.item_code}::${variantKey}`) ?? null) : null;
+      const batchNo = srcGrn ? (batchByBucket.get(`${srcGrn}::${warehouseId}::${it.item_code}::${bk.bucketIdFor(prCompanyId, variantKey)}`) ?? null) : null;
       return {
         movement_type: 'OUT' as const,
         warehouse_id: warehouseId,
@@ -659,7 +672,7 @@ async function writePrLineDeltaMovement(
        and reports nothing). Same concept, same shape: do not invent a second
        error class here. */
     if (!warehouseId) return [];
-    const variantKey = computeVariantKey(args.line.item_group, args.line.variants ?? null);
+    const variantKey = isOut ? await bk.stockBucketKeyOne(sb, args.companyId ?? null, bk.stockKeyLine(args.line, warehouseId)) : await bk.ownDocBucketKey(sb, { type: 'PURCHASE_RETURN', id: args.prId, movement: 'OUT', companyId: args.companyId ?? null }, args.line.item_code, computeVariantKey(args.line.item_group, args.line.variants ?? null));
     // Batch: resolve THIS line's OWN dye-lot deterministically from its source GRN
     // line's PO (grn_item_id → purchase_order_item_id → PO number). Not a .limit(1)
     // bucket lookup, which could grab a sibling line's batch when two lines of the
@@ -1029,6 +1042,8 @@ purchaseReturns.post('/', async (c) => {
     reason: reasonCode,
     kind,
     repair_warehouse_id: repairWarehouseId,
+    // Only an explicit No closes the PO line; a REPAIR expects its goods back anyway.
+    supplier_replaces: kind === 'REPAIR' || body.supplierReplaces !== false,
     refund_sen: totalRefund,
     notes: (body.notes as string | undefined) ?? null,
     status: 'POSTED',
@@ -1114,7 +1129,7 @@ export const createPurchaseReturnFromGrnsHandler = async (c: Context<{ Bindings:
   /* company-scope: both source reads below are SCOPED, so another company's GRN
      is not visible here at all; the by-id write is this handler's own rollback. */
   const sb = c.get('supabase'); const user = c.get('user');
-  let body: { grnIds?: string[]; reason?: string; notes?: string; confirmShortStock?: boolean };
+  let body: { grnIds?: string[]; reason?: string; notes?: string; confirmShortStock?: boolean; supplierReplaces?: boolean };
   try { body = (await c.req.json()) as typeof body; } catch { return c.json({ error: 'invalid_json' }, 400); }
   const grnIds = body.grnIds ?? [];
   if (grnIds.length === 0) return c.json({ error: 'grn_ids_required' }, 400);
@@ -1177,8 +1192,7 @@ export const createPurchaseReturnFromGrnsHandler = async (c: Context<{ Bindings:
   }
 
   // Generate PR number.
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   // Minted inside insertWithDocNoRetry below so a concurrent-create collision
   // (23505 on return_number) re-derives the next free number instead of 500ing.
   const p = companyDocPrefix(c);
@@ -1224,6 +1238,7 @@ export const createPurchaseReturnFromGrnsHandler = async (c: Context<{ Bindings:
     supplier_id: supplierId,
     return_date: todayMyt(),
     reason: body.reason ?? `Batch from ${grnList.length} GRNs: ${grnNumbersJoined}`,
+    supplier_replaces: body.supplierReplaces !== false,
     refund_sen: totalRefund,
     notes: body.notes ?? null,
     /* PR-DRAFT-removal — auto-POSTED on create. */
@@ -1281,7 +1296,7 @@ export const createPurchaseReturnFromGrnHandler = async (c: Context<{ Bindings: 
      is not visible here at all; the remaining by-id statements read that same
      GRN's own lines and roll back this handler's own header. */
   const sb = c.get('supabase'); const user = c.get('user');
-  let body: { grnId?: string; reason?: string; notes?: string; confirmShortStock?: boolean };
+  let body: { grnId?: string; reason?: string; notes?: string; confirmShortStock?: boolean; supplierReplaces?: boolean };
   try { body = (await c.req.json()) as typeof body; } catch { return c.json({ error: 'invalid_json' }, 400); }
   const grnId = body.grnId;
   if (!grnId) return c.json({ error: 'grn_id_required' }, 400);
@@ -1362,6 +1377,7 @@ export const createPurchaseReturnFromGrnHandler = async (c: Context<{ Bindings: 
     supplier_id: g.supplier_id,
     return_date: todayMyt(),
     reason: body.reason ?? `From ${g.grn_number}`,
+    supplier_replaces: body.supplierReplaces !== false,
     refund_sen: totalRefund,
     notes: body.notes ?? null,
     status: 'POSTED',
@@ -1586,12 +1602,35 @@ purchaseReturns.patch('/:id', async (c) => {
   /* A cleared return date posts "" and this loop wrote it through to the date
      column, which Postgres rejects and 500s the save. */
   coerceEmptyDates(updates);
+  if (body.supplierReplaces !== undefined && typeof body.supplierReplaces !== 'boolean') {
+    return c.json({ error: 'supplier_replaces_invalid', message: 'Supplier sends a replacement is Yes or No.' }, 400);
+  }
+  if (typeof body.supplierReplaces === 'boolean') updates.supplier_replaces = body.supplierReplaces;
   const sb = c.get('supabase');
   const co = requireActiveCompanyId(c);
   if (!co.ok) return c.json(co.refusal, 409);
+  /* A REPAIR return expects its goods back, so "no replacement" means nothing there. */
+  if (body.supplierReplaces === false) {
+    const { data: cur, error: curErr } = await scopeToCompanyId(sb.from('purchase_returns').select('kind').eq('id', id), co.companyId).maybeSingle();
+    if (curErr) return c.json({ error: 'load_failed', reason: curErr.message }, 500);
+    if (!cur) return c.json(NOT_THIS_COMPANY, 404);
+    if ((cur as { kind: string | null }).kind === 'REPAIR') {
+      return c.json({ error: 'repair_always_replaced', message: 'A repair return expects its goods back — the replacement question does not apply.' }, 409);
+    }
+  }
   const { data, error } = await scopeToCompanyId(sb.from('purchase_returns').update(updates).eq('id', id), co.companyId).select(HEADER).maybeSingle();
   if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
   if (!data) return c.json(NOT_THIS_COMPANY, 404);
+  /* The answer decides whether the returned units re-open the PO line, so a
+     change re-runs the same recount a cancel does (HC-0221). */
+  if (typeof body.supplierReplaces === 'boolean') {
+    const { data: lines, error: linesErr } = await sb.from('purchase_return_items').select('grn_item_id').eq('purchase_return_id', id);
+    /* The answer is saved but the PO lines were not recounted; say so rather than report success. */
+    if (linesErr) return c.json({ error: 'recount_failed', reason: linesErr.message, purchaseReturn: data }, 500);
+    for (const l of (lines ?? []) as Array<{ grn_item_id: string | null }>) {
+      if (l.grn_item_id) await adjustGrnReturnedQty(sb, l.grn_item_id);
+    }
+  }
   return c.json({ purchaseReturn: data });
 });
 
@@ -1908,9 +1947,12 @@ export const deletePurchaseReturnItemHandler = async (c: any) => {
   // Audit 2026-06-11 M10 — scoped to THIS PR: a mismatched itemId must 404,
   // not delete another PR's line while the GRN release / stock compensation
   // run against this one.
-  const { data: line } = await scopeToCompanyId(sb.from('purchase_return_items')
+  const { data: line, error: lineErr } = await scopeToCompanyId(sb.from('purchase_return_items')
     .select('qty_returned, grn_item_id, item_code, material_name, item_group, variants')
     .eq('id', itemId).eq('purchase_return_id', prId), co.companyId).maybeSingle();
+  // Header read BEFORE the delete: the reversing IN needs it, and an unread one must refuse, not drop the IN.
+  const { data: hdr, error: hdrErr } = await scopeToCompanyId(sb.from('purchase_returns').select('return_number, grn_id').eq('id', prId), co.companyId).maybeSingle();
+  if (lineErr || hdrErr) return c.json(linesUnreadableBody('the purchase return line', 'deleted', lineErr ?? hdrErr), 503);
   if (!line) return c.json(NOT_THIS_COMPANY, 404);
   const { error } = await scopeToCompanyId(sb.from('purchase_return_items').delete().eq('id', itemId), co.companyId);
   if (error) return c.json({ error: 'delete_failed', reason: error.message }, 500);
@@ -1925,8 +1967,6 @@ export const deletePurchaseReturnItemHandler = async (c: any) => {
        standing and stock drifted below the books permanently. */
     const qty = Number(l.qty_returned ?? 0);
     if (qty > 0) {
-      const { data: hdr } = await sb.from('purchase_returns')
-        .select('return_number, grn_id').eq('id', prId).maybeSingle();
       if (hdr) {
         movementErrors = await writePrLineDeltaMovement(sb, {
           prId,

@@ -378,7 +378,7 @@ export function MobileMileageCapture({ onBack }: { onBack: () => void }) {
                 />
                 )}
               </label>
-              <div style={{ flex: 1, borderRadius: 13, minHeight: 70, background: (mode === "breakdown" ? bdFiles.length : photoFile) ? "linear-gradient(135deg,#d7ded6,#c7d0c4)" : "linear-gradient(135deg,#eceee9,#EEF0F3)" }} />
+              <div style={{ flex: 1, borderRadius: 13, minHeight: 70, background: (mode === "breakdown" ? bdFiles.length : photoFile) ? "linear-gradient(135deg,#d7ded6,#c7d0c4)" : "linear-gradient(135deg,#eceee9,#e3e6e0)" }} />
             </div>
             {mode === "mileage" && photoFile && <div style={{ fontSize: 10.5, color: "var(--mut)", marginTop: 6 }} className="tnum">{photoFile.name}</div>}
             {mode === "breakdown" && bdFiles.map((f, i) => (

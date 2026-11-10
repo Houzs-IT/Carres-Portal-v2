@@ -3,7 +3,9 @@ import { inArm, poIdsForSoDocNos, soDocNosByRef, SO_REF_MATCH_CAP } from './so-r
 import { filterDoList, type DoListParams } from './do-list-read';
 import { filterSiList, type SiListFilters } from './si-list-read';
 import { filterPoList, type PoListFilters } from './po-list-read';
-import planningRaw from '../routes/delivery-planning.ts?raw';
+import soRowsRaw from './delivery-board-so-rows.ts?raw';
+import boardSourceRaw from './delivery-board-source.ts?raw';
+import boardSqlRaw from './delivery-board-sql.ts?raw';
 
 // Owner 2026-09-25: every search finds a record by its SO's reference number.
 // DO / SI copies of the ref are often empty and POs carry none, so the lists
@@ -51,7 +53,7 @@ describe('list searches match the SO link resolved from the SO reference', () =>
     const { self, calls } = recorder();
     const f: PoListFilters = {
       status: null, supplierId: null, q: 'PO-778', from: null, to: null, sort: null,
-      creditorNames: null, creditorCodes: null, currencies: null, docDates: null, soRefPoIds: ['po-1'],
+      creditorNames: null, creditorCodes: null, currencies: null, docDates: null, soRefPoIds: ['po-1'], itemCodePoIds: [],
     };
     filterPoList(self, f, ctx, new Set());
     expect(orString(calls)).toBe('po_number.ilike.%PO-778%,notes.ilike.%PO-778%,id.in.("po-1")');
@@ -60,7 +62,7 @@ describe('list searches match the SO link resolved from the SO reference', () =>
     const { self, calls } = recorder();
     const f: PoListFilters = {
       status: null, supplierId: null, q: 'x1', from: null, to: null, sort: null,
-      creditorNames: null, creditorCodes: null, currencies: null, docDates: null, soRefPoIds: [],
+      creditorNames: null, creditorCodes: null, currencies: null, docDates: null, soRefPoIds: [], itemCodePoIds: [],
     };
     filterPoList(self, f, ctx, new Set());
     expect(orString(calls)).toBe('po_number.ilike.%x1%,notes.ilike.%x1%');
@@ -122,7 +124,10 @@ describe('poIdsForSoDocNos', () => {
 
 describe('Delivery Planning board', () => {
   it("the board's Reference (its search field) falls back to customer_so_no like customer-ref.ts", () => {
-    expect(planningRaw).toMatch(/so_ref: \(\(r\.ref as string \| null\) \|\| \(r\.customer_so_no as string \| null\)\) \?\? null/);
-    expect(planningRaw).toMatch(/referral, ref, customer_so_no, delivery_message_status/);
+    // The SO row is built in lib/delivery-board-so-rows.ts (moved out of the route);
+    // both header reads, PostgREST and SQL, must carry ref + customer_so_no.
+    expect(soRowsRaw).toMatch(/so_ref: \(\(r\.ref as string \| null\) \|\| \(r\.customer_so_no as string \| null\)\) \?\? null/);
+    expect(boardSourceRaw).toMatch(/referral, ref, customer_so_no, delivery_message_status/);
+    expect(boardSqlRaw).toMatch(/referral, ref, customer_so_no, delivery_message_status/);
   });
 });

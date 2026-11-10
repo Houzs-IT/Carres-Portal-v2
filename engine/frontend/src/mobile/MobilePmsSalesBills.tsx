@@ -38,13 +38,13 @@ export function MobilePmsSalesBills({ query }: { query: MobileProjectSalesBillsQ
       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
         <span style={LABEL}>Sales report (chat)</span>
         {totals && totals.count > 0 && (
-          <span className="money" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#4B5563" }}>
+          <span className="money" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#414539" }}>
             {totals.count} · {fmtRmSen(totals.amount_sen)}
           </span>
         )}
       </div>
       {totals && totals.count > 0 && (
-        <div style={{ fontSize: 11, color: "#4B5563", margin: "0 0 6px" }}>
+        <div style={{ fontSize: 11, color: "#414539", margin: "0 0 6px" }}>
           Opened {totals.opened_count} · {fmtRmSen(totals.opened_sen)}
           <span style={{ color: totals.not_opened_sen > 0 ? TONE_COLOR.red : TONE_COLOR.green, fontWeight: 700 }}>
             {" "}· Not opened {totals.not_opened_count} · {fmtRmSen(totals.not_opened_sen)}
@@ -71,8 +71,8 @@ export function MobilePmsSalesBills({ query }: { query: MobileProjectSalesBillsQ
             return (
               <div key={b.key} style={{ padding: "9px 12px", borderTop: i === 0 ? "none" : "1px solid #eceee9" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span className="money" style={{ fontSize: 12, fontWeight: 700, color: "#111827" }}>{b.ref_raw}</span>
-                  <span style={{ flex: 1, minWidth: 60, fontSize: 12, color: "#4B5563" }}>{b.salesperson_name || "—"}</span>
+                  <span className="money" style={{ fontSize: 12, fontWeight: 700, color: "#11140f" }}>{b.ref_raw}</span>
+                  <span style={{ flex: 1, minWidth: 60, fontSize: 12, color: "#414539" }}>{b.salesperson_name || "—"}</span>
                   <span className="money" style={{ fontSize: 12, fontWeight: 700, color: st.tone === "red" ? TONE_COLOR.red : "#2f8a5b" }}>{fmtRmSen(b.amount_sen)}</span>
                 </div>
                 <div style={{ ...MUTED, fontSize: 11, marginTop: 2 }}>
@@ -81,7 +81,7 @@ export function MobilePmsSalesBills({ query }: { query: MobileProjectSalesBillsQ
                   {b.match.so_doc_no && (
                     <>
                       {" "}·{" "}
-                      <Link to={`/scm/sales-orders/${encodeURIComponent(b.match.so_doc_no)}`} style={{ color: "#1B1B39", fontWeight: 700, textDecoration: "underline" }}>
+                      <Link to={`/scm/sales-orders/${encodeURIComponent(b.match.so_doc_no)}`} style={{ color: "#16695f", fontWeight: 700, textDecoration: "underline" }}>
                         {b.match.so_doc_no}
                       </Link>
                     </>

@@ -62,9 +62,9 @@ export function MobileAssrCategoryChips({
               fontFamily: "inherit",
               cursor: disabled ? "default" : "pointer",
               opacity: disabled ? 0.5 : 1,
-              border: `1px solid ${on ? "#1B1B39" : "#EEF0F3"}`,
-              background: on ? "rgba(27, 27, 57,0.10)" : "#fff",
-              color: on ? "#1B1B39" : "#6B7280",
+              border: `1px solid ${on ? "#16695f" : "#e3e6e0"}`,
+              background: on ? "rgba(22,105,95,0.10)" : "#fff",
+              color: on ? "#16695f" : "#767b6e",
             }}
           >
             {name}

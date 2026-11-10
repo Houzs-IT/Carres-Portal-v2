@@ -37,12 +37,6 @@ import { InPlaceOfReport, ReportExports, ReportHeaderActions, useReportSubtitle 
 import { FinanceDateRange } from './FinanceDateRange';
 import { useReportRange } from './useReportRange';
 
-// Carres: the report list comes from the Finance menu, which Carres hides (carres/navOnly.ts); this pins Houzs's.
-vi.mock("../../../components/Sidebar", async (importOriginal) => {
-  const m = await importOriginal<typeof import("../../../components/Sidebar")>();
-  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
-});
-
 const Where = () => {
   const l = useLocation();
   return <output aria-label="address">{`${l.pathname}${l.search}`}</output>;

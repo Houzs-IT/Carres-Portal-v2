@@ -58,10 +58,10 @@ interface CaseDetailResponse {
   activity?: Row[];
 }
 
-const INK = "#111827";
+const INK = "#11140f";
 const INK_SEC = "#3f463a";
-const MUTED = "#6B7280";
-const TEAL = "#1B1B39";
+const MUTED = "#767b6e";
+const TEAL = "#16695f";
 const BROWN_SOFT = "#f6efd9";
 const BROWN_FG = "#8a6a2e";
 const GREY = "#9aa093";

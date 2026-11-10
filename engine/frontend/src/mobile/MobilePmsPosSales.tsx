@@ -27,7 +27,7 @@ const MUTED: React.CSSProperties = { fontSize: 12, color: "#9aa093" };
 function pillStyle(status: PosReceiptStatus): React.CSSProperties {
   if (status === "VOID") return { background: "#f9dede", color: "#9b2c2c" };
   if (status === "RETURN") return { background: "#dbeefb", color: "#0b6b8f" };
-  return { background: "#d9f0e4", color: "#1B1B39" };
+  return { background: "#d9f0e4", color: "#16695f" };
 }
 
 export function useMobileProjectPosSales(projectId: number, enabled: boolean) {
@@ -53,13 +53,13 @@ export function MobilePmsPosSales({ query }: { query: ReturnType<typeof useMobil
       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
         <span style={LABEL}>POS sales</span>
         {t && (
-          <span className="money" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#4B5563" }}>
+          <span className="money" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#414539" }}>
             {t.paid_count} · {fmtSen(t.net_sen)}
           </span>
         )}
       </div>
       {t && Object.keys(t.by_method).length > 0 && (
-        <div style={{ fontSize: 11, color: "#4B5563", margin: "0 0 6px" }}>
+        <div style={{ fontSize: 11, color: "#414539", margin: "0 0 6px" }}>
           {Object.entries(t.by_method).map(([m, sen]) => `${posMethodLabel(m)} ${fmtSen(sen)}`).join(" · ")}
           {t.void_count > 0 ? ` · ${t.void_count} void` : ""}
           {t.return_count > 0 ? ` · ${t.return_count} return` : ""}
@@ -74,7 +74,7 @@ export function MobilePmsPosSales({ query }: { query: ReturnType<typeof useMobil
         return (
           <div key={r.id} style={{ borderTop: "1px solid #e6e8e1", padding: "6px 0" }} onClick={() => setOpen(isOpen ? null : r.id)}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-              <span className="mono" style={{ fontWeight: 700, color: "#1B1B39" }}>{r.receipt_no}</span>
+              <span className="mono" style={{ fontWeight: 700, color: "#16695f" }}>{r.receipt_no}</span>
               <span style={{ ...pillStyle(status), fontSize: 9, fontWeight: 700, borderRadius: 999, padding: "1px 6px" }}>{status}</span>
               <span className="money" style={{ marginLeft: "auto", fontWeight: 700, textDecoration: status === "VOID" ? "line-through" : undefined }}>
                 {r.type === "RETURN" && status !== "VOID" ? "-" : ""}{fmtSen(r.total_sen)}
@@ -87,7 +87,7 @@ export function MobilePmsPosSales({ query }: { query: ReturnType<typeof useMobil
               {r.methods.length > 0 ? ` · ${r.methods.map(posMethodLabel).join(" + ")}` : ""}
             </div>
             {isOpen && (
-              <div style={{ marginTop: 4, fontSize: 11, color: "#4B5563" }}>
+              <div style={{ marginTop: 4, fontSize: 11, color: "#414539" }}>
                 {r.lines.map((l) => (
                   <div key={l.line_no} style={{ display: "flex", gap: 6 }}>
                     <span style={{ flex: 1 }}>

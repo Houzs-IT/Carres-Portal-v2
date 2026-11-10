@@ -20,7 +20,7 @@ import { useReportRange } from './useReportRange';
 import s from './ReportChart.module.css';
 
 /** The report charts' one palette (owner 2026-11-02: petrol, gold, warm grey). */
-export const REPORT_CHART_COLORS = { petrol: '#1B1B39', gold: '#D64F20', grey: '#a3a99b' } as const;
+export const REPORT_CHART_COLORS = { petrol: '#16695f', gold: '#d8a85a', grey: '#a3a99b' } as const;
 
 export type ChartBarSeries = { key: string; label: string; color: string };
 /** One month as the chart draws it: its bars, and the bottom line under them and in its card. */

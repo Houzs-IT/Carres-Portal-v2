@@ -955,9 +955,9 @@ function MobileAppInner() {
     const grnScanEntry = k === "grns" && canOperateGoodsReceipts(can, pageAccess) ? (
       <button
         onClick={() => setScreen({ t: "grn-scan", key: k, title: screen.title })}
-        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center", height: 44, borderRadius: 12, border: "1px solid #1B1B39", background: "#fff", color: "#1B1B39", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center", height: 44, borderRadius: 12, border: "1px solid #16695f", background: "#fff", color: "#16695f", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, cursor: "pointer", marginBottom: 12 }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18" /></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18" /></svg>
         Scan delivery order
       </button>
     ) : undefined;
@@ -1031,7 +1031,7 @@ function MobileAppInner() {
     overlay = <MobileModuleDetail moduleKey={screen.key} row={screen.row} title={screen.title}
       onBack={() => setScreen({ t: "module", key: screen.key, title: screen.title })}
       onEdit={screen.key !== "delivery-orders-mfg"
-        ? () => setScreen({ t: "module-form", key: screen.key, mode: "edit", row: screen.row })
+        ? (fresh?: Record<string, unknown>) => setScreen({ t: "module-form", key: screen.key, mode: "edit", row: fresh ?? screen.row })
         : canOperateDeliveryOrders(user, can, pageAccess) && screen.row?.id
           ? () => setScreen({ t: "do-edit", key: screen.key, row: screen.row, title: screen.title })
           : undefined}
@@ -1083,7 +1083,17 @@ function MobileAppInner() {
   else if (screen.t === "service") overlay = <MobileServiceCase onBack={back} startNew={screen.startNew} />;
   else if (screen.t === "delivery-planning") overlay = <MobileDeliveryPlanning onBack={back} completedDoNumber={screen.completedDoNumber ?? null} onOpen={(doc) => setScreen({ t: "so-detail", docNo: doc })} onPod={(doNumber, companyCode) => setScreen({ t: "pod", docNo: doNumber, companyCode, from: "delivery-planning" })} />;
   else if (screen.t === "delivery-planning-driver") overlay = <MobileDeliveryPlanning onBack={back} completedDoNumber={screen.completedDoNumber} onOpen={(doc) => setScreen({ t: "so-detail", docNo: doc })} onPod={(doNumber, companyCode) => setScreen({ t: "pod", docNo: doNumber, companyCode, from: "delivery-planning-driver" })} />;
-  else if (screen.t === "pms") overlay = <MobilePMS onBack={back} initialProjectId={screen.projectId} />;
+  else if (screen.t === "pms") overlay = (
+    <MobilePMS
+      onBack={back}
+      initialProjectId={screen.projectId}
+      // Owner 2026-11-09 "letak balik button tu": the project-detail + FAB
+      // routes through MobileApp's setScreen the same way the Orders tab + FAB
+      // does, so one create path serves both surfaces.
+      onCreateSO={() => setScreen({ t: "new-so", mode: "new" })}
+      onCreateCase={() => setScreen({ t: "service", startNew: true })}
+    />
+  );
   else if (screen.t === "mail") overlay = <MobileMailCenter onBack={back} />;
   else if (screen.t === "roles") overlay = can("roles.read") ? <MobileRoles onBack={back} /> : <TabLocked title="Roles" />;
   else if (screen.t === "titles") overlay = can("users.read") ? <MobileTitles onBack={back} /> : <TabLocked title="Titles" />;
@@ -1192,8 +1202,8 @@ function MobileAppInner() {
             <div className="grab" />
             <div className="sheet-head">
               <div>
-                <div className="ey" style={{ color: "#D64F20" }}>Menu</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 2 }}>Where to next?</div>
+                <div className="ey" style={{ color: "#a16a2e" }}>Menu</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#11140f", marginTop: 2 }}>Where to next?</div>
               </div>
               <button className="sheet-x" onClick={() => setMenuOpen(false)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
@@ -1300,7 +1310,7 @@ function MobileNotFound({ path, onHome }: { path: string; onHome: () => void }) 
   return (
     <UrlDeadEnd
       title="Page not found"
-      body={`${path} isn't a page here. Check the link or return to the app.`}
+      body={`${path} isn't a page in Houzs ERP. Check the link or return to the app.`}
       onHome={onHome}
     />
   );

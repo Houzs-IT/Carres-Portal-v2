@@ -277,7 +277,7 @@ export function SupplierBillsList({ apRows, apLoading, apError, can, onAct, onPr
               files puts each one's stored files right after it. */}
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <input type="checkbox" checked={withFiles} onChange={(e) => setWithFiles(e.target.checked)}
-              aria-label="Include each document's attached files" style={{ width: 14, height: 14, accentColor: '#1B1B39' }} />
+              aria-label="Include each document's attached files" style={{ width: 14, height: 14, accentColor: '#16695f' }} />
             With files
           </label>
           <Button variant="secondary" size="sm" onClick={() => printRows(printTargets, withFiles)} disabled={prints.printing || printTargets.length === 0}>

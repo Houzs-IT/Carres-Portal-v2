@@ -82,7 +82,7 @@ import { useStaffLookup } from "../../hooks/useStaffLookup";
 import { useBranding } from "../../hooks/useBranding";
 import { shortCompanyName, getBrandingCompanyCode } from "../../lib/branding";
 import { brandingLabel, isPlaceholderBrandText } from "../../vendor/shared/so-branding-label";
-import { soCanRaiseDo } from "../../vendor/shared/so-deliverable-states";
+import { soOffersTransferToDo } from "../../lib/so-transfer-to-do";
 import { useDebouncedSearchTerm, useSearchResultTransition } from "../../hooks/useServerSearch";
 import { useMfgSalesOrdersPaged, useMfgCustomers, useUpdateMfgSalesOrderStatus, useMfgSalesOrderDetail, useEnrichedSoListRows, useSoLineCoverage, useSoFunnelValues } from "../../vendor/scm/lib/sales-order-queries";
 import { useSetDocumentHold } from "../../vendor/scm/lib/document-hold-queries";
@@ -112,6 +112,7 @@ import { soExemptionExpiryOf } from "../../lib/so-exemption-expiry";
 import { formatPhone } from "@2990s/shared/phone";
 import { customerRefOf } from '../../lib/customer-ref';
 import { soStreetTail } from '../../vendor/scm/lib/order-address';
+import { todayMyt } from "../../vendor/scm/lib/dates";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Minimal row shape the listing needs. The full SoRow (in MfgSalesOrdersList
@@ -170,6 +171,8 @@ type SoRow = HoldFields & {
   /* Server-derived here (mfg-sales-orders.ts:1800-1806); optional because an
      older bundle carries neither. sales-order.md §0.4c and SoListStatusCell. */
   delivery_state?: "none" | "partial" | "full" | null;
+  /** Server-derived (lib/so-list-rows.ts): something is still left to put on a DO. */
+  has_undelivered?: boolean | null;
   lifecycle_state?: "none" | "delivered" | "invoiced" | "returned" | null;
   do_nos?: string[] | null;
   /** The same delivery orders and the sales invoices raised against this order,
@@ -729,7 +732,8 @@ function DetailDrawer({
                     </>
                   );
                 }
-                if (soCanRaiseDo(row.status, row.on_hold ?? null)) {
+                /* Not offered once nothing is left to deliver (Conts #699). */
+                if (soOffersTransferToDo(row)) {
                   // ABSENT, not disabled, for anyone who may not operate a DO.
                   if (!canDeliver) return null;
                   /* Renamed from "Deliver" 2026-08-17 — the SO already reports a
@@ -1116,7 +1120,7 @@ export function MfgSalesOrdersListV2() {
     [customersQ.data],
   );
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } = useMfgSalesOrdersPaged({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useMfgSalesOrdersPaged({
     page,
     pageSize,
     status,
@@ -1139,6 +1143,7 @@ export function MfgSalesOrdersListV2() {
   // and these tiles summarise the SAME payload - so a settled-looking "RM 0.00"
   // (or the PREVIOUS term's money under a placeholder page) would outlive the
   // rows it describes. Same flag SearchScopeHint already uses for its count.
+  const statsFailed = Boolean(error);
   const statsPending =
     isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale;
   const updateStatus = useUpdateMfgSalesOrderStatus();
@@ -1401,7 +1406,7 @@ export function MfgSalesOrdersListV2() {
             payments: b.payments as never,
             pwpCodes: b.pwpCodes as never,
           })),
-          { fileName: `sales-orders-${new Date().toISOString().slice(0, 10)}.pdf`, action }
+          { fileName: `sales-orders-${todayMyt()}.pdf`, action }
         );
       } else {
         for (const b of bundles)
@@ -1940,7 +1945,7 @@ export function MfgSalesOrdersListV2() {
          admin saved from the Columns panel still takes this seed's place. */
       {
         id: "so-houzs",
-        label: "Sales Layout",
+        label: "Houzs Layout",
         hint: "AutoCount: SALES ORDER DETAILS-SALES",
         companyCode: "HOUZS",
         isDefault: !is2990,
@@ -2043,7 +2048,7 @@ export function MfgSalesOrdersListV2() {
               (the component-root default). */}
           <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Total Orders"
               value={total.toLocaleString("en-MY")}
               subtitle="All matching orders"
@@ -2051,14 +2056,14 @@ export function MfgSalesOrdersListV2() {
               active
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Revenue"
               value={fmtRm(stats.revenueSen)}
               subtitle={stats.fullSet ? "All matching orders" : "Sum on this page"}
               rail="bg-accent"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Outstanding"
               value={fmtRm(stats.outstandingSen)}
               subtitle={stats.fullSet ? "Balance due" : "Balance on this page"}
@@ -2066,7 +2071,7 @@ export function MfgSalesOrdersListV2() {
               rail="bg-err"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Paid"
               value={fmtRm(stats.paidSen)}
               subtitle={stats.fullSet ? "Receipts to date" : "Receipts on this page"}

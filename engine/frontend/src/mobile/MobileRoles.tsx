@@ -639,7 +639,7 @@ function MLevelPicker({
               fontWeight: active ? 800 : 500,
               cursor: disabled ? "default" : "pointer",
               color: active ? "#fff" : "var(--mut)",
-              background: active ? "var(--brand, #1B1B39)" : "var(--bg)",
+              background: active ? "var(--brand, #16695f)" : "var(--bg)",
               opacity: disabled ? 0.5 : 1,
             }}
           >

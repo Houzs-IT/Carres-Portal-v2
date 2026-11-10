@@ -72,16 +72,16 @@ export function ScanCodesPanel({ jobId, jobsQueryKey }: { jobId: string; jobsQue
   return (
     <div style={box}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>Supplier codes</div>
-      <div style={{ color: 'var(--fg-muted, #6B7280)', marginBottom: 8 }}>
+      <div style={{ color: 'var(--fg-muted, #767b6e)', marginBottom: 8 }}>
         Choose which item each code on the delivery order is. Leave a code on "Not on the PO" for free gifts. Saved codes match automatically next time.
       </div>
       {rows.map((r) => (
         <div key={r.printedCode} style={{ padding: '6px 0', borderTop: '1px solid var(--line, #eeece5)' }}>
           <div>
             <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 700 }}>{r.printedCode}</span> x{r.qty}
-            {r.status === 'name_matched' && <span style={{ marginLeft: 6, fontWeight: 600, fontSize: 11, color: '#1B1B39' }}>matched by name</span>}
+            {r.status === 'name_matched' && <span style={{ marginLeft: 6, fontWeight: 600, fontSize: 11, color: '#16695f' }}>matched by name</span>}
           </div>
-          {r.description && <div style={{ color: 'var(--fg-muted, #6B7280)', margin: '2px 0 4px' }}>{r.description}</div>}
+          {r.description && <div style={{ color: 'var(--fg-muted, #767b6e)', margin: '2px 0 4px' }}>{r.description}</div>}
           <select
             aria-label={`Item for ${r.printedCode}`}
             value={valueOf(r)}
@@ -97,7 +97,7 @@ export function ScanCodesPanel({ jobId, jobsQueryKey }: { jobId: string; jobsQue
         type="button"
         disabled={pairs.length === 0 || save.isPending}
         onClick={() => save.mutate(pairs)}
-        style={{ marginTop: 8, minHeight: 36, padding: '0 14px', borderRadius: 8, border: 'none', background: pairs.length === 0 ? '#c9c6bb' : '#1B1B39', color: '#fff', font: 'inherit', fontWeight: 700, cursor: pairs.length === 0 ? 'default' : 'pointer' }}
+        style={{ marginTop: 8, minHeight: 36, padding: '0 14px', borderRadius: 8, border: 'none', background: pairs.length === 0 ? '#c9c6bb' : '#16695f', color: '#fff', font: 'inherit', fontWeight: 700, cursor: pairs.length === 0 ? 'default' : 'pointer' }}
       >
         {save.isPending ? 'Saving...' : `Save ${pairs.length} ${pairs.length === 1 ? 'code' : 'codes'}`}
       </button>

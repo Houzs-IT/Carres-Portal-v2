@@ -24,19 +24,21 @@
  *     line can be SAVED AS A DRAFT and completed on desktop; CONFIRM is refused
  *     with the desktop's own message, from the shared rule.
  *   - no supplier price auto-fill (desktop prices a PO from the supplier's price
- *     table). The buyer types the unit price.
+ *     table). The buyer types the unit price. Picking a SKU before a supplier
+ *     does fill the supplier (its only or main one), as desktop does.
  *   - MYR only (desktop offers foreign currency + exchange rate + landed-cost
  *     allocation on GRN / PI).
  *   - no per-line delivery date, warehouse override, discount or rack.
  * ------------------------------------------------------------------------- */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateMobileLists } from "./sharedInvalidate";
 import { lineIdentity } from "@2990s/shared";
 import { todayMyt } from "../vendor/scm/lib/dates";
 import { useWarehouses } from "../vendor/scm/lib/inventory-queries";
-import { useSuppliers, useCreatePurchaseOrder } from "../vendor/scm/lib/suppliers-queries";
+import { useSuppliers, useCreatePurchaseOrder, useSuppliersForMaterial } from "../vendor/scm/lib/suppliers-queries";
+import { defaultSupplierBinding } from "../vendor/scm/lib/default-supplier-binding";
 import { useCreateGrn, usePostGrn } from "../vendor/scm/lib/grn-queries";
 import { useCreatePurchaseInvoice, usePostPurchaseInvoice } from "../vendor/scm/lib/purchase-invoice-queries";
 import { zeroCostRefusalFrom, zeroCostRefusalText } from "../vendor/scm/lib/zero-cost-refusal";
@@ -61,6 +63,8 @@ import {
   type PurchaseHeaderDraft,
   type PurchaseLineDraft,
 } from "./mobile-purchase-doc";
+import { FormTouchScope } from "../components/FormTouchScope";
+import { useFormTouched, useGuardedBack, useLeaveGuard } from "../hooks/useLeaveGuard";
 
 let seq = 0;
 const newKey = () => `pl${seq++}`;
@@ -139,6 +143,9 @@ export function MobilePurchaseDocNew({
    *  caller that forgets it would silently hide a flow the desktop offers. */
   onConvertInstead: { label: string; open: () => void } | null;
 }) {
+  const { touched: formTouched, markTouched } = useFormTouched();
+  const { allowLeave } = useLeaveGuard(formTouched, null);
+  const guardedBack = useGuardedBack(onBack);
   const cfg = PURCHASE_DOC_CONFIG[kind];
   const { user } = useAuth();
   // A GRN confirm posts stock — the purchaser's, not every Goods Receipt editor's.
@@ -199,7 +206,22 @@ export function MobilePurchaseDocNew({
          buyer's keystrokes). */
       { key: newKey(), itemCode: sku.itemCode, name: sku.name, itemGroup: sku.itemGroup, qty: 1, unitPriceSen: null, remark: "" },
     ]);
+    if (kind === "po" && !header.supplierId) setMainSupplierFor(sku.itemCode);
   };
+
+  /* Same rule as desktop PurchaseOrderNew's item-first pick. The setter
+     re-checks the header: a supplier the buyer picked while the lookup was in
+     flight wins. A failed lookup leaves the supplier for the buyer to pick. */
+  const [mainSupplierFor, setMainSupplierFor] = useState<string | null>(null);
+  const itemSuppliersQ = useSuppliersForMaterial(mainSupplierFor ? "mfg_product" : null, mainSupplierFor);
+  useEffect(() => {
+    if (!mainSupplierFor || itemSuppliersQ.isLoading) return;
+    const b = defaultSupplierBinding(itemSuppliersQ.data?.bindings ?? []);
+    if (b && (suppliersQ.data ?? []).some((s) => s.id === b.supplier.id)) {
+      setHeader((h) => (h.supplierId ? h : { ...h, supplierId: b.supplier.id }));
+    }
+    setMainSupplierFor(null);
+  }, [mainSupplierFor, itemSuppliersQ.isLoading, itemSuppliersQ.data, suppliersQ.data]);
 
   const finish = async (created: Created, asDraft: boolean) => {
     /* The vendored hooks refresh the desktop's canonical keys; the phone list
@@ -208,6 +230,7 @@ export function MobilePurchaseDocNew({
     await notify({
       title: `${cfg.label} ${created.number} ${asDraft ? "saved as draft" : "created"}`,
     });
+    allowLeave();
     onCreated(created);
   };
 
@@ -229,9 +252,10 @@ export function MobilePurchaseDocNew({
         await finish({ id: res.id, number: res.poNumber }, asDraft);
       } else if (kind === "grn") {
         const res = await createGrn.mutateAsync({ idempotencyKey: idemKey, ...buildGrnPayload(header, lines, asDraft) });
-        /* POST /grns posts a non-draft receipt itself and answers
-           `movementErrors` in-band when the stock write was refused. */
-        reportInBandFailure("Goods receipt saved, but the stock was not received", res as { movementErrors?: string[] });
+        /* POST /grns posts a non-draft receipt itself and answers in-band:
+           `movementErrors` when the stock write was refused, `recountError`
+           when the PO's received qty was not recounted. */
+        reportInBandFailure("Goods receipt saved, but not everything was recorded", res);
         /* Same second call as desktop GrnNew — an idempotent no-op on an
            already-POSTED receipt, and the commit on a replayed one. */
         if (!asDraft) await postGrn.mutateAsync(res.id);
@@ -268,10 +292,11 @@ export function MobilePurchaseDocNew({
   );
 
   return (
+    <FormTouchScope onTouch={markTouched}>
     <div className="hz-m" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" }}>
       <header className="hdr">
         <div className="hdr-row">
-          <button className="back" onClick={onBack}><span className="chev">‹</span> Back</button>
+          <button className="back" onClick={guardedBack}><span className="chev">‹</span> Back</button>
           <span className="eyebrow">Purchasing · New</span>
         </div>
         <div className="hdr-row" style={{ marginTop: 2 }}>
@@ -388,6 +413,7 @@ export function MobilePurchaseDocNew({
 
       {pickerOpen && <MobileSkuPicker onPick={addSku} onClose={() => setPickerOpen(false)} />}
     </div>
+    </FormTouchScope>
   );
 }
 

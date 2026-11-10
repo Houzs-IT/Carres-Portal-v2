@@ -38,6 +38,7 @@ import {
 } from './bank-queries';
 import { ICON, fmt, btn, softText, danger, good, panel, refusalText } from './settlement-ui';
 import { ReconcilePickProvider, byDateThenLine } from './bank-reconcile-pick';
+import { useReturnScroll } from '../../lib/returnScroll';
 import {
   BankCards, DifferenceWalk, MissingBanner, MonthFigures, MonthStrip, MonthTracker, bankCards, defaultMonth, lockLabel, lockReasons, monthTitle,
   type MonthFacts,
@@ -149,6 +150,8 @@ const MonthView = ({ picked, bank, missingSince, onUpload }: {
   picked: Picked; bank: string; missingSince: string | null; onUpload: () => void;
 }) => {
   const q = useBankMonth(picked.accountCode, picked.month);
+  /* Back from an order opened here lands on the same spot (bank-entry-doc). */
+  useReturnScroll(q.data != null);
   const setup = useBankSetup();
   const account = setup.data?.accounts.find((x) => x.account_code === picked.accountCode) ?? null;
   const [params, setParams] = useSearchParams();
@@ -549,13 +552,14 @@ const MatchTheObviousOnes = ({ statements }: { statements: Array<{ id: number; f
         <Link2 {...ICON} /> {busy ? 'Matching…' : 'Match the obvious ones now'}
       </button>
       <span style={softText}>
-        The same rule as on the file screen, over every file that fed this month: a movement with exactly one
-        entry of the same amount in the books, whose name the bank's line carries, is matched without asking.
-        The rest stay below for you.
+        The same rule as on the file screen, over every file that fed this month: a payment whose words carry a
+        voucher's number (or the Draft number it went out under) is matched to that voucher when the amounts agree,
+        however many days apart; otherwise a movement with exactly one entry of the same amount in the books, whose
+        name the bank's line carries, is matched without asking. The rest stay below for you.
       </span>
       {result && (
         <span style={{ fontSize: 'var(--fs-13)', color: result.matched > 0 ? good : undefined }}>
-          {result.matched} matched by amount and name{result.matched > 0 ? ` — ${result.jeNos.join(', ')}` : ''}
+          {result.matched} matched{result.matched > 0 ? ` — ${result.jeNos.join(', ')}` : ''}
           {result.contraPairs > 0 ? `; ${result.contraPairs} pair${result.contraPairs === 1 ? '' : 's'} the bank reversed left out` : ''}.
         </span>
       )}

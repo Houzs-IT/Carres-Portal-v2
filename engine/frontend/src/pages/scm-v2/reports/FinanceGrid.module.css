@@ -87,22 +87,22 @@
 /* ── The header's right-click menu ── */
 .menu {
   position: fixed; z-index: 1000; min-width: 210px; max-height: 70vh; overflow: auto; padding: 4px;
-  background: var(--fin-surface, #fff); border: 1px solid var(--fin-line, #E5E7EB); border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(17, 20, 15, 0.16); font-size: 13px; color: var(--fin-ink, #111827);
+  background: var(--fin-surface, #fff); border: 1px solid var(--fin-line, #d6d9d2); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(17, 20, 15, 0.16); font-size: 13px; color: var(--fin-ink, #11140f);
 }
 .menuItem {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border: 0; border-radius: 5px;
   background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; white-space: nowrap;
 }
-.menuItem:hover, .menuItem:focus-visible { background: var(--fin-paper, #F8F9FA); outline: none; }
-.menuItem:disabled { color: var(--fin-muted, #6B7280); cursor: default; background: none; }
-.menuSep { height: 1px; margin: 4px 2px; background: var(--fin-rule, #EEF0F3); }
-.menuTitle { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; color: var(--fin-muted, #6B7280); text-transform: uppercase; letter-spacing: 0.04em; }
-.menuCheck { width: 14px; height: 14px; accent-color: var(--fin-petrol, #1B1B39); }
+.menuItem:hover, .menuItem:focus-visible { background: var(--fin-paper, #f4f6f3); outline: none; }
+.menuItem:disabled { color: var(--fin-muted, #767b6e); cursor: default; background: none; }
+.menuSep { height: 1px; margin: 4px 2px; background: var(--fin-rule, #e3e6e0); }
+.menuTitle { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; color: var(--fin-muted, #767b6e); text-transform: uppercase; letter-spacing: 0.04em; }
+.menuCheck { width: 14px; height: 14px; accent-color: var(--fin-petrol, #16695f); }
 
 /* ── Pills and flags the lists use ── */
 .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; background: var(--fin-paper); color: var(--fin-text); border: 1px solid var(--fin-rule); }
-.pillAlt { background: var(--fin-petrol-pale, #DCE6FD); color: var(--fin-petrol-ink); border-color: transparent; }
+.pillAlt { background: var(--fin-petrol-pale, #e1efed); color: var(--fin-petrol-ink); border-color: transparent; }
 .flag { font-size: 11.5px; color: #7a5a1e; }
 .muted { color: var(--fin-muted); }
 .tick { width: 15px; height: 15px; accent-color: var(--fin-petrol); cursor: pointer; vertical-align: middle; margin: 0; }

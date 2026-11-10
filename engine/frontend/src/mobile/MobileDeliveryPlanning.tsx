@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { withSavedCrew } from "../vendor/scm/lib/saved-crew";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orderLineIdentity } from "@2990s/shared";
 import { invalidateDoShared, invalidateInventoryShared, invalidateSoShared } from "./sharedInvalidate";
+import { useLiveDoStop, withLiveDo } from "../vendor/scm/lib/crew-stop-live";
 import { authedFetch } from "../vendor/scm/lib/authed-fetch";
 import { companyHeaderFor } from "../lib/activeCompany";
 import { useUpdateMfgDeliveryOrderStatus } from "../vendor/scm/lib/delivery-order-queries";
@@ -36,6 +38,7 @@ import { isEastMalaysiaOrSingaporeStop } from "../vendor/scm/lib/last-mile";
 import { isDispatched } from "./runSheetDispatch";
 import { isSetupDismantleJob } from "./setupDismantleJob";
 import { runSheetTieBreak, timeSlotEndMin } from "./runSheetOrder";
+import { instantToMytLocal, mytDayOfValue, todayMyt } from "../vendor/scm/lib/dates";
 
 /* ------------------------------------------------------------------ *
  * Mobile Delivery Planning — driver run-sheet screen (v2 job card).
@@ -170,16 +173,9 @@ const DAY_TABS: { key: Day; label: string }[] = [
 // unparseable), so date-only strings render in Asia/Kuala_Lumpur without an
 // off-by-one on an off-zone device.
 const dm = (d: string | null | undefined) => formatDate(d);
-// Local YYYY-MM-DD key for a date-ish string.
-const dayKey = (d: string | null | undefined): string => {
-  if (!d) return "";
-  const dt = new Date(d);
-  if (isNaN(+dt)) return "";
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, "0");
-  const day = String(dt.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
+// The Malaysian day a date-ish string falls on, not the phone's own zone
+// (owner 2026-11-09: every date filter judges by the Malaysian day).
+const dayKey = (d: string | null | undefined): string => mytDayOfValue(d) ?? "";
 
 /* The effective delivery date the run-sheet buckets on.
    `job_date` sits beside internal_expected_dd rather than replacing it: a
@@ -251,8 +247,8 @@ const isLate = (o: BoardRow, isToday: boolean): boolean => {
   if (stopFlags(o).done) return false;
   const em = windowEndMin(o);
   if (em == null) return false;
-  const now = new Date();
-  return now.getHours() * 60 + now.getMinutes() > em;
+  const hm = instantToMytLocal(new Date().toISOString()).slice(11, 16);
+  return Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5)) > em;
 };
 const trackState = (o: BoardRow, isToday: boolean): TrackState => {
   const { started, arrived, done } = stopFlags(o);
@@ -266,8 +262,8 @@ const trackState = (o: BoardRow, isToday: boolean): TrackState => {
 const STATE_COLORS: Record<TrackState, [string, string]> = {
   done: ["#e2f0e9", "#2f8a5b"],
   late: ["#f8eaea", "#b23a3a"],
-  arrived: ["#DCE6FD", "#2F55E0"],
-  otw: ["#DCE6FD", "#2F55E0"],
+  arrived: ["#e1efed", "#0c3f39"],
+  otw: ["#e1efed", "#0c3f39"],
   sched: ["#f6efd9", "#8a6a2e"],
 };
 const STATE_LABELS: Record<TrackState, string> = {
@@ -283,8 +279,8 @@ const seqBgFor = (st: TrackState): string =>
     : st === "late"
       ? "#b23a3a"
       : st === "sched"
-        ? "#1B1B39"
-        : "#2F55E0";
+        ? "#16695f"
+        : "#0c3f39";
 
 export function MobileDeliveryPlanning({
   onBack,
@@ -310,6 +306,7 @@ export function MobileDeliveryPlanning({
     queryKey: ["mobile-delivery-planning", "ALL"],
     queryFn: () =>
       authedFetch<BoardResponse>(`/delivery-planning?region=ALL&state=ALL`),
+    select: (d: BoardResponse) => withSavedCrew(d), // a crew just saved stays shown over a slow / stale reload
     staleTime: 30_000,
   });
 
@@ -341,17 +338,8 @@ export function MobileDeliveryPlanning({
     [allOrders, driverFilter],
   );
 
-  // today / tomorrow local day keys.
-  const { todayKey, tomorrowKey } = useMemo(() => {
-    const now = new Date();
-    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tm = new Date(t);
-    tm.setDate(tm.getDate() + 1);
-    return {
-      todayKey: dayKey(t.toISOString()),
-      tomorrowKey: dayKey(tm.toISOString()),
-    };
-  }, []);
+  // today / tomorrow as Malaysian days.
+  const { todayKey, tomorrowKey } = useMemo(() => ({ todayKey: todayMyt(), tomorrowKey: todayMyt(1) }), []);
 
   // Split into the three day-buckets, each ordered by effective date then doc.
   const buckets = useMemo(() => {
@@ -359,11 +347,7 @@ export function MobileDeliveryPlanning({
     const tomorrow: BoardRow[] = [];
     const history: BoardRow[] = [];
     // History = the CURRENT month only (owner 2026-10-21): floor at the 1st.
-    const monthFloor = (() => {
-      const d = new Date(todayKey + "T00:00:00");
-      d.setDate(1);
-      return dayKey(d.toISOString());
-    })();
+    const monthFloor = `${todayKey.slice(0, 8)}01`;
     for (const o of shownOrders) {
       // Only stops actually on a run — a cut DO or an assigned driver. An order
       // that merely carries today's customer date (no DO, no driver) is not yet
@@ -460,18 +444,11 @@ export function MobileDeliveryPlanning({
   // History has no single date, so we fall back to the tab label). MUST be
   // declared BEFORE the detailOrder early-return below, or opening a stop
   // renders fewer hooks than the list view and React throws error #300.
-  const routeDate = useMemo(() => {
-    const now = new Date();
-    if (day === "today") return now;
-    if (day === "tomorrow") {
-      const t = new Date(now);
-      t.setDate(t.getDate() + 1);
-      return t;
-    }
-    return null;
-  }, [day]);
+  const routeDate = day === "today" ? todayKey : day === "tomorrow" ? tomorrowKey : null;
 
   const detailJob = detailOrder ? jobRefOf(detailOrder) : null;
+  // The open DO stop follows the other crew member's taps (crew-stop-live.ts).
+  const liveDo = useLiveDoStop(detailOrder && !detailJob ? (latestDo(detailOrder)?.do_number ?? null) : null).data?.deliveryOrder;
   if (detailOrder && detailJob) {
     return (
       // Keyed per job: moving to the next stop must not carry the last stop's photos.
@@ -482,7 +459,7 @@ export function MobileDeliveryPlanning({
   if (detailOrder) {
     return (
       <StopDetail
-        order={detailOrder}
+        order={withLiveDo(detailOrder, liveDo)}
         seq={detailSeq}
         isToday={isToday}
         onBack={() => setOpenStop(null)}
@@ -494,9 +471,9 @@ export function MobileDeliveryPlanning({
 
   const dayLabel = DAY_TABS.find((t) => t.key === day)?.label;
   const routeWeekday = routeDate
-    ? routeDate.toLocaleDateString("en-GB", { weekday: "long" })
+    ? new Date(`${routeDate}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })
     : dayLabel;
-  const routeDateStr = routeDate ? dm(routeDate.toISOString()) : null;
+  const routeDateStr = routeDate ? dm(routeDate) : null;
 
   return (
     <div
@@ -518,7 +495,7 @@ export function MobileDeliveryPlanning({
               gap: 6,
               fontSize: 12.5,
               fontWeight: 700,
-              color: "#1B1B39",
+              color: "#16695f",
               background: "none",
               border: "none",
               cursor: "pointer",
@@ -529,7 +506,7 @@ export function MobileDeliveryPlanning({
               height="17"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#1B1B39"
+              stroke="#16695f"
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -826,18 +803,18 @@ function JobTypeChip({ o }: { o: BoardRow }) {
    so it is replicated here rather than pulling the whole desktop screen into the
    mobile bundle. Unknown / blank → muted. */
 const SUBSTATUS_TONE: Record<string, string> = {
-  "Pending Pickup": "#6B7280",
+  "Pending Pickup": "#767b6e",
   "Done Shipout": "#2f5d4f",
   "Arrives EM Warehouse": "#2f5d4f",
   "Done Delivered": "#2e7d32",
   Confirm: "#2f5d4f",
-  "House Not Ready": "#2F55E0",
-  "Request Hold": "#2F55E0",
+  "House Not Ready": "#0c3f39",
+  "Request Hold": "#0c3f39",
 };
 
 // ── Sub-status chip — a MetaChip-shaped pill tinted with the desktop tone. ──
 function SubstatusChip({ value }: { value: string }) {
-  const tone = SUBSTATUS_TONE[value] ?? "#6B7280";
+  const tone = SUBSTATUS_TONE[value] ?? "#767b6e";
   return (
     <span
       style={{
@@ -1175,7 +1152,7 @@ function PdPhotoGroup({
             fontWeight: 700,
             textTransform: "uppercase",
             letterSpacing: ".05em",
-            color: "#6B7280",
+            color: "#767b6e",
           }}
         >
           {title}
@@ -1205,7 +1182,7 @@ function PdPhotoGroup({
             height="20"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#1B1B39"
+            stroke="#16695f"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -1240,7 +1217,7 @@ function PdAttach({
         alignItems: "center",
         gap: 10,
         padding: 12,
-        border: "1px solid #E5E7EB",
+        border: "1px solid #d6d9d2",
         borderRadius: 11,
         background: "#f8f9f6",
         cursor: "pointer",
@@ -1255,7 +1232,7 @@ function PdAttach({
           height: 44,
           flex: "none",
           borderRadius: 9,
-          background: "#DCE6FD",
+          background: "#e1efed",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1266,7 +1243,7 @@ function PdAttach({
           height="22"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#1B1B39"
+          stroke="#16695f"
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -1277,12 +1254,12 @@ function PdAttach({
         </svg>
       </span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>
           {title}
         </div>
-        <div style={{ fontSize: 11, color: "#6B7280" }}>{sub}</div>
+        <div style={{ fontSize: 11, color: "#767b6e" }}>{sub}</div>
       </div>
-      <span style={{ fontSize: 16, color: "#1B1B39" }}>›</span>
+      <span style={{ fontSize: 16, color: "#16695f" }}>›</span>
     </button>
   );
 }
@@ -1676,10 +1653,10 @@ function StopDetail({
                 justifyContent: "center",
                 gap: 6,
                 height: 42,
-                border: "1px solid #E5E7EB",
+                border: "1px solid #d6d9d2",
                 borderRadius: 11,
                 background: "#fff",
-                color: "#1B1B39",
+                color: "#16695f",
                 fontSize: 12.5,
                 fontWeight: 700,
                 textDecoration: "none",
@@ -1690,7 +1667,7 @@ function StopDetail({
                 height="15"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#1B1B39"
+                stroke="#16695f"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1710,7 +1687,7 @@ function StopDetail({
                 height: 42,
                 border: "1px solid #eceee9",
                 borderRadius: 11,
-                background: "#F8F9FA",
+                background: "#f4f6f3",
                 color: "#9aa093",
                 fontSize: 12.5,
                 fontWeight: 700,
@@ -1733,10 +1710,10 @@ function StopDetail({
                 justifyContent: "center",
                 gap: 6,
                 height: 42,
-                border: "1px solid #E5E7EB",
+                border: "1px solid #d6d9d2",
                 borderRadius: 11,
                 background: "#fff",
-                color: "#1B1B39",
+                color: "#16695f",
                 fontSize: 12.5,
                 fontWeight: 700,
                 textDecoration: "none",
@@ -1747,7 +1724,7 @@ function StopDetail({
                 height="15"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#1B1B39"
+                stroke="#16695f"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1768,7 +1745,7 @@ function StopDetail({
                 height: 42,
                 border: "1px solid #eceee9",
                 borderRadius: 11,
-                background: "#F8F9FA",
+                background: "#f4f6f3",
                 color: "#9aa093",
                 fontSize: 12.5,
                 fontWeight: 700,
@@ -1829,10 +1806,10 @@ function StopDetail({
               justifyContent: "center",
               gap: 7,
               height: 44,
-              border: "1.5px solid #1B1B39",
+              border: "1.5px solid #16695f",
               borderRadius: 11,
               background: "#fff",
-              color: "#1B1B39",
+              color: "#16695f",
               fontFamily: "inherit",
               fontSize: 13,
               fontWeight: 700,
@@ -1846,7 +1823,7 @@ function StopDetail({
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#1B1B39"
+              stroke="#16695f"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -2242,8 +2219,8 @@ function TrackStep({
   border?: boolean;
   check?: boolean;
 }) {
-  const bg = tone === "green" ? "#e2f0e9" : "#DCE6FD";
-  const fg = tone === "green" ? "#2f8a5b" : "#2F55E0";
+  const bg = tone === "green" ? "#e2f0e9" : "#e1efed";
+  const fg = tone === "green" ? "#2f8a5b" : "#0c3f39";
   return (
     <div
       style={{
@@ -2296,11 +2273,11 @@ function TrackStep({
         )}
       </span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>
           {label}
         </div>
         {time && (
-          <div className="tnum" style={{ fontSize: 11, color: "#6B7280" }}>
+          <div className="tnum" style={{ fontSize: 11, color: "#767b6e" }}>
             {time}
           </div>
         )}
@@ -2323,7 +2300,7 @@ function TrackButton({
   icon: "arrow" | "pin" | "camera";
   primary?: boolean;
 }) {
-  const stroke = primary ? "#fff" : "#1B1B39";
+  const stroke = primary ? "#fff" : "#16695f";
   return (
     <button
       onClick={onClick}
@@ -2335,10 +2312,10 @@ function TrackButton({
         justifyContent: "center",
         gap: 7,
         height: primary ? 46 : 44,
-        border: primary ? "none" : "1.5px solid #1B1B39",
+        border: primary ? "none" : "1.5px solid #16695f",
         borderRadius: 11,
-        background: primary ? (busy ? "#7fb4ad" : "#1B1B39") : "#fff",
-        color: primary ? "#fff" : "#1B1B39",
+        background: primary ? (busy ? "#7fb4ad" : "#16695f") : "#fff",
+        color: primary ? "#fff" : "#16695f",
         fontFamily: "inherit",
         fontSize: primary ? 13.5 : 13,
         fontWeight: primary ? 800 : 700,

@@ -20,6 +20,7 @@ import { authedFetch } from './authed-fetch';
 import { piListParams } from './pi-list-export';
 import { idempotentInit } from '../../../lib/idempotency';
 import { serviceNotify } from './dialog-service';
+import { piLedgerGap, type PiLedgerOutcome } from './pi-ledger-outcome';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
 import { applyPiListMrpEnrichment, type EnrichablePiRow, type PiListMrpEnrichment } from '../../../lib/piListEnrichment';
 
@@ -40,11 +41,11 @@ export const usePurchaseInvoices = (status?: string) =>
 // unpaginated list. `status` is the resolved purchase_invoices.status DB value
 // (UPPERCASE); each PI filter-pill bucket (draft/posted/partial/paid/cancelled)
 // maps 1:1 to a single DB status, so no bucket needs dropping.
-export function usePurchaseInvoicesPaged(params: { page: number; pageSize: number; status?: string; q?: string; sort?: string; creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[] }) {
-  const { page, pageSize, status, q, sort, creditorNames, creditorCodes, currencies } = params;
+export function usePurchaseInvoicesPaged(params: { from?: string; to?: string; page: number; pageSize: number; status?: string; q?: string; sort?: string; creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[] }) {
+  const { page, pageSize, status, q, sort, creditorNames, creditorCodes, currencies, from, to } = params;
   // The filter half is shared with the two exports (pi-list-export.ts), so an
   // export can never be sent a different filter than the list it was pressed on.
-  const usp = piListParams({ status, q, sort, creditorNames, creditorCodes, currencies });
+  const usp = piListParams({ status, q, sort, creditorNames, creditorCodes, currencies, from, to });
   usp.set('page', String(page));
   usp.set('pageSize', String(pageSize));
   return useQuery({
@@ -138,10 +139,17 @@ export const usePurchaseInvoiceDetail = (id: string | null) => useQuery({
 export const usePostPurchaseInvoice = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => authedFetch(`/purchase-invoices/${id}/post`, { method: 'PATCH' }),
-    onSuccess: (_, id) => {
+    mutationFn: (id: string) =>
+      authedFetch<{ ledger?: PiLedgerOutcome }>(`/purchase-invoices/${id}/post`, { method: 'PATCH' }),
+    /* A 200 here means the invoice is POSTED, not that its AP journal was
+       written: the server keeps the post when the journal is refused. Every
+       caller (list, both details, desktop and phone create) hears it from here,
+       and the returned promise holds mutateAsync until the operator has read it. */
+    onSuccess: async (res, id) => {
       qc.invalidateQueries({ queryKey: ['purchase-invoices'] });
       qc.invalidateQueries({ queryKey: ['purchase-invoice-detail', id] });
+      const gap = piLedgerGap(res.ledger);
+      if (gap) await serviceNotify({ title: 'Invoice posted without its AP journal', body: gap.charAt(0).toUpperCase() + gap.slice(1), tone: 'error' });
     },
     /* The AP commit had no error path until 2026-08-21, while every sibling in
        this file (cancel, record payment, delete item) had one. Its two call

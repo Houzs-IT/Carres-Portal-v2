@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -6,12 +6,6 @@ import { MOBILE_MENU_GROUPS, PROFILE_ORG_ITEMS, type MobileMenuItem } from "./Mo
 import { NAV_TABS, type NavTab } from "../components/Sidebar";
 import { CAPABILITY_KEYS } from "../auth/capabilities";
 import { mobileDestinationMatches } from "./mobileRoute";
-
-// Carres: these pin Houzs's whole menu and its gates; the Carres trim is tested in carres/navOnly.test.ts.
-vi.mock("../components/Sidebar", async (importOriginal) => {
-  const m = await importOriginal<typeof import("../components/Sidebar")>();
-  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
-});
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 

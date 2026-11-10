@@ -42,7 +42,7 @@ function warehouseToneOf(w: { code: string; name: string }): "petrol" | "brass" 
   if (s.includes("display") || s.includes("c&c") || s.includes("cash & carry")) return "brass";
   return "petrol";
 }
-const TONE_HEX = { petrol: "#1B1B39", brass: "#D64F20", red: "#b23a3a" } as const;
+const TONE_HEX = { petrol: "#16695f", brass: "#a16a2e", red: "#b23a3a" } as const;
 
 /* Reason → Badge tone. Design: warning for damage / loss / give-away,
    neutral for returns, success for corrections. Fall back to neutral. */
@@ -323,7 +323,7 @@ export function StockAdjustments() {
 
       {/* Warehouse filter — compact pills, wrap onto multiple rows if needed.
           Each pill: coloured tone dot · name/sub stack · count badge. Active
-          state paints dark ink (#1B1B39) per handoff. */}
+          state paints dark ink (#13201c) per handoff. */}
       <div className="mt-6">
         <div className="mb-2.5 flex items-center justify-between">
           <span className="font-mono text-[10px] font-semibold uppercase tracking-brand text-ink-muted">

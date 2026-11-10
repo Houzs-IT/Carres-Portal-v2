@@ -73,6 +73,7 @@ import { SaveBlockedIndicator } from '../../vendor/scm/components/SaveBlockedInd
 import { useSoValidate } from '../../vendor/scm/lib/use-so-validate';
 import { notifyAcNotSent } from '../../vendor/scm/lib/ac-not-sent';
 import { useIdempotencyKey } from '../../lib/idempotency';
+import { settleMutation, useSubmitLock } from '../../lib/submitLock';
 import { DebtorSuggestList } from '../../vendor/scm/components/DebtorSuggestList';
 import { readScmHandoff, removeScmHandoff } from '../../lib/scmHandoffStorage';
 import { completePaymentRetryDraft, paymentRetryNavigationState, writePaymentRetryHandoff } from '../../lib/paymentRetryHandoff';
@@ -133,6 +134,8 @@ import styles from './SalesOrderNew.module.css';
 import { consoleAttachOptions, fmtMoneySen } from '@2990s/shared';
 import { DateField } from "../../vendor/scm/components/DateField";
 import { isSofaGroup, pieceShareSen, SOFA_PIECES_SPLIT_NOTICE, splitSofaPieceLines } from '../../vendor/scm/lib/sofa-piece-lines';
+import { FormTouchScope } from '../../components/FormTouchScope';
+import { useFormTouched, useLeaveGuard } from '../../hooks/useLeaveGuard';
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -155,6 +158,8 @@ const fmtRm = (centi: number, currency = 'MYR'): string => fmtMoneySen(centi, cu
 
 export const SalesOrderNew = () => {
   const navigate = useNavigate();
+  const { touched: formTouched, markTouched } = useFormTouched();
+  const { allowLeave } = useLeaveGuard(formTouched, null);
   const notify = useNotify(); const prompt = usePrompt();
   /* Copy-to-new-SO: ?copyFrom=<docNo> seeds this form from an existing SO
      (customer + line items only — dates, payments, customer SO ref, doc no
@@ -172,6 +177,8 @@ export const SalesOrderNew = () => {
      that REPLAYS the first docNo instead of raising a second order, and the
      payment drafts carry their own per-draft keys so they don't double either. */
   const idemKey  = useIdempotencyKey();
+  /* Held from the press until the payments and photos after the create have settled (lib/submitLock). */
+  const saveLock = useSubmitLock();
   const addPayment = useAddSalesOrderPayment();
   const uploadPhoto = useUploadSoItemPhoto();
   // onlySales=true — owner 2026-07-22: the salesperson dropdown was showing
@@ -1484,10 +1491,11 @@ export const SalesOrderNew = () => {
      The two header buttons both call onSave; only the flag differs. When the
      form was opened from a scan (fromScan), "Save as Draft" is the primary
      button so scanned orders default to draft for operator review. */
-  const onSave = async (asDraft = false) => {
+  const runSave = async (asDraft: boolean) => {
     if (createdDocNo) {
       const intents = paymentIntents();
       if (intents.length === 0) {
+        allowLeave();
         navigate(`/scm/sales-orders/${createdDocNo}`);
         return;
       }
@@ -1499,6 +1507,7 @@ export const SalesOrderNew = () => {
         });
         return;
       }
+      allowLeave();
       navigate(`/scm/sales-orders/${createdDocNo}?payments=1&retryPayments=1`, {
         state: paymentRetryNavigationState('so', createdDocNo, intents),
       });
@@ -1591,7 +1600,7 @@ export const SalesOrderNew = () => {
     const pendingDepositSen = paymentIntents()
       .reduce((sum, d) => sum + d.amountSen, 0);
 
-    create.mutate(
+    await settleMutation(create.mutate,
       {
         idempotencyKey: idemKey,
         ...receiptDepositBody,
@@ -1728,6 +1737,7 @@ export const SalesOrderNew = () => {
             setCreatedDocNo(res.docNo);
             return;
           }
+          allowLeave();
           navigate(
             `/scm/sales-orders/${res.docNo}${failed > 0 ? '?payments=1&retryPayments=1' : ''}`,
             { state: failed > 0 ? paymentRetryNavigationState('so', res.docNo, failedDrafts) : undefined },
@@ -1740,8 +1750,10 @@ export const SalesOrderNew = () => {
       },
     );
   };
+  const onSave = (asDraft = false) => saveLock.run(() => runSave(asDraft));
 
   return (
+    <FormTouchScope onTouch={markTouched}>
     <div>
       {/* Shared sticky page header — full-bleed, matches SalesOrderMaintenance
           + the PO/DO V2 lists. DRAFT flow: two create actions run the SAME
@@ -1779,10 +1791,10 @@ export const SalesOrderNew = () => {
             <Button
               variant={fromScan ? 'secondary' : 'primary'}
               onClick={() => { void onSave(false); }}
-              disabled={create.isPending}
+              disabled={create.isPending || saveLock.locked}
             >
               <Save {...ICON} />
-              {create.isPending
+              {create.isPending || saveLock.locked
                 ? 'Saving…'
                 : createdDocNo
                   ? (paymentIntents().length > 0 ? 'Continue payment retry' : 'Open created order')
@@ -1791,10 +1803,10 @@ export const SalesOrderNew = () => {
             <Button
               variant={fromScan ? 'primary' : 'secondary'}
               onClick={() => { void onSave(true); }}
-              disabled={create.isPending || !!createdDocNo}
+              disabled={create.isPending || saveLock.locked || !!createdDocNo}
             >
               <Save {...ICON} />
-              {create.isPending ? 'Saving…' : 'Save as Draft'}
+              {create.isPending || saveLock.locked ? 'Saving…' : 'Save as Draft'}
             </Button>
           </>
         }
@@ -2108,7 +2120,7 @@ export const SalesOrderNew = () => {
             style={{
               display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
               padding: 'var(--space-3)',
-              background: fillAddressLater ? 'rgba(27, 27, 57, 0.08)' : 'var(--c-cream)',
+              background: fillAddressLater ? 'rgba(22, 105, 95, 0.08)' : 'var(--c-cream)',
               border: '1px solid ' + (fillAddressLater ? 'var(--c-orange)' : 'var(--line)'),
               borderRadius: 'var(--radius-md)',
               marginBottom: 'var(--space-3)',
@@ -2239,6 +2251,7 @@ export const SalesOrderNew = () => {
                      ` *` marker + red ring stay off while the order is still a
                      no-date draft (owner 2026-07-14). */
                   variantsRequired={!!processingDate}
+                  specLockedReason={null}
                   lineDateLocked={!processingDate}
                   seedSofaLegDefault={true} attachOptions={consoleAttachOptions(lines, idx)}
                   /* Scan-Order (Task #73) — a NO-MATCH scanned line seeds an
@@ -2289,5 +2302,6 @@ export const SalesOrderNew = () => {
       />
       </div>
     </div>
+    </FormTouchScope>
   );
 };

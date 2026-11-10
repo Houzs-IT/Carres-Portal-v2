@@ -36,6 +36,9 @@ const BootstrapScreen = lazy(() =>
 const AcceptInviteScreen = lazy(() =>
   import("./AuthScreens").then((m) => ({ default: m.AcceptInviteScreen })),
 );
+const ForcedPasswordChangeScreen = lazy(() =>
+  import("./AuthScreens").then((m) => ({ default: m.ForcedPasswordChangeScreen })),
+);
 
 /** Neutral splash — the session-resolving frame, reused as the Suspense
  *  fallback while an unauthenticated screen's chunk downloads. */
@@ -44,7 +47,7 @@ function AuthSplash() {
     <div className="paper-grain flex min-h-screen items-center justify-center">
       <div className="font-display text-[12px] uppercase tracking-brand text-ink-muted">
         {hostDefaultCompanyCode() === HOUZS_COMPANY_CODE
-          ? "Carres"
+          ? "Houzs Century"
           : shortCompanyName(
               defaultBrandingForCompany(hostDefaultCompanyCode()).companyName,
             )}{" "}
@@ -132,6 +135,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
     ) : (
       <LazySlot resetKey={slotKey("login")} fallback={<AuthSplash />}>
         <LoginScreen />
+      </LazySlot>
+    );
+  }
+
+  // A member who must choose a new password holds a session the server refuses
+  // everywhere else, so neither app shell is mounted until they have.
+  if (user.password_change_required) {
+    return (
+      <LazySlot resetKey={slotKey("password-change")} fallback={<AuthSplash />}>
+        <ForcedPasswordChangeScreen />
       </LazySlot>
     );
   }

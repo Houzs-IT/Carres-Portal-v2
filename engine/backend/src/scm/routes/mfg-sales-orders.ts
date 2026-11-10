@@ -1,6 +1,7 @@
 // /mfg-sales-orders — B2B sales orders (HOUZS pattern).
 // Separate from retail `orders` (POS) — different lifecycle, different ID format.
 
+import { yymmFor } from '../../services/documentRefs';
 import { isSoLineOverDelivered } from '../lib/so-remaining-by-item';
 import { activeSoEditLease, soCallerUserId, soHeaderLeaseIntent, soLineWriteLeaseMatches, soEditLeaseExpiryIso, soEditLeaseRefusal, soEditLeaseTakeoverAllowed, type SoEditLeaseRow } from '../lib/so-edit-lease';
 import { Hono } from 'hono';
@@ -138,6 +139,8 @@ import { loadComboModulesById, loadMasterSofaCombos, loadSellingSofaCombos } fro
 import { supabaseAuth } from '../middleware/auth';
 import { escapeForOr } from '../lib/postgrest-search';
 import { effectiveStatusFilter, isRangeNotSatisfiable } from '../lib/so-list-filters';
+import { soLineRemark } from '../lib/so-line-remark';
+import { moneySkipsCancelled, NOT_CANCELLED_OR } from '../lib/list-money-cancelled';
 import { fromSoList, orderSoList, prepareSoListRead, readSoListParams } from '../lib/so-list-read';
 import { buildSoListRows } from '../lib/so-list-rows';
 import { attachSoLines } from '../lib/so-list-lines';
@@ -145,8 +148,10 @@ import { SO_TAB_STATUSES, soStatusesForTab } from '../lib/so-tab-statuses';
 import { chunkIn, paginateAll } from '../lib/paginate-all';
 import { tallyStatusRows, type StatusTally } from '../lib/status-counts';
 import { readAggregate } from '../lib/postgrest-aggregate';
+import { soListKpisSql } from '../lib/so-list-kpis-sql';
+import { SO_CUSTOMER_COLS, soCustomerRowsSql } from '../lib/so-customers-sql';
 /* "A PO is already out for this SO" — the second road to the same soft lock
-   (owner 2026-08-12, 2990 only). See lib/so-po-lock.ts. */
+   (owner 2026-08-12; every company since 2026-11-09). See lib/so-po-lock.ts. */
 import { soHasLivePo, soHasUnreceivedPo, soPoLocked } from '../lib/so-po-lock';
 import { deliveryBroughtForward, deliveryNeedsPurchaserOk, processingDateFrozenByPo, PROCESSING_DATE_PO_LOCKED, PROCESSING_DATE_PO_OVERRIDE_KEY } from '../shared/so-po-date-rule';
 import { notifySoAmendmentPurchaserOkNeeded } from '../../services/amendmentNotify';
@@ -197,7 +202,7 @@ import { baseKeyOf, deleteThumbFor, putOptionalThumb, thumbKeyFor } from '../../
 import { photoProxyPath, proxyFallbackPayload, warnSigningFailedOnce, type PhotoUrlPayload } from '../lib/photoProxyFallback';
 import { slipBindings } from '../lib/slip';
 import { amendmentMixRefusal, createMixRefusal, lineMixRefusal, mixesSofaWithOtherMain } from '../lib/main-mix';
-import { refuseWithoutWriting } from '../lib/no-write-refusal';
+import { noWriteUntilMarked, refuseWithoutWriting, writesFromHere } from '../lib/no-write-refusal';
 import {
   loadMaintenanceConfig,
   loadSpecialAddons,
@@ -331,6 +336,7 @@ import { registerCustomerCreditRoutes } from './mfg-sales-orders/customer-credit
 import { registerHistoryRoutes } from './mfg-sales-orders/history';
 import { registerPaymentsListRoutes } from './mfg-sales-orders/payments-list';
 import { registerDebtorSearchRoutes } from './mfg-sales-orders/debtor-search';
+import { linesUnreadableBody } from '../lib/failed-read-refusal'; import { readOverrideLineCost } from '../lib/so-override-cost';
 
 export const mfgSalesOrders = new Hono<{ Bindings: Env; Variables: Variables }>();
 mfgSalesOrders.use('*', supabaseAuth);
@@ -972,17 +978,14 @@ export const deriveWarehouseIdFromState = async (
   return null;
 };
 
-const nextDocNo = async (sb: any, c: any): Promise<string> => {
+export const nextDocNo = async (sb: any, c: any): Promise<string> => {
   // Format: SO-YYMM-NNN — matches PO/DO/GRN/SI/DR/PI/PRT.
   // Legacy SO-NNNNNN numbers stay as-is; only newly created SOs use this scheme.
   // max+1 via nextMonthlyDocNo, NOT count+1 — see lib/doc-no.ts for why
   // (2026-06-12: count+1 re-minted a surviving doc_no after a mid-month
   // delete and jammed every SO create on the pkey).
   const p = companyDocPrefix(c);
-  const yymm = (() => {
-    const d = new Date();
-    return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
+  const yymm = yymmFor();
   return mintMonthlyDocNo(sb, 'mfg_sales_orders', 'doc_no', `${p}SO-${yymm}`);
 };
 
@@ -1219,14 +1222,14 @@ mfgSalesOrders.get('/', async (c) => {
        not a status, so the grouped status aggregate above cannot produce it.
        Same scope + company predicates, no status filter, no search, no paging —
        the strip's other numbers are computed the same way. */
-    const heldProm = (async (): Promise<{ ok: true; n: number } | { ok: false; reason: string }> => {
+    const heldProm = async (): Promise<{ ok: true; n: number } | { ok: false; reason: string }> => {
       const r = await scopedCountQ(
         sb.from(read.countFrom).select('*', { count: 'exact', head: true }),
       ).or(HELD_OR_TERM);
       if (r.error) return { ok: false, reason: `on-hold count failed: ${r.error.message}` };
       return { ok: true, n: r.count ?? 0 };
-    })();
-    const countsProm = (async (): Promise<StatusTally> => {
+    };
+    const countsProm = async (): Promise<StatusTally> => {
       const agg = await readAggregate<{ data: Array<{ status: string | null; cnt: number }> | null; error: { message: string } | null }>(() => scopedCountQ(sb.from(read.countFrom).select('status, cnt:doc_no.count()')));
       if (!agg.error) return tallyStatusRows<{ status: string | null; cnt: number }>(agg, (r) => Number(r.cnt ?? 0));
       const fb = await paginateAll<{ status: string | null }>((cfrom, cto) =>
@@ -1235,7 +1238,7 @@ mfgSalesOrders.get('/', async (c) => {
          which of the TWO reads died, not just that the second one did. */
       if (fb.error) return { ok: false, reason: `status counts failed: aggregate ${agg.error.message}; fallback ${fb.error.message}` };
       return tallyStatusRows(fb, () => 1);
-    })();
+    };
 
     /* Full-set money KPIs — Revenue / Outstanding / Paid over the SAME scope +
        company + status + search (+ optional so_date window) filters as the page
@@ -1258,16 +1261,23 @@ mfgSalesOrders.get('/', async (c) => {
        the mobile SO list and delivery-planning.ts already read, and both are
        view-COMPUTED columns, so this stays VIEW-TRAP safe (see
        backend/docs/scm-view-trap-coe.md). */
+    // G16: a cancelled order is no revenue — out of the money tiles except on the Cancelled tab.
+    const moneySkipCancelled = moneySkipsCancelled(effectiveStatusFilter(c.req.query('status')));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the shared closure is applied to both the aggregate `.select('...sum()')` builder and the paged builder; the aggregate select defeats supabase-js's column-type inference (same reason as outstanding.ts /summary)
     const applyMoneyFilters = (moneyQ0: any): any => read.header(moneyQ0);
-    const moneyProm = soListMoneyKpis(sb, applyMoneyFilters);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same builder as applyMoneyFilters
+    const moneyProm = () => soListMoneyKpis(sb, moneySkipCancelled ? (q: any) => applyMoneyFilters(q).or(NOT_CANCELLED_OR) : applyMoneyFilters);
+    /* Pills + On Hold + money in two SQL statements over Hyperdrive, compiled
+       from the SAME closures (lib/so-list-kpis-sql.ts). Null = take the
+       PostgREST reads above, which page every matching order while production
+       has aggregates off. */
+    const kpiProm = soListKpisSql(c.env, read, moneySkipCancelled).then(async (s) => (s
+      ? [s.counted, { data: s.money, error: null }, s.held] as const
+      : Promise.all([countsProm(), moneyProm(), heldProm()])));
 
-    /* One concurrent wave. The page rows, the grouped status counts and the
-       full-set money KPIs are mutually independent — each keys off scopeIds +
-       the same filter params, none reads the page result — yet they were paying
-       three sequential DB round-trips. Fire them together; only the per-doc
-       enrichment below actually needs the page rows, so it still follows. */
-    const [res, counted, moneyRes, heldCount] = await Promise.all([q, countsProm, moneyProm, heldProm]);
+    /* One concurrent wave. The page rows and the KPIs are mutually independent;
+       only the per-doc enrichment below needs the page rows, so it follows. */
+    const [res, [counted, moneyRes, heldCount]] = await Promise.all([q, kpiProm]);
     data = res.data;
     error = res.error;
     total = res.count ?? (res.data?.length ?? 0);
@@ -1401,10 +1411,13 @@ mfgSalesOrders.get('/customers', async (c) => {
      id, NOT the pinned system-staff uuid (the scm.staff-UUID bigint trap). */
   const scopeIds = await resolveSalesScopeIds(sb, c.env, c.get('houzsUser')?.id, canViewAllSales(c));
 
-  const { data, error } = await paginateAll<CustomerSoRow>((from, to) => {
+  /* ONE statement over Hyperdrive (lib/so-customers-sql.ts) instead of ~11
+     sequential 1,000-row pages; same scope closure, same rows. */
+  const viaSql = await soCustomerRowsSql<CustomerSoRow>(c.env, (q) => scopeToCompany(applySoScope(q, scopeIds), c));
+  const { data, error } = viaSql ? { data: viaSql, error: null } : await paginateAll<CustomerSoRow>((from, to) => {
     let q = sb
       .from('mfg_sales_orders')
-      .select('doc_no, status, on_hold, debtor_name, phone, local_total_sen, created_at, so_date, line_count')
+      .select(SO_CUSTOMER_COLS)
       .order('so_date', { ascending: false });
     q = applySoScope(q, scopeIds);
     q = scopeToCompany(q, c); // multi-company: isolate to the active company
@@ -1676,7 +1689,7 @@ mfgSalesOrders.get('/:docNo', async (c) => {
   const amendDateLocked = soProcessingLocked(
     h.data as { processing_date?: string | null; status: string | null },
   );
-  /* Owner 2026-08-12 — the PO lock feeds the SAME flag, so a 2990 SO with a live
+  /* Owner 2026-08-12 — the PO lock feeds the SAME flag, so an SO with a live
      PO flips the FE's Save into "Submit amendment request" exactly as an elapsed
      processing date does. Shipped as its own header field (`po_locked`) too: the
      desktop + mobile detail gates need to disable the line editors, and they are
@@ -3387,12 +3400,9 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
          summary (the long attribute string). Server-generated from the line's
          variants so it stays the single source of truth. */
       description2: buildVariantSummary((productRowByCode.get(String(it.itemCode ?? '').trim())?.category ?? '').trim().toLowerCase() || String(it.itemGroup ?? '').trim() || 'others', (it.variants as Record<string, unknown> | null) ?? null) || null,
-      /* Spec 2026-06-06 — per-line operator remark from the POS product page.
-         Same column SoLineCard edits (mfg_sales_order_items.remark). */
-      remark: (() => {
-        const r = (it.variants as { remark?: unknown } | null)?.remark;
-        return typeof r === 'string' && r.trim() !== '' ? r.trim() : null;
-      })(),
+      /* Per-line operator remark: desktop sends `remark`, phone / POS send
+         `variants.remark`. Same column SoLineCard edits. lib/so-line-remark.ts. */
+      remark: soLineRemark(it),
       uom: (it.uom as string) ?? 'UNIT',
       qty,
       unit_price_sen: unit,
@@ -4855,6 +4865,7 @@ mfgSalesOrders.post('/validate', async (c) => {
   const problems = collectSoSubmitProblems({
     customerName: str(body.debtorName) || str(body.customerName),
     phone: str(body.phone),
+    origPhone: isEdit && typeof body.origPhone === 'string' ? body.origPhone : null,
     hasNamedLine,
     asDraft,
     hasVenue: str(body.venueId).trim() !== '' || body.hasVenue === true,
@@ -4999,7 +5010,7 @@ export const patchMfgSalesOrderStatusHandler = async (c: any) => {
      `internalExpectedDd` is the legacy spelling of the same key and is still
      accepted (readSoProcessingDateFromBody); it is the name this route's
      contract was documented under, and no live client sends it. */
-  let body: { status?: string; notes?: string; version?: number; expectedStatus?: string; processingDate?: string; internalExpectedDd?: string };
+  let body: { status?: string; notes?: string; version?: number; expectedStatus?: string; processingDate?: string; internalExpectedDd?: string; overrideReason?: string };
   try { body = (await c.req.json()) as typeof body; } catch { return c.json({ error: 'invalid_json' }, 400); }
   if (!body.status) return c.json({ error: 'status_required' }, 400);
 
@@ -5094,6 +5105,31 @@ export const patchMfgSalesOrderStatusHandler = async (c: any) => {
      existing value is read first so a re-entry never overwrites it. (Merged
      with main's CANCELLED downstream-lock guard above — both apply.) */
   if (fromNorm === toStatus) {
+    /* EDIT-LOCK OVERRIDE. The detail page's Override sends the SO's own status
+       with the reason the operator typed; the banner then says "tracked in the
+       status timeline". This branch used to answer `unchanged` and keep nothing,
+       so the reason was thrown away and the timeline showed no override. It is
+       written now, and a failure to write it is a failure: the page unlocks only
+       on this answer's success. */
+    const overrideReason = typeof body.overrideReason === 'string' ? body.overrideReason.trim() : '';
+    if (overrideReason) {
+      if (overrideReason.length < 10) return c.json({ error: 'override_reason_too_short', message: 'Override needs a reason of at least 10 characters.' }, 400);
+      const { error: trailErr } = await sb.from('mfg_so_status_changes').insert({
+        company_id: co.companyId,
+        doc_no: docNo,
+        from_status: fromStatus,
+        to_status: fromStatus,
+        changed_by: user.id,
+        notes: `Edit-lock override: ${overrideReason}`,
+      });
+      if (trailErr) return c.json({ error: 'override_not_recorded', message: `The override reason could not be saved (${trailErr.message}). The SO stays locked — try again.` }, 500);
+      await recordSoAudit(sb, {
+        docNo, action: 'UPDATE_STATUS', actorId: user.id,
+        actorName: (user.user_metadata as { name?: string } | undefined)?.name ?? null,
+        fieldChanges: [], statusSnapshot: fromStatus, note: `Edit-lock override: ${overrideReason}`,
+      });
+      return c.json({ salesOrder: prev, version: currentVersion, unchanged: true, overrideRecorded: true });
+    }
     return c.json({ salesOrder: prev, version: currentVersion, unchanged: true });
   }
   /* ── Confirm gate (owner 2026-08-08) — a DRAFT may only become CONFIRMED
@@ -5590,6 +5626,13 @@ mfgSalesOrders.post('/:docNo/items/:itemId/override', async (c) => {
     }, 422);
   }
 
+  /* Task #114 — pull current line_cost_sen so the price override
+     recomputes line_margin_sen correctly. Previous code used `- 0`
+     which silently broke margin tracking on every override. Read BEFORE the
+     audit insert: a FAILED read refuses with nothing written (lib/so-override-cost.ts). */
+  const lineCost = await readOverrideLineCost(sb, itemId);
+  if (!lineCost.ok) return c.json(linesUnreadableBody('the line cost', 'changed', lineCost.error), 503);
+
   // Audit first (so we don't lose original even if the update fails)
   const originalPriceSen = i.unit_price_sen;
   const overridePriceSen = newPrice;
@@ -5605,14 +5648,7 @@ mfgSalesOrders.post('/:docNo/items/:itemId/override', async (c) => {
   });
 
   const newLineTotal = (i.qty * newPrice) - i.discount_sen;
-  /* Task #114 — pull current line_cost_sen so the price override
-     recomputes line_margin_sen correctly. Previous code used `- 0`
-     which silently broke margin tracking on every override. */
-  const { data: costRow } = await sb.from('mfg_sales_order_items')
-    .select('line_cost_sen')
-    .eq('id', itemId)
-    .maybeSingle();
-  const currentLineCost = Number((costRow as { line_cost_sen?: number } | null)?.line_cost_sen ?? 0);
+  const currentLineCost = lineCost.costSen;
   const { error } = await sb.from('mfg_sales_order_items').update({
     unit_price_sen: newPrice,
     total_sen: newLineTotal,
@@ -6388,7 +6424,7 @@ export const patchMfgSalesOrderHeaderHandler = async (c: any) => {
      and stay open. Sits AFTER the cancelled/downstream-agnostic validations
      above but before any write. (`before` carries processing_date via
      the map above.) */
-  /* Owner 2026-08-12 — the PO lock (2990 only) reaches the SAME field-scoped
+  /* Owner 2026-08-12 — the PO lock (every company) reaches the SAME field-scoped
      diff by the other road. Evaluated once, here, so both roads share one
      rejection and a future CONTROLLED-column change cannot land on one and miss
      the other. */
@@ -7205,7 +7241,7 @@ mfgSalesOrders.post('/:docNo/items', async (c) => {
   if (!header) return refuseWithoutWriting(c, { error: 'not_found' }, 404);
   /* Owner 2026-06-12 — processing-date lock: no line ADD once a CONFIRMED-or-later
      SO's processing day has passed (already PO'd to the supplier). Owner
-     2026-08-12 — nor once a live PO actually exists (2990), which is the case
+     2026-08-12 — nor once a live PO actually exists (every company since 2026-11-09), which is the case
      this rule was always describing and only sometimes catching. */
   if (!afterDoTarget && soProcessingLocked(header as { processing_date?: string | null; status: string | null })) {
     return refuseWithoutWriting(c, SO_PROCESSING_LOCKED_RESPONSE, 409);
@@ -10491,6 +10527,10 @@ export const postSoPaymentHandler = async (c: any) => {
     if (!g.ok) return c.json({ error: g.error, message: g.message }, g.status);
     plan = g.plan;
   }
+  /* Everything above only READ, so each refusal there released the form's
+     Idempotency-Key (noWriteUntilMarked) and its corrected Save can go through.
+     From here on a retry under the same key replays — never a second payment. */
+  writesFromHere(c);
   /* Insert + ADD_PAYMENT audit — the factored recordSoPaymentRow core (shared
      with the background scan job). Same derivation, same insert, same audit
      shape as the pre-factoring inline code. */
@@ -10542,7 +10582,7 @@ export const postSoPaymentHandler = async (c: any) => {
   /* ADD_PAYMENT audit already appended inside recordSoPaymentRow. */
   return c.json({ payment }, 201);
 };
-mfgSalesOrders.post('/:docNo/payments', postSoPaymentHandler);
+mfgSalesOrders.post('/:docNo/payments', noWriteUntilMarked, postSoPaymentHandler);
 
 /* Owner 2026-07-13 — SAME-DAY payment EDIT. A payment recorded TODAY can be
    corrected within the same Malaysia (UTC+8) calendar day; after MYT midnight it
@@ -11290,7 +11330,7 @@ mfgSalesOrders.post('/:docNo/amendments', async (c) => {
 
   /* Guard 2 — an amendment only makes sense once the SO is locked; an unlocked
      SO is still directly editable, so no amendment is needed. Owner 2026-08-12:
-     "locked" now means date-locked OR PO-locked (2990). This guard is the MIRROR
+     "locked" now means date-locked OR PO-locked (any company). This guard is the MIRROR
      of the write guards above — if it kept asking only about the date, a
      PO-locked SO would be refused BOTH roads (409 on the direct edit, 409 here
      for "not locked yet") and the operator would have no way to change anything

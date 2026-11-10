@@ -7,7 +7,7 @@ import { useScmLinePhoto } from "../vendor/scm/lib/so-line-photo";
    editor; positioned relative so the delete X can absolute-corner over it. */
 const photoTile: CSSProperties = {
   width: 52, height: 52, flex: "none", borderRadius: 9, overflow: "hidden",
-  border: "1px solid #E5E7EB", position: "relative",
+  border: "1px solid #d6d9d2", position: "relative",
 };
 const photoTileInner: CSSProperties = {
   width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -45,7 +45,7 @@ export function MobileSavedPhotoThumb({
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       ) : (
-        <div style={{ ...photoTileInner, background: "#DCE6FD", color: "#1B1B39", fontSize: 8, fontWeight: 700, letterSpacing: ".04em" }}>
+        <div style={{ ...photoTileInner, background: "#e1efed", color: "#16695f", fontSize: 8, fontWeight: 700, letterSpacing: ".04em" }}>
           {photo.error ? "ERR" : "..."}
         </div>
       )}

@@ -28,7 +28,6 @@ import {
   setBrandingCache,
 } from "../lib/branding";
 import type { SyncStatusResponse, Paginated, ExecutionLog } from "../types";
-import { CARRES_AUTOCOUNT } from "../carres/navOnly";
 import { correlatedFetch } from "../lib/requestCorrelation";
 import { DocumentTypesTab } from "./settings/DocumentTypesTab";
 
@@ -47,7 +46,7 @@ export function Settings() {
 
   const raw = params.get("tab") as SettingsTab | null;
   const active: SettingsTab =
-    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw) && (CARRES_AUTOCOUNT || raw !== "sync")
+    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw)
       ? raw
       : "connection";
 
@@ -57,11 +56,11 @@ export function Settings() {
     setParams(p, { replace: true });
   }
 
-  const status = useQuery<SyncStatusResponse>("/api/sync/status", () => api.get("/api/sync/status"), [], { enabled: CARRES_AUTOCOUNT });
+  const status = useQuery<SyncStatusResponse>("/api/sync/status", () => api.get("/api/sync/status"));
 
   const tabs: TabOption<SettingsTab>[] = [
     { value: "connection", label: "Connection" },
-    ...(CARRES_AUTOCOUNT ? [{ value: "sync" as const, label: "Sync" }] : []),
+    { value: "sync", label: "Sync" },
     { value: "email", label: "Email" },
     { value: "branding", label: "Branding" },
     { value: "documents", label: "Documents" },
@@ -74,7 +73,7 @@ export function Settings() {
   > = {
     connection: {
       title: "Connection",
-      description: CARRES_AUTOCOUNT ? "Verify the Worker can reach the AutoCount middleware." : "Check that the screens can reach the server.",
+      description: "Verify the Worker can reach the AutoCount middleware.",
     },
     sync: {
       title: "Sync",
@@ -497,7 +496,7 @@ const BRANDING_FIELDS: {
   /** A textarea of this many rows instead of a one-line box. */
   rows?: number;
 }[] = [
-  { key: "companyName", label: "Company name", placeholder: "Carres Sdn Bhd" },
+  { key: "companyName", label: "Company name", placeholder: "Houzs Century Sdn Bhd" },
   {
     key: "registrationNo",
     label: "SSM registration no",

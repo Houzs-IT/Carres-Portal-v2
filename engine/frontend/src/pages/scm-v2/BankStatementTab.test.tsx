@@ -14,6 +14,7 @@
 //     for ever.
 
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, test, vi, afterEach } from 'vitest';
 import type { BankLine, Reconciliation, LedgerEntry } from './bank-queries';
 
@@ -119,7 +120,7 @@ vi.mock('./settlement-queries', async (importOriginal) => ({
 import { BankStatementTab } from './BankStatementTab';
 
 const openStatement = () => {
-  render(<BankStatementTab />);
+  render(<MemoryRouter><BankStatementTab /></MemoryRouter>);
   fireEvent.click(screen.getByText('Reconcile'));
 };
 
@@ -158,7 +159,10 @@ describe('what the books hold that the bank has not shown', () => {
   test('a candidate entry names its document and its customer when the server has them (docs/bugs/0918)', () => {
     lines = [{ ...IN_BOOKS, entryCandidates: [{ ...IN_BOOKS.entryCandidates[0]!, reference: '2990DraftOR-2608-005 · 2990-SO-2608-067', who: 'NG KAH YEE' }] }];
     openStatement();
-    expect(screen.getByText(/2990DraftOR-2608-005 · 2990-SO-2608-067 · NG KAH YEE/)).toBeTruthy();
+    /* The same words, the order a door to itself (owner 2026-11-10: 我希望这里也可以点开so). */
+    const order = screen.getByRole('link', { name: '2990-SO-2608-067' });
+    expect(order.getAttribute('href')).toBe('/scm/sales-orders/2990-SO-2608-067');
+    expect(order.closest('div')!.textContent).toBe('2990DraftOR-2608-005 · 2990-SO-2608-067 · NG KAH YEE');
     lines = [LINE, SPLIT, OTHER];
   });
 });
@@ -320,7 +324,9 @@ describe('matching the obvious ones', () => {
     openStatement();
     fireEvent.click(screen.getByText('Match the obvious ones now'));
     expect(autoMatchMutate.mock.calls[0]?.[0]).toBe(1);
-    expect(screen.getByText(/3 matched by amount and name/)).toBeTruthy();
+    /* Matched by the voucher a line names or by amount and name: the count and the entries (owner 2026-11-10). */
+    expect(screen.getByText(/3 matched — JE-1, JE-2, JE-3/)).toBeTruthy();
+    expect(screen.getByText(/carry a voucher's number/)).toBeTruthy();
     /* And the pair the bank reversed (docs/bugs/0817). */
     expect(screen.getByText(/1 pair the bank reversed left out/)).toBeTruthy();
     autoMatchResult = undefined;
@@ -332,11 +338,20 @@ describe('matching the obvious ones', () => {
     fireEvent.click(screen.getByText('Show'));
     expect(screen.getByText(/matched by amount and name/)).toBeTruthy();
   });
+
+  /* Owner 2026-11-10: 银行单上写着 PV 号码的，直接配那张 PV，不管差几天. */
+  test('a movement matched to the voucher its line names says so', () => {
+    lines = [{ ...OTHER, state: 'POSTED', posted_je_no: '2990-JE-2610-0362', matches: [{ je_no: '2990-JE-2610-0362', amount_sen: -2500, match_reason: 'amount+document' }] }];
+    openStatement();
+    fireEvent.click(screen.getByText('Show'));
+    expect(screen.getByText(/matched by the voucher number on the bank's line/)).toBeTruthy();
+    expect(screen.queryByText(/matched by amount and name/)).toBeNull();
+  });
 });
 
 describe('the list of statements read', () => {
   test('says how much of each is still undecided, and how much of that is card money', () => {
-    render(<BankStatementTab />);
+    render(<MemoryRouter><BankStatementTab /></MemoryRouter>);
     expect(screen.getByText('3 of 9 · 2 card payout(s)')).toBeTruthy();
   });
 
@@ -352,7 +367,7 @@ describe('the list of statements read', () => {
   /* One account's files at a time (owner 2026-09-13: 无法分辨), the tab
      naming the bank the way the upload box does. */
   test('lists the files one account at a time, the tab naming the bank', () => {
-    render(<BankStatementTab />);
+    render(<MemoryRouter><BankStatementTab /></MemoryRouter>);
     const tab = screen.getByRole('tab', { name: 'MBB · 310-0010' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(screen.getByText('aug.csv')).toBeTruthy();
@@ -586,7 +601,7 @@ describe('a credit short by a charge the acquirer kept', () => {
 describe('what is in the books and not on the statement', () => {
   test('is its own section, named, not a count', () => {
     lines = [LINE];
-    render(<BankStatementTab />);
+    render(<MemoryRouter><BankStatementTab /></MemoryRouter>);
     fireEvent.click(screen.getByText('Reconcile'));
     /* With none, the section stays off the screen rather than showing a zero. */
     expect(screen.queryByText(/In the books, not on this statement/)).toBeNull();
@@ -780,7 +795,7 @@ describe('a row whose decision changes under it', () => {
       ],
     };
     lines = [before];
-    const r = render(<BankStatementTab />);
+    const r = render(<MemoryRouter><BankStatementTab /></MemoryRouter>);
     fireEvent.click(screen.getByText('Reconcile'));
     /* Undecided: every report offered, nothing ticked, the button dead. */
     expect(screen.getAllByRole('checkbox', { name: /Report .* for line 12/ })).toHaveLength(4);
@@ -792,7 +807,7 @@ describe('a row whose decision changes under it', () => {
       split: [{ batchId: 21, amountSen: 166869 }, { batchId: 22, amountSen: 312660 }, { batchId: 23, amountSen: 333640 }],
       note: '3 of PBB\'s reports add up to RM 8,131.69 exactly — 2990HOMESB_CSV_20260703.csv RM 1,668.69 + 2990HOMESB_CSV_20260704.csv RM 3,126.60 + 2990HOMESB_CSV_20260705.csv RM 3,336.40. Check them and record it.',
     }];
-    r.rerender(<BankStatementTab />);
+    r.rerender(<MemoryRouter><BankStatementTab /></MemoryRouter>);
     const ticked = screen.getAllByRole('checkbox', { name: /Report .* for line 12/ }) as HTMLInputElement[];
     expect(ticked.map((c) => [c.getAttribute('aria-label'), c.checked])).toEqual([
       ['Report 2990HOMESB_CSV_20260703.csv for line 12', true],
@@ -807,5 +822,64 @@ describe('a row whose decision changes under it', () => {
       lineId: 12,
       allocations: [{ batchId: 21, amountSen: 166869 }, { batchId: 22, amountSen: 312660 }, { batchId: 23, amountSen: 333640 }],
     });
+  });
+});
+
+/* The bank's DuitNow QR credit (owner 2026-11-09: 0000PP 是 qr direct 去 bank 的，
+   不算卡机的 → 「A 照传，做」). Hong Leong pays a day's QR money as one credit; the
+   money is already in the books through the QR sales, so the row names those
+   sales and matches the credit to their entries in one press — and never offers
+   to book it again as a card payout. */
+describe('a DuitNow QR credit', () => {
+  const QR: BankLine = {
+    ...LINE, id: 21, line_no: 42, booked_on: '2026-11-02', description: 'CA Credit Advice', reference: '00005992284 MERCHAN T 20261031',
+    amount_sen: 550000, charge_sen: 0, kind: 'QR', acquirer_code: 'HLB', trading_date: '2026-10-31', merchant_no: '00005992284',
+    matched_batch_id: null, candidates: [], entryCandidates: [],
+    note: 'DuitNow QR money for 2026-10-31 — 00005992284_20261031.CSV: 2990-SO-2611-077 RM 3,500.00 + 2990-SO-2611-019 RM 2,000.00, already in the books on this account. These are those entries.',
+    qr_sales: {
+      batchId: 384, fileName: '00005992284_20261031.CSV', tradingDate: '2026-10-31',
+      sales: [
+        { docNo: '2990-SO-2611-077', amountSen: 350000, jeNo: '2990-JE-2611-0500' },
+        { docNo: '2990-SO-2611-019', amountSen: 200000, jeNo: '2990-JE-2610-0448' },
+      ],
+      waiting: [], jeNos: ['2990-JE-2611-0500', '2990-JE-2610-0448'], ready: true,
+      clue: 'DuitNow QR money for 2026-10-31 — 00005992284_20261031.CSV: … These are those entries.',
+    },
+  };
+
+  test('it reads as QR money, names its sales, and one press matches it to their entries', () => {
+    lines = [QR];
+    openStatement();
+    expect(screen.getByText('DuitNow QR money')).toBeTruthy();
+    expect(screen.getByText('2990-SO-2611-019')).toBeTruthy();
+    expect(screen.queryByText('Money received')).toBeNull();
+    fireEvent.click(screen.getByText('These are the QR sales'));
+    expect(groupMutate).toHaveBeenCalledWith({ lineIds: [21], jeNos: ['2990-JE-2611-0500', '2990-JE-2610-0448'] });
+  });
+
+  test('while a QR line has no sale linked it says so, and offers no press', () => {
+    lines = [{
+      ...QR,
+      note: 'DuitNow QR money for 2026-10-31 — 00005992284_20261031.CSV: link the sale for line 17 (RM 3,500.00) on Merchant Recon first.',
+      qr_sales: { ...QR.qr_sales!, ready: false, jeNos: [], waiting: [{ lineNo: 17, txnDate: '2026-10-31', grossSen: 350000 }],
+        clue: 'DuitNow QR money for 2026-10-31 — 00005992284_20261031.CSV: link the sale for line 17 (RM 3,500.00) on Merchant Recon first.' },
+    }];
+    openStatement();
+    expect(screen.getAllByText(/link the sale for line 17/)).toHaveLength(1);
+    expect(screen.getByText(/line 17 · RM 3,500.00 — no sale linked yet/)).toBeTruthy();
+    expect(screen.queryByText('These are the QR sales')).toBeNull();
+  });
+});
+
+/* Owner 2026-11-10 (2990 October): 我希望这里也可以点开so, 点开后也可以返回这里 — the file
+   screen's outstanding list carries the same doors as the month's. */
+describe("an order in an entry's document", () => {
+  test('opens the whole order; the receipt stays text', () => {
+    unmatched = [{ jeNo: '2990-JE-2610-0093', entryDate: '2026-10-07', sourceType: 'SOPAY', sourceDocNo: 'p-1', debitSen: 210000, creditSen: 0, reference: '2990-DraftOR-2610-019 · 2990-SO-2609-016', partyName: null, carried: false }];
+    render(<MemoryRouter><BankStatementTab /></MemoryRouter>);
+    fireEvent.click(screen.getByText('Reconcile'));
+    const list = screen.getByText(/Outstanding items — in the books, not yet on the bank/).closest('section') as HTMLElement;
+    expect(within(list).getByRole('link', { name: '2990-SO-2609-016' }).getAttribute('href')).toBe('/scm/sales-orders/2990-SO-2609-016');
+    expect(within(list).queryByRole('link', { name: '2990-DraftOR-2610-019' })).toBeNull();
   });
 });

@@ -69,7 +69,7 @@ function Thumb({ docNo, itemId, photoKey, onOpen }: {
         style={{
           width: 64, height: 64, borderRadius: 10,
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          border: "1px solid var(--line2, #EEF0F3)", background: "#F8F9FA",
+          border: "1px solid var(--line2, #e3e6e0)", background: "#f4f6f3",
           fontSize: 10, fontWeight: 700,
           color: error ? "#b4443a" : "var(--mut2, #9aa093)",
         }}
@@ -86,7 +86,7 @@ function Thumb({ docNo, itemId, photoKey, onOpen }: {
       aria-label="View line photo"
       style={{
         width: 64, height: 64, padding: 0, borderRadius: 10, overflow: "hidden",
-        border: "1px solid var(--line2, #EEF0F3)", background: "#F8F9FA", cursor: "pointer",
+        border: "1px solid var(--line2, #e3e6e0)", background: "#f4f6f3", cursor: "pointer",
       }}
     >
       <img

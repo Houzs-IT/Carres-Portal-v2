@@ -29,7 +29,7 @@ const NOTES: CreditNote[] = [
   },
   /* AutoCount's CN-2609-025: RM 2,000 off Eastern Decorator's exhibition-rental bill (2026-10-28). */
   {
-    id: 'n4', note_number: 'HC-OCN-2609-001', kind: 'OCN', party_type: 'ODEBTOR', party_code: null, party_name: 'EASTERN DECORATOR SDN. BHD.',
+    id: 'n4', note_number: 'HC-OCN-2609-001', kind: 'OCN', party_type: 'ODEBTOR', party_code: null, party_name: 'EASTERN DECORATOR SDN. BHD.', debtor_code: '305-E003',
     supplier_id: null, debtor_id: 'deb-e', so_doc_no: null, sales_invoice_id: null, ap_invoice_id: null, purchase_invoice_id: null, source_doc_no: 'CN-2609-025',
     note_date: '2026-09-02', total_sen: 200_000, reason: 'Discount for exhibition rental — HOMES LIVING 9-12 JUL KLCC', notes: null, status: 'POSTED', je_no: 'HC-JE-2609-0101',
     created_at: '2026-10-29T00:00:00Z', created_by: 'Chew', posted_at: '2026-10-29T00:00:00Z', cancelled_at: null,
@@ -86,7 +86,7 @@ const pdfSingle = vi.fn(async (..._args: unknown[]) => {});
 const pdfBatch = vi.fn(async (..._args: unknown[]) => {});
 const LINES = [{ id: 'l1', line_no: 1, description: 'Scratched leg — goodwill', account_code: '510-0000', amount_sen: 15000 }];
 
-vi.mock('../../vendor/scm/lib/credit-note-pdf', () => ({ generateCreditNotePdf: pdfSingle, generateCreditNotesPdf: pdfBatch }));
+vi.mock('../../vendor/scm/lib/credit-note-pdf', () => ({ generateCreditNotePdf: pdfSingle, generateCreditNotesPdf: pdfBatch, knockedOffOf: () => null }));
 vi.mock('../../vendor/scm/lib/authed-fetch', async (importOriginal) => ({
   ...(await importOriginal() as object),
   authedFetch: vi.fn(async (path: string) => {
@@ -145,7 +145,7 @@ vi.mock('../../vendor/scm/lib/accounting-queries', async (importOriginal) => ({
   ] }, isLoading: false }),
   /* The Other Debtors registry — a deactivated debtor is not offered. */
   useOtherDebtors: () => ({ data: { debtors: [
-    { id: 'deb-e', name: 'EASTERN DECORATOR SDN. BHD.', phone: null, notes: null, is_active: true, outstanding_sen: 6_920_000 },
+    { id: 'deb-e', name: 'EASTERN DECORATOR SDN. BHD.', code: '305-E003', phone: null, notes: null, is_active: true, outstanding_sen: 6_920_000 },
     { id: 'deb-x', name: 'CLOSED TENANT SDN BHD', phone: null, notes: null, is_active: false, outstanding_sen: 0 },
   ] }, isLoading: false }),
 }));
@@ -236,7 +236,37 @@ describe('the Credit & Debit Notes page', () => {
     expect(createMutate.mock.calls[0]?.[0]).toEqual({
       kind: 'CN', noteDate: expect.any(String), reason: 'Scratched leg', sourceDocNo: null, soDocNo: '2990-SO-2607-019',
       lines: [{ description: 'Goodwill', accountCode: null, amountSen: 15000 }],
+      /* A customer's credit note always says its ticks too (2026-11-03) — none ticked is a plan. */
+      allocations: [],
+      /* One key per opened form: a second press answers the first note (fix/failed-save-looks-ok). */
+      idempotencyKey: expect.any(String),
     });
+  });
+
+  test('an amount typed with thousands separators is read, never sent as null (G1 #5531 class)', async () => {
+    /* Number("3,500.00") is NaN and JSON sends NaN as null. */
+    const body = bodyOf({ kind: 'SCN', noteDate: '2026-11-10', soDocNo: '', partyName: '', supplierId: 'sup-h', sourceDocNo: '', reason: '', lines: [
+      { rid: 1, description: '', accountCode: '', amountRm: '3,500.00', projectId: null },
+      { rid: 2, description: '', accountCode: '', amountRm: '  ', projectId: null },
+    ] });
+    expect(body.lines).toEqual([{ description: null, accountCode: null, amountSen: 350000 }]);
+    /* Unreadable: refused with a sentence, never dropped as if blank. */
+    const bad = { kind: 'SCN' as const, noteDate: '2026-11-10', soDocNo: '', partyName: '', supplierId: 'sup-h', sourceDocNo: '', reason: '', lines: [{ rid: 1, description: '', accountCode: '', amountRm: '3.500,00', projectId: null }] };
+    expect(() => bodyOf(bad)).toThrow(/Line 1/);
+
+    createMutate.mockClear();
+    render(<MemoryRouter><ConfirmProvider><CreditNotes /></ConfirmProvider></MemoryRouter>);
+    fireEvent.click(screen.getByText('New note'));
+    const dialog = await screen.findByLabelText('Note form');
+    fireEvent.change(within(dialog).getByLabelText('Sales order'), { target: { value: '2990-SO-2607-019' } });
+    fireEvent.change(within(dialog).getByLabelText('Line 1 amount'), { target: { value: 'abc' } });
+    expect(within(dialog).getByRole('alert').textContent).toMatch(/Line 1/);
+    expect((within(dialog).getByText('Save as draft').closest('button') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(dialog).getByLabelText('Line 1 amount'), { target: { value: '3,500.00' } });
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+    fireEvent.click(within(dialog).getByText('Save as draft'));
+    await waitFor(() => expect(createMutate).toHaveBeenCalled());
+    expect((createMutate.mock.calls[0]?.[0] as { lines: unknown }).lines).toEqual([{ description: null, accountCode: null, amountSen: 350000 }]);
   });
 
   test('the body of a supplier note carries the supplier, and a typed customer name stands in for an order', () => {
@@ -270,7 +300,7 @@ describe('the Credit & Debit Notes page', () => {
     expect(pdfSingle.mock.calls[0]?.[0]).toMatchObject({ note_number: '2990-CN-2609-001' });
     expect(pdfSingle.mock.calls[0]?.[1]).toEqual([expect.objectContaining({ account_code: '510-0000', amount_sen: 15000 })]);
     expect((pdfSingle.mock.calls[0]?.[2] as (code: string) => string | null)('510-0000')).toBe('RETURN INWARDS');
-    expect(pdfSingle.mock.calls[0]?.[3]).toEqual({ action: 'print' });
+    expect(pdfSingle.mock.calls[0]?.[3]).toEqual({ action: 'print', knockedOff: null });
 
     /* Ticked in the other order; printed in LIST order. */
     fireEvent.click(screen.getByLabelText('Tick 2990-SCN-2609-001'));
@@ -394,7 +424,7 @@ describe("an other debtor's credit note", () => {
     /* Only the registry's active debtors are offered. */
     fireEvent.focus(within(dialog).getByRole('combobox', { name: 'Other debtor' }));
     expect(screen.queryByRole('option', { name: 'CLOSED TENANT SDN BHD' })).toBeNull();
-    fireEvent.mouseDown(screen.getByRole('option', { name: 'EASTERN DECORATOR SDN. BHD.' }));
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'EASTERN DECORATOR SDN. BHD. · 305-E003' }));
     fireEvent.change(within(dialog).getByLabelText('Reference'), { target: { value: 'CN-2609-025' } });
     fireEvent.change(within(dialog).getByLabelText('Line 1 description'), { target: { value: 'Discount for exhibition rental' } });
     fireEvent.change(within(dialog).getByLabelText('Line 1 amount'), { target: { value: '2000' } });
@@ -415,6 +445,7 @@ describe("an other debtor's credit note", () => {
       kind: 'OCN', noteDate: expect.any(String), reason: null, sourceDocNo: 'CN-2609-025', debtorId: 'deb-e',
       allocations: [{ kind: 'ODB', id: 'odb-5', amountSen: 200_000 }],
       lines: [{ description: 'Discount for exhibition rental', accountCode: '520-0000', amountSen: 200_000 }],
+      idempotencyKey: expect.any(String),
     });
   });
 
@@ -424,6 +455,8 @@ describe("an other debtor's credit note", () => {
     fireEvent.click(screen.getByText('HC-OCN-2609-001'));
     const dialog = await screen.findByLabelText('Credit or debit note');
     expect(within(dialog).getByText('Other debtor credit note HC-OCN-2609-001')).toBeTruthy();
+    /* The debtor's account code, read off the registry (the note's own party_code stays blank). */
+    expect(within(dialog).getByText('· 305-E003')).toBeTruthy();
     const ko = within(dialog).getByLabelText("Knock off the debtor's bills");
     expect((within(ko).getByLabelText('Knock off HC-ODB-2608-005') as HTMLInputElement).checked).toBe(true);
     expect(within(dialog).getByText('tick to knock a bill off, untick to give it back — like a receipt')).toBeTruthy();

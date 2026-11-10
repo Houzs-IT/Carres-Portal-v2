@@ -12,9 +12,11 @@
 //
 // Mounted at '/delivery-returns' in apps/api/src/index.ts.
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono, type Context } from 'hono';
 import { normalizePhone } from '../shared/phone';
 import { buildVariantSummary } from '../shared';
+import { parseReturnLineQty, returnLineQtyMessage } from '../shared/return-line-qty';
 import { supabaseAuth } from '../middleware/auth';
 import type { Env, Variables } from '../env';
 import { scopeToCompany, activeCompanyId, stampCompany, companyDocPrefix,
@@ -27,12 +29,14 @@ import { dateOrNull, coerceEmptyDates } from '../lib/date-coerce';
 import { reconcileUncostedAfterIn } from '../lib/oversell-retrocost';
 import { traceDoShipmentSources } from '../lib/source-po-trace';
 import { shippedBatchOf } from '../lib/return-line-batch';
+import { HARD_BOUND_COMPANY_ID, isHardBoundLine } from '../lib/so-stock-allocation';
 import { warehouseLabel } from '../lib/warehouse-label';
 import { computeVariantKey, type VariantAttrs } from '../shared';
 import { doLineRemaining, returnableRemainingFrom, resolveCandidateDoIds, custKeyOf, remainingUnavailableResponse, type DoRemainingLine, type DoRemainingResult } from '../lib/do-line-remaining';
 import { todayMyt } from '../lib/my-time';
 import { validateItemCodes, unknownItemCodeResponse } from '../lib/validate-item-codes';
 import { resolveItemGroups } from '../lib/sku-category';
+import { foldTargetsIntoOwnBuckets, stockBucketKeyResolver } from '../lib/stock-bucket-key';
 import { isServiceLine } from '../shared';
 import { findServiceLineCodes, serviceLinesNotReturnableResponse, serviceGuardUnavailableResponse } from '../lib/service-line-guard';
 import { findUnlinkedDrLines, unlinkedReturnResponse } from '../lib/return-unlinked-lines';
@@ -44,6 +48,7 @@ import { sourceUnitCostByItemId } from '../lib/source-cost';
 import { resolveSalesScopeIds, salesDocOutOfScope, resolveCallerStaffId } from '../lib/salesScope';
 import { enrichLinesWithFabricSupplierCode } from '../lib/fabric-supplier-code';
 import { isSoLineOverDelivered } from '../lib/so-remaining-by-item';
+import { creditNoteHold, loadReturnCredit } from '../lib/cn-from-return';
 import {
   DR_FINANCE_KEYS,
   DR_HEADER_COLS,
@@ -83,8 +88,7 @@ const ITEM =
   'unit_cost_sen, line_cost_sen, line_margin_sen, refund_sen, variants, notes, created_at';
 
 const nextNum = async (sb: any, c: any): Promise<string> => {
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, 'delivery_returns', 'return_number', `${p}DR-${yymm}`);
 };
@@ -266,6 +270,7 @@ async function warehouseCodeMap(
 async function resolveDrLineBatches(
   sb: any,
   items: Array<{ id: string; do_item_id?: string | null; item_code?: string | null; item_group?: string | null; variants?: VariantAttrs | null }>,
+  companyId: number | null,
 ): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const doItemIds = [...new Set(items.map((it) => it.do_item_id ?? null).filter((x): x is string => !!x))];
@@ -302,6 +307,39 @@ async function resolveDrLineBatches(
     const batch = fromShip ?? (so ? batchBySo.get(so) : undefined);
     if (batch) out.set(it.id, batch);
   }
+  /* Company 1, hard-bound and not sofa (owner decision A, 2026-11-10): the DO OUT
+     carries the bound PO as batch_no (lib/hard-bound-cost-batch.ts), so the
+     returned unit re-enters that PO's lot. Only a batch the OUT was actually
+     stamped with counts, so a DO shipped before the change still returns
+     un-batched, as before, and a DR resync keys the same bucket its IN did. */
+  const hbItems = companyId === HARD_BOUND_COMPANY_ID
+    ? items.filter((it) => !out.has(it.id) && it.item_code && !isSofa(it) && isHardBoundLine(it.item_group ?? null, it.item_code))
+    : [];
+  const hbDoIds = [...new Set(hbItems.map((it) => (it.do_item_id ? doByDoLine.get(it.do_item_id) : undefined)).filter((x): x is string => !!x))];
+  if (hbDoIds.length > 0) {
+    const { data: outs, error: outsErr } = await sb.from('inventory_movements')
+      .select('source_doc_id, item_code, variant_key, batch_no')
+      .eq('source_doc_type', 'DO')
+      .eq('movement_type', 'OUT')
+      .in('source_doc_id', hbDoIds)
+      .not('batch_no', 'is', null);
+    /* An unreadable OUT leaves the line un-batched, which is the old behaviour:
+       the unit still re-enters stock, only not tied to its PO lot. */
+    if (outsErr) console.error('[dr-batch] DO stock-out batches unreadable, returning un-batched:', outsErr.message); // eslint-disable-line no-console
+    const batchesByBucket = new Map<string, Set<string>>();
+    for (const m of (outsErr ? [] : outs ?? []) as Array<{ source_doc_id: string; item_code: string; variant_key: string | null; batch_no: string | null }>) {
+      if (!m.batch_no) continue;
+      const k = `${m.source_doc_id}::${m.item_code}::${m.variant_key ?? ''}`;
+      const set = batchesByBucket.get(k) ?? new Set<string>();
+      set.add(m.batch_no);
+      batchesByBucket.set(k, set);
+    }
+    for (const it of hbItems) {
+      const doId = it.do_item_id ? doByDoLine.get(it.do_item_id) : undefined;
+      const set = doId ? batchesByBucket.get(`${doId}::${it.item_code}::${computeVariantKey(it.item_group ?? null, it.variants ?? null)}`) : undefined;
+      if (set && set.size === 1) out.set(it.id, [...set][0]!);
+    }
+  }
   return out;
 }
 
@@ -334,7 +372,8 @@ async function increaseInventoryForReturn(sb: any, deliveryReturnId: string, per
     (drHeader as { company_id?: number | null } | null)?.company_id ?? undefined,
   );
   // Sofa batch per DR line — returned modules re-enter the batch they shipped from.
-  const lineBatch = await resolveDrLineBatches(sb, items as Array<{ id: string; do_item_id?: string | null; item_code?: string | null; item_group?: string | null; variants?: VariantAttrs | null }>);
+  const lineBatch = await resolveDrLineBatches(sb, items as Array<{ id: string; do_item_id?: string | null; item_code?: string | null; item_group?: string | null; variants?: VariantAttrs | null }>,
+    (drHeader as { company_id?: number | null } | null)?.company_id ?? null);
 
   /* Collapse identical (warehouse_id, item_code, variant_key, batch_no) lines
      into one IN row. A DR can list the same product across two lines AND across
@@ -346,6 +385,13 @@ async function increaseInventoryForReturn(sb: any, deliveryReturnId: string, per
   const byKey = new Map<string, {
     warehouse_id: string; item_code: string; variant_key: string; product_name: string | null; qty: number; unit_cost_sen: number; batch_no: string | null;
   }>();
+  /* Returned goods go back into the bucket they left: the SKU category's
+     canonical key, as the stocked bucket's own string when canonically equal
+     (lib/stock-bucket-key.ts). */
+  const drKeyLine = (it: { id: string; item_code: string; item_group?: string | null; variants?: VariantAttrs | null }) =>
+    ({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: lineWh.get(it.id) ?? null });
+  const drKeyOf = await stockBucketKeyResolver(sb, (drHeader as { company_id?: number | null } | null)?.company_id ?? null,
+    (items as Array<{ id: string; item_code: string; item_group?: string | null; variants?: VariantAttrs | null }>).map(drKeyLine));
   for (const it of (items as Array<{ id: string; item_code: string; description: string | null; qty_returned: number; item_group?: string | null; variants?: VariantAttrs | null; unit_cost_sen?: number | null }>)) {
     /* P1 SO-SKU spec §4.6 — depth guard: a SERVICE line must never write stock
        IN. The route guards reject them at create/edit; this keeps any line
@@ -355,7 +401,7 @@ async function increaseInventoryForReturn(sb: any, deliveryReturnId: string, per
     if (qty <= 0) continue;
     const warehouseId = lineWh.get(it.id) ?? null;
     if (!warehouseId) continue; // no resolvable warehouse — skip rather than guess
-    const variantKey = computeVariantKey(it.item_group ?? null, it.variants ?? null);
+    const variantKey = drKeyOf(drKeyLine(it));
     const batchNo = lineBatch.get(it.id) ?? null;
     const k = `${warehouseId}::${it.item_code}::${variantKey}::${batchNo ?? ''}`;
     const cur = byKey.get(k);
@@ -463,7 +509,7 @@ async function resyncInventoryForReturn(sb: any, deliveryReturnId: string, perfo
       drHeaderWarehouseId,
       (drHeader as { company_id?: number | null }).company_id ?? undefined,
     );
-    const lineBatch = await resolveDrLineBatches(sb, lineRows);
+    const lineBatch = await resolveDrLineBatches(sb, lineRows, (drHeader as { company_id?: number | null }).company_id ?? null);
     for (const it of lineRows) {
       /* P1 SO-SKU spec §4.6 — SERVICE lines never wrote IN on create, so they
          stay out of the resync TARGET too (else the delta walk would write a
@@ -512,6 +558,8 @@ async function resyncInventoryForReturn(sb: any, deliveryReturnId: string, perfo
   };
   for (const m of await readDrMovs('DR')) addMov(m);
   for (const m of await readDrMovs('ADJUSTMENT')) addMov(m);
+  /* A target canonically equal to a bucket this DR already booked IS that bucket (lib/stock-bucket-key.ts). */
+  foldTargetsIntoOwnBuckets(targetByBucket, aggByBucket.keys(), (drHeader as { company_id?: number | null }).company_id ?? null);
 
   // 3. Per-bucket delta = target − current_net. delta > 0 adds stock back (a line
   //    qty was raised); delta < 0 removes over-booked stock (line reduced /
@@ -884,7 +932,14 @@ deliveryReturns.get('/:id', async (c) => {
   // "BF-01 (PC151-01)" — same READ enrichment as the SO/PO/DO/SI details
   // (owner 2026-07-24). ONE batched query; fail-soft.
   await enrichLinesWithFabricSupplierCode(sb, c, items);
-  return c.json({ deliveryReturn: h.data, items });
+  /* The money side (backlog A1): where the credit note stands, from the notes
+     actually linked. A failed read says so instead of "awaiting". */
+  const co = requireActiveCompanyId(c);
+  const credit = co.ok ? await loadReturnCredit(sb, co.companyId, id, null) : null;
+  const creditNote = credit?.ok
+    ? { state: credit.value.state, notes: credit.value.notes.map((n) => ({ id: n.id, number: n.note_number, status: n.status })) }
+    : { state: 'UNKNOWN', notes: [] };
+  return c.json({ deliveryReturn: { ...(h.data as unknown as Record<string, unknown>), credit_note_state: creditNote.state }, items, creditNote });
 });
 
 /* Insert the DR header from a client body. Shared by POST / and the
@@ -1008,7 +1063,7 @@ async function crossCompanyDoSourceBlocked(sb: any, c: any, doIds: string[]) {
 // ── Create ──────────────────────────────────────────────────────────────
 // Accepts the full DO-cloned header + line items. A return is RECEIVED on
 // creation → stock is increased immediately (idempotent).
-deliveryReturns.post('/', async (c) => {
+export const createDeliveryReturnHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
   /* company-scope: the only by-id write here is the ROLLBACK — the header this
      handler inserted moments earlier is deleted when the child insert fails.
      insertHeader / insertWithDocNoRetry stamp the active company on that row, so
@@ -1020,6 +1075,18 @@ deliveryReturns.post('/', async (c) => {
   if (!debtorName) return c.json({ error: 'debtor_name_required' }, 400);
   let items = (body.items as Array<Record<string, unknown>> | undefined) ?? [];
   if (!Array.isArray(items) || items.length === 0) return c.json({ error: 'items_required' }, 400);
+
+  /* Each line's quantity is read ONCE, here, and every reader below (the
+     over-return cap, the unlinked scan, the insert) sees that one number. They
+     used to read it apart: the cap counted a blank as 0, the insert wrote 1,
+     and a negative line lowered "already returned" (shared/return-line-qty.ts). */
+  {
+    const bad = items.find((it) => parseReturnLineQty(it.qtyReturned ?? it.qty) === null);
+    if (bad) {
+      return c.json({ error: 'invalid_qty', message: returnLineQtyMessage(bad.itemCode as string | undefined, bad.qtyReturned ?? bad.qty) }, 400);
+    }
+    items = items.map((it) => ({ ...it, qtyReturned: parseReturnLineQty(it.qtyReturned ?? it.qty) }));
+  }
 
   const sb = c.get('supabase'); const user = c.get('user');
 
@@ -1209,7 +1276,8 @@ deliveryReturns.post('/', async (c) => {
   await reopenSoFromReturn(sb, h.id, user.id);
 
   return c.json({ id: h.id, returnNumber: h.return_number, movementErrors: movementErrors.length ? movementErrors : undefined }, 201);
-});
+};
+deliveryReturns.post('/', createDeliveryReturnHandler);
 
 // ── Convert picked DO LINES (partial qty) → ONE Delivery Return ────────────
 /* Commander 2026-05-30 (Phase B) — LINE-LEVEL, QUANTITY-BASED convert, mirroring
@@ -1506,13 +1574,19 @@ deliveryReturns.patch('/:id', async (c) => {
 });
 
 // ── Item CRUD ─────────────────────────────────────────────────────────────
-deliveryReturns.post('/:id/items', async (c) => {
+export const addDeliveryReturnItemHandler = async (c: Context<{ Bindings: Env; Variables: Variables }, '/:id/items'>) => {
   const sb = c.get('supabase'); const id = c.req.param('id');
   const co = requireActiveCompanyId(c);
   if (!co.ok) return c.json(co.refusal, 409);
   let it: Record<string, unknown>;
   try { it = (await c.req.json()) as Record<string, unknown>; } catch { return c.json({ error: 'invalid_json' }, 400); }
   if (!it.itemCode) return c.json({ error: 'item_code_required' }, 400);
+  /* Same one-read quantity rule as the create path (shared/return-line-qty.ts). */
+  {
+    const q = parseReturnLineQty(it.qtyReturned ?? it.qty);
+    if (q === null) return c.json({ error: 'invalid_qty', message: returnLineQtyMessage(it.itemCode as string, it.qtyReturned ?? it.qty) }, 400);
+    it = { ...it, qtyReturned: q };
+  }
 
   /* Bug #16 — "no DO, no Return": a single-added line must also reference a DO line. */
   if (!((it.doItemId as string | undefined) ?? null)) {
@@ -1581,7 +1655,8 @@ deliveryReturns.post('/:id/items', async (c) => {
   try { resyncErrs = await resyncInventoryForReturn(sb, id, c.get('user')?.id); }
   catch (e) { resyncErrs = [`return resync threw: ${(e as Error)?.message ?? 'unknown'}`]; }
   return c.json({ item: data, movementErrors: resyncErrs.length ? resyncErrs : undefined }, 201);
-});
+};
+deliveryReturns.post('/:id/items', addDeliveryReturnItemHandler);
 
 deliveryReturns.patch('/:id/items/:itemId', async (c) => {
   const sb = c.get('supabase'); const id = c.req.param('id'); const itemId = c.req.param('itemId'); const user = c.get('user');
@@ -1633,7 +1708,18 @@ deliveryReturns.patch('/:id/items/:itemId', async (c) => {
     if (svc.codes.length > 0) return c.json(serviceLinesNotReturnableResponse(svc.codes), 409);
   }
 
-  const qty = (it.qtyReturned ?? it.qty) !== undefined ? Number(it.qtyReturned ?? it.qty) : Number(prev.qty_returned);
+  /* An edit that names a quantity must name a real one: a 0 or negative edit
+     would lower "already returned" and re-open the DO line for another return. */
+  let qty = Number(prev.qty_returned);
+  if ((it.qtyReturned ?? it.qty) !== undefined) {
+    const q = parseReturnLineQty(it.qtyReturned ?? it.qty);
+    if (q === null) return c.json({ error: 'invalid_qty', message: returnLineQtyMessage((it.itemCode ?? prev.item_code) as string, it.qtyReturned ?? it.qty) }, 400);
+    qty = q;
+  }
+  if (qty < Number(prev.qty_returned ?? 0)) {
+    const held = await creditNoteHold(sb, co.companyId, [{ itemId, qty }]);
+    if (held) return c.json({ error: held.error, message: held.message }, held.status);
+  }
 
   /* Over-return cap (parity with create + add-line; was the one DR back door).
      An edited qty must not push the DO line past its remaining (delivered −
@@ -1725,6 +1811,10 @@ deliveryReturns.delete('/:id/items/:itemId', async (c) => {
       .select('id').eq('id', itemId).eq('delivery_return_id', id), co.companyId).maybeSingle();
     if (!line) return c.json(NOT_THIS_COMPANY, 404);
   }
+  {
+    const held = await creditNoteHold(sb, co.companyId, [{ itemId, qty: 0 }]);
+    if (held) return c.json({ error: held.error, message: held.message }, held.status);
+  }
   const { error } = await scopeToCompanyId(sb.from('delivery_return_items').delete().eq('id', itemId), co.companyId);
   if (error) return c.json({ error: 'delete_failed', reason: error.message }, 500);
   await recomputeTotals(sb, id);
@@ -1802,38 +1892,44 @@ export const patchDeliveryReturnStatusHandler = async (c: any) => {
     }, 409);
   }
 
+  if (toStatus === 'CANCELLED') {
+    const { data: lines, error: lErr } = await scopeToCompanyId(sb.from('delivery_return_items').select('id').eq('delivery_return_id', id), co.companyId);
+    if (lErr) return c.json({ error: 'load_failed', reason: lErr.message }, 500);
+    const held = await creditNoteHold(sb, co.companyId, ((lines ?? []) as Array<{ id: string }>).map((l) => ({ itemId: l.id, qty: 0 })));
+    if (held) return c.json({ error: held.error, message: held.message }, held.status);
+  }
+
   const now = new Date().toISOString();
   const ts: Record<string, string> = { updated_at: now, status: toStatus };
   if (toStatus === 'RECEIVED') ts.received_at = now;
   if (toStatus === 'INSPECTED') { ts.inspected_at = now; if (body.inspectionNotes) ts.inspection_notes = body.inspectionNotes; }
   if (toStatus === 'REFUNDED') ts.refunded_at = now;
 
-  /* Bug #3/#11 — ATOMIC cancel guard. The read-then-write above has a TOCTOU
-     window: two concurrent cancels can both read a non-cancelled status and both
-     fall through to reverse the return's stock (double-reverse). For the CANCELLED
-     transition we make the write conditional on the row still being non-cancelled
-     and treat "no row returned" as "someone else already cancelled" → idempotent
-     echo, NO second reversal. Postgres serialises the UPDATEs so exactly one wins
-     the row and fires the single reversal. */
-  let data: { id: string; status: string } | null;
-  if (toStatus === 'CANCELLED') {
-    const { data: updated, error } = await scopeToCompanyId(sb.from('delivery_returns')
-      .update(ts).eq('id', id), co.companyId).neq('status', 'CANCELLED')
-      .select('id, status').maybeSingle();
-    if (isSoLineOverDelivered(error)) return c.json({ error: 'cancel_over_delivers', message: 'Cancelling this return would put a Sales Order line above its ordered qty, because a later Delivery Order already re-shipped the returned units. Cancel or reduce that Delivery Order first.', reason: error?.message }, 409);
-    if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
-    if (!updated) {
-      // Lost the race — another concurrent cancel already flipped it. Do NOT
-      // reverse again; echo the cancelled state.
+  /* COMPARE-AND-SET on the status we read. Every status write — cancel and the
+     RECEIVED / INSPECTED / REFUNDED stamps alike — carries `.eq('status',
+     prevStatus)`, so a write that lost a race matches zero rows instead of
+     overwriting the winner. The CANCELLED gate above is a read; without this a
+     REFUNDED landing just after a concurrent cancel turned CANCELLED back into
+     REFUNDED with the stock already drained (Hookka #1130 sister). Two cancels
+     racing: Postgres serialises the UPDATEs, one wins and fires the single
+     reversal, the loser re-reads CANCELLED and echoes without reversing. */
+  const { data: updated, error } = await scopeToCompanyId(sb.from('delivery_returns')
+    .update(ts).eq('id', id), co.companyId).eq('status', prevStatus)
+    .select('id, status').maybeSingle();
+  if (toStatus === 'CANCELLED' && isSoLineOverDelivered(error)) return c.json({ error: 'cancel_over_delivers', message: 'Cancelling this return would put a Sales Order line above its ordered qty, because a later Delivery Order already re-shipped the returned units. Cancel or reduce that Delivery Order first.', reason: error?.message }, 409);
+  if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
+  if (!updated) {
+    const { data: latest, error: reErr } = await scopeToCompanyId(sb.from('delivery_returns').select('status').eq('id', id), co.companyId).maybeSingle();
+    if (reErr) return c.json({ error: 'status_changed', message: 'This return was changed by someone else just now and its new state could not be read. Nothing was saved. Refresh and check before trying again.', reason: reErr.message }, 409);
+    if (!latest) return c.json(NOT_THIS_COMPANY, 404);
+    const nowStatus = (latest as { status: string }).status;
+    if (toStatus === 'CANCELLED' && nowStatus === 'CANCELLED') {
       return c.json({ deliveryReturn: { id, status: 'CANCELLED' } });
     }
-    data = updated as { id: string; status: string };
-  } else {
-    const { data: updated, error } = await scopeToCompanyId(sb.from('delivery_returns')
-      .update(ts).eq('id', id), co.companyId).select('id, status').single();
-    if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
-    data = updated as { id: string; status: string };
+    const message = `This return was changed by someone else just now (it is now ${nowStatus}, it was ${prevStatus} when you started). Nothing was saved. Refresh and check before trying again.`;
+    return c.json({ error: 'status_changed', message, reason: message, currentStatus: nowStatus }, 409);
   }
+  const data = updated as { id: string; status: string };
 
   // Cancelling a DR → drain the inventory IN it wrote on create back out, via
   // resyncInventoryForReturn (target net 0). It writes a FIFO-neutral signed

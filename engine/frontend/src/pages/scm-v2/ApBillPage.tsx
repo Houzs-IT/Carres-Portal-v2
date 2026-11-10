@@ -10,6 +10,7 @@
 // ----------------------------------------------------------------------------
 
 import { useMemo, useState } from 'react';
+import { newIdempotencyKey } from '../../lib/idempotency';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Ban, CalendarClock, Copy, ListPlus, Pencil, Printer, Send, Wallet } from 'lucide-react';
 import { Button } from '@2990s/design-system';
@@ -89,6 +90,8 @@ export function ApBillPage() {
   const canPost = can('scm.payment_voucher.post');
   const canCancel = can('scm.payment_voucher.cancel');
   const [form, setForm] = useState<'edit' | 'copy' | null>(null);
+  /* One Idempotency-Key per opened copy form: a second press answers the first copy. */
+  const createKey = useMemo(() => (form ? newIdempotencyKey() : null), [form]);
   const [addingTask, setAddingTask] = useState(false);
   const [planning, setPlanning] = useState(false);
 
@@ -168,7 +171,7 @@ export function ApBillPage() {
         return;
       }
       /* A copy is a new paper — a debit note's copy is a debit note — and opens on its own page. */
-      const res = await create.mutateAsync(dn ? { ...values, docKind: 'DN' } : values);
+      const res = await create.mutateAsync({ ...(dn ? { ...values, docKind: 'DN' as const } : values), idempotencyKey: createKey });
       setForm(null);
       navigate(`/scm/ap-invoices/${res.invoice.id}`);
       void notify({ title: `${res.invoice.invoice_number} raised`, body: `${fmtSen(res.invoice.total_sen)} as a draft, copied from ${inv.invoice_number} — post it to put it on the books.`, tone: 'info' });
@@ -340,7 +343,7 @@ export function ApBillPage() {
             value: fileCount === 0 ? 'none attached' : (
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                 <input type="checkbox" checked={includeFiles} onChange={(e) => setIncludeFiles(e.target.checked)}
-                  aria-label="Include attached files in the print" style={{ width: 14, height: 14, accentColor: '#1B1B39' }} />
+                  aria-label="Include attached files in the print" style={{ width: 14, height: 14, accentColor: '#16695f' }} />
                 {fileCount == null ? 'include its attached files after the bill page' : `include the ${fileCount} attached file(s) after the bill page`}
               </label>
             ),

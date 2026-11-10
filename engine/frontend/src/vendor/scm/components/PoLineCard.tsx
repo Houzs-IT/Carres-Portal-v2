@@ -307,8 +307,8 @@ export const PoLineCard = ({
                 letterSpacing: '0.10em',
                 padding: '2px 8px',
                 borderRadius: 'var(--radius-pill)',
-                background: 'rgba(27, 27, 57, 0.12)',
-                color: 'var(--c-pine, #2F55E0)',
+                background: 'rgba(22, 105, 95, 0.12)',
+                color: 'var(--c-pine, #0c3f39)',
               }}
             >
               SO LINKED

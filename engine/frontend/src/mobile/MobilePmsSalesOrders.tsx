@@ -39,7 +39,7 @@ export function MobilePmsSalesOrders({
     const pct = s.notOpenedPct != null ? ` (${Math.abs(s.notOpenedPct)}%)` : "";
     if (s.notOpenedRm > 0) gap = { text: `Not yet opened ${formatCurrency(s.notOpenedRm)}${pct}`, color: "#8a4e0e" };
     else if (s.notOpenedRm < 0) gap = { text: `Orders exceed final total by ${formatCurrency(-s.notOpenedRm)}${pct}`, color: "#0b6b8f" };
-    else gap = { text: "Opened orders match the final total", color: "#1B1B39" };
+    else gap = { text: "Opened orders match the final total", color: "#16695f" };
   }
 
   return (
@@ -47,13 +47,13 @@ export function MobilePmsSalesOrders({
       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 6px" }}>
         <span style={LABEL}>Sales orders (SO module)</span>
         {s && (
-          <span className="money" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#4B5563" }}>
+          <span className="money" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#414539" }}>
             {s.count} · {formatCurrency(s.openedRm)}
           </span>
         )}
       </div>
       {s && s.finalTotalRm != null && (
-        <div style={{ fontSize: 11, color: "#4B5563", margin: "0 0 6px" }}>
+        <div style={{ fontSize: 11, color: "#414539", margin: "0 0 6px" }}>
           Final total {formatCurrency(s.finalTotalRm)}
           {gap && <span style={{ color: gap.color, fontWeight: 700 }}> · {gap.text}</span>}
         </div>
@@ -81,11 +81,11 @@ export function MobilePmsSalesOrders({
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <Link
                   to={`/scm/sales-orders/${encodeURIComponent(r.doc_no)}`}
-                  style={{ fontSize: 12, fontWeight: 700, color: "#1B1B39", textDecoration: "none" }}
+                  style={{ fontSize: 12, fontWeight: 700, color: "#16695f", textDecoration: "none" }}
                 >
                   {r.doc_no}
                 </Link>
-                <span style={{ flex: 1, minWidth: 80, fontSize: 12, color: "#4B5563" }}>{r.customer_name || "—"}</span>
+                <span style={{ flex: 1, minWidth: 80, fontSize: 12, color: "#414539" }}>{r.customer_name || "—"}</span>
                 <span className="money" style={{ fontSize: 12, fontWeight: 700, color: "#2f8a5b" }}>{fmtSen(r.amount_sen)}</span>
               </div>
               <div style={{ ...MUTED, fontSize: 11, marginTop: 2 }}>

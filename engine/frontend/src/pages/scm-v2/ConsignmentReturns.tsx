@@ -27,7 +27,7 @@ import { useNotify } from '../../vendor/scm/components/NotifyDialog';
 import { formatPhone } from '@2990s/shared/phone';
 import { buildVariantSummary, fmtDateOrDash, fmtQty, fmtSen } from '@2990s/shared';
 import {
-  useConsignmentReturnsPaged, useUpdateConsignmentReturnStatus, useConsignmentReturnDetail,
+  useConsignmentReturnsPaged, fetchConsignmentReturnsExportRows, useUpdateConsignmentReturnStatus, useConsignmentReturnDetail,
 } from '../../vendor/scm/lib/consignment-return-queries';
 import { SearchProgress } from '../../components/SearchProgress';
 import { ListPager } from '../../components/ListPager';
@@ -166,7 +166,7 @@ const buildCrnDrilldownColumns = (canFinance: boolean): GridColumn<CrnItem>[] =>
   },
   {
     key: 'item_code', label: 'Item Code', width: 130,
-    accessor: (it) => <span style={{ fontWeight: 700, color: '#1B1B39' }}>{it.item_code ?? '—'}</span>,
+    accessor: (it) => <span style={{ fontWeight: 700, color: '#16695f' }}>{it.item_code ?? '—'}</span>,
     searchValue: (it) => it.item_code ?? '',
     sortFn: (a, b) => (a.item_code ?? '').localeCompare(b.item_code ?? ''),
   },
@@ -212,7 +212,7 @@ const buildCrnDrilldownColumns = (canFinance: boolean): GridColumn<CrnItem>[] =>
   },
   {
     key: 'total', label: 'Total', width: 100, align: 'right',
-    accessor: (it) => <span style={{ fontWeight: 700, color: '#1B1B39' }}>{fmtSen(crnLineTotalOf(it))}</span>,
+    accessor: (it) => <span style={{ fontWeight: 700, color: '#16695f' }}>{fmtSen(crnLineTotalOf(it))}</span>,
     exportValue: (it) => crnLineTotalOf(it) / 100,
     exportFormat: 'money',
     searchValue: (it) => String(crnLineTotalOf(it)),
@@ -298,7 +298,7 @@ const ExpandedCrnLines = ({ id, canFinance }: { id: string; canFinance: boolean 
           fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
           letterSpacing: '0.06em', textTransform: 'uppercase',
         }}>Subtotal</span>
-        <span>Total <strong style={{ color: '#1B1B39' }}>{fmtSen(totalSen)}</strong></span>
+        <span>Total <strong style={{ color: '#16695f' }}>{fmtSen(totalSen)}</strong></span>
         {canFinance && <span>Line Cost <strong style={{ color: 'var(--c-ink)' }}>{fmtSen(costSen)}</strong></span>}
         {canFinance && <span>Margin <strong style={{ color: marginColor }}>{fmtSen(marginSen)}</strong></span>}
       </div>
@@ -574,6 +574,17 @@ export const ConsignmentReturns = () => {
      the DataGrid's own per-column funnel filters + grouping now operate on the
      LOADED PAGE only (documented reduction). The KPI tiles below stay FULL-SET
      via `aggregates`, so page-scoped funnels never distort the headline money. */
+  const exportLines = {
+    fetchRows: () => fetchConsignmentReturnsExportRows<CrnRow>({
+      status: statusChip === 'all' ? undefined : statusChip,
+      q: debouncedSearch.trim() || undefined,
+    }),
+    linesOf: () => [],
+    sheetName: 'Consignment Returns',
+    onError: (e: Error) => {
+      void notify({ title: 'Export failed', body: e.message || 'The export could not be completed.', tone: 'error' });
+    },
+  };
   const rows = useMemo<CrnRow[]>(() => (data?.deliveryReturns ?? []) as CrnRow[], [data]);
   const total = data?.total ?? 0;
 
@@ -718,7 +729,7 @@ export const ConsignmentReturns = () => {
             placeholder="Search return no / customer…"
             style={{
               height: 32, padding: '0 12px 0 30px', width: 288,
-              borderRadius: 6, border: '1px solid #E5E7EB',
+              borderRadius: 6, border: '1px solid #d6d9d2',
               background: '#ffffff', color: 'var(--c-ink)', fontSize: 12,
             }}
           />
@@ -731,6 +742,7 @@ export const ConsignmentReturns = () => {
         columns={COLUMNS}
         storageKey={STORAGE_KEY}
         exportName="Consignment Returns"
+        exportLines={exportLines}
         searchPlaceholder="Search return no, customer, reference…"
         rowKey={(r) => r.id}
         getRowClassName={(r) => cancelledRowClass(r.status)}
@@ -799,7 +811,7 @@ const buildColumns = (staffById: Map<string, string>, canFinance: boolean): Grid
   {
     key: 'return_number', label: 'Return No.', width: 150, sortable: true,
     accessor: (r) => (
-      <span style={{ fontWeight: 700, color: '#1B1B39', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(r.status)}>{r.return_number}</span>
+      <span style={{ fontWeight: 700, color: '#16695f', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(r.status)}>{r.return_number}</span>
     ),
     searchValue: (r) => `${r.return_number} ${r.status ?? ''}`,
     filterValue: (r) => r.return_number,

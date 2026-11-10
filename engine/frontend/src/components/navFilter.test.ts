@@ -1,13 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { NAV_TABS, type NavTab } from "./Sidebar";
 import { makeNavFilter, makeNavVisible, type NavFilterCtx } from "./navFilter";
 import type { AuthUser } from "../types";
-
-// Carres: these pin Houzs's whole menu and its gates; the Carres trim is tested in carres/navOnly.test.ts.
-vi.mock("./Sidebar", async (importOriginal) => {
-  const m = await importOriginal<typeof import("./Sidebar")>();
-  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
-});
 
 /**
  * Desktop/phone nav agreement — owner's standing rule: "電腦電話的權限應該一樣的"

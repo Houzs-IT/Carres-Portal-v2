@@ -238,7 +238,7 @@
   border: none;
   background: transparent;
 }
-.viewToggleOn { background: var(--c-orange, #1B1B39); color: #fff; }
+.viewToggleOn { background: var(--c-orange, #16695f); color: #fff; }
 .viewToggleOff { color: var(--fg-muted); }
 @media (max-width: 600px) { .viewToggle { display: none; } }
 
@@ -266,7 +266,7 @@
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 .soCard:hover {
-  border-color: var(--c-orange, #1B1B39);
+  border-color: var(--c-orange, #16695f);
   box-shadow: var(--shadow-md, 0 6px 18px -10px rgba(17, 24, 16, 0.35));
   transform: translateY(-1px);
 }
@@ -282,8 +282,8 @@
   font-family: var(--font-mark);
   font-size: 16px;
   font-weight: 800;
-  color: var(--c-orange, #1B1B39);
-  background: var(--c-paper, #F8F9FA);
+  color: var(--c-orange, #16695f);
+  background: var(--c-paper, #f4f6f3);
   border: 1px solid var(--line);
 }
 
@@ -311,7 +311,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--c-burnt, #2F55E0);
+  color: var(--c-burnt, #0c3f39);
 }
 
 .soCardMeta {
@@ -322,7 +322,7 @@
   font-size: 11.5px;
   color: var(--fg-muted);
 }
-.soCardDoc { font-weight: 700; color: var(--c-burnt, #2F55E0); }
+.soCardDoc { font-weight: 700; color: var(--c-burnt, #0c3f39); }
 .soCardDot { color: var(--line); }
 
 .soCardFoot {
@@ -335,12 +335,12 @@
   flex: 1;
   height: 5px;
   border-radius: 999px;
-  background: var(--c-paper, #F6F7F9);
+  background: var(--c-paper, #eef0ec);
   overflow: hidden;
 }
 .soProgFill {
   height: 100%;
   border-radius: 999px;
-  background: var(--c-orange, #1B1B39);
+  background: var(--c-orange, #16695f);
   transition: width 0.3s ease;
 }

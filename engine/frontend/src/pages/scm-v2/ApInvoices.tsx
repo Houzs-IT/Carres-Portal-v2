@@ -43,8 +43,9 @@
 // ----------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { newIdempotencyKey } from '../../lib/idempotency';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, FileText, Plus, Printer } from 'lucide-react';
+import { Camera, Copy, FileText, Plus, Printer } from 'lucide-react';
 import { Button } from '@2990s/design-system';
 import { useAccounts, postableAccounts, type Account } from '../../vendor/scm/lib/accounting-queries';
 import { useSuppliers } from '../../vendor/scm/lib/suppliers-queries';
@@ -252,6 +253,9 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingForm, detail, detailId]);
 
+  /* One Idempotency-Key per OPENED form (each setForm is a new object): a second
+     press of the same bill answers the first one; the next bill gets its own. */
+  const createKey = useMemo(() => (form ? newIdempotencyKey() : null), [form]);
   const submitForm = async (values: ApFormSubmit, pendingFiles: PvFilePayload[], opts?: { post?: boolean }) => {
     if (!form) return;
     /* Save & post: today's confirm first, so a "no" saves nothing. */
@@ -272,7 +276,7 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
         return;
       }
       const body = form.request ? { ...values, paymentRequestId: form.request.id } : values;
-      const res = await create.mutateAsync(form.docKind === 'DN' ? { ...body, docKind: 'DN' } : body);
+      const res = await create.mutateAsync({ ...(form.docKind === 'DN' ? { ...body, docKind: 'DN' as const } : body), idempotencyKey: createKey });
       if (form.request) {
         setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('fromRequest'); return next; }, { replace: true });
       }
@@ -446,8 +450,14 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
       {!debitNotes && <PageHeader
         eyebrow="Finance · Money out"
         title="Supplier bills"
-        actions={canCreate ? (
+        actions={canCreate || canPost || canCancel ? (
           <span style={{ display: 'inline-flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* The bills booked twice before the server refused it: whoever can
+                cancel a bill reviews them, not only whoever can raise one. */}
+            <Button variant="secondary" size="sm" onClick={() => navigate('/scm/ap-invoices/duplicates')}>
+              <Copy {...ICON} /> Duplicate supplier bills
+            </Button>
+            {canCreate && <>
             {/* The pile: many supplier bills at once, read and split one AP
                 invoice each (owner 2026-09-08: scan bill 的按钮可以直接做在
                 + new ap invoice 附近吗). */}
@@ -468,6 +478,7 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
             <Button variant="primary" size="sm" onClick={openNew}>
               <Plus {...ICON} /> New AP bill
             </Button>
+            </>}
           </span>
         ) : undefined}
       />}

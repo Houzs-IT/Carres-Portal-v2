@@ -12,7 +12,7 @@ import { authedFetch } from './authed-fetch';
 import { poListParams, type PoListFilterParams } from './po-list-export';
 import type { PoListLine } from './po-line-export-columns';
 import { applyListMrpEnrichment, type EnrichableMrpRow, type ListMrpEnrichment } from '../../../lib/listMrpEnrichment';
-import { writeFailed, writeFailedAs } from './mutation-error';
+import { writeFailed, writeFailedAs, reportInBandFailure, type InBandFailure } from './mutation-error';
 import { idempotentInit } from '../../../lib/idempotency';
 import { invalidateSoLists } from './sales-order-queries';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
@@ -46,6 +46,9 @@ export type SupplierRow = {
   name: string;
   whatsapp_number: string | null;
   email: string | null;
+  /* Email 2 / Email 3 (owner 2026-11-09) — the PO email copies them (Cc). */
+  email2?: string | null;
+  email3?: string | null;
   contact_person: string | null;
   phone: string | null;
   address: string | null;
@@ -416,6 +419,16 @@ export function useSupplierPriceHistory(id: string | null) {
   });
 }
 
+/** Every supplier list: the picker list and the paged Suppliers page. The paged
+ *  one was missed, so a changed supplier showed its old values on the list for up
+ *  to 30 seconds after Back (Conts-ERP #406). */
+export function invalidateSupplierLists(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    qc.invalidateQueries({ queryKey: ['suppliers-paged'] }),
+  ]);
+}
+
 export function useSupplierDetail(id: string | null) {
   return useQuery({
     queryKey: ['supplier-detail', id],
@@ -467,7 +480,7 @@ export function useCreateSupplier() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    onSuccess: () => invalidateSupplierLists(qc),
     onError: writeFailed,
   });
 }
@@ -481,7 +494,7 @@ export function useUpdateSupplier() {
         body: JSON.stringify(body),
       }),
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      void invalidateSupplierLists(qc);
       qc.invalidateQueries({ queryKey: ['supplier-detail', vars.id] });
     },
   });
@@ -708,11 +721,11 @@ export type PoStatusCounts = {
      `outstanding` is: an older deployment answers without it. */
   on_hold?: number;
 };
-export function usePurchaseOrdersPaged(params: { page: number; pageSize: number; status?: string; supplierId?: string; q?: string; sort?: string; creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[]; docDates?: string[] }) {
-  const { page, pageSize, status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates } = params;
+export function usePurchaseOrdersPaged(params: { from?: string; to?: string; page: number; pageSize: number; status?: string; supplierId?: string; q?: string; sort?: string; creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[]; docDates?: string[] }) {
+  const { page, pageSize, status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates, from, to } = params;
   // The filter half is shared with the two exports (po-list-export.ts), so an
   // export can never be sent a different filter than the list it was pressed on.
-  const usp = poListParams({ status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates });
+  const usp = poListParams({ status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates, from, to });
   usp.set('page', String(page));
   usp.set('pageSize', String(pageSize));
   return useQuery({
@@ -981,10 +994,12 @@ export function useCreateGrnsFromPoItems() {
       notes?: string;
     }) =>
       authedFetch<{
-        created: Array<{ id: string; grnNumber: string; purchaseOrderId: string; poNumber: string; lineCount: number }>;
+        created: Array<{ id: string; grnNumber: string; purchaseOrderId: string; poNumber: string; lineCount: number } & InBandFailure>;
         total: number;
       }>(`/grns/from-po-items`, { method: 'POST', body: JSON.stringify(body) }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      /* Each receipt is auto-posted and carries its own stock / PO-recount failure. */
+      for (const g of data.created) reportInBandFailure(`GRN ${g.grnNumber} created, but not everything was recorded`, g);
       qc.invalidateQueries({ queryKey: ['mfg-purchase-orders'] });
       qc.invalidateQueries({ queryKey: ['grns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
@@ -1133,6 +1148,9 @@ export function useCreatePosFromSoItems() {
          reference-only: bypass the qty_exceeds_remaining cap + tag PO lines
          from_mrp so they don't lock the source SO line (infinite-convert). */
       fromMrp?: boolean;
+      /* computedAt of the MRP plan on screen; the server refuses with
+         mrp_plan_stale when a PO was raised on these lines after it. */
+      planAsOf?: string | null;
     }) =>
       authedFetch<{
         // Create-new-POs shape:
@@ -1226,7 +1244,9 @@ export function useUpdatePurchaseOrderHeader() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: {
-      id: string; poDate?: string; expectedAt?: string;
+      /** The PO's updated_at as this screen loaded it (sister review G6). The
+       *  server refuses a stale one (409) and a missing one (428). */
+      id: string; expectedUpdatedAt: string | null; poDate?: string; expectedAt?: string;
       currency?: Currency; notes?: string; supplierId?: string;
       /** Mig 0026 — supplier-revised header delivery dates. */
       supplierDeliveryDate2?: string | null;

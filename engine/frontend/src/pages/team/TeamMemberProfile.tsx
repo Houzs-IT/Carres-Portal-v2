@@ -2,6 +2,11 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { LogIn, KeyRound, Mail, Eye, EyeOff } from "lucide-react";
 import { api } from "../../api/client";
+import {
+  requirePasswordChange,
+  requirePasswordChangeConfirmText,
+  requirePasswordChangeDoneText,
+} from "../../lib/requirePasswordChange";
 import { useQuery } from "../../hooks/useQuery";
 import { useToast } from "../../hooks/useToast";
 import { useDialog } from "../../hooks/useDialog";
@@ -15,6 +20,7 @@ import { Button } from "../../components/Button";
 import { SearchableSelect } from "../../vendor/scm/components/SearchableSelect";
 import { managerOptions } from "./orgChartPickers";
 import { PosPinCard } from "./PosPinCard";
+import { FieldPinCard } from "./FieldPinCard";
 import { showsPosPinCard } from "./posPinEligibility";
 import type { TeamMember, Department, Position, Role } from "../../types";
 import { empCode, statusBadgeProps, divisionOf, roleOptions, Eyebrow, SegmentedTabs, FIELD_SELECT_CLS } from "./teamShared";
@@ -85,7 +91,7 @@ export function TeamMemberProfile({
      this and could not use it if they did. */
   const [newPw, setNewPw] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [pwBusy, setPwBusy] = useState<null | "set" | "link">(null);
+  const [pwBusy, setPwBusy] = useState<null | "set" | "link" | "require">(null);
 
   // Assignment draft — starts from the live row, saved as one PATCH diff.
   const [draft, setDraft] = useState(() => ({
@@ -247,6 +253,19 @@ export function TeamMemberProfile({
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not send the reset link");
+    } finally {
+      setPwBusy(null);
+    }
+  }
+
+  async function requireNewPassword() {
+    if (!(await dialog.confirm(requirePasswordChangeConfirmText(member.email)))) return;
+    setPwBusy("require");
+    try {
+      const ended = await requirePasswordChange(member.id);
+      toast.success(requirePasswordChangeDoneText(member.email, ended));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not require a password change");
     } finally {
       setPwBusy(null);
     }
@@ -576,6 +595,10 @@ export function TeamMemberProfile({
           )}
 
           {tab === "details" && canManage && member.status !== "invited" && (
+            <FieldPinCard userId={member.id} memberName={member.name || member.email} />
+          )}
+
+          {tab === "details" && canManage && member.status !== "invited" && (
             <div className="rounded-lg border border-border bg-surface shadow-stone">
               <div className="border-b border-border-subtle px-5 py-3">
                 <Eyebrow>Account access</Eyebrow>
@@ -629,6 +652,20 @@ export function TeamMemberProfile({
                     onClick={sendResetLink}
                   >
                     {pwBusy === "link" ? "Sending…" : "Send reset link"}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-border-subtle pt-3">
+                  <span className="text-[11.5px] text-ink-muted">
+                    Think their password is known to someone else? Sign them out and make them
+                    choose a new one at next sign-in.
+                  </span>
+                  <Button
+                    variant="secondary"
+                    icon={<KeyRound size={14} />}
+                    disabled={pwBusy !== null}
+                    onClick={requireNewPassword}
+                  >
+                    {pwBusy === "require" ? "Working…" : "Require password change"}
                   </Button>
                 </div>
               </div>

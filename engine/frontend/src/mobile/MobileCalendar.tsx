@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
@@ -7,6 +7,10 @@ import { useBranding } from "../hooks/useBranding";
 import { useIdleSessionFilter } from "../hooks/useIdleSessionFilter";
 import { HOUZS_COMPANY_CODE, shortCompanyName } from "../lib/branding";
 import { compareCalendarEvents } from "../lib/calendarSort";
+import { todayMyt } from "../vendor/scm/lib/dates";
+import { projectMatchesCalendarFilters } from "../pages/projects/calendarModel";
+import { CalendarSearchStrip, useCalendarSearch } from "../pages/projects/CalendarSearchStrip";
+import { type CalendarMatch, matchStart, monthPeriod, pickAdjacentMatch } from "../pages/projects/calendarSearch";
 import "./mobile.css";
 
 /**
@@ -110,7 +114,7 @@ const STATUS_COLOR: Record<string, string> = {
   pending: "#cf9a2e",
   cancelled: "#b23a3a",
 };
-const TASK_COLOR = "#D64F20";
+const TASK_COLOR = "#a16a2e";
 const HOLIDAY_COLOR = "#7a5c86";
 const statusColor = (s: string | null) => STATUS_COLOR[(s ?? "").toLowerCase()] ?? "#5a6b7a";
 // Overdue task bar colour — the mobile "cancelled / late" red token (--red),
@@ -218,7 +222,8 @@ export function MobileCalendar({
   /** Visually highlight this project's bar (paired with initialYear/Month). */
   focusProjectId?: number;
 } = {}) {
-  const today = new Date();
+  const todayIso = todayMyt();
+  const today = { year: Number(todayIso.slice(0, 4)), month: Number(todayIso.slice(5, 7)) - 1, day: Number(todayIso.slice(8, 10)) };
 
   // Header brand lockup — company-aware, mirroring the login/profile pattern.
   // HOUZS keeps the historic literal ("HOUZS" / "CENTURY · ERP") verbatim; any
@@ -238,8 +243,8 @@ export function MobileCalendar({
     ? "CENTURY · ERP"
     : (brandWords.length > 1 ? `${brandWords.slice(1).join(" ")} · ERP` : "ERP").toUpperCase();
 
-  const [year, setYear] = useState(initialYear ?? today.getFullYear());
-  const [month, setMonth] = useState(initialMonth ?? today.getMonth());
+  const [year, setYear] = useState(initialYear ?? today.year);
+  const [month, setMonth] = useState(initialMonth ?? today.month);
   const [mode, setMode] = useState<"month" | "week">("month");
   // Owner 2026-09-30: the calendar filter must survive going into a project and
   // back, clearing only on logout or after an hour untouched — same rule as the
@@ -247,7 +252,7 @@ export function MobileCalendar({
   // through useIdleSessionFilter rather than useStickyFilters.
   const [calFilter, patchCalFilter] = useIdleSessionFilter(
     "mobile-calendar",
-    { brand: "all", section: "all", org: "all" },
+    { brand: "all", section: "all", org: "all", q: "" },
     60 * 60 * 1000,
   );
   const brandF = calFilter.brand;
@@ -256,6 +261,9 @@ export function MobileCalendar({
   const setBrandF = (v: string) => patchCalFilter({ brand: v });
   const setSectionF = (v: string) => patchCalFilter({ section: v });
   const setOrgF = (v: string) => patchCalFilter({ org: v });
+  // Free-text search, same rule as the desktop calendar (venue initials too).
+  const searchQ = calFilter.q;
+  const setSearchQ = (v: string) => patchCalFilter({ q: v });
   const [showTasks, setShowTasks] = useState(false);
   // My-holidays toggle — overlays Malaysian federal public holidays from the
   // local src/lib/holidays.ts table (same source as the desktop calendar); no
@@ -342,7 +350,10 @@ export function MobileCalendar({
     const monthFirst = iso(year, month, 1);
     const lastDom = new Date(year, month + 1, 0).getDate();
     const monthLast = iso(year, month, lastDom);
+    const searched = new Set<number>();
     for (const p of projects) {
+      if (searchQ.trim() && !projectMatchesCalendarFilters(p, { q: searchQ, brand: "", status: "", organizer: "" })) continue;
+      searched.add(p.id);
       const start = p.start_date.slice(0, 10);
       const end = (p.end_date || p.start_date).slice(0, 10);
       if (start > monthLast || end < monthFirst) continue; // no overlap this month
@@ -370,6 +381,8 @@ export function MobileCalendar({
     }
     if (showTasks) {
       for (const t of tasks) {
+        // With a search, a task shows only beside its matching project (desktop rule).
+        if (searchQ.trim() && !searched.has(t.project_id)) continue;
         out.push({
           key: `t-${t.id}`,
           kind: "task",
@@ -425,7 +438,7 @@ export function MobileCalendar({
       }
     }
     return filtered;
-  }, [projects, tasks, showTasks, showHolidays, year, month, brandF, sectionF, orgF]);
+  }, [projects, tasks, showTasks, showHolidays, year, month, brandF, sectionF, orgF, searchQ]);
 
   const byDay = useMemo(() => {
     const map: Record<number, CalEvent[]> = {};
@@ -461,25 +474,72 @@ export function MobileCalendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusProjectId, projects, year, month]);
 
+  // All-dates search (owner 2026-11-10): Previous / Next match jump to the month
+  // of a matching event wherever it is, and flash its bar. Same logic as desktop.
+  const searchState = useCalendarSearch(
+    {
+      q: searchQ,
+      brand: brandF === "all" ? "" : brandF,
+      status: "",
+      organizer: orgF === "all" ? "" : orgF,
+    },
+    canViewCalendar,
+  );
+  const matches = searchState.result?.matches ?? EMPTY_MATCHES;
+  const [searchFocusId, setSearchFocusId] = useState<number | null>(null);
+  const [flash, setFlash] = useState<{ id: number; n: number } | null>(null);
+  const period = monthPeriod(year, month);
+  const adjacent = (direction: "next" | "prev") =>
+    pickAdjacentMatch({ matches, focusedId: searchFocusId, periodStart: period.start, periodEnd: period.end, direction });
+  const prevMatch = adjacent("prev");
+  const nextMatch = adjacent("next");
+  const jumpTo = (m: CalendarMatch) => {
+    const start = matchStart(m);
+    setYear(Number(start.slice(0, 4)));
+    setMonth(Number(start.slice(5, 7)) - 1);
+    // Mobile week view has no week navigation, so a jump always lands in month.
+    setMode("month");
+    setSearchFocusId(m.id);
+    setFlash((f) => ({ id: m.id, n: (f?.n ?? 0) + 1 }));
+  };
+  const [enterPending, setEnterPending] = useState(false);
+  useEffect(() => {
+    if (!enterPending || searchState.loading) return;
+    setEnterPending(false);
+    if (nextMatch) jumpTo(nextMatch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per Enter, when the result settles
+  }, [enterPending, searchState.loading]);
+  useEffect(() => {
+    if (!flash) return;
+    const t = window.setTimeout(() => setFlash(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [flash]);
+  const gridWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!flash) return;
+    const el = gridWrapRef.current?.querySelector<HTMLElement>(`[data-cal-project="${flash.id}"]`);
+    if (el && "scrollIntoView" in el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [flash, projects]);
+  const noMatches = searchState.result?.total === 0;
+
   const nav = (delta: number) => {
     const d = new Date(year, month + delta, 1);
     setYear(d.getFullYear());
     setMonth(d.getMonth());
   };
   const goToday = () => {
-    const n = new Date();
-    setYear(n.getFullYear());
-    setMonth(n.getMonth());
+    setYear(today.year);
+    setMonth(today.month);
     setMode("month");
   };
 
-  const isThisMonth = year === today.getFullYear() && month === today.getMonth();
+  const isThisMonth = year === today.year && month === today.month;
   // Day-of-month to mark with the brown "today" badge — only when the grid is
   // showing the current month (null otherwise so no cell is falsely marked).
-  const todayDay = isThisMonth ? today.getDate() : null;
+  const todayDay = isThisMonth ? today.day : null;
   let weeks = monthWeeks(year, month);
   if (mode === "week") {
-    const target = isThisMonth ? today.getDate() : 1;
+    const target = isThisMonth ? today.day : 1;
     weeks = [weeks.find((w) => w.includes(target)) ?? weeks[0]];
   }
 
@@ -500,7 +560,7 @@ export function MobileCalendar({
             title="Search"
             style={{ fontFamily: "inherit" }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#414539" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
           </button>
         </div>
       </header>
@@ -514,7 +574,7 @@ export function MobileCalendar({
           <button onClick={() => nav(-1)} aria-label="Previous month" className="cal-navbtn">‹</button>
           <button onClick={goToday} className="cal-today">Today</button>
           <button onClick={() => nav(1)} aria-label="Next month" className="cal-navbtn">›</button>
-          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: "#111827", textAlign: "right" }}>{MONTHS[month]} {year}</div>
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: "#11140f", textAlign: "right" }}>{MONTHS[month]} {year}</div>
         </div>
 
         {/* Month / Week segmented toggle */}
@@ -526,6 +586,21 @@ export function MobileCalendar({
 
         {/* Filters — populated from the live feed (native selects hold many dynamic values) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10 }}>
+          <input
+            type="search"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              setEnterPending(true);
+            }}
+            enterKeyHint="search"
+            placeholder="Search venue, organizer, brand…"
+            aria-label="Search events"
+            className="cal-sel"
+            style={{ cursor: "text" }}
+          />
           <select value={brandF} onChange={(e) => setBrandF(e.target.value)} className="cal-sel">
             <option value="all">All brands</option>
             {brandOptions.map((b) => <option key={b} value={b}>{b}</option>)}
@@ -566,6 +641,19 @@ export function MobileCalendar({
           Tip: tap an event for details · use ‹ › to change month
         </div>
 
+        {searchState.active && searchQ.trim() !== "" && (
+          <CalendarSearchStrip
+            label={`'${searchQ.trim()}'`}
+            result={searchState.result}
+            loading={searchState.loading}
+            error={searchState.error}
+            prev={prevMatch}
+            next={nextMatch}
+            focusedId={searchFocusId}
+            onJump={jumpTo}
+          />
+        )}
+
         {isLoading && <div style={emptyBox}>Loading…</div>}
         {error && <div style={{ ...emptyBox, color: "var(--red)" }}>Couldn't load the calendar. Pull to retry.</div>}
 
@@ -573,8 +661,10 @@ export function MobileCalendar({
             renders the one week containing today (computed above) with every bar
             uncapped, exactly as the prototype's calRender() does. No separate
             agenda list (the prototype has none). */}
-        {!isLoading && !error && (
-          <MonthGrid weeks={weeks} byDay={byDay} expand={expand} onExpandAll={() => {}} onOpenDay={setDaySheet} empty={events.length === 0} onOpen={onOpenProject} focusProjectId={focusProjectId} todayDay={todayDay} />
+        {!isLoading && !error && !(noMatches && searchQ.trim()) && (
+          <div ref={gridWrapRef}>
+            <MonthGrid weeks={weeks} byDay={byDay} expand={expand} onExpandAll={() => {}} onOpenDay={setDaySheet} empty={events.length === 0} onOpen={onOpenProject} focusProjectId={flash?.id ?? focusProjectId} todayDay={todayDay} />
+          </div>
         )}
       </div>
 
@@ -694,6 +784,7 @@ function MonthGrid({ weeks, byDay, expand, onExpandAll, onOpenDay, empty, onOpen
                 return (
                   <div
                     key={`${e.key}-${i}`}
+                    data-cal-project={e.kind === "project" ? e.projectId : undefined}
                     className={cls}
                     title={e.sub || undefined}
                     onClick={() => onOpen?.(e.projectId)}
@@ -799,6 +890,8 @@ function uniqueSorted(vals: (string | null)[]): string[] {
   for (const v of vals) if (v) set.add(v);
   return [...set].sort();
 }
+
+const EMPTY_MATCHES: CalendarMatch[] = [];
 
 const emptyBox: React.CSSProperties = {
   textAlign: "center", color: "var(--mut2)", fontSize: 12, padding: "26px 0",

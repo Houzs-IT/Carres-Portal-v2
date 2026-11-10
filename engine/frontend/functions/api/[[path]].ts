@@ -29,8 +29,7 @@ interface PagesContext {
   env: { API_ORIGIN?: string };
 }
 
-// Carres: the Carres engine Worker on Carres's Cloudflare (engine/backend/wrangler.toml), never a Houzs one.
-const DEFAULT_API_ORIGIN = "https://carres-scm-engine.wwch.workers.dev";
+const DEFAULT_API_ORIGIN = "https://autocount-sync-api.houzs-erp.workers.dev";
 
 export const onRequest = async ({ request, env }: PagesContext): Promise<Response> => {
   const url = new URL(request.url);

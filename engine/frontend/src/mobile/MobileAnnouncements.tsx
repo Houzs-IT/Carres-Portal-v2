@@ -111,14 +111,14 @@ type Announcement = {
 };
 
 const APPROVAL_CHIP: Record<"DRAFT" | "PENDING_APPROVAL" | "REJECTED", { label: string; bg: string; fg: string }> = {
-  DRAFT: { label: "Draft", bg: "#eceee9", fg: "#6B7280" },
+  DRAFT: { label: "Draft", bg: "#eceee9", fg: "#767b6e" },
   PENDING_APPROVAL: { label: "Pending approval", bg: "#fff1d6", fg: "#8a5a00" },
   REJECTED: { label: "Rejected", bg: "#fbe4e1", fg: "#a3271b" },
 };
 /** The approval state before anything else: an unapproved notice has no
  *  audience yet, so Live / Hidden / Expired would be a claim about nothing. */
 function ApprovalChip({ ann }: { ann: Announcement }) {
-  if (ann.voidedAt) return <span className="spill" style={{ background: "#eceee9", color: "#6B7280", textDecoration: "line-through" }}>Voided</span>;
+  if (ann.voidedAt) return <span className="spill" style={{ background: "#eceee9", color: "#767b6e", textDecoration: "line-through" }}>Voided</span>;
   const s = ann.approvalStatus ?? "APPROVED";
   if (s === "APPROVED") return null;
   const c = APPROVAL_CHIP[s];
@@ -170,7 +170,7 @@ const CAT_COLOR: Record<string, string> = {
   Operations: "#0e7490",
   Sales: "#15803d",
   Policy: "#b45309",
-  Management: "#D64F20",
+  Management: "#a16a2e",
   Warning: "#b45309",
   SOP: "#0e7490",
   Learning: "#7a5c86",
@@ -202,7 +202,7 @@ function StatusChip({ ann }: { ann: Announcement }) {
   const status = announcementStatus(ann);
   if (status === "live") return null;
   return (
-    <span className="spill" style={{ background: "#eceee9", color: "#6B7280" }}>
+    <span className="spill" style={{ background: "#eceee9", color: "#767b6e" }}>
       {ANNOUNCEMENT_STATUS_LABEL[status]}
     </span>
   );
@@ -316,18 +316,18 @@ function Receipts({ ann }: { ann: Announcement }) {
 
   return (
     <div style={{ marginTop: 18 }}>
-      <div className="ey" style={{ color: "#6B7280", margin: "0 2px 8px" }}>Read receipts</div>
-      <div style={{ background: "#fff", border: "1px solid #EEF0F3", borderRadius: 12, padding: "12px 13px" }}>
+      <div className="ey" style={{ color: "#767b6e", margin: "0 2px 8px" }}>Read receipts</div>
+      <div style={{ background: "#fff", border: "1px solid #e3e6e0", borderRadius: 12, padding: "12px 13px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#111827" }}>Read {read} / {total}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: "#11140f" }}>Read {read} / {total}</span>
           <span style={{ fontSize: 11, color: "#9aa093" }}>{pct}%</span>
         </div>
-        <div style={{ height: 6, borderRadius: 6, background: "#EEF0F3", overflow: "hidden" }}>
+        <div style={{ height: 6, borderRadius: 6, background: "#e3e6e0", overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", background: "#2f8a5b", borderRadius: 6 }} />
         </div>
         {rows.map((p) => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderTop: "1px solid #eceee9" }}>
-            <span style={{ flex: 1, fontSize: 12.5, color: "#111827" }}>{p.name}</span>
+            <span style={{ flex: 1, fontSize: 12.5, color: "#11140f" }}>{p.name}</span>
             {p.read ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "#2f8a5b" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2f8a5b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
@@ -606,8 +606,8 @@ export function MobileAnnouncements({ onBack }: { onBack?: () => void }) {
       <div className="hz-m" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" }}>
         <header className="hdr">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
-            <span onClick={() => setView("list")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#1B1B39", cursor: "pointer" }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            <span onClick={() => setView("list")} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#16695f", cursor: "pointer" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
               Announcements
             </span>
             <span />
@@ -662,8 +662,8 @@ export function MobileAnnouncements({ onBack }: { onBack?: () => void }) {
       <header className="hdr">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
           {onBack ? (
-            <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#1B1B39", cursor: "pointer" }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+            <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "#16695f", cursor: "pointer" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
               Menu
             </span>
           ) : <span />}
@@ -676,7 +676,7 @@ export function MobileAnnouncements({ onBack }: { onBack?: () => void }) {
               className="tinybtn"
               style={{ position: "relative", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: "6px 9px" }}
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
               {systemUnread > 0 && (
                 <span style={{ position: "absolute", top: -5, right: -5, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 9, background: "var(--red)", color: "#fff", fontSize: 10, fontWeight: 800, lineHeight: "16px", textAlign: "center", boxSizing: "border-box" }}>
                   {systemUnread > 9 ? "9+" : systemUnread}
@@ -723,8 +723,8 @@ export function MobileAnnouncements({ onBack }: { onBack?: () => void }) {
                   fontFamily: "inherit",
                   cursor: "pointer",
                   background: on ? "var(--brand)" : "#fff",
-                  color: on ? "#fff" : "#4B5563",
-                  border: on ? "1px solid var(--brand)" : "1px solid #E5E7EB",
+                  color: on ? "#fff" : "#414539",
+                  border: on ? "1px solid var(--brand)" : "1px solid #d6d9d2",
                 }}
               >
                 {label}
@@ -814,7 +814,7 @@ function NoticeCard({
   const col = catColor(a);
   return (
     <div
-      style={{ display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${unread ? "#bcdcd7" : "#EEF0F3"}`, borderLeft: inlineAck ? `3px solid ${col}` : undefined, borderRadius: 13, padding: "12px 13px", fontFamily: "inherit" }}
+      style={{ display: "flex", flexDirection: "column", gap: 10, background: "#fff", border: `1px solid ${unread ? "#bcdcd7" : "#e3e6e0"}`, borderLeft: inlineAck ? `3px solid ${col}` : undefined, borderRadius: 13, padding: "12px 13px", fontFamily: "inherit" }}
     >
     <button
       onClick={onOpen}
@@ -825,15 +825,15 @@ function NoticeCard({
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span className="ann-row-title" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: unread ? 800 : 700, color: "#111827", lineHeight: 1.25 }}>{localizeAnnouncement(a, lang).title}</span>
-          {unread && <span style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: "#1B1B39" }} />}
+          <span className="ann-row-title" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: unread ? 800 : 700, color: "#11140f", lineHeight: 1.25 }}>{localizeAnnouncement(a, lang).title}</span>
+          {unread && <span style={{ width: 8, height: 8, flex: "none", borderRadius: "50%", background: "#16695f" }} />}
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 5, flexWrap: "wrap" }}>
           <CatChip ann={a} />
           {showStatus && <ApprovalChip ann={a} />}
           {showStatus && <StatusChip ann={a} />}
           <CompanyChip ann={a} companies={companies} />
-          <span style={{ fontSize: 11, color: "#6B7280" }}>{byLine(a)} · {dm(a.createdAt)}</span>
+          <span style={{ fontSize: 11, color: "#767b6e" }}>{byLine(a)} · {dm(a.createdAt)}</span>
         </span>
         {na > 0 && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 10.5, color: "#9aa093" }}>
@@ -856,7 +856,7 @@ function NoticeCard({
         <button
           type="button"
           onClick={onOpen}
-          style={{ width: 104, height: 44, borderRadius: 10, border: "1px solid #E5E7EB", background: "#fff", color: "#4B5563", fontSize: 12.5, fontWeight: 650, fontFamily: "inherit", cursor: "pointer" }}
+          style={{ width: 104, height: 44, borderRadius: 10, border: "1px solid #d6d9d2", background: "#fff", color: "#414539", fontSize: 12.5, fontWeight: 650, fontFamily: "inherit", cursor: "pointer" }}
         >
           Read full
         </button>
@@ -1081,21 +1081,21 @@ function Detail({
           <CompanyChip ann={ann} companies={companies} />
           <span style={{ fontSize: 11, color: "#9aa093", alignSelf: "center" }}>{dm(ann.createdAt)}</span>
         </div>
-        <div id="ann-d-title" style={{ fontSize: 21, fontWeight: 800, color: "#111827", lineHeight: 1.25 }}>{shown.title}</div>
-        <div id="ann-d-by" style={{ fontSize: 11.5, color: "#6B7280", marginTop: 6 }}>
+        <div id="ann-d-title" style={{ fontSize: 21, fontWeight: 800, color: "#11140f", lineHeight: 1.25 }}>{shown.title}</div>
+        <div id="ann-d-by" style={{ fontSize: 11.5, color: "#767b6e", marginTop: 6 }}>
           {ann.refNo ? `${ann.refNo} · ` : ""}Posted by {byLine(ann)}
         </div>
         {approval === "REJECTED" && ann.rejectReason && (canManage || canApprove) && (
           <div style={{ fontSize: 12, color: "#a3271b", marginTop: 6 }}>Sent back: {ann.rejectReason}</div>
         )}
         {ann.voidedAt && (canManage || canApprove) && (
-          <div style={{ fontSize: 12, color: "#6B7280", marginTop: 6 }}>Voided: {ann.voidReason ?? "no reason recorded"}</div>
+          <div style={{ fontSize: 12, color: "#767b6e", marginTop: 6 }}>Voided: {ann.voidReason ?? "no reason recorded"}</div>
         )}
         {/* When it stops showing — stated on the phone as well as the desktop,
             because "why is this still up" is a question the publisher asks from
             wherever they happen to be. */}
         {canManage && ann.expiresAt && (
-          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 3 }}>
+          <div style={{ fontSize: 11, color: "#767b6e", marginTop: 3 }}>
             {status === "expired" ? "Hidden automatically on " : "Hides automatically on "}
             {dm(ann.expiresAt)}
           </div>
@@ -1112,8 +1112,8 @@ function Detail({
             leaving them to wonder whether they missed something. */}
         {loc.isTranslated && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: "#6B7280", background: "#F8F9FA", border: "1px solid #EEF0F3", borderRadius: 999, padding: "4px 9px", lineHeight: 1.5 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" /></svg>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: "#767b6e", background: "#f4f6f3", border: "1px solid #e3e6e0", borderRadius: 999, padding: "4px 9px", lineHeight: 1.5 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#767b6e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" /></svg>
               {t("ann.autoTranslated")}
             </span>
             <button
@@ -1131,13 +1131,13 @@ function Detail({
           </div>
         )}
 
-        <AnnouncementRichBody id="ann-d-body" html={shown.bodyHtml} text={shown.body} annId={ann.id} style={{ fontSize: 13.5, lineHeight: 1.7, color: "#4B5563", marginTop: 14 }} />
+        <AnnouncementRichBody id="ann-d-body" html={shown.bodyHtml} text={shown.body} annId={ann.id} style={{ fontSize: 13.5, lineHeight: 1.7, color: "#414539", marginTop: 14 }} />
         <div id="ann-d-atts" style={{ marginTop: 16 }}>
           <Attachments ann={ann} />
         </div>
         {approval === "PENDING_APPROVAL" && canApprove && (
           <div id="ann-d-approval" style={{ marginTop: 18 }}>
-            <div className="ey" style={{ color: "#6B7280", margin: "0 2px 8px" }}>Approval</div>
+            <div className="ey" style={{ color: "#767b6e", margin: "0 2px 8px" }}>Approval</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={() => void approve()}
@@ -1159,7 +1159,7 @@ function Detail({
           </div>
         )}
         {approval === "PENDING_APPROVAL" && !canApprove && canManage && (
-          <div style={{ fontSize: 12, color: "#6B7280", marginTop: 18 }}>
+          <div style={{ fontSize: 12, color: "#767b6e", marginTop: 18 }}>
             Waiting for an approver. Nobody is served it until it is approved.
           </div>
         )}
@@ -1177,7 +1177,7 @@ function Detail({
         )}
         {canManage && (
           <div id="ann-d-manage" style={{ marginTop: 18 }}>
-            <div className="ey" style={{ color: "#6B7280", margin: "0 2px 8px" }}>Publisher</div>
+            <div className="ey" style={{ color: "#767b6e", margin: "0 2px 8px" }}>Publisher</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={() => void setActive(!ann.isActive)}
@@ -1460,7 +1460,7 @@ function Compose({
 
       <div className="scroll hz-scroll" style={{ padding: 14, paddingBottom: 40 }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: "#f3ece0", border: "1px solid #e8dcc5", borderRadius: 11, padding: "10px 11px", marginBottom: 14 }}>
-          <svg width="15" height="15" style={{ flex: "none", marginTop: 1 }} viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6Z" /></svg>
+          <svg width="15" height="15" style={{ flex: "none", marginTop: 1 }} viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6Z" /></svg>
           <div style={{ fontSize: 11, color: "#5a3a14", lineHeight: 1.5 }}>
             <b>Publishing rights:</b> Management, HR &amp; department leads. You're posting as <b>{poster}</b>. Every notice goes live only once an approver signs it off.
           </div>
@@ -1516,7 +1516,7 @@ function Compose({
           </div>
         )}
         {missingAttachment && (
-          <div style={{ fontSize: 11.5, color: "#D64F20", margin: "0 2px 12px", lineHeight: 1.45 }} data-testid="attachment-required-hint">
+          <div style={{ fontSize: 11.5, color: "#a16a2e", margin: "0 2px 12px", lineHeight: 1.45 }} data-testid="attachment-required-hint">
             A {pickedType.label} must carry its file (Settings → Documents) — attach one below before submitting.
           </div>
         )}
@@ -1657,8 +1657,8 @@ function Compose({
         {files.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
             {files.map((f, i) => (
-              <div key={`${f.name}-${i}`} style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid #EEF0F3", borderRadius: 9, padding: "7px 10px" }}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+              <div key={`${f.name}-${i}`} style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid #e3e6e0", borderRadius: 9, padding: "7px 10px" }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#11140f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
                 <span style={{ fontSize: 10.5, color: "#9aa093" }}>{fmtSize(f.size)}</span>
                 <span onClick={() => removeFile(i)} style={{ fontSize: 16, color: "#b23a3a", cursor: "pointer", lineHeight: 1 }}>×</span>
               </div>

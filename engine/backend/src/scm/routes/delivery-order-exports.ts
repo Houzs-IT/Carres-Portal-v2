@@ -43,7 +43,7 @@ export async function doExportRowsHandler(c: Ctx) {
   const canViewAll = canViewAllSales(c);
   const houzsUserId = c.get('houzsUser')?.id;
   if (!canViewAll && houzsUserId == null) {
-    return c.json({ error: 'Your account is not linked to a staff account, so delivery orders cannot be shown — please contact IT.' }, 403);
+    return c.json({ error: 'Your account is not linked to a Houzs user, so delivery orders cannot be shown — please contact IT.' }, 403);
   }
   const scopeIds = await resolveSalesScopeIds(sb, c.env, houzsUserId, canViewAll);
   const out = await buildDoExportRows(sb, c, await withSoRefDocNos(sb, c, readDoListParams((k) => c.req.query(k))), scopeIds, DO_LIST_HEADER, DO_LIST_ROW_DEPS, readExportWindow((k) => c.req.query(k)));

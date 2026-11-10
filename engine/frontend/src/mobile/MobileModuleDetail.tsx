@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { siDepositAppliedSen, siOutstandingSen } from "../vendor/scm/lib/si-outstanding";
+import { siCreditNotesSen, siDepositAppliedSen, siOutstandingSen } from "../vendor/scm/lib/si-outstanding";
 import { offersRecordPayment, piPaymentHint } from "./doc-payment";
 import { visibleFields, canOperateDeliveryOrders, canOperateSalesInvoices, canPostGoodsReceipts } from "../auth/salesAccess";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { authedFetch } from "../vendor/scm/lib/authed-fetch";
 import { usePoSoCoverage, originsByCode, provenanceByCode, storedLinkSkus, deliveredByCode, type OriginAssignment } from "../vendor/scm/lib/flow-queries";
 import { CommittedBatchRowMobile, PairedSoRowsMobile, SourcePosRowMobile, SubstitutedRowMobile } from "./source-chips"; import { MobileLinePoFacts, mobilePiPoPriceNotice } from "./MobileLinePoRef";
 import { MobileRelationshipMap } from "./MobileRelationshipMap";
+import { piPoNumbers } from "../vendor/scm/lib/pi-header-pos";
 import { MobileLineRemark } from "./MobileLineRemark";
 import { useGrnZeroCostRemedy } from "./MobileGrnZeroCost"; import { MobileGrnLineRack } from "./MobileGrnLineRack";
 import { flowAnchorForModule, type FlowNav } from "./relationship-map-model";
@@ -18,9 +19,10 @@ import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { useStaffLookup } from "../hooks/useStaffLookup";
 import { MobileAddLine } from "./MobileAddLine";
+import { FlowDocFilesCard } from "../vendor/scm/components/FlowDocFilesCard"; import { FLOW_DOC_KIND_BY_MODULE } from "../vendor/scm/lib/flow-doc-files";
 import { useConfirm } from "../vendor/scm/components/ConfirmDialog";
 import { usePrompt } from "../vendor/scm/components/PromptDialog";
-import { askActionReason, DO_CANCEL_PROMPT, PO_CANCEL_PROMPT, type ActVariant, type DocAction } from "./doc-actions";
+import { actionDoneNotice, askActionReason, DO_CANCEL_PROMPT, PO_CANCEL_PROMPT, type ActVariant, type DocAction } from "./doc-actions";
 import { useNotify } from "../vendor/scm/components/NotifyDialog";
 import { MemberAccountActions } from "./MemberAccountActions";
 import { MODULE_CONFIGS } from "./MobileModuleList";
@@ -147,11 +149,11 @@ function StatusPill({ status, statusDoc }: { status: unknown; statusDoc: StatusD
   const raw = s(status).trim();
   if (!raw) return null;
   const p = phase(status);
-  // VERBATIM from MobileSODetail's soPill: Submitted [#DCE6FD,#2F55E0,none] ·
-  // Draft [#F8F9FA,#6B7280,border] · Cancelled [#f8eaea,#b23a3a,none].
+  // VERBATIM from MobileSODetail's soPill: Submitted [#e1efed,#0c3f39,none] ·
+  // Draft [#f4f6f3,#767b6e,border] · Cancelled [#f8eaea,#b23a3a,none].
   const map: Record<string, [string, string, string]> = {
-    live: ["#DCE6FD", "#2F55E0", "none"],
-    draft: ["#F8F9FA", "#6B7280", "1px solid #EEF0F3"],
+    live: ["#e1efed", "#0c3f39", "none"],
+    draft: ["#f4f6f3", "#767b6e", "1px solid #e3e6e0"],
     cancelled: ["#f8eaea", "#b23a3a", "none"],
   };
   const [bg, fg, border] = map[p];
@@ -180,7 +182,7 @@ function Kv({ label, value, mono }: { label: string; value: string; mono?: boole
 /** Money stat card — one of the 3 white cards under the header, `.ey` label. */
 function Stat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #EEF0F3", borderRadius: 11, padding: 10, textAlign: "center" }}>
+    <div style={{ background: "#fff", border: "1px solid #e3e6e0", borderRadius: 11, padding: 10, textAlign: "center" }}>
       <div className="money" style={{ fontSize: 13, fontWeight: 800, color }}>{value}</div>
       <div className="ey" style={{ color: "#9aa093", marginTop: 3 }}>{label}</div>
     </div>
@@ -188,11 +190,11 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
 }
 
 function Eyebrow({ children }: { children: string }) {
-  return <div className="ey" style={{ color: "#6B7280", margin: "4px 2px 6px" }}>{children}</div>;
+  return <div className="ey" style={{ color: "#767b6e", margin: "4px 2px 6px" }}>{children}</div>;
 }
 
 /** One `.docrow` line item: name + qty on top, unit price + amount below. */
-function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, sourceLinked, provenance, allocations, poNumber, sourcePos, sourceAdj, delivered, committedBatch, substituted, poRef }: {
+function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, sourceLinked, provenance, allocations, poNumber, sourcePos, sourceAdj, racks, sourceState, delivered, committedBatch, substituted, poRef }: {
   name: string; sub?: string; qty: unknown; unitSen: unknown; amountSen: unknown; remark?: string | null;
   // Present (even if empty) only for purchase docs (PO/GRN/PI): the REAL origin
   // Sales Order(s) this line was raised from + that SO's effective delivery
@@ -210,6 +212,10 @@ function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, source
   // data on every surface).
   sourcePos?: string[];
   sourceAdj?: boolean;
+  // DO lines only: the rack(s) the goods left, and whether PO / rack were locked
+  // when the line shipped or worked out (older DO) — desktop "Source racks" twin.
+  racks?: string[];
+  sourceState?: "locked" | "worked_out" | null;
   // DO lines only (mig 0230): the incoming PO batch this line committed to at
   // DO creation — the hard-from-DO anchor. Rendered as an anchored solid chip
   // (CommittedBatchRowMobile); absent → nothing. Display-only.
@@ -237,10 +243,10 @@ function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, source
   const qtyLabel = Number.isFinite(q) ? q : 0;
   return (
     <div className="docrow" style={{ flexWrap: "wrap" }}>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "#111827" }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 600, color: "#11140f" }}>
         {name || "—"} <span style={{ color: "#9aa093", fontWeight: 600 }}>{"×"}{qtyLabel}</span>
       </span>
-      <span className="money" style={{ fontSize: 12.5, fontWeight: 800, color: "#111827", flex: "none" }}>{money(amountSen)}</span>
+      <span className="money" style={{ fontSize: 12.5, fontWeight: 800, color: "#11140f", flex: "none" }}>{money(amountSen)}</span>
       <div className="money" style={{ flexBasis: "100%", fontSize: 10.5, color: "#9aa093" }}>
         {sub ? <span style={{ marginRight: 8 }}>{sub}</span> : null}
         <span>@ {money(unitSen)}</span>
@@ -262,6 +268,12 @@ function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, source
       {sourcePos !== undefined && (
         <SourcePosRowMobile pos={sourcePos} adj={sourceAdj} showEmpty />
       )}
+      {sourceState != null && ((racks?.length ?? 0) > 0 || sourceState === "worked_out") && (
+        <div style={{ flexBasis: "100%", fontSize: 10.5, color: "#7d8476", marginTop: 3 }}>
+          {(racks?.length ?? 0) > 0 ? `Rack: ${shortRackLabels(racks).join(", ")}` : "Rack: —"}
+          {sourceState === "locked" ? " · locked at dispatch" : <i> · worked out</i>}
+        </div>
+      )}
       <CommittedBatchRowMobile poNo={committedBatch} />
 
       {(allocations?.length ?? 0) > 0 && (
@@ -280,7 +292,7 @@ function LineItem({ name, sub, remark, qty, unitSen, amountSen, assigned, source
                 title={stock
                   ? `${subNo} — ${a.qty} of this line bought for stock (no customer)`
                   : `${subNo} — ${a.qty} of this line bought for ${a.so_doc_no}. Procurement provenance, not the live assignment.`}
-                style={{ fontFamily: "monospace", fontSize: 10.5, fontWeight: 700, color: "#5c6357", background: stock ? "transparent" : "#F8F9FA", border: stock ? "1px dashed #b6c6c0" : "1px solid #d9ded4", borderRadius: 5, padding: "1px 6px" }}
+                style={{ fontFamily: "monospace", fontSize: 10.5, fontWeight: 700, color: "#5c6357", background: stock ? "transparent" : "#f4f6f3", border: stock ? "1px dashed #b6c6c0" : "1px solid #d9ded4", borderRadius: 5, padding: "1px 6px" }}
               >
                 {subNo}{" -> "}{a.so_doc_no ?? "STOCK"} (qty {a.qty})
               </span>
@@ -301,30 +313,30 @@ function DetailHeader({ eyebrow, title, subtitle, status, statusDoc, onBack, onE
   return (
     <header className="hdr">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12.5, fontWeight: 600, color: "#1B1B39", cursor: "pointer" }}>
+        <span onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12.5, fontWeight: 600, color: "#16695f", cursor: "pointer" }}>
           <span style={{ fontSize: 17, lineHeight: 1 }}>{"‹"}</span> Back
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <StatusPill status={status} statusDoc={statusDoc} />
           {onMap && (
-            <button className="tinybtn" onClick={onMap} style={{ background: "#F8F9FA", border: "1px solid var(--line2)", color: "var(--ink)" }}>
+            <button className="tinybtn" onClick={onMap} style={{ background: "#f4f6f3", border: "1px solid var(--line2)", color: "var(--ink)" }}>
               Map
             </button>
           )}
           {onPdf && (
-            <button className="tinybtn" onClick={onPdf} style={{ background: "#F8F9FA", border: "1px solid var(--line2)", color: "var(--ink)" }}>
+            <button className="tinybtn" onClick={onPdf} style={{ background: "#f4f6f3", border: "1px solid var(--line2)", color: "var(--ink)" }}>
               PDF
             </button>
           )}
           {onEdit && (
-            <button className="tinybtn" onClick={onEdit} style={{ background: "#DCE6FD", border: "1px solid #1B1B39", color: "#2F55E0" }}>
+            <button className="tinybtn" onClick={() => onEdit()} style={{ background: "#e1efed", border: "1px solid #16695f", color: "#0c3f39" }}>
               Edit
             </button>
           )}
         </div>
       </div>
-      {eyebrow ? <div className="money" style={{ fontSize: 11.5, fontWeight: 700, color: "#D64F20", marginTop: 7 }}>{eyebrow}</div> : null}
-      <div style={{ fontSize: 19, fontWeight: 800, color: "#111827", marginTop: 2, wordBreak: "break-word" }}>{title || "—"}</div>
+      {eyebrow ? <div className="money" style={{ fontSize: 11.5, fontWeight: 700, color: "#a16a2e", marginTop: 7 }}>{eyebrow}</div> : null}
+      <div style={{ fontSize: 19, fontWeight: 800, color: "#11140f", marginTop: 2, wordBreak: "break-word" }}>{title || "—"}</div>
       {subtitle ? <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>{subtitle}</div> : null}
     </header>
   );
@@ -333,7 +345,7 @@ function DetailHeader({ eyebrow, title, subtitle, status, statusDoc, onBack, onE
 const scrollStyle: React.CSSProperties = { padding: 14, paddingBottom: 120 };
 const wrapStyle: React.CSSProperties = { display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" };
 // Line-items / list card — same white rounded shell as MobileSODetail's item card.
-const cardStyle: React.CSSProperties = { background: "#fff", border: "1px solid #EEF0F3", borderRadius: 12, padding: "2px 12px", marginBottom: 13 };
+const cardStyle: React.CSSProperties = { background: "#fff", border: "1px solid #e3e6e0", borderRadius: 12, padding: "2px 12px", marginBottom: 13 };
 
 // ---------------------------------------------------------------------------
 // Document detail — fetches header + line items by id, per module.
@@ -349,7 +361,7 @@ type DocMap = {
   /** status-pill.ts vocabulary for the header pill. REQUIRED - null is a decision (humanise the stored value). */
   statusDoc: StatusDocType | null;
   /** KV grid rows: [label, value]. */
-  meta: (h: any) => Array<[string, string]>;
+  meta: (h: any, items: any[]) => Array<[string, string]>;
   /** [Total, Secondary, Tertiary] stats — each [label, value, color] or null. */
   stats: (h: any) => Array<[string, string, string] | null>;
   line: (it: any) => { name: string; sub?: string; remark?: string | null; qty: unknown; unitSen: unknown; amountSen: unknown };
@@ -373,7 +385,8 @@ const DOC_MODULES: Record<string, DocMap> = {
       ["DO Date", dmy(h.do_date)],
       ["Delivery", dmy(h.customer_delivery_date ?? h.expected_delivery_at)],
       ["Phone", formatPhone(firstOf(h.phone))],
-      ["Ship-from", firstOf(h.sales_location)], // the BRANCH (owner 2026-09-07, header-level); the customer_state fallback was a different concept under one label
+      // The DO's own warehouse (stored at create), else the order's branch text for an older DO (owner 2026-09-07, header-level).
+      ["Ship-from", firstOf(h.warehouse_code, h.sales_location)],
       ["Ref No.", firstOf(h.ref, h.po_doc_no)],
       ["Salesperson", firstOf(h.agent)],
     ],
@@ -413,12 +426,14 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => {
       const depositSen = siDepositAppliedSen(h); // own stat, never folded into Paid
-      const bal = siOutstandingSen(Number(h.total_sen ?? h.local_total_sen ?? 0), Number(h.paid_sen ?? 0), depositSen);
+      const creditSen = siCreditNotesSen(h); // credit notes knocked off it — their own stat too
+      const bal = siOutstandingSen(Number(h.total_sen ?? h.local_total_sen ?? 0), Number(h.paid_sen ?? 0), depositSen, creditSen);
       return [
         ["Total", money(h.total_sen ?? h.local_total_sen), "var(--ink)"],
         ["Paid", money(h.paid_sen), "#2f8a5b"],
         ...(depositSen > 0 ? [["SO deposit", money(depositSen), "#2f8a5b"] as [string, string, string]] : []),
-        ["Balance", money(bal), bal > 0 ? "#D64F20" : "var(--ink)"],
+        ...(creditSen > 0 ? [["Credit notes", money(creditSen), "#2f8a5b"] as [string, string, string]] : []),
+        ["Balance", money(bal), bal > 0 ? "#a16a2e" : "var(--ink)"],
       ];
     },
     /* Item CODE first, then the variant subtitle; description dropped (owner 2026-07-24) — the shared order-line rule
@@ -464,7 +479,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#6B7280"],
+      ["Tax", money(h.tax_sen), "#767b6e"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     // A scanned draft's note says which PO it may be wrong about and which
@@ -496,7 +511,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#6B7280"],
+      ["Tax", money(h.tax_sen), "#767b6e"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     line: (it) => ({
@@ -517,9 +532,11 @@ const DOC_MODULES: Record<string, DocMap> = {
        the warning, the sync/re-send workflow stays on desktop. */
     notice: (h, items) => {
       const st = s(h?.status);
-      if (st !== "SUBMITTED" && st !== "PARTIALLY_RECEIVED") return null;
+      const mode = poDriftMode(st);
+      if (!mode) return null;
       const n = (items ?? []).filter((it) => it?.so_drift).length;
       if (n === 0) return null;
+      if (mode === "received") return `⚠ ${n} line${n === 1 ? "'s" : "s'"} source SO changed after this PO was raised, and the goods were received to this PO's spec. Check them against the SO before delivery.`;
       return `⚠ ${n} line${n === 1 ? "'s" : "s'"} source SO changed after this PO was raised — sync the specs and re-send to the supplier from desktop, otherwise the factory keeps building to the old spec.`;
     },
   },
@@ -538,15 +555,20 @@ const DOC_MODULES: Record<string, DocMap> = {
     ),
     notice: (_h, items) => mobilePiPoPriceNotice(items), // PO price vs PI price, reference only (owner 2026-09-14)
     status: (h) => h.status, statusDoc: "pi",
-    meta: (h) => [
+    meta: (h, items) => {
+      /* Every PO the lines bill, not only the header's first (owner 2026-11-10).
+         The phone has no hover, so the full list is shown and wraps. */
+      const pos = piPoNumbers(items.map((it) => it?.source_po_number), s(nested(h.purchase_order)?.po_number).trim() || null);
+      return [
       ["Invoice Date", dmy(h.invoice_date)],
       ["Due Date", dmy(h.due_date)],
       ["Supplier", firstOf(nested(h.supplier)?.code)],
-      ["PO", firstOf(nested(h.purchase_order)?.po_number)],
+      [pos.length > 1 ? `POs (${pos.length})` : "PO", pos.join(", ") || "—"],
       ["GRN", firstOf(nested(h.grn)?.grn_number)],
       ["Currency", firstOf(h.currency)],
       ["Posted", dmy(h.posted_at)],
-    ],
+      ];
+    },
     stats: (h) => {
       const totalSen = Number(h.total_sen ?? 0);
       const paidSen = Number(h.paid_sen ?? 0);
@@ -554,7 +576,7 @@ const DOC_MODULES: Record<string, DocMap> = {
       return [
         ["Total", money(h.total_sen), "var(--ink)"],
         ["Paid", money(h.paid_sen), "#2f8a5b"],
-        ["Balance", money(bal), bal > 0 ? "#D64F20" : "var(--ink)"],
+        ["Balance", money(bal), bal > 0 ? "#a16a2e" : "var(--ink)"],
       ];
     },
     /* line: PI items key on item_code (PC/PO family) rather than item_code —
@@ -642,10 +664,11 @@ const DOC_MODULES: Record<string, DocMap> = {
       ["Inspected", dmy(h.inspected_at)],
       ["Refunded", dmy(h.refunded_at)],
       ["Ref No.", firstOf(h.ref)],
+      ["Credit note", returnCreditLabel(h.credit_note_state) || "—"],
     ],
     stats: (h) => [
       ["Total", money(h.local_total_sen), "var(--ink)"],
-      ["Refund", money(h.refund_sen), "#D64F20"],
+      ["Refund", money(h.refund_sen), "#a16a2e"],
     ],
     line: (it) => {
       const { primary } = lineIdentity({
@@ -696,7 +719,7 @@ const DOC_MODULES: Record<string, DocMap> = {
       return [
         ["Total", money(h.local_total_sen), "var(--ink)"],
         ["Paid", money(h.paid_sen), "#2f8a5b"],
-        ["Balance", money(bal), bal > 0 ? "#D64F20" : "var(--ink)"],
+        ["Balance", money(bal), bal > 0 ? "#a16a2e" : "var(--ink)"],
       ];
     },
     line: (it) => {
@@ -777,7 +800,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Total", money(h.local_total_sen), "var(--ink)"],
-      ["Refund", money(h.refund_sen), "#D64F20"],
+      ["Refund", money(h.refund_sen), "#a16a2e"],
     ],
     line: (it) => {
       const { primary } = lineIdentity({
@@ -817,7 +840,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#6B7280"],
+      ["Tax", money(h.tax_sen), "#767b6e"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     line: (it) => {
@@ -863,7 +886,7 @@ const DOC_MODULES: Record<string, DocMap> = {
     ],
     stats: (h) => [
       ["Subtotal", money(h.subtotal_sen), "var(--ink)"],
-      ["Tax", money(h.tax_sen), "#6B7280"],
+      ["Tax", money(h.tax_sen), "#767b6e"],
       ["Total", money(h.total_sen), "var(--ink)"],
     ],
     line: (it) => {
@@ -1135,9 +1158,9 @@ const SI_METHODS: Array<{ value: string; label: string }> = PAYMENT_METHOD_CODES
 // variant, mirroring the SO-detail actbar (Edit / Cancel = white outline).
 function actSkin(variant: ActVariant, disabled: boolean): React.CSSProperties {
   const skin: React.CSSProperties =
-    variant === "solid" ? { background: "#1B1B39", color: "#fff", border: "none" }
+    variant === "solid" ? { background: "#16695f", color: "#fff", border: "none" }
     : variant === "danger" ? { background: "#fff", color: "#b23a3a", border: "1.5px solid #f0d4d4" }
-    : { background: "#fff", color: "#1B1B39", border: "1.5px solid #1B1B39" };
+    : { background: "#fff", color: "#16695f", border: "1.5px solid #16695f" };
   // white-space:nowrap per spec — labels never wrap; the row lets buttons flex.
   return { flex: 1, padding: 12, borderRadius: 11, fontSize: 13.5, whiteSpace: "nowrap", ...skin, opacity: disabled ? 0.55 : 1 };
 }
@@ -1150,7 +1173,7 @@ function PaymentSheet({ id, header, onClose, onDone }: {
   const notify = useNotify();
   const total = Number(header?.total_sen ?? header?.local_total_sen ?? 0);
   const paid = Number(header?.paid_sen ?? 0);
-  const balance = siOutstandingSen(total, paid, siDepositAppliedSen(header));
+  const balance = siOutstandingSen(total, paid, siDepositAppliedSen(header), siCreditNotesSen(header));
 
   const [amount, setAmount] = useState(() => (balance > 0 ? (balance / 100).toFixed(2) : ""));
   const [method, setMethod] = useState("cash");
@@ -1178,7 +1201,7 @@ function PaymentSheet({ id, header, onClose, onDone }: {
 
   const inputStyle: React.CSSProperties = {
     width: "100%", boxSizing: "border-box", height: 42, padding: "0 12px", borderRadius: 10,
-    border: "1px solid #EEF0F3", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)",
+    border: "1px solid #e3e6e0", background: "#fff", fontFamily: "inherit", fontSize: 14, color: "var(--ink)",
   };
   const labelStyle: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#9aa093", marginBottom: 5, display: "block" };
 
@@ -1193,7 +1216,7 @@ function PaymentSheet({ id, header, onClose, onDone }: {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
           <Stat label="Total" value={money(total)} color="var(--ink)" />
           <Stat label="Paid" value={money(paid)} color="#2f8a5b" />
-          <Stat label="Balance" value={money(balance)} color={balance > 0 ? "#D64F20" : "var(--ink)"} />
+          <Stat label="Balance" value={money(balance)} color={balance > 0 ? "#a16a2e" : "var(--ink)"} />
         </div>
 
         <div style={{ marginBottom: 12 }}>
@@ -1281,7 +1304,7 @@ function DocActionFooter({ moduleKey, id, header, invalidate, onPOD, onDeleted }
         method: action.request.method,
         ...(action.request.body !== undefined ? { body: JSON.stringify(action.request.body) } : {}),
       }),
-    onSuccess: (_data, action) => {
+    onSuccess: (data, action) => {
       setRunningKey(null);
       // A `removes` action drops the record → refresh the list and pop back to
       // it; every other action stays on the (now-updated) detail. Nothing sets
@@ -1294,7 +1317,7 @@ function DocActionFooter({ moduleKey, id, header, invalidate, onPOD, onDeleted }
         return;
       }
       refresh();
-      void notify({ title: "Done" });
+      void notify(actionDoneNotice(action.label, data));
     },
     /* A zero-cost receipt refusal is the one error here that CAN be answered on
        this screen: the sheet carries the same sentence plus the two remedies the
@@ -1408,6 +1431,7 @@ function DocumentDetail({ map, row, moduleKey, onBack, onEdit, onPOD, flowNav }:
      docs, the SAME usePoSoCoverage key covQ below already fetched. */
   const [mapOpen, setMapOpen] = useState(false);
   const mapAnchor = flowAnchorForModule(moduleKey);
+  const filesKind = FLOW_DOC_KIND_BY_MODULE[moduleKey];
   // Purchase docs only: the real per-SKU origin SO(s) for each line.
   const coverageType = COVERAGE_TYPE[moduleKey] ?? null;
   const covQ = usePoSoCoverage(coverageType, coverageType && id ? id : null);
@@ -1429,7 +1453,7 @@ function DocumentDetail({ map, row, moduleKey, onBack, onEdit, onPOD, flowNav }:
   // the screen never flashes empty.
   const header = (data?.[map.headerKey] as any) ?? row ?? {};
   const items = (data?.items as any[]) ?? [];
-  const meta = map.meta(header).filter(([, v]) => v && v !== "—");
+  const meta = map.meta(header, items).filter(([, v]) => v && v !== "—");
   const stats = map.stats(header);
 
   const cancelled = isCancelledDoc(map.status(header));
@@ -1598,6 +1622,7 @@ function DocumentDetail({ map, row, moduleKey, onBack, onEdit, onPOD, flowNav }:
                   ? (((it?.source_pos as string[] | null | undefined) ?? []) as string[])
                   : undefined;
                 const sourceAdj = isSalesDoc ? Boolean(it?.source_adj) : undefined;
+                const isDo = moduleKey === "delivery-orders-mfg";
                 /* DO lines only (mig 0230): the committed batch — the
                    hard-from-DO anchor the detail GET already returns
                    (committed_po_batch_no). Same field the desktop detail's
@@ -1607,16 +1632,21 @@ function DocumentDetail({ map, row, moduleKey, onBack, onEdit, onPOD, flowNav }:
                   : null;
                 const delivered = coverageType ? (deliveredMap.get(code) ?? []) : undefined;
                 const provenance = coverageType ? (provByCode.get(code) ?? []) : undefined;
-                return <LineItem key={s(it?.id) || i} name={l.name} sub={l.sub} remark={l.remark} qty={l.qty} unitSen={l.unitSen} amountSen={l.amountSen} assigned={assigned} sourceLinked={coverageType ? linkedSkus.has(code) : undefined} provenance={provenance} allocations={allocations} poNumber={s(header?.po_number)} sourcePos={sourcePos} sourceAdj={sourceAdj} delivered={delivered} committedBatch={committedBatch} substituted={moduleKey === "delivery-orders-mfg" && Boolean(it?.ac_substituted)} poRef={<><MobileLinePoFacts moduleKey={moduleKey} line={it ?? {}} nav={flowNav} />{id && <MobileGrnLineRack moduleKey={moduleKey} grnId={id} header={header} line={it ?? {}} onSaved={invalidate} />}</>} />;
+                return <LineItem key={s(it?.id) || i} name={l.name} sub={l.sub} remark={l.remark} qty={l.qty} unitSen={l.unitSen} amountSen={l.amountSen} assigned={assigned} sourceLinked={coverageType ? linkedSkus.has(code) : undefined} provenance={provenance} allocations={allocations} poNumber={s(header?.po_number)} sourcePos={sourcePos} sourceAdj={sourceAdj} racks={isDo ? ((it?.racks as string[] | undefined) ?? []) : undefined} sourceState={isDo ? ((it?.source_state as "locked" | "worked_out" | null | undefined) ?? null) : undefined} delivered={delivered} committedBatch={committedBatch} substituted={moduleKey === "delivery-orders-mfg" && Boolean(it?.ac_substituted)} poRef={<><MobileLinePoFacts moduleKey={moduleKey} line={it ?? {}} nav={flowNav} />{id && <MobileGrnLineRack moduleKey={moduleKey} grnId={id} header={header} line={it ?? {}} onSaved={invalidate} />}</>} />;
               }) : <div style={{ fontSize: 11.5, color: "#9aa093", padding: "9px 0" }}>No line items.</div>)}
             </div>
             {!isLoading && !error && id && <MobileAddLine moduleKey={moduleKey} docId={id} header={header} onAdded={invalidate} />}
           </div>
         )}
+        {!!id && filesKind && <div style={{ marginTop: 13 }}><FlowDocFilesCard kind={filesKind} docId={id} status={s(header?.status) || null} /></div>}
       </div>
       {/* Collected on the ORDER — desktop parity (DeliveryOrderDetailV2's aside
           card). Read-only on both surfaces: the order is the one place a
           payment is taken. */}
+      {moduleKey === "delivery-orders-mfg" && id && <MobileDoDeliveryIssues doId={id} />}
+      {moduleKey === "delivery-orders-mfg" && id && (
+        <DoEarlierPodAttempts doId={id} docNo={s(header?.do_number) || `DO ${id.slice(0, 8)}`} />
+      )}
       {moduleKey === "delivery-orders-mfg" && s(header?.so_doc_no) && (
         <MobileCollectedOnOrder soDocNo={s(header?.so_doc_no)} currency={s(header?.currency) || "MYR"} />
       )}
@@ -1729,7 +1759,7 @@ const SIMPLE_DOC_PATHS: Record<string, { path: string; headerKey: string }> = {}
 // Resend invitation) moved to ./MemberAccountActions so this file stays under its
 // size ceiling. The admin-reset invariant test scans that module by path.
 
-function SimpleDetail({ moduleKey, row, title, onBack, onEdit }: { moduleKey: string; row: any; title: string; onBack: () => void; onEdit?: () => void }) {
+function SimpleDetail({ moduleKey, row, title, onBack, onEdit }: { moduleKey: string; row: any; title: string; onBack: () => void; onEdit?: (fresh?: Record<string, unknown>) => void }) {
   /* Owner 2026-07-17 — cost is director-only. Its own useAuth: the costing gate
      further up this file lives in a DIFFERENT component, so there is nothing to
      borrow here. */
@@ -1820,7 +1850,8 @@ function SimpleDetail({ moduleKey, row, title, onBack, onEdit }: { moduleKey: st
         status={status}
         statusDoc={null}
         onBack={onBack}
-        onEdit={onEdit}
+        /* A supplier edits from its full record, not the list row: the list view lacks Email 2 / 3. */
+        onEdit={onEdit && wantSupplier && supplierQ.data?.supplier ? () => onEdit(effectiveRow) : onEdit}
       />
       <div className="scroll hz-scroll" style={hasFooter ? { ...scrollStyle, paddingBottom: 96 } : scrollStyle}>
         {cancelled && <CancelledRibbon header={docHeader} />}
@@ -1870,8 +1901,9 @@ export function MobileModuleDetail({ moduleKey, row, title, onBack, onPOD, onEdi
   moduleKey: string; row: any; title: string; onBack: () => void; onPOD?: () => void;
   /** Wired by the parent when the module's form supports edit (updatePath).
    *  The header "Edit" button calls this. MobileApp passes the current row's
-   *  id + the module's FormSchema through to MobileModuleForm. */
-  onEdit?: () => void;
+   *  id + the module's FormSchema through to MobileModuleForm; `fresh` is the
+   *  full record when the detail loaded one (suppliers). */
+  onEdit?: (fresh?: Record<string, unknown>) => void;
   /** Relationship-Map node navigation (MobileApp). Absent → map nodes inert. */
   flowNav?: FlowNav;
 }) {
@@ -1892,3 +1924,8 @@ export function MobileModuleDetail({ moduleKey, row, title, onBack, onPOD, onEdi
 
 import { DateField } from "../vendor/scm/components/DateField";
 import { MobileCollectedOnOrder } from "./MobileCollectedOnOrder";
+import { MobileDoDeliveryIssues } from "./DeliveryIssueForm";
+import { DoEarlierPodAttempts } from "../components/scm-v2/DoEarlierPodAttempts";
+import { poDriftMode } from "../vendor/scm/lib/po-drift";
+import { returnCreditLabel } from "../vendor/scm/lib/return-credit-state";
+import { shortRackLabels } from "../vendor/scm/lib/rack-label";

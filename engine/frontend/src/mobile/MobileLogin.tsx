@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { signInErrorMessage } from "../auth/loginErrors";
+import { CrewPinForm } from "../auth/CrewPinForm";
 import { AmbientSnow } from "../components/AmbientSnow";
 import { readRememberedEmail } from "../lib/rememberedEmail";
 import {
@@ -31,6 +32,8 @@ export function MobileLogin() {
   const [code, setCode] = useState("");
   /* Nick 2026-07-09 — show-password toggle on both login + code steps. */
   const [showPw, setShowPw] = useState(false);
+  // Crew sign-in (staff code + PIN) — the shared form, on a light card.
+  const [crew, setCrew] = useState(false);
 
   async function onSignIn() {
     if (busy) return;
@@ -73,12 +76,12 @@ export function MobileLogin() {
   const loginCompanyCode = hostDefaultCompanyCode();
   const isHouzsHost = loginCompanyCode === HOUZS_COMPANY_CODE;
   const loginCompanyName = isHouzsHost
-    ? "Carres"
+    ? "Houzs Century"
     : shortCompanyName(defaultBrandingForCompany(loginCompanyCode).companyName);
 
   return (
     <div className="hz-m" style={{ position: "fixed", inset: 0, background: "var(--dark)", overflow: "hidden" }}>
-      <div className="hz-glow" style={{ position: "absolute", right: -70, top: -50, width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle,rgba(27, 27, 57,.5),transparent 70%)", pointerEvents: "none" }} />
+      <div className="hz-glow" style={{ position: "absolute", right: -70, top: -50, width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle,rgba(22,105,95,.5),transparent 70%)", pointerEvents: "none" }} />
       <div className="hz-glow hz-glow-b" style={{ position: "absolute", left: -90, bottom: -30, width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle,rgba(161,106,46,.22),transparent 70%)", pointerEvents: "none" }} />
       <AmbientSnow />
 
@@ -100,7 +103,11 @@ export function MobileLogin() {
           {challenge ? "Enter your 6-digit code" : "Sign in to your workspace"}
         </div>
 
-        {!challenge ? (
+        {!challenge && crew ? (
+          <div className="hz-lg-item" style={{ ...delay(3), marginTop: 18, background: "#fff", borderRadius: 14, padding: 16 }}>
+            <CrewPinForm onTotp={(c) => { setChallenge(c); setCrew(false); }} onBack={() => setCrew(false)} />
+          </div>
+        ) : !challenge ? (
           <>
             <div className="hz-lg-item" style={{ ...delay(3), display: "flex", flexDirection: "column", gap: 13, marginTop: 18 }}>
               <label style={{ display: "block" }}>
@@ -142,6 +149,9 @@ export function MobileLogin() {
             <button onClick={onSignIn} disabled={busy} className="hz-lg-item lg-btn" style={{ ...delay(5), width: "100%", marginTop: 18, textAlign: "center", fontSize: 15, fontWeight: 800, color: "#fff", background: "var(--teal)", border: "none", borderRadius: 13, padding: 15, cursor: busy ? "default" : "pointer", fontFamily: "inherit", opacity: busy ? 0.7 : 1 }}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
+            <button type="button" onClick={() => { setErr(null); setCrew(true); }} style={{ width: "100%", marginTop: 12, background: "none", border: "none", color: "var(--gold)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Driver or helper? Sign in with staff code and PIN
+            </button>
           </>
         ) : (
           <>
@@ -159,7 +169,7 @@ export function MobileLogin() {
 
         <div className="hz-lg-item" style={{ ...delay(6), display: "flex", alignItems: "center", gap: 9, marginTop: 22 }}>
           <span style={{ flex: 1, height: 1, background: "rgba(231,234,228,.12)" }} />
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(231,234,228,.4)" }}>{isHouzsHost ? "Carres" : `${loginCompanyName} ERP`}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(231,234,228,.4)" }}>{isHouzsHost ? "Houzs ERP" : `${loginCompanyName} ERP`}</span>
           <span style={{ flex: 1, height: 1, background: "rgba(231,234,228,.12)" }} />
         </div>
         <div className="hz-lg-item" style={{ ...delay(6), textAlign: "center", fontSize: 11, color: "rgba(231,234,228,.45)", marginTop: 12, lineHeight: 1.5 }}>

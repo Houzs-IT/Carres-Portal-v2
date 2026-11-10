@@ -24,17 +24,20 @@
 // GET /:id) — the fields are absent, not hidden. This generator prints what it
 // was given: with both columns null on every line it drops them and says why,
 // rather than printing a rail of dashes that reads as "no variance".
-import {
+import { docPageLabel,
   COMPANY, DOC_TABLE_HEAD_STYLES, DOC_TABLE_STYLES, deliverPdf, drawHeader,
   drawInfoColumns, drawSignatureBoxes, ensurePdfCjkFont, safeName, fmtDocDate,
   type PdfAction,
 } from './pdf-common';
 import { warehouseLabel, type WarehouseLabelSource } from './warehouse-label';
-import { variantKeyLabel } from './variant-key-label';
+import { printVariant, variantKeyLabel } from './variant-key-label';
+
+export { printVariant };
 /* The status WORD comes from the one home for it, never from a caser here:
    what this document prints and what the screen shows must be the same word.
    docs/modules/document-status-vocabulary.md §1. */
 import { statusLabel } from './status-pill';
+import { PDF_COMPRESS } from './pdf-options';
 
 type StkWarehouse = WarehouseLabelSource & { name?: string | null };
 
@@ -78,23 +81,6 @@ const SCOPE_LABEL = (scopeType: string, scopeValue: string | null): string => {
   if (scopeType === 'CODE_PREFIX') return `Prefix · ${scopeValue ?? '—'}`;
   return scopeType;
 };
-
-/* The variant as a counting sheet prints it: the same facts, short words, so a
-   bedframe row stays one or two lines instead of four. "fabriccode pc151-01 ·
-   divanheight 10\"" → "pc151-01 · divan 10\"". The screen keeps the full label. */
-const PRINT_KEY: Record<string, string> = {
-  fabriccode: '', special: '', divanheight: 'divan', legheight: 'leg',
-  totalheight: 'total', seatheight: 'seat', seatsize: 'seat',
-};
-export const printVariant = (label: string): string =>
-  label.split(' · ').map((part) => {
-    const sp = part.indexOf(' ');
-    if (sp < 0) return part;
-    const key = part.slice(0, sp).toLowerCase();
-    if (!(key in PRINT_KEY)) return part;
-    const short = PRINT_KEY[key];
-    return short ? `${short} ${part.slice(sp + 1)}` : part.slice(sp + 1);
-  }).join(' · ');
 
 /** A signed variance reads as a variance only with its sign on it. */
 const signed = (n: number): string => (n > 0 ? `+${n}` : String(n));
@@ -294,7 +280,7 @@ export async function renderStockTakeInto(
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
     doc.text(header.take_no, margin, 290);
     doc.text(`${COMPANY.portalLabel} · ${fmtDocDate(header.take_date)}`, pageW / 2, 290, { align: 'center' });
-    doc.text(`Page ${p} of ${pageCount}`, pageW - margin, 290, { align: 'right' });
+    doc.text(docPageLabel(p, startPage, pageCount), pageW - margin, 290, { align: 'right' });
     doc.setTextColor(0);
   }
 }
@@ -307,7 +293,7 @@ export async function generateStockTakePdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4' });
   await renderStockTakeInto(doc, autoTable, header, lines);
   const wh = warehouseLabel(header.warehouse) ?? '';
   deliverPdf(doc, `${header.take_no}${wh ? `-${safeName(wh)}` : ''}.pdf`, opts?.action);

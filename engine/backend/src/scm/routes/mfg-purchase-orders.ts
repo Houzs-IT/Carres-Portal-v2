@@ -36,13 +36,16 @@ import { inPoLineOrder, nextPoLineNo, sortBySourceSoLine, stampPoLineNos } from 
 import { poConvertLineRows } from '../lib/po-convert-line';
 import { parseLineNumbers, invalidLineNumberBody } from '../shared/line-numbers';
 import { changedPoIdentityLockCols, poIdentityLockedRefusal } from '../shared/po-identity-lock';
+import { resolvePoRecipients } from '../shared/supplier-emails';
 import { poVariantGaps, poVariantCheckFailedBody, poVariantConfirmRefusal, poWarehouseGap, PO_WAREHOUSE_REQUIRED, poInactivePickRefusal } from './po-gates';
 import { VALID_CURRENCIES, VALID_KINDS } from '../lib/purchase-doc-vocab';
 import { resolveMaintenanceConfigForSupplier, poVariantPricingInput } from '../lib/po-pricing';
 import { readMfgProductBindings } from '../lib/supplier-bindings';
 import { loadOutstandingSoLines } from '../lib/outstanding-so-lines';
 import { poHasDownstream } from '../lib/downstream-lock';
-import { cascadePoSupplierDate, pickSupplierDateSlot, supplierDatePatchGate, SUPPLIER_DATE_SLOT_COL, type SupplierDateSlot } from '../lib/po-supplier-date-cascade';
+import { claimPoVersion, poVersionRaced, poVersionRefusal } from '../lib/po-version';
+import { readPoLinkedGrns } from '../lib/po-grn-links';
+import { cascadePoSupplierDate, pickSupplierDateSlot, supplierDatePatchGate, SUPPLIER_DATE_SLOT_COL, type SupplierDateSlot } from '../lib/po-supplier-date-cascade'; import { movePoLinesToNewWarehouse } from '../lib/po-warehouse-move';
 import { description2InputsChanged } from '../lib/po-line-description2';
 import { dateOrNull, coerceEmptyDates } from '../lib/date-coerce';
 import { todayMyt } from '../lib/my-time';
@@ -63,6 +66,7 @@ import {
   LEAD_OVERRIDE_SELECT,
 } from '../lib/lead-time';
 import { groupKeyFor } from '../lib/po-grouping';
+import { diningLineNote, diningPoHeaderNotes } from '../lib/po-dining-remark';
 import { findOverConvertOffender, soLineHeadroom, type OverConvertOffender, loadBoundOrderedQty, boundAwarePicked, isBoundForCompany } from '../lib/po-over-convert';
 import {
   planAllocationCreate,
@@ -77,8 +81,7 @@ import { loadLeadBuffers } from '../../services/agents/procurement-learning';
 import { sendEmail, isChannelEnabled } from '../../services/email';
 import { getBrandingForCompany } from '../../services/branding';
 import {
-  buildPurchaseOrderEmail,
-  isSendableEmail,
+  buildPurchaseOrderEmail, poEmailDocNo, poReplyTo,
   poSendRefusalForStatus,
   validatePoAttachment,
   PO_RESEND_WINDOW_MS,
@@ -99,9 +102,12 @@ import type { Env, Variables } from '../env';
 import { skuCategoryResolver, lineIdentityFields } from '../lib/sku-category';
 import { firstSoLinkCategoryMismatch, soLinkCategoryMismatch, hardBoundUnlinkRefusal, hardBoundSplitRefusal, editedLineGroup } from '../lib/hard-bound-po-line';
 import { pgrestIn } from '../lib/pgrest-in-list';
-import { withSoRefPoIds } from '../lib/so-ref-search';
+import { withPoSearchIds } from '../lib/po-item-code-search';
 import { releaseRequestFromCancelledPo } from '../lib/product-request-link';
 import { deferMrpSnapshotRefresh } from '../lib/mrp-snapshot';
+import { grnLineNetReceived } from '../lib/po-net-received';
+import { yymmFor } from '../../services/documentRefs';
+import { mrpPlanStaleRefusal, settleFromSosForMrp } from '../lib/mrp-plan-freshness';
 
 /* ── Supplier sofa-combo auto-pricing (Commander 2026-05-29) ─────────────────
    The supplier prices a sofa SET (a colour-matched bundle of modules) as a
@@ -421,7 +427,7 @@ mfgPurchaseOrders.get('/', async (c) => {
     const psRaw = Number(c.req.query('pageSize'));
     pageSize = Number.isFinite(psRaw) && psRaw > 0 ? Math.min(100, Math.max(1, Math.trunc(psRaw))) : 50;
 
-    const filters = await withSoRefPoIds(supabase, c, readPoListFilters((k) => c.req.query(k)));
+    const filters = await withPoSearchIds(supabase, c, readPoListFilters((k) => c.req.query(k)));
     const q = filterPoList(
       orderPoList(supabase.from('purchase_orders').select(poListSelect(filters), { count: 'exact' }), filters.sort),
       filters,
@@ -516,10 +522,9 @@ mfgPurchaseOrders.get('/outstanding-so-items', async (c) => {
      all three of the filters that decide the answer running after it in JS, so
      the picker offered at most 500 of the company's 15,050 live SO lines
      (measured 2026-09-08, docs/bugs/0677) chosen by document number. */
-  const { data: items, error } = await loadOutstandingSoLines(
-    supabase,
-    (q) => scopeToCompany(q, c),
-  );
+  /* The pooled MRP shortage below needs nothing from this read, so it STARTS here and is awaited where it stood (eager keeps its error for that site). */
+  const mrpProm = eager(loadLeadBuffers(c.env.DB).then((leadBuffers) => computeMrp(supabase, { catFilter: null, whFilter: null, includeUndated: true, companyId: activeCompanyId(c), leadBuffers })));
+  const { data: items, error } = await loadOutstandingSoLines(supabase, (q) => scopeToCompany(q, c));
   if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
 
   type Row = {
@@ -571,7 +576,7 @@ mfgPurchaseOrders.get('/outstanding-so-items', async (c) => {
   const shortageBySoItem = new Map<string, number>();
   let pooledOk = true;
   try {
-    const mrpRes = await computeMrp(supabase, { catFilter: null, whFilter: null, includeUndated: true, companyId: activeCompanyId(c), leadBuffers: await loadLeadBuffers(c.env.DB) });
+    const mrpRes = (await mrpProm)();
     for (const sku of mrpRes.skus) {
       for (const l of sku.lines) shortageBySoItem.set(l.soItemId, l.shortageQty);
     }
@@ -742,8 +747,7 @@ async function loadAllocationsForItems(
    (one entry per GRN line), carrying the GR number + net qty + status. The PO
    counterpart of soLineDeliveries: lets the PO list show a "Received" column
    identical to the SO "Delivered" column. Cancelled GRNs are excluded so the
-   breakdown never shows a voided receipt. Net qty = qty_accepted − returned_qty;
-   zero/negative nets (fully returned) are dropped. Read-only display aid. */
+   breakdown never shows a voided receipt. Net qty = grnLineNetReceived; zero nets dropped. */
 export type PoLineReceipt = { grnNumber: string; qty: number; status: string };
 async function poLineReceipts(
   sb: any,
@@ -753,9 +757,9 @@ async function poLineReceipts(
   if (poItemIds.length === 0) return out;
   const { data: grnLines } = await sb
     .from('grn_items')
-    .select('purchase_order_item_id, qty_accepted, returned_qty, grn_id')
+    .select('purchase_order_item_id, qty_accepted, returned_qty, returned_closed_qty, grn_id')
     .in('purchase_order_item_id', poItemIds);
-  const rows = (grnLines ?? []) as Array<{ purchase_order_item_id: string | null; qty_accepted: number; returned_qty: number; grn_id: string }>;
+  const rows = (grnLines ?? []) as Array<{ purchase_order_item_id: string | null; qty_accepted: number; returned_qty: number; returned_closed_qty: number; grn_id: string }>;
   const grnIds = [...new Set(rows.map((r) => r.grn_id).filter(Boolean))];
   if (grnIds.length === 0) return out;
   const { data: grns } = await sb.from('grns').select('id, grn_number, status').in('id', grnIds);
@@ -768,7 +772,7 @@ async function poLineReceipts(
     if (!r.purchase_order_item_id) continue;
     const meta = grnMeta.get(r.grn_id);
     if (!meta) continue; // cancelled GRN — excluded
-    const net = Number(r.qty_accepted ?? 0) - Number(r.returned_qty ?? 0);
+    const net = grnLineNetReceived(r);
     if (net <= 0) continue;
     const arr = out.get(r.purchase_order_item_id) ?? [];
     arr.push({ grnNumber: meta.grnNumber, qty: net, status: meta.status });
@@ -785,17 +789,14 @@ mfgPurchaseOrders.get('/:id', async (c) => {
   /* Perf (go-live) — the downstream-lock GRN count is independent of the
      header + items load, so fold it into the same parallel batch instead of a
      third sequential round-trip. */
-  const [headerRes, itemsRes, childCountRes] = await Promise.all([
+  const [headerRes, itemsRes, childLock] = await Promise.all([
     scopeToCompany(supabase
       .from('purchase_orders')
-      .select(`${HEADER_COLS}, supplier:suppliers(id, code, name, contact_person, phone, email, address)`)
+      .select(`${HEADER_COLS}, supplier:suppliers(id, code, name, contact_person, phone, email, email2, email3, address)`)
       .eq('id', id), c)
       .maybeSingle(),
     inPoLineOrder(supabase.from('purchase_order_items').select(ITEM_COLS).eq('purchase_order_id', id)),
-    supabase.from('grns')
-      .select('id', { head: true, count: 'exact' })
-      .eq('purchase_order_id', id)
-      .neq('status', 'CANCELLED'),
+    poHasDownstream(supabase, id), // header OR line link; a failed read locks
   ]);
 
   if (headerRes.error) return c.json({ error: 'load_failed', reason: headerRes.error.message }, 500);
@@ -803,10 +804,9 @@ mfgPurchaseOrders.get('/:id', async (c) => {
 
   /* Tier 2 downstream-lock — stamp has_children on the detail header so the
      PO Detail page can lock once any non-cancelled GRN exists. */
-  const childCount = childCountRes.count;
   const purchaseOrder = {
     ...(headerRes.data as Record<string, unknown>),
-    has_children: (childCount ?? 0) > 0,
+    has_children: childLock !== null,
     // Stamped below once the source SO is resolved (SO-amendment workflow).
     has_open_amendment: false,
     open_amendment: null as { id: string; status: string; amendment_no: string } | null,
@@ -966,10 +966,7 @@ mfgPurchaseOrders.get('/:id/linked', async (c) => {
   if (!owner.data) return c.json({ error: 'not_found' }, 404);
 
   const [grnRes, piRes, prRes] = await Promise.all([
-    sb.from('grns')
-      .select('id, grn_number, status, received_at')
-      .eq('purchase_order_id', id)
-      .order('received_at', { ascending: false }),
+    readPoLinkedGrns(sb, id), // header OR line link: a multi-PO receipt names only its first PO
     sb.from('purchase_invoices')
       .select('id, invoice_number, status, invoice_date')
       .eq('purchase_order_id', id)
@@ -980,12 +977,12 @@ mfgPurchaseOrders.get('/:id/linked', async (c) => {
       .order('return_date', { ascending: false }),
   ]);
 
-  if (grnRes.error) return c.json({ error: 'load_failed', reason: grnRes.error.message }, 500);
+  if (!grnRes.ok) return c.json({ error: 'load_failed', reason: grnRes.reason }, 500);
   if (piRes.error)  return c.json({ error: 'load_failed', reason: piRes.error.message  }, 500);
   if (prRes.error)  return c.json({ error: 'load_failed', reason: prRes.error.message  }, 500);
 
   return c.json({
-    grns:     grnRes.data ?? [],
+    grns:     grnRes.grns,
     invoices: piRes.data  ?? [],
     returns:  prRes.data  ?? [],
   });
@@ -1110,10 +1107,7 @@ export const createMfgPurchaseOrderHandler = async (c: any) => {
     }
   }
 
-  const yymm = (() => {
-    const d = new Date();
-    return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
+  const yymm = yymmFor(); // Malaysian month: UTC getMonth() numbered a PO cut before 08:00 on the 1st under last month
 
   // PO# generation: max(suffix)+1 over the month's POs (see lib/doc-no.ts).
   // NOT count+1 — count+1 is non-self-healing (a mid-month delete leaves a gap
@@ -1227,8 +1221,8 @@ export const createMfgPurchaseOrderHandler = async (c: any) => {
        PR #157 — now required (see validation above). */
     purchase_location_id: purchaseLocationId,
   };
-  // Optional poDate — if absent, the column default (now()) wins.
-  if (body.poDate) headerInsert.po_date = body.poDate;
+  // Optional poDate, else today in Malaysia (the column's UTC now() default is a day early before 08:00).
+  headerInsert.po_date = body.poDate || todayMyt();
 
   /* Doc-no collision retry (2026-07-14): two buyers cutting a PO in the same
      company + YYMM both read the same max and mint the same po_number; without a
@@ -1432,17 +1426,13 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
        whose supplier matches the PO's supplier), keeping each line's so_item_id
        so a later delete releases the SO quota. */
     targetPoId?: string;
-    /* Commander 2026-05-31 — when the convert is raised from the MRP page the PO
-       line is REFERENCE-ONLY: it does NOT lock the source SO line via
-       po_qty_picked. MRP pools all open PO as supply regardless of SO↔PO linkage,
-       so the same SO line is infinitely convertible from MRP. This flag (a)
-       bypasses the qty_exceeds_remaining cap and (b) tags the PO line from_mrp so
-       the po_qty_picked recount excludes it. The "an MRP-ordered SO disappears
-       from Convert-from-SO" expectation is met by the picker now hiding lines
-       with no pooled shortage (stock+open-PO fully covers) — the from_mrp PO is
-       part of that supply pool — NOT by per-line locking. The ordinary From-SO
-       picker leaves this false → keeps its cap. */
+    /* Commander 2026-05-31 — an MRP convert is REFERENCE-ONLY: MRP pools every open
+       PO as supply whatever its SO link, so this flag (a) bypasses the
+       qty_exceeds_remaining cap and (b) tags the line from_mrp so the po_qty_picked
+       recount excludes it. The duplicate guard on this path is plan freshness
+       (planAsOf). The ordinary From-SO picker leaves this false and keeps its cap. */
     fromMrp?: boolean;
+    planAsOf?: string | null; // MRP plan computedAt (lib/mrp-plan-freshness.ts); absent = unchecked
     /* Land the created POs as DRAFT instead of SUBMITTED (owner 2026-07-17 —
        the Procurement Agent's Stage 1: propose, then approve).
 
@@ -1572,14 +1562,14 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
     warehouse_id: string | null;
     /* Owner 2026-08-10 (migration 0274) — the SO line's photos ride along to the
        PO line. R2 keys, not bytes: the PO points at the SAME objects. */
-    photo_urls: string[] | null;
-    so: { sales_location: string | null; customer_delivery_date: string | null } | null;
+    photo_urls: string[] | null; remark: string | null; // remark -> PO line; so.note -> PO header (dining; po-dining-remark.ts)
+    so: { sales_location: string | null; customer_delivery_date: string | null; note: string | null } | null;
   };
   const SO_ITEM_SELECT =
-    'id, doc_no, line_no, item_code, description, item_group, variants, qty, po_qty_picked, unit_price_sen, line_delivery_date, warehouse_id, photo_urls, cancelled, ' +
+    'id, doc_no, line_no, item_code, description, item_group, variants, qty, po_qty_picked, unit_price_sen, line_delivery_date, warehouse_id, photo_urls, cancelled, remark, ' +
     /* No company_id on this embed: both source reads below are SCOPED, so a
        cross-company line is never returned and there is nothing to compare. */
-    'so:mfg_sales_orders!inner ( sales_location, customer_delivery_date )';
+    'so:mfg_sales_orders!inner ( sales_location, customer_delivery_date, note )';
   // supabase-js returns the embedded parent as an object OR a 1-element array
   // depending on the relationship — normalise to a single object.
   const normSo = (r: { so: unknown }): SoItem['so'] => {
@@ -1638,6 +1628,8 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
         return c.json({ error: 'qty_exceeds_remaining', soItemId: p.soItemId, requested: p.qty, remaining }, 409);
       pickedItems.push({ row, qty: p.qty, pickSupplierId: p.supplierId ?? null });
     }
+    const stale = await mrpPlanStaleRefusal(supabase, activeCompanyId(c) ?? null, ids, fromMrp ? body.planAsOf : null);
+    if (stale) return c.json(stale.body, stale.status);
   } else {
     // Legacy soItems path — kept so old callers don't break.
     const soItems = body.soItems ?? [];
@@ -1663,7 +1655,7 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
         row: row ?? {
           id: '', doc_no: it.soDocNo, line_no: null, item_code: it.itemCode, description: it.itemName,
           qty: it.qty, po_qty_picked: 0, unit_price_sen: 0,
-          line_delivery_date: null, item_group: null, variants: null,
+          line_delivery_date: null, item_group: null, variants: null, remark: null,
           // No SO line warehouse on the legacy fabricated row → falls back to
           // the SO header sales_location resolution below.
           warehouse_id: null, photo_urls: null, so: null,
@@ -1736,6 +1728,7 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
       soLineNo:  row.line_no ?? null,   // decides its place on the PO
       // Owner 2026-08-10 — the SO line's photo keys, carried to the PO line.
       photoUrls: row.photo_urls ?? [],
+      lineRemark: row.remark ?? null, soNote: row.so?.note ?? null, // dining-carried below (po-dining-remark.ts)
       // Commander 2026-05-31 — per-pick supplier override (MRP), the highest
       // precedence input to effectiveSupplierId below.
       pickSupplierId,
@@ -2063,7 +2056,7 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
     warehouseId: string | null; deliveryDate: string | null;
     itemGroup: string | null; variants: Record<string, unknown> | null;
     soItemId: string | null; soDocNo: string | null; soLineNo: number | null;
-    photoUrls: string[];
+    photoUrls: string[]; notes: string | null; soNote: string | null; // notes=PO line remark, soNote=SO header note
   };
   type Bucket = {
     supplierId: string; warehouseId: string | null; currency: string;
@@ -2171,7 +2164,8 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
       variants: it.variants,
       soItemId: it.soItemId,
       soDocNo: it.soDocNo, soLineNo: it.soLineNo,
-      photoUrls: it.photoUrls,
+      // notes/soNote: dining-only carry (po-dining-remark.ts); soNote feeds the PO header below.
+      photoUrls: it.photoUrls, notes: diningLineNote(it.itemGroup, it.lineRemark), soNote: it.soNote,
     });
     bucket.soDocNos.add(it.soDocNo);
     byGroup.set(groupKey, bucket);
@@ -2229,8 +2223,7 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
   }
 
   // Generate PO numbers + create one PO per supplier.
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor(); // Malaysian month, not the Worker's UTC one
   // Seed from max(suffix), NOT count — count+1 is non-self-healing (a mid-month
   // delete re-mints a surviving number → UNIQUE collision). Derive the next
   // suffix via mintMonthlyDocNo, then counter starts one below it.
@@ -2298,10 +2291,12 @@ export async function convertSosToPosCore(c: PoConvertContext): Promise<PoConver
       subtotal_sen: subtotal,
       tax_sen: 0,
       total_sen: subtotal,
-      notes: provenanceNote('so', [...bucket.soDocNos]), // a STORED CONTRACT, 8 readers: transfer-vocabulary.ts
+      // Owner 2026-11-10 — provenance on line 1 (the stored contract its 8 readers parse) + any DINING SO header notes (po-dining-remark.ts).
+      notes: diningPoHeaderNotes(provenanceNote('so', [...bucket.soDocNos]), bucket.lines, bucket.soDocNos.size),
       created_by: user.id,
       expected_at: headerExpectedAt, // Commander 2026-05-28 — derived from the source SO lines, not asked.
       purchase_location_id: headerPurchaseLocationId,
+      po_date: todayMyt(), // not the column's UTC now() default: a day early before 08:00
     };
     /* Audit (ported from 2990) — the PO suffix is an in-memory counter off a
        non-locking snapshot, so a CONCURRENT SO→PO convert can mint the same
@@ -2396,6 +2391,7 @@ mfgPurchaseOrders.post('/from-sos', async (c) => {
     env: c.env,
     json: (b, status) => ({ status: status ?? 200, body: b as Record<string, unknown> }),
   });
+  settleFromSosForMrp(c, activeCompanyId(c) ?? null, out);
   return c.json(out.body, out.status as 201);
 });
 
@@ -2481,10 +2477,12 @@ mfgPurchaseOrders.patch('/:id', async (c) => {
      purchase_location_id, migration 0180 = the supplier-revised dates), kept in
      one place so a field added to the PATCH cannot silently escape the log. */
   const { data: beforeRow } = await scopeToCompanyId(sb.from('purchase_orders')
-    .select(PO_AUDIT_SELECT).eq('id', id), co.companyId).maybeSingle();
+    .select(`${PO_AUDIT_SELECT}, updated_at, version`).eq('id', id), co.companyId).maybeSingle();
   if (!beforeRow) return c.json(NOT_THIS_COMPANY, 404);
   const before = (beforeRow ?? {}) as unknown as Record<string, unknown>;
   const prevExpectedAt = before.expected_at ?? null;
+  const stale = poVersionRefusal(body, before.updated_at); // lib/po-version.ts
+  if (stale) return c.json(stale.body, stale.status);
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [from, to] of PO_AUDIT_FIELDS) {
@@ -2498,13 +2496,17 @@ mfgPurchaseOrders.patch('/:id', async (c) => {
   if (lockedChanges.length > 0 && (await poHasDownstream(sb, id))) return c.json(poIdentityLockedRefusal(lockedChanges), 409);
   const sdGate = supplierDatePatchGate(before, updates); // HC-0090: recorded Date 2/3/4 are history
   if (sdGate.refusal) return c.json(sdGate.refusal, 409);
+  const claim = await claimPoVersion(sb, id, co.companyId, before.version); // before the first write: the database half
+  if (!claim.ok) return c.json(claim.body, claim.status);
+  { const m = await movePoLinesToNewWarehouse(sb, id, co.companyId, before, updates); if (m) return c.json(m.body, m.status); } // lib/po-warehouse-move.ts
   /* A cleared Supplier Date 2/3/4 posts "", which Postgres rejects on a date
      column, so every PO that left one blank failed to save (production,
      2026-08-17). It mutates `updates`, so the audit below records the NULL. */
-  const { data, error } = await sdGate.onlyIfEmpty(scopeToCompanyId(sb.from('purchase_orders').update(coerceEmptyDates(updates)).eq('id', id), co.companyId)).select('*').maybeSingle();
+  const { data, error } = await sdGate.onlyIfEmpty(scopeToCompanyId(sb.from('purchase_orders').update(coerceEmptyDates(updates)).eq('id', id).eq('version', claim.version), co.companyId)).select('*').maybeSingle();
   if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
-  if (!data) return sdGate.fill.length ? c.json(sdGate.raced, 409) : c.json(NOT_THIS_COMPANY, 404);
-  {
+  if (!data) return sdGate.fill.length ? c.json(sdGate.raced, 409) : c.json(poVersionRaced(), 409);
+  const touchOnly = Object.keys(updates).length === 1; // version claim before a lines-only Save: no audit, no AutoCount edit
+  if (!touchOnly) {
     const auditPatch: Record<string, unknown> = {};
     for (const [camel, snake] of PO_AUDIT_FIELDS) {
       if (updates[snake] !== undefined) auditPatch[camel] = updates[snake];
@@ -2558,7 +2560,7 @@ mfgPurchaseOrders.patch('/:id', async (c) => {
         .update({ delivery_date: updates['expected_at'], line_delivery_date_overridden: false }).in('id', openIds), co.companyId);
     if (lineErr) console.error('[mfg-po PATCH] delivery date line cascade failed', { id, error: lineErr });
   }
-  await queueAcPoEdit(c, id);
+  if (!touchOnly) await queueAcPoEdit(c, id);
 
   return c.json({ purchaseOrder: data });
 });
@@ -2725,13 +2727,13 @@ async function recomputePoTotals(sb: any, poId: string) {
 
 /* Keep header expected_at in sync with the lines: earliest non-null line
    delivery_date, else null. Mirrors the PO-create rule so a per-line Delivery
-   Date edit shows on the PO list + PDF (both read the header expected_at).
-   Best-effort: never fail the line write on this. (Commander 2026-06-18 #2/#3) */
+   Date edit shows on the PO list + PDF. Best-effort; an UNREAD line set skips the write (it is not "no dates"). */
 export async function recomputePoExpectedAt(sb: any, poId: string) {
   try {
-    const { data: lines } = await sb.from('purchase_order_items')
+    const { data: lines, error: linesErr } = await sb.from('purchase_order_items')
       .select('delivery_date')
       .eq('purchase_order_id', poId);
+    if (linesErr) throw linesErr;
     const dates = ((lines ?? []) as Array<{ delivery_date: string | null }>)
       .map((r) => r.delivery_date)
       .filter((d): d is string => Boolean(d))
@@ -2759,14 +2761,13 @@ export async function recomputePoExpectedAt(sb: any, poId: string) {
 export async function recomputeSoPicked(sb: any, soItemIds: Array<string | null | undefined>) {
   const ids = [...new Set(soItemIds.filter((x): x is string => Boolean(x)))];
   if (ids.length === 0) return;
-  // Best-effort, never throws (Commander 2026-05-30): the primary write already
-  // committed. If this secondary recount hiccups we log + skip — the live-count
-  // model self-heals on the next operation that touches these SO lines.
+  // Best-effort, never throws: a hiccup (a FAILED read included — it is not "zero picked") logs + skips; it self-heals.
   try {
-    const { data: lines } = await sb
+    const { data: lines, error: linesErr } = await sb
       .from('purchase_order_items')
       .select('so_item_id, qty, purchase_order_id, from_mrp')
       .in('so_item_id', ids);
+    if (linesErr) throw linesErr;
     /* Commander 2026-05-31 — MRP-origin PO lines are reference-only: they do NOT
        lock the source SO line via po_qty_picked, so the recount excludes them.
        The Commander's "an MRP-ordered SO must drop off the Convert-from-SO
@@ -2786,7 +2787,8 @@ export async function recomputeSoPicked(sb: any, soItemIds: Array<string | null 
        confirms (DRAFT -> SUBMITTED). */
     const deadPo = new Set<string>();
     if (poIds.length > 0) {
-      const { data: pos } = await sb.from('purchase_orders').select('id, status').in('id', poIds);
+      const { data: pos, error: posErr } = await sb.from('purchase_orders').select('id, status').in('id', poIds);
+      if (posErr) throw posErr; // unread statuses would count DRAFT / CANCELLED lines as picked
       for (const p of (pos ?? []) as Array<{ id: string; status: string }>) {
         if (p.status === 'CANCELLED' || p.status === 'DRAFT') deadPo.add(p.id);
       }
@@ -4087,7 +4089,7 @@ mfgPurchaseOrders.post('/:id/send-to-supplier', async (c) => {
 
   const { data: po, error } = await scopeToCompanyId(supabase
     .from('purchase_orders')
-    .select('id, po_number, status, total_sen, currency, po_date, company_id, po_email_sent_at, po_email_sent_to, supplier:suppliers(name, email)')
+    .select('id, po_number, revision, status, total_sen, currency, po_date, company_id, po_email_sent_at, po_email_sent_to, supplier:suppliers(name, email, email2, email3)')
     .eq('id', id), co.companyId)
     .maybeSingle();
   if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
@@ -4104,33 +4106,30 @@ mfgPurchaseOrders.post('/:id/send-to-supplier', async (c) => {
   const statusRefusal = poSendRefusalForStatus(row.status);
   if (statusRefusal) return c.json({ error: 'not_sendable', message: statusRefusal }, 409);
 
-  /* Recipient. Checked as a real address, not just "contains @" — this is the
-     last point before an external send. */
-  const supplierEmail = (row.supplier?.email ?? '').trim();
-  if (!supplierEmail) {
+  /* Recipients, checked as real addresses (the last point before an external
+     send): To = Email, Cc = Email 2 / 3 (owner 2026-11-09, shared/supplier-emails.ts). */
+  const recipients = resolvePoRecipients(row.supplier);
+  if (!recipients.ok && recipients.error === 'no_supplier_email') {
     return c.json({ error: 'no_supplier_email', message: 'This supplier has no email address on file.' }, 400);
   }
-  if (!isSendableEmail(supplierEmail)) {
-    return c.json({
-      error: 'bad_supplier_email',
-      message: `The supplier's email address (${supplierEmail}) is not a valid address. Fix it on the supplier record, then send again.`,
-    }, 400);
+  if (!recipients.ok) {
+    return c.json({ error: 'bad_supplier_email',
+      message: `The supplier's email address (${recipients.address}) is not a valid address. Fix it on the supplier record, then send again.` }, 400);
   }
+  // Every address it goes to: po_email_sent_to, the audit row and the reply name all of them.
+  const supplierEmail = [recipients.to, ...recipients.cc].join(', ');
 
   /* Attachment, validated BEFORE anything is claimed or sent: absent is legal
      (summary-only), present-but-wrong is refused with a readable reason. */
-  const poNo = row.po_number ?? id;
+  const poNo = poEmailDocNo(row);
   const attachmentCheck = validatePoAttachment(body.pdfBase64, poNo);
   if (!attachmentCheck.ok) {
     return c.json({ error: 'bad_attachment', message: attachmentCheck.message }, 400);
   }
 
   const branding = await getBrandingForCompany(c.env, row.company_id ?? null);
-  const msg = buildPurchaseOrderEmail(
-    row,
-    branding.companyName,
-    typeof body.message === 'string' ? body.message : null,
-  );
+  const note = typeof body.message === 'string' ? body.message : null;
+  const msg = buildPurchaseOrderEmail(row, branding.companyName, note);
   /* Unreachable given the recipient check above — buildPurchaseOrderEmail's only
      null is a bad address. Handled rather than asserted: the two checks are in
      different files and a future edit could separate them. */
@@ -4173,8 +4172,10 @@ mfgPurchaseOrders.post('/:id/send-to-supplier', async (c) => {
 
   const res = await sendEmail(c.env, {
     to: msg.to,
+    cc: msg.cc.length ? msg.cc : null,
     subject: msg.subject,
     html: msg.html,
+    replyTo: poReplyTo(c.get('houzsUser')),
     purpose: 'purchase_order',
     refType: 'purchase_order',
     // po id is a uuid; email_log.ref_id is INTEGER, so identity lives in the subject.

@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
-import type { Env } from "./types";
+import { pollEtag, POLLED_LIST_PATHS } from "./middleware/pollEtag";
+import type { Env, ScanQueueMessage } from "./types";
 import { GIT_SHA, resolveBuildSha } from "./build-info";
 import { restKeyClaims, restUrlRef } from "./db/rest-key-claims";
 import { auth, requirePermission, requireAnyPermission, requireScmAccess, requirePageAccessOrSalesView, requirePageAccess } from "./middleware/auth";
@@ -27,9 +28,9 @@ import ocrDashboardRoutes from "./routes/ocrDashboard";
 import clientErrors from "./routes/clientErrors";
 import udf from "./routes/udf";
 import authRoutes from "./routes/auth";
-import carresSso from "./carres/sso";
 import totpRoutes from "./routes/totp";
 import users from "./routes/users";
+import fieldPinAdmin from "./routes/fieldPinAdmin";
 import roles from "./routes/roles";
 import positions from "./routes/positions";
 import positionCapabilities from "./routes/position-capabilities";
@@ -39,9 +40,11 @@ import documentRefs from "./routes/documentRefs";
 import companies from "./routes/companies";
 import tableLayouts from "./routes/tableLayouts";
 import notifications from "./routes/notifications";
+import badgeCounts, { setBadgeDispatch } from "./routes/badgeCounts";
 import pushDevices from "./routes/push";
 import itSupport from "./routes/itSupport";
 import { sendAiUsageToHub } from "./services/aiUsageHub";
+import { HEALTH_HUB_JOB, sendHealthReportToHub } from "./services/healthHub";
 import { runPushFleetReminders } from "./services/pushFleetReminders";
 import presence from "./routes/presence";
 import projects from "./routes/projects";
@@ -58,6 +61,7 @@ import { attendance } from "./routes/attendance";
 import { runAutoClockOut } from "./routes/lib/hr-labor-store";
 import { posDevice } from "./routes/pos-device";
 import projectsOutstanding from "./routes/projectsOutstanding";
+import projectsCalendarSearch from "./routes/projectsCalendarSearch";
 import { projectDataGaps } from "./routes/projectDataGaps";
 import { projectOverview } from "./routes/projectOverview";
 import assrQuality from "./routes/assrQuality";
@@ -83,6 +87,7 @@ import fleet from "./routes/fleet";
 import fleetMaintenance from "./scm/routes/fleet-maintenance";
 import { fleetWorkOrderPhotos } from "./scm/routes/fleet-work-order-photos";
 import { fleetPlanService } from "./scm/routes/fleet-plan-service";
+import { fleetOffRoad } from "./scm/routes/fleet-off-road";
 import fleetWorkOrderFiles from "./scm/routes/fleet-work-order-files";
 import fleetBreakdownFiles from "./scm/routes/fleet-breakdown-files";
 // `routes/lorries.ts` removed 2026-06-28 — old Houzs Fleet lorries CRUD retired
@@ -175,11 +180,16 @@ import { runPosAlerts } from "./services/posAlerts";
 // Weekly OCR rule-distill (scan-so self-evolution). Run via the daily 02:00
 // slot gated to Sundays — no new cron trigger. getSupabaseService is the same
 // service client scan-so.ts uses internally (serviceClient(env)).
-import { distillAllSalespersonRules, warmCatalogCacheForCron, processScanQueueMessage } from "./scm/routes/scan-so";
+import { distillAllSalespersonRules, warmCatalogCacheForCron, processScanQueueMessage, processDistillQueueMessage } from "./scm/routes/scan-so";
 import { CLAUDE_MODEL } from "./scm/lib/scan-ocr";
 import { runAgentHeartbeat } from "./services/agent-scheduler";
 import { getSupabaseService } from "./db/supabase";
 import { sweepStockClose } from "./acc/stock-close";
+import { retryOpenDoStamps } from "./scm/lib/do-shipped-from-retry";
+import { INTEGRITY_JOB, runNightlyIntegrity } from "./services/nightlyIntegrityRun";
+import { JOB_ALERTS_JOB, runJobFailureAlerts } from "./services/jobFailureAlerts";
+import { withAfterResponse } from "./lib/after-response";
+import { computeDayRoutes } from "./scm/lib/lorry-day-runs";
 import { sweepSelfCheck } from "./scm/routes/accounting-self-check";
 import { applyDueSupplierPrices } from "./scm/lib/supplier-price-apply";
 import { todayMyt } from "./scm/lib/my-time";
@@ -217,6 +227,13 @@ const inboxBustAfterWrite: MiddlewareHandler<{ Bindings: Env }> = async (c, next
 
 // Outermost: one structured access-log line + X-Request-Id per request.
 app.use("*", requestLog);
+// Best-effort work deep in a helper (afterResponse in lib/after-response.ts) runs
+// on the request's waitUntil instead of delaying the response.
+app.use("*", async (c, next) => {
+  let waitUntil: ((p: Promise<unknown>) => void) | null = null;
+  try { waitUntil = c.executionCtx.waitUntil.bind(c.executionCtx); } catch { /* no execution context (tests) */ }
+  return waitUntil ? withAfterResponse(waitUntil, () => next()) : next();
+});
 
 // Allow-listed CORS origins (audit M3). The SPA calls the API SAME-ORIGIN, so it
 // needs no CORS at all; the only legitimate CROSS-origin BROWSER callers are the
@@ -237,9 +254,18 @@ function corsOriginAllowed(origin: string | undefined | null): string | undefine
   } catch {
     return undefined;
   }
-  // Carres: only the Carres engine site and its previews (never a Houzs or 2990 host).
   const ok =
-    /^([a-z0-9-]+\.)?carres-scm\.pages\.dev$/.test(host) ||
+    host === "houzscentury.com" ||
+    host.endsWith(".houzscentury.com") ||
+    host === "2990shome.com" ||
+    host.endsWith(".2990shome.com") ||
+    /^([a-z0-9-]+\.)?houzs-erp(-staging)?\.pages\.dev$/.test(host) ||
+    // 2990 POS is a BROWSER SPA on Cloudflare Pages at 2990s-pos.pages.dev
+    // calling this backend cross-origin (post-cutover it targets the Houzs
+    // Worker). The M3 allowlist that replaced `cors *` omitted it, which
+    // CORS-blocked every POS request (pin-login, catalog, cart) — the POS could
+    // not open. The `<hash>.` prefix covers Pages preview deploys.
+    /^([a-z0-9-]+\.)?2990s-pos\.pages\.dev$/.test(host) ||
     host === "localhost" ||
     host === "127.0.0.1";
   return ok ? origin : undefined;
@@ -312,8 +338,6 @@ app.get("/health", (c) => {
 // /api/auth/* is unauthenticated (login, bootstrap, accept-invite, status,
 // me, logout). It must be mounted BEFORE the auth middleware below.
 app.route("/api/auth", authRoutes);
-// Carres: sign-on from the Carres portal, server to server, proven by a shared secret (src/carres/sso.ts).
-app.route("/api/carres-sso", carresSso);
 
 // Public customer survey — unauthenticated, token-based. Lives under
 // /api/survey (not /survey) so it doesn't collide with the SPA route
@@ -391,7 +415,7 @@ app.route("/api/chat-callback", chatCallback);
 // public API routes above so they stay unauthenticated.
 // PUBLIC image proxies for the cross-origin POS — MUST be mounted BEFORE the
 // global `auth` + `requireScmAccess` gates so a plain <img src> (no Bearer, no
-// same-origin cookie) reaches them. Only these two GET routes are exposed; every
+// same-origin cookie) reaches them. Only these GET image routes are exposed; every
 // other /api/scm/* path is untouched and still hits the gates below. Mirrors how
 // 2990's api serves Model photos auth-free. See scm/routes/public-images.ts.
 app.route("/api/scm", publicScmImages);
@@ -439,6 +463,12 @@ app.use("/api/*", companyContext);
 // failures are fail-closed for callers that explicitly request idempotency.
 app.use("/api/*", idempotency);
 
+// ETag + 304 on the GET lists the frontend polls (pollEtag.ts lists them), so an
+// unchanged poll costs headers instead of the whole list. Inside auth and
+// companyContext so the tag carries the user and company it was computed for;
+// above every router so it wraps the handler.
+for (const path of POLLED_LIST_PATHS) app.use(path, pollEtag);
+
 // HOUZS CONNECT → ERP confirmed-payment push. Books a Connect-verified customer
 // payment onto its Sales Order through the one Payments writer. Mounted BELOW the
 // /api/* auth gate on purpose (unlike /api/chat-callback): it reuses the service
@@ -483,6 +513,7 @@ app.route("/api/client-errors", clientErrors);
 app.route("/api/udf", udf);
 app.route("/api/totp", totpRoutes);
 app.route("/api/users", users);
+app.route("/api/field-pin", fieldPinAdmin);
 app.route("/api/roles", roles);
 app.route("/api/positions", positions);
 app.route("/api/position-capabilities", positionCapabilities);
@@ -497,6 +528,19 @@ app.route("/api/companies", companies);
 // row; the /default writes gate on settings.manage inside the router.
 app.route("/api/table-layouts", tableLayouts);
 app.route("/api/notifications", notifications);
+// Every sidebar count in one request: each source is re-dispatched through THIS
+// app with the caller's headers, so it passes the same gates as a direct call.
+setBadgeDispatch((c, req) => {
+  let ctx: Parameters<typeof app.fetch>[2];
+  try {
+    ctx = c.executionCtx;
+  } catch {
+    ctx = undefined;
+  }
+  return Promise.resolve(app.fetch(req, c.env, ctx));
+});
+app.route("/api/badge-counts", badgeCounts);
+
 // Native-app push device registry (any signed-in user, own device only).
 app.route("/api/push", pushDevices);
 // IT Support: a proxy to the Houzs IT Hub (any signed-in user, own requests only).
@@ -505,6 +549,8 @@ app.route("/api/presence", presence);
 // Mounted at the EXACT path BEFORE the projects router so its "/:id" catch-all
 // does not swallow "outstanding-tasks" as an id (owner/admin Reminder view).
 app.route("/api/projects/outstanding-tasks", projectsOutstanding);
+// All-dates calendar search (Previous / Next match). Same exact-path-first reason.
+app.route("/api/projects/calendar/search", projectsCalendarSearch);
 // Finished events with incomplete books (Project Overview, Overview). Same exact-
 // path-first reason as above; finance-viewer rule inside. See routes/projectDataGaps.ts.
 app.use("/api/projects/data-gaps/*", requirePageAccess("projects.finances"));
@@ -560,6 +606,7 @@ app.route("/api/fleet", fleet);
 app.route("/api/fleet-maintenance", fleetWorkOrderPhotos);
 // Mounted first: its auth is per-route, and fleet-maintenance.ts is at its file-size ceiling.
 app.route("/api/fleet-maintenance", fleetPlanService);
+app.route("/api/fleet-maintenance", fleetOffRoad);
 app.route("/api/fleet-maintenance", fleetMaintenance);
 app.route("/api/fleet-work-order-files", fleetWorkOrderFiles);
 app.route("/api/fleet-breakdown-files", fleetBreakdownFiles);
@@ -721,6 +768,14 @@ export default {
           .catch((e) => console.error("[cron email-outbox]", e))
           .then(() => backfillOutboundMessageIds(env.DB, env, null, 10))
           .catch((e) => console.error("[cron mail-message-ids]", e))
+      );
+      // Health report to the IT Hub: live DB, email backlog, jobs, AI failures,
+      // measured as the System Health page measures them (services/healthHub.ts).
+      // No hub address or key: nothing is sent. A refusal is only logged.
+      ctx.waitUntil(
+        track("health-hub", () => sendHealthReportToHub(env, event.scheduledTime))
+          .then((r) => { if (r.sent && !r.ok) console.log(`[cron ${HEALTH_HUB_JOB}] sent, health is not ok`); })
+          .catch((e) => console.error(`[cron ${HEALTH_HUB_JOB}]`, e))
       );
       // DEV-42: store live lorry positions from Velocity (no-op until the secret is set).
       ctx.waitUntil(
@@ -1105,6 +1160,16 @@ export default {
           })
           .catch((e) => console.error("[cron slip-reaper]", e))
       );
+      // Background-job failure alerts (owner-approved 2026-11-10): hourly, on the
+      // :00 pass of this slot. Classifies every job as System Health does and
+      // tells the IT-page holders once per incident (services/jobFailureAlerts.ts).
+      if (new Date(event.scheduledTime).getUTCMinutes() < 30) {
+        ctx.waitUntil(
+          track("job-alerts", () => runJobFailureAlerts(env, event.scheduledTime))
+            .then((r) => { if (r.critical || r.alerted.length) console.log(`[cron ${JOB_ALERTS_JOB}] critical=${r.critical} alerted=${r.alerted.join(",") || "none"}`); })
+            .catch((e) => console.error(`[cron ${JOB_ALERTS_JOB}]`, e)),
+        );
+      }
     } else if (event.cron === "0 2 * * *") {
       // Daily 02:00 UTC slot: SLA escalation + ASSR digest + project reminders.
       ctx.waitUntil(
@@ -1308,6 +1373,51 @@ export default {
           );
         }).catch((e) => console.error("[cron stock-close]", e)),
       );
+      // Each lorry's day by road (owner 2026-11-08): the two days just gone are worked
+      // out on the server, so Fleet Health and Lorry Capacity have every day whether or
+      // not anyone opened Last Mile. Two days, so a late edit to yesterday is caught.
+      ctx.waitUntil(
+        track("lorry-day-routes", async () => {
+          const sb = getSupabaseService(env);
+          const today = new Date(Date.now() + 8 * 3600_000);
+          // The two days just gone (final), then today and tomorrow so the plan is
+          // ready before the lorries leave; an unchanged run asks Google nothing.
+          for (const offset of [-2, -1, 0, 1]) {
+            const date = new Date(today.getTime() + offset * 86_400_000).toISOString().slice(0, 10);
+            const outcomes = await computeDayRoutes(sb, env, date);
+            const skipped = outcomes.filter((o) => o.result === "skipped");
+            console.log(
+              `[cron lorry-day-routes] ${date}: ${outcomes.length} lorr${outcomes.length === 1 ? "y" : "ies"}, ` +
+              `${outcomes.filter((o) => o.result === "worked-out").length} worked out` +
+              (skipped.length ? `, skipped ${skipped.map((o) => `${o.plate} (${o.reason})`).join("; ")}` : ""),
+            );
+          }
+        }).catch((e) => console.error("[cron lorry-day-routes]", e)),
+      );
+      // DO lines left open by the lock gate (owner 2026-11-10: a line whose rack or
+      // PO is not known for its full qty is not locked; it is retried at the ship
+      // and every night until its GRN gets a rack). Per company, bounded, write-once.
+      ctx.waitUntil(
+        track("do-stamp-retry", async () => {
+          const sb = getSupabaseService(env);
+          const { data, error } = await sb.schema("public").from("companies").select("id");
+          if (error) throw new Error(`companies: ${error.message}`);
+          const ids = ((data as Array<{ id: number }> | null) ?? []).map((r) => Number(r.id));
+          const runs = await retryOpenDoStamps(sb, ids, new Date(event.scheduledTime));
+          console.log(`[cron do-stamp-retry] ${runs.map((r) => `${r.companyId}: ${r.error ?? `${r.written} written, ${r.tried} of ${r.open_dos} DO(s) tried`}`).join("; ")}`);
+          const failed = runs.filter((r) => r.error);
+          if (failed.length) throw new Error(failed.map((r) => `${r.companyId}: ${r.error}`).join("; "));
+        }).catch((e) => console.error("[cron do-stamp-retry]", e)),
+      );
+      // Nightly integrity check (owner-approved 2026-11-10): documents from the
+      // last two days whose stock, PO or bank did not follow, per company. Reads
+      // only; new findings become one notice per company to the IT-page holders
+      // (services/nightlyIntegrityRun.ts). Logs counts only, never money.
+      ctx.waitUntil(
+        track("integrity-nightly", () => runNightlyIntegrity(env, event.scheduledTime))
+          .then((r) => console.log(`[cron ${INTEGRITY_JOB}] ${r.companies} compan${r.companies === 1 ? "y" : "ies"}, ${r.findings} new finding(s)`))
+          .catch((e) => console.error(`[cron ${INTEGRITY_JOB}]`, e)),
+      );
       // Books › Self-check summed for To do (batch 6 c3): the control check is
       // too heavy for every To do read, so each night leaves one row per
       // company in scm.acc_selfcheck_runs — reads only, nothing posts.
@@ -1340,16 +1450,29 @@ export default {
   // reliability fix for the old waitUntil pipeline. On success ack; on failure
   // retry (up to max_retries in wrangler.toml, then the message lands in the
   // DLQ and the read-time reaper marks it stale as a final backstop).
-  async queue(batch: MessageBatch<{ jobId: string }>, env: Env, _ctx: ExecutionContext) {
+  async queue(batch: MessageBatch<ScanQueueMessage>, env: Env, _ctx: ExecutionContext) {
     // Mirror the scheduled handler: the consumer writes via env.DB too, so
     // point it at Postgres.
     env = withPgDb(env);
     for (const msg of batch.messages) {
+      const body = msg.body;
+      // A confirmed scan-so correction to learn from (scan-so.ts
+      // runConfirmDistills). Every step is non-fatal, so it is acked, never
+      // retried: a retry would re-spend the Claude calls.
+      if (body && "distill" in body) {
+        try {
+          await processDistillQueueMessage(env, body.distill);
+        } catch (e) {
+          console.error("[scan-queue distill]", e);
+        }
+        msg.ack();
+        continue;
+      }
       try {
-        await processScanQueueMessage(env, msg.body.jobId);
+        await processScanQueueMessage(env, body.jobId);
         msg.ack();
       } catch (e) {
-        console.error("[scan-queue]", msg.body?.jobId, e);
+        console.error("[scan-queue]", body?.jobId, e);
         msg.retry();
       }
     }

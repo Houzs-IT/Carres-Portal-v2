@@ -14,6 +14,8 @@ import {
   fmtDocDate, fmtDocStamp, fmtRm, type PdfAction,
 } from './pdf-common';
 import type { ApListRow } from './ap-invoice-queries';
+import { todayMyt } from './dates';
+import { PDF_COMPRESS } from './pdf-options';
 
 /** `showing`: the filter in words, as the page has it ("AP bills · All suppliers · Unpaid"). */
 export type ApListingFilter = { showing: string };
@@ -73,7 +75,7 @@ export function apListingTable(rows: ApListingRow[]): {
 }
 
 export async function generateApListingPdf(rows: ApListingRow[], filter: ApListingFilter, opts?: { action?: PdfAction }): Promise<void> {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4', orientation: 'landscape' });
   await ensurePdfCjkFont(doc, rows);
   const y = drawHeader(doc, {
     docTitle: 'SUPPLIER BILLS LISTING',
@@ -118,6 +120,6 @@ export async function generateApListingPdf(rows: ApListingRow[], filter: ApListi
       12: { cellWidth: 20 },
     },
   });
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = todayMyt();
   deliverPdf(doc, `supplier-bills-listing-${stamp}.pdf`, opts?.action ?? 'preview');
 }

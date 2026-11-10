@@ -26,6 +26,7 @@ import {
   requestIdFromResponse,
 } from "../lib/requestCorrelation";
 import { abortableDelay, abortReason, combineAbortSignals } from "../lib/abort";
+import { openLoadedTab } from "../lib/openLoadedTab";
 
 export { requestIdFromError } from "../lib/requestCorrelation";
 
@@ -38,7 +39,7 @@ export { requestIdFromError } from "../lib/requestCorrelation";
 // absolute workers.dev fallback.
 const baseUrl =
   (import.meta.env.VITE_API_URL as string) ||
-  (import.meta.env.PROD ? "" : "http://localhost:8787");
+  (import.meta.env.PROD ? "" : "https://autocount-sync-api.houzs-erp.workers.dev");
 
 // Token storage — the writer. The AuthContext writes here on login/logout.
 // The READ lives in lib/authToken so the vendored SCM layer shares it verbatim
@@ -440,6 +441,23 @@ async function handleResponse<T>(
 // how this whole perf campaign started). Pure observability, no behaviour change.
 const SLOW_FETCH_MS = 800;
 
+/* A request that spans time the tab spent hidden is not evidence of a slow
+   server: the browser throttles and freezes background tabs, so its timer reads
+   minutes for an answer that took milliseconds (production logged 600-960 s
+   "requests"). Those are not reported, so a sleeping tab cannot add load. */
+let lastHiddenAt = Number.NEGATIVE_INFINITY;
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") lastHiddenAt = performance.now();
+  });
+}
+
+/** True when the tab has been visible the whole time since `startedAt` (performance.now()). */
+export function visibleThroughout(startedAt: number): boolean {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+  return lastHiddenAt < startedAt;
+}
+
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   const token = tokenStore.get();
   const method = (opts?.method || "GET").toUpperCase();
@@ -477,7 +495,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
       });
       const ms = Math.round(performance.now() - startedAt);
       const responseId = requestIdFromResponse(res);
-      if (ms >= SLOW_FETCH_MS) {
+      if (ms >= SLOW_FETCH_MS && visibleThroughout(startedAt)) {
         console.warn(`[perf] slow ${method} ${path} - ${ms}ms id=${responseId}`);
         emitTelemetry({ kind: "slow", method, path, ms });
       }
@@ -573,6 +591,8 @@ function cachedGet<T>(path: string): Promise<T> {
   return p;
 }
 
+// Uploads below call invalidateForMutation too: a just-uploaded photo or file
+// was otherwise hidden by the cached read for up to its TTL.
 function mutate<T>(path: string, opts: RequestInit): Promise<T> {
   return request<T>(path, opts).then((r) => {
     invalidateForMutation(path);
@@ -634,6 +654,7 @@ export const api = {
       } catch {}
       throw new HttpError(res.status, txt || res.statusText, requestIdFromResponse(res));
     }
+    invalidateForMutation(path);
     return consumeCorrelated(res, () => res.json() as Promise<T>);
   },
 
@@ -659,6 +680,7 @@ export const api = {
       } catch {}
       throw new HttpError(res.status, txt || res.statusText, requestIdFromResponse(res));
     }
+    invalidateForMutation(path);
     return consumeCorrelated(res, () => res.json() as Promise<T>);
   },
 
@@ -686,6 +708,7 @@ export const api = {
       } catch {}
       throw new HttpError(res.status, txt || res.statusText, requestIdFromResponse(res));
     }
+    invalidateForMutation(path);
     if (res.status === 204) return undefined as T;
     return consumeCorrelated(res, () => res.json() as Promise<T>);
   },
@@ -713,6 +736,7 @@ export const api = {
       } catch {}
       throw new HttpError(res.status, txt || res.statusText, requestIdFromResponse(res));
     }
+    invalidateForMutation(path);
     if (res.status === 204) return undefined as T;
     return consumeCorrelated(res, () => res.json() as Promise<T>);
   },
@@ -738,6 +762,17 @@ export const api = {
         ? blob.slice(0, blob.size, typeHint)
         : blob;
     });
+  },
+
+  /** A stored photo plus its Last-Modified (when it reached storage), for the
+   *  POD photos PDF, which prints each photo's time. */
+  async fetchBlobWithTime(path: string): Promise<{ blob: Blob; storedAt: string | null }> {
+    const token = tokenStore.get();
+    const res = await binaryFetch(`${baseUrl}${path}`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...passHeader(), ...companyHeader() },
+    }, BINARY_GET_TIMEOUT_MS);
+    if (!res.ok) throw new HttpError(res.status, res.statusText, requestIdFromResponse(res));
+    return consumeCorrelated(res, async () => ({ blob: await res.blob(), storedAt: res.headers.get("Last-Modified") }));
   },
 
   /**
@@ -799,20 +834,14 @@ export const api = {
     return html;
   },
 
+  /* The tab opens before the fetch (inside openLoadedTab): opened after it, a
+     phone blocks it as a popup. Revoke after the new tab has had time to parse;
+     an instant revoke breaks some browsers. */
   async openHtml(path: string): Promise<void> {
-    const token = tokenStore.get();
-    const res = await binaryFetch(`${baseUrl}${path}`, {
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...passHeader(), ...companyHeader() },
-    }, BINARY_GET_TIMEOUT_MS);
-    if (!res.ok) throw new HttpError(res.status, res.statusText, requestIdFromResponse(res));
-    await consumeCorrelated(res, async () => {
-      const html = await res.text();
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      // Revoke after the new tab has had time to parse; instant revoke breaks some browsers.
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    });
+    await openLoadedTab(async () => {
+      const html = await api.getHtml(path);
+      return URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    }, 60_000);
   },
 };
 

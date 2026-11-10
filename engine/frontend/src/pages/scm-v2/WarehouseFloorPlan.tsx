@@ -28,11 +28,13 @@ import {
 } from '../../vendor/scm/lib/warehouse-queries';
 import { useNotify } from '../../vendor/scm/components/NotifyDialog';
 import { useConfirm } from '../../vendor/scm/components/ConfirmDialog';
+import { guardFormula } from '../../lib/csv';
 import {
   buildZones, distinctCustomers, distinctProducts, isFiltering, itemDescription,
   itemMeta, matchSlot, resolvedZoneLabel, statusCounts, toSlot, ZONE_LABELS,
   type FloorFilters, type Slot, type SlotStatus,
 } from '../../vendor/scm/lib/warehouse-floorplan';
+import { todayMyt } from '../../vendor/scm/lib/dates';
 
 /* Slot-state palette — every value is an Ink & Petrol token from the README
    handoff table. Drives the cell fill / border / level pill / tick / badge for
@@ -43,9 +45,9 @@ type StatePal = {
   swatch: string; swatchBd: string;
 };
 const PAL: Record<SlotStatus, StatePal> = {
-  occupied: { bg: '#DCE6FD', border: '#b9d4ce', fg: '#2F55E0', levelBg: '#1B1B39', levelFg: '#ffffff', tick: '#1B1B39', tickBd: '#2F55E0', label: 'Occupied', badgeBg: '#DCE6FD', badgeFg: '#2F55E0', swatch: '#1B1B39', swatchBd: '#2F55E0' },
-  empty: { bg: '#ffffff', border: '#EEF0F3', fg: '#4B5563', levelBg: '#F8F9FA', levelFg: '#4B5563', tick: '#ffffff', tickBd: '#d3d8cf', label: 'Empty', badgeBg: '#F8F9FA', badgeFg: '#4B5563', swatch: '#ffffff', swatchBd: '#d3d8cf' },
-  reserved: { bg: '#f6efd9', border: '#E5E7EB', fg: '#6e4d12', levelBg: '#6e4d12', levelFg: '#ffffff', tick: '#b76b00', tickBd: '#6e4d12', label: 'Reserved', badgeBg: '#f6efd9', badgeFg: '#6e4d12', swatch: '#b76b00', swatchBd: '#6e4d12' },
+  occupied: { bg: '#e1efed', border: '#b9d4ce', fg: '#0c3f39', levelBg: '#16695f', levelFg: '#ffffff', tick: '#16695f', tickBd: '#0c3f39', label: 'Occupied', badgeBg: '#e1efed', badgeFg: '#0c3f39', swatch: '#16695f', swatchBd: '#0c3f39' },
+  empty: { bg: '#ffffff', border: '#e3e6e0', fg: '#414539', levelBg: '#f4f6f3', levelFg: '#414539', tick: '#ffffff', tickBd: '#d3d8cf', label: 'Empty', badgeBg: '#f4f6f3', badgeFg: '#414539', swatch: '#ffffff', swatchBd: '#d3d8cf' },
+  reserved: { bg: '#f6efd9', border: '#d6d9d2', fg: '#6e4d12', levelBg: '#6e4d12', levelFg: '#ffffff', tick: '#b76b00', tickBd: '#6e4d12', label: 'Reserved', badgeBg: '#f6efd9', badgeFg: '#6e4d12', swatch: '#b76b00', swatchBd: '#6e4d12' },
 };
 /* Legend / chip order, derived from PAL's key order so the status vocabulary
    lives in ONE place (occupied, empty, reserved). */
@@ -135,14 +137,17 @@ export function WarehouseFloorPlan({
 
   const exportSelection = () => {
     const head = ['Slot', 'Status', 'Product', 'Customer', 'Qty', 'In date', 'Document'];
-    const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const esc = (raw: string) => {
+      const v = guardFormula(raw);
+      return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    };
     const body = pickedSlots.map((s) =>
       [s.id, s.status, s.productLabel, s.customer, s.itemCount ? String(s.qty) : '', s.inDate, s.doc].map((v) => esc(String(v))).join(','));
     const csv = [head.join(','), ...body].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `warehouse-slots-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `warehouse-slots-${todayMyt()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -281,7 +286,7 @@ function Toolbar({
               type="button"
               onClick={() => setFilter({ status: on ? '' : k })}
               className="flex items-center gap-[7px] rounded-full border py-1 pl-2 pr-2.5"
-              style={{ background: on ? p.badgeBg : 'transparent', borderColor: on ? p.swatchBd : '#EEF0F3', color: on ? p.badgeFg : '#4B5563' }}
+              style={{ background: on ? p.badgeBg : 'transparent', borderColor: on ? p.swatchBd : '#e3e6e0', color: on ? p.badgeFg : '#414539' }}
             >
               <span className="h-2.5 w-2.5 rounded-[3px] border" style={{ background: p.swatch, borderColor: p.swatchBd }} />
               <span className="text-[12px] font-semibold">{p.label}</span>
@@ -311,7 +316,7 @@ function BatchBar({
   busy: boolean;
   onClear: () => void;
 }) {
-  const primary = 'h-8 rounded-md px-3.5 text-[12.5px] font-semibold bg-white text-[#2F55E0] disabled:opacity-60';
+  const primary = 'h-8 rounded-md px-3.5 text-[12.5px] font-semibold bg-white text-[#0c3f39] disabled:opacity-60';
   const ghost = 'h-8 rounded-md px-3.5 text-[12.5px] font-semibold text-white border border-white/25 bg-white/10 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45';
   return (
     <div className="flex flex-wrap items-center gap-2.5 rounded-xl bg-primary-ink p-3">
@@ -410,7 +415,7 @@ function FloorPlan({
                         />
                       ))}
                       <div className="mt-0.5 h-[3px] overflow-hidden rounded-[2px] bg-border-subtle">
-                        <div className="h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#2F55E0' : '#1B1B39' }} />
+                        <div className="h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#0c3f39' : '#16695f' }} />
                       </div>
                       <div className="flex items-center justify-between gap-0.5 px-0.5 pt-px">
                         <span className="text-[11.5px] font-bold text-ink">{rack.name}</span>
@@ -451,8 +456,8 @@ function SlotCell({
   const style: CSSProperties = {
     minHeight: wide ? 44 : 40,
     background: p.bg,
-    borderColor: picked ? '#2F55E0' : p.border,
-    boxShadow: picked ? '0 0 0 2px #2F55E0' : filtering && hit ? '0 0 0 2px #1B1B39' : 'none',
+    borderColor: picked ? '#0c3f39' : p.border,
+    boxShadow: picked ? '0 0 0 2px #0c3f39' : filtering && hit ? '0 0 0 2px #16695f' : 'none',
     opacity: filtering && !hit ? 0.26 : 1,
     color: p.fg,
   };
@@ -505,7 +510,7 @@ function ListView({
             <span className="font-mono text-[10.5px] text-ink-secondary">{rack.occupied}/{rack.total}</span>
             <span className="flex-1" />
             <span className="h-[3px] w-16 overflow-hidden rounded-[2px] bg-border-subtle">
-              <span className="block h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#2F55E0' : '#1B1B39' }} />
+              <span className="block h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#0c3f39' : '#16695f' }} />
             </span>
           </div>
           {rack.slots.map((s) => {
@@ -518,7 +523,7 @@ function ListView({
                 onClick={(e) => onClickSlot(s, e)}
                 onKeyDown={(e) => { if (e.key === 'Enter') onClickSlot(s, e as unknown as React.MouseEvent); }}
                 className="flex cursor-pointer items-center gap-2.5 border-t border-[#f0f2ee] px-3 py-2.5"
-                style={{ background: p.bg, opacity: filtering && !hits.has(s.id) ? 0.26 : 1, boxShadow: pickedSet.has(s.rack.id) ? 'inset 0 0 0 2px #2F55E0' : undefined }}
+                style={{ background: p.bg, opacity: filtering && !hits.has(s.id) ? 0.26 : 1, boxShadow: pickedSet.has(s.rack.id) ? 'inset 0 0 0 2px #0c3f39' : undefined }}
               >
                 <span className="rounded px-1.5 py-px font-mono text-[10px] font-bold" style={{ background: p.levelBg, color: p.levelFg }}>
                   {s.level != null ? `.${s.level}` : '·'}
@@ -563,9 +568,9 @@ function HoverCard({ hover }: { hover: { slot: Slot; x: number; y: number } }) {
 
 /* ── Detail drawer body ─────────────────────────────────────────────────── */
 const MOVE_TAG: Record<RackMovementType, { label: string; bg: string; fg: string }> = {
-  STOCK_IN: { label: 'IN', bg: '#DCE6FD', fg: '#2F55E0' },
+  STOCK_IN: { label: 'IN', bg: '#e1efed', fg: '#0c3f39' },
   STOCK_OUT: { label: 'OUT', bg: '#f6efd9', fg: '#6e4d12' },
-  TRANSFER: { label: 'MOVE', bg: '#F8F9FA', fg: '#4B5563' },
+  TRANSFER: { label: 'MOVE', bg: '#f4f6f3', fg: '#414539' },
 };
 
 function SlotDrawerBody({

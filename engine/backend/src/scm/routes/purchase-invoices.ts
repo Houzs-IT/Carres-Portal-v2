@@ -1,5 +1,6 @@
 // /purchase-invoices — supplier billing us (after GRN).
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import { PI_STATUS_BUCKETS } from '../lib/pi-status-buckets';
 import { PI_HEADER_COLS, PI_LIST_SELECT, piListSelect, filterPiList, orderPiList, readPiListFilters } from '../lib/pi-list-read';
@@ -18,6 +19,7 @@ import {
   sortSoLinesByGroupRank,
 } from '../shared/so-line-display';
 import { postPiAccounting, reversePiAccounting, resyncPiAccounting } from './accounting';
+import { piLedgerOutcome } from '../lib/pi-ledger-outcome';
 import { recostForPi, recostFromGrn } from '../lib/recost';
 import { normalizeCurrency, normalizeExchangeRate, masterRateForCurrency } from '../lib/fx';
 import { assertForeignRatePostable, assertForeignRatePatchable } from '../lib/fx-guard';
@@ -29,6 +31,7 @@ import {
 import { assertSourceLinesInCompany } from '../lib/ref-in-company';
 import { isGrnLineOverInvoiced, piGrnSourceRefusal } from '../lib/pi-grn-source-guard';
 import { readStatusCounts } from '../lib/status-counts';
+import { listStatusCountsSql } from '../lib/list-status-counts-sql';
 import { scopeToCompany, activeCompanyId, stampCompany, companyDocPrefix,
   requireActiveCompanyId, scopeToCompanyId, NOT_THIS_COMPANY,
   isCrossCompanySource, crossCompanyConversionBlocked } from '../lib/companyScope';
@@ -53,6 +56,7 @@ import { PI_AUDIT_FIELDS, loadPiAuditMeta, recordPiCreate } from '../lib/pi-audi
 import { attachPiAssignedSos } from '../lib/pi-assigned-sos';
 import { getSupabaseService } from '../../db/supabase';
 import { notePiScanAccepted } from '../lib/scan-sample-review';
+import { duplicateBillRefusal, findDuplicateSupplierBill } from '../lib/duplicate-supplier-bill';
 
 /* ERP -> AutoCount Purchase Invoice edit. AcSyncService.cs:446 is `case "PI"`.
    See queueAcDoEdit for the shape. */
@@ -86,8 +90,7 @@ const uniq = (xs: Array<string | null | undefined>) =>
   [...new Set(xs.filter((x): x is string => !!x))];
 
 const nextNum = async (sb: any, prefix: string, c: any): Promise<string> => {
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, 'purchase_invoices', 'invoice_number', `${p}${prefix}-${yymm}`);
 };
@@ -375,25 +378,32 @@ purchaseInvoices.get('/', async (c) => {
   const filters = readPiListFilters((k) => c.req.query(k));
   let q = orderPiList(filterPiList(sb.from('purchase_invoices').select(piListSelect(filters), { count: 'exact' }), filters, c), filters.sort);
   q = q.range(page * pageSize, page * pageSize + pageSize - 1);
-  const { data, error, count } = await q;
-  if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
-  const total = count ?? (data?.length ?? 0);
 
   /* Status counts mirror the FE filter-pill buckets (draft / posted / partial /
      paid / cancelled) over the SAME company filter but WITHOUT status / search /
-     pagination. */
+     pagination. One grouped SQL statement (lib/list-status-counts-sql.ts); null
+     = the seven head counts. Run BESIDE the page read, not after it. */
   const countBase = () => scopeToCompany(sb.from('purchase_invoices').select('*', { count: 'exact', head: true }), c);
-  const [allC, draftC, postedC, partialC, paidC, cancelledC, onHoldC] = await Promise.all([
-    countBase(),
-    countBase().in('status', PI_STATUS_BUCKETS.draft),
-    countBase().in('status', PI_STATUS_BUCKETS.posted),
-    countBase().in('status', PI_STATUS_BUCKETS.partial),
-    countBase().in('status', PI_STATUS_BUCKETS.paid),
-    countBase().in('status', PI_STATUS_BUCKETS.cancelled),
-    countBase().or(HELD_OR_TERM),
-  ]);
-  // A count that could not be READ is reported, never served as 0; an empty bucket still answers 0 (lib/status-counts.ts).
-  const counted = readStatusCounts({ all: allC, draft: draftC, posted: postedC, partial: partialC, paid: paidC, cancelled: cancelledC, on_hold: onHoldC });
+  const countsProm = listStatusCountsSql(c.env, 'pi-counts', 'purchase_invoices', (cq) => scopeToCompany(cq, c), [
+    ['all', 'all'], ['draft', PI_STATUS_BUCKETS.draft], ['posted', PI_STATUS_BUCKETS.posted], ['partial', PI_STATUS_BUCKETS.partial],
+    ['paid', PI_STATUS_BUCKETS.paid], ['cancelled', PI_STATUS_BUCKETS.cancelled], ['on_hold', 'held'],
+  ] as const).then(async (viaSql) => {
+    if (viaSql) return viaSql;
+    const [allC, draftC, postedC, partialC, paidC, cancelledC, onHoldC] = await Promise.all([
+      countBase(),
+      countBase().in('status', PI_STATUS_BUCKETS.draft),
+      countBase().in('status', PI_STATUS_BUCKETS.posted),
+      countBase().in('status', PI_STATUS_BUCKETS.partial),
+      countBase().in('status', PI_STATUS_BUCKETS.paid),
+      countBase().in('status', PI_STATUS_BUCKETS.cancelled),
+      countBase().or(HELD_OR_TERM),
+    ]);
+    // A count that could not be READ is reported, never served as 0; an empty bucket still answers 0 (lib/status-counts.ts).
+    return readStatusCounts({ all: allC, draft: draftC, posted: postedC, partial: partialC, paid: paidC, cancelled: cancelledC, on_hold: onHoldC });
+  });
+  const [{ data, error, count }, counted] = await Promise.all([q, countsProm]);
+  if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
+  const total = count ?? (data?.length ?? 0);
   if (!counted.ok) return c.json({ error: 'status_counts_failed', reason: counted.reason }, 500);
   const statusCounts = counted.counts;
 
@@ -445,7 +455,7 @@ purchaseInvoices.get('/:id', async (c) => {
        doc no + the supplier's delivery-note ref surface on the PI detail. */
     /* Company-scoped: unscoped, a uuid opened the other company's purchase
        invoice — supplier, amounts and the source GRN with it. */
-    scopeToCompany(sb.from('purchase_invoices').select(`${HEADER}, supplier:suppliers(id, code, name, contact_person, phone, email, address), grn:grns(id, grn_number, delivery_note_ref)`).eq('id', id), c).maybeSingle(),
+    scopeToCompany(sb.from('purchase_invoices').select(`${HEADER}, supplier:suppliers(id, code, name, contact_person, phone, email, email2, email3, address), grn:grns(id, grn_number, delivery_note_ref)`).eq('id', id), c).maybeSingle(),
     sb.from('purchase_invoice_items').select(ITEM).eq('purchase_invoice_id', id).order('created_at'),
   ]);
   if (h.error) return c.json({ error: 'load_failed', reason: h.error.message }, 500);
@@ -760,6 +770,14 @@ purchaseInvoices.post('/', async (c) => {
     const rateGuard = await assertForeignRatePostable(sb, { currency: piCurrency, operatorRate: body.exchangeRate, docLabel: 'purchase invoice' });
     if (!rateGuard.ok) return refuseWithoutWriting(c, rateGuard.body, 422);
   }
+  {
+    const companyId = activeCompanyId(c);
+    if (companyId != null) {
+      const dup = await findDuplicateSupplierBill(sb, 'purchase_invoices', { companyId, supplierId: String(body.supplierId), ref: body.supplierInvoiceRef, excludeId: null, docKind: null });
+      if (!dup.ok) return refuseWithoutWriting(c, { error: 'lookup_failed', reason: dup.reason }, 500);
+      if (dup.duplicate) return refuseWithoutWriting(c, duplicateBillRefusal(body.supplierInvoiceRef, dup.duplicate), 409);
+    }
+  }
   const { data: header, error: hErr } = await insertWithDocNoRetry<{ id: string; invoice_number: string }>(
     () => nextNum(sb, 'PI', c),
     (invoiceNumber) => sb.from('purchase_invoices').insert({
@@ -915,6 +933,7 @@ export const postPurchaseInvoiceHandler = async (c: any) => {
         // eslint-disable-next-line no-console
         console.error(`[pi-accounting] ensure-post failed for ${curRow.invoice_number}:`, ensure.status, ensure.reason);
       }
+      return c.json({ purchaseInvoice: cur, ledger: piLedgerOutcome(ensure) });
     }
     return c.json({ purchaseInvoice: cur });
   }
@@ -1075,7 +1094,7 @@ export const postPurchaseInvoiceHandler = async (c: any) => {
     // eslint-disable-next-line no-console
     console.warn('[pi scan learning] note skipped (non-fatal):', curRow.invoice_number, (e as Error).message);
   }
-  return c.json({ purchaseInvoice: data });
+  return c.json({ purchaseInvoice: data, ledger: piLedgerOutcome(postRes) });
 };
 purchaseInvoices.patch('/:id/post', postPurchaseInvoiceHandler);
 
@@ -1283,7 +1302,7 @@ export const createPurchaseInvoicesFromGrnItemsHandler = async (c: Context<{ Bin
     req: { json: () => c.req.json() },
     get: ((key: 'supabase' | 'user' | 'companyId' | 'allowedCompanyIds' | 'companyCode') =>
       c.get(key as 'supabase')) as unknown as PiFromGrnItemsContext['get'],
-  }, RECEIPT_PRICES);
+  }, RECEIPT_PRICES, 'refuse');
   /* Every core refusal (invalid_json, picks_required, load_failed, the migrated
      refusal, item_not_found, qty_must_be_positive, qty_exceeds_remaining and the
      not-billable gate) is emitted BEFORE the core's first write, and the original
@@ -1584,6 +1603,18 @@ purchaseInvoices.patch('/:id', async (c) => {
   // currency is normalised to upper-case like POST does.
   if (updates.currency !== undefined) updates.currency = normalizeCurrency(updates.currency);
   const sb = c.get('supabase');
+  if (updates.supplier_invoice_ref !== undefined || updates.supplier_id !== undefined) {
+    const { data: cur, error: curErr } = await scopeToCompany(sb.from('purchase_invoices').select('supplier_id, supplier_invoice_ref, company_id').eq('id', id), c).maybeSingle();
+    if (curErr) return c.json({ error: 'lookup_failed', reason: curErr.message }, 500);
+    const row = (cur ?? {}) as { supplier_id?: string | null; supplier_invoice_ref?: string | null; company_id?: number | null };
+    const ref = updates.supplier_invoice_ref !== undefined ? updates.supplier_invoice_ref : row.supplier_invoice_ref;
+    const supplierId = String((updates.supplier_id !== undefined ? updates.supplier_id : row.supplier_id) ?? '');
+    if (row.company_id != null) {
+      const dup = await findDuplicateSupplierBill(sb, 'purchase_invoices', { companyId: row.company_id, supplierId, ref, excludeId: id, docKind: null });
+      if (!dup.ok) return c.json({ error: 'lookup_failed', reason: dup.reason }, 500);
+      if (dup.duplicate) return c.json(duplicateBillRefusal(ref, dup.duplicate), 409);
+    }
+  }
 
   /* The BEFORE half of every from->to pair. Also supplies the invoice number and
      company for the audit row, which the update's RETURNING gives us only after

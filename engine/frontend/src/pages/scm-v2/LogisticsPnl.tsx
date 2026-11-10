@@ -26,7 +26,7 @@ import { REGIONS, cellsBy, gridSheet, logisticsColumns, pctOf, regionName } from
 import type { ViewProps } from './LogisticsCost';
 import s from './Logistics.module.css';
 
-const ROW_OF: Record<string, string> = { houzs: 'Carres', conts: 'The Conts', hookka: 'Hookka', '2990': '2990' };
+const ROW_OF: Record<string, string> = { houzs: 'Houzs', conts: 'The Conts', hookka: 'Hookka', '2990': '2990' };
 const whole = (sen: number | null): string => {
   if (sen == null) return '—';
   const text = Math.round(Math.abs(sen) / 100).toLocaleString('en-US');

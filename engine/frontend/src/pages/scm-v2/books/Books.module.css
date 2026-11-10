@@ -103,7 +103,7 @@
   position: absolute; top: -9px; bottom: -8px; right: -9px; width: 10px; z-index: 2; display: flex; justify-content: center; cursor: col-resize;
 }
 .gap12 .resize { right: -11px; }
-.resize:hover { background: rgba(27, 27, 57, 0.1); }
+.resize:hover { background: rgba(22, 105, 95, 0.1); }
 .resizeLine { width: 1px; margin: 7px 0; background: var(--fin-line); }
 .cell { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }

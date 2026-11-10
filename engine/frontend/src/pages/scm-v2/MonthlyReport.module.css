@@ -18,11 +18,11 @@
 }
 
 .net td {
-  background-color: var(--c-beige, #EEF0F3);
+  background-color: var(--c-beige, #e3e6e0);
 }
 
 .lines td {
-  background-color: var(--c-paper, #F8F9FA);
+  background-color: var(--c-paper, #f4f6f3);
 }
 
 .row:hover td {

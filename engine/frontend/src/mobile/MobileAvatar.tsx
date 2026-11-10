@@ -102,7 +102,7 @@ export function MobileAvatarEditor({
         aria-label="Change profile photo"
         style={{
           position: "absolute", right: -2, bottom: -2, width: 24, height: 24,
-          borderRadius: "50%", border: "2px solid #15161a", background: "#D64F20",
+          borderRadius: "50%", border: "2px solid #15161a", background: "#d8a85a",
           color: "#15161a", display: "flex", alignItems: "center", justifyContent: "center",
           padding: 0, cursor: pic.busy ? "default" : "pointer", opacity: pic.busy ? 0.6 : 1,
         }}
@@ -136,7 +136,7 @@ export function MobileAvatarEditor({
           onClick={() => void run(pic.remove, "Profile picture removed")}
           style={{
             position: "absolute", left: 0, bottom: -22, width: "100%", background: "none",
-            border: "none", padding: 0, fontSize: 10, fontWeight: 700, color: "#D64F20",
+            border: "none", padding: 0, fontSize: 10, fontWeight: 700, color: "#d8a85a",
             fontFamily: "inherit", cursor: "pointer",
           }}
         >

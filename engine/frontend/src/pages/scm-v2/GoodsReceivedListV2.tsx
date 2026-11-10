@@ -54,6 +54,7 @@ import { SearchScopeHint } from "../../components/SearchScopeHint";
 import { useDebouncedSearchTerm, useSearchResultTransition } from "../../hooks/useServerSearch";
 import { useSuppliers } from "../../vendor/scm/lib/suppliers-queries";
 import { useServerColumnFunnels, funnelValues } from "../../hooks/useServerColumnFunnels";
+import { conditionDateRange } from "../../components/dataTableConditionFilters";
 import {
   useGrnsPaged,
   useEnrichedGrnListRows,
@@ -77,6 +78,8 @@ import { useHoldAction } from "./use-hold-action";
 import { StatusWithHold, rowIsHeld, type HoldFields } from "../../vendor/scm/components/HoldChip";
 import { usePrintDocument } from "../../components/scm-v2/PrintChainProvider";
 import { grnPrintChain } from "../../lib/printChain";
+import { todayMyt } from "../../vendor/scm/lib/dates";
+import { supplierEmailList } from "../../vendor/shared/supplier-emails";
 
 type GrnRow = HoldFields & {
   id: string;
@@ -347,7 +350,7 @@ function DetailDrawer({
                 </div>
                 <RowKV k="Contact" v={row.supplier?.contact_person || "—"} />
                 <RowKV k="Phone" v={formatPhone(row.supplier?.phone) || "—"} />
-                <RowKV k="Email" v={row.supplier?.email || "—"} />
+                <RowKV k="Email" v={supplierEmailList(row.supplier).join(", ") || "—"} />
                 <RowKV k="Address" v={row.supplier?.address || "—"} />
               </div>
 
@@ -566,7 +569,7 @@ export function GoodsReceivedListV2() {
   const supplierNames = useMemo(() => [...new Set((suppliersQ.data ?? []).map((s) => s.name).filter((n): n is string => !!n))], [suppliersQ.data]);
   const supplierCodes = useMemo(() => [...new Set((suppliersQ.data ?? []).map((s) => s.code).filter((c): c is string => !!c))], [suppliersQ.data]);
   const { serverFunnels, onColFiltersChange } = useServerColumnFunnels(
-    (cf) => ({ creditorNames: funnelValues(cf, "supplier"), creditorCodes: funnelValues(cf, "supplier_code"), currencies: funnelValues(cf, "currency") }),
+    (cf) => ({ ...conditionDateRange(cf["received_at"]), creditorNames: funnelValues(cf, "supplier"), creditorCodes: funnelValues(cf, "supplier_code"), currencies: funnelValues(cf, "currency") }),
     () => setPageParam(0),
   );
   const { requestTerm: debouncedSearch } = useDebouncedSearchTerm(search);
@@ -575,7 +578,7 @@ export function GoodsReceivedListV2() {
   // the raw statuses it covers (draft/posted/cancelled are 1:1). `all` omits it.
   const apiStatus = status === "all" ? undefined : status;
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } = useGrnsPaged({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useGrnsPaged({
     page,
     pageSize,
     status: apiStatus,
@@ -596,6 +599,7 @@ export function GoodsReceivedListV2() {
   // and these tiles summarise the SAME payload - so a settled-looking "RM 0.00"
   // (or the PREVIOUS term's money under a placeholder page) would outlive the
   // rows it describes. Same flag SearchScopeHint already uses for its count.
+  const statsFailed = Boolean(error);
   const statsPending =
     isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale;
   const postGrn = usePostGrn();
@@ -763,7 +767,7 @@ export function GoodsReceivedListV2() {
       for (const r of chosen) bundles.push(await fetchGrnBundle(r));
       if (how === "one") {
         await generateCombinedGrnPdf(bundles as never, {
-          fileName: `goods-received-${new Date().toISOString().slice(0, 10)}.pdf`,
+          fileName: `goods-received-${todayMyt()}.pdf`,
           action,
         });
       } else {
@@ -1037,10 +1041,10 @@ export function GoodsReceivedListV2() {
         </div>
 
         <div className="mb-5 hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
-          <StatCard pending={statsPending} label="Total GRNs" value={total.toLocaleString("en-MY")} subtitle="All matching GRNs" rail="bg-primary" active />
-          <StatCard pending={statsPending} label="Received Value" value={fmtRm(money.received)} subtitle="Value on this page" tone="success" rail="bg-synced" />
-          <StatCard pending={statsPending} label="Awaiting PI" value={fmtRm(money.awaitingPi)} subtitle="Not yet invoiced · on this page" tone="warning" rail="bg-accent-bright" />
-          <StatCard pending={statsPending} label="Draft" value={fmtRm(money.draft)} subtitle="Not yet posted · on this page" rail="bg-accent" />
+          <StatCard pending={statsPending} failed={statsFailed} onRetry={() => void refetch()} label="Total GRNs" value={total.toLocaleString("en-MY")} subtitle="All matching GRNs" rail="bg-primary" active />
+          <StatCard pending={statsPending} failed={statsFailed} onRetry={() => void refetch()} label="Received Value" value={fmtRm(money.received)} subtitle="Value on this page" tone="success" rail="bg-synced" />
+          <StatCard pending={statsPending} failed={statsFailed} onRetry={() => void refetch()} label="Awaiting PI" value={fmtRm(money.awaitingPi)} subtitle="Not yet invoiced · on this page" tone="warning" rail="bg-accent-bright" />
+          <StatCard pending={statsPending} failed={statsFailed} onRetry={() => void refetch()} label="Draft" value={fmtRm(money.draft)} subtitle="Not yet posted · on this page" rail="bg-accent" />
         </div>
 
         <div className="sticky top-0 z-10 -mx-4 mb-3 bg-bg/95 px-4 py-2 backdrop-blur-sm md:hidden">

@@ -33,7 +33,7 @@ const DOC_TAG_STYLE: CSSProperties = {
   marginLeft: 6,
   fontSize: 'var(--fs-11)',
   fontWeight: 600,
-  color: 'var(--brand, #1B1B39)',
+  color: 'var(--brand, #16695f)',
   textDecoration: 'underline',
   textUnderlineOffset: 2,
   whiteSpace: 'nowrap',

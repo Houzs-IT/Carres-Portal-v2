@@ -7,7 +7,9 @@
 // (projectOverviewModel.ts); every project row says which.
 import { useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "../../hooks/useQuery";
+import { useQuery, buildQueryKey } from "../../hooks/useQuery";
+import { CacheStamp } from "../../components/CacheStamp";
+import { useCacheRefresh, withFresh } from "../../lib/cacheStamp";
 import { api } from "../../api/client";
 import { formatCurrency, cn } from "../../lib/utils";
 import { todayMY } from "../../vendor/shared/format";
@@ -30,7 +32,10 @@ export function ProjectOverviewPage() {
   const today = todayMY();
   /* A new period drops the breakdown pick in the same URL write. */
   const [period, setPeriod] = useDashboardPeriod(today, "af_from", "af_to", [VIEW_PARAMS.pick]);
-  const q = useQuery<{ projects: OvProject[] }>("/api/projects/overview", () => api.get("/api/projects/overview"));
+  const q = useQuery<{ projects: OvProject[]; cachedAt?: string }>("/api/projects/overview", () => api.get("/api/projects/overview"));
+  /* Served from a copy up to 2 h old: say when, and offer figures computed now. */
+  const { refresh, refreshing } = useCacheRefresh();
+  const onRefresh = () => void refresh([{ queryKey: buildQueryKey("/api/projects/overview"), load: () => api.get(withFresh("/api/projects/overview")) }]);
   /* Every other choice lives in the URL too (owner 2026-10-21): Back keeps
      them, the menu link (no parameters) starts on the defaults — this month,
      Newest, no filter, the trend on this year by month (projectOverviewView.ts). */
@@ -122,12 +127,13 @@ export function ProjectOverviewPage() {
         <select className={SELECT_CLS} value={state} onChange={(e) => setView({ state: e.target.value })} aria-label="State"><option value="">All states</option>{options("state").map((b) => <option key={b}>{b}</option>)}</select>
         <select className={SELECT_CLS} value={stage} onChange={(e) => setView({ stage: e.target.value })} aria-label="Stage"><option value="">All stages</option>{options("stage").map((b) => <option key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1)}</option>)}</select>
         {q.loading && <span className="text-[11.5px] text-ink-muted">Loading…</span>}
+        {q.data && <CacheStamp cachedAt={q.data.cachedAt} onRefresh={onRefresh} refreshing={refreshing} />}
       </div>
       {q.error && <div className="rounded-md border border-err/40 bg-err/5 px-3 py-2 text-[12.5px] text-err">Could not load: {q.error}</div>}
 
       {/* The period's P&L, on the dark slab the home page uses for its hero. */}
       <section className="relative overflow-hidden rounded-2xl bg-sidebar px-5 py-5 text-sidebar-ink shadow-slab sm:px-7">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, rgba(27, 27, 57,0.6), transparent 70%)" }} />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, rgba(22,105,95,0.6), transparent 70%)" }} />
         <div className="relative">
           <div className="font-mono text-[10px] font-bold uppercase tracking-brand text-accent-bright">{period.label} · {t.projects} projects</div>
           <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">

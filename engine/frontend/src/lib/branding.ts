@@ -70,13 +70,16 @@ export interface Branding {
  *  email from-address). Mirrors the 0038_branding_config.sql seed row so the
  *  fetch returns the same values it falls back to. */
 export const DEFAULT_BRANDING: Branding = {
-  // Carres: blank until set in Settings > Branding, so nothing prints another company's details.
-  companyName: "Carres",
-  registrationNo: "",
-  address: "",
-  postcode: "",
-  phone: "",
-  email: "",
+  companyName: "Houzs Century Sdn Bhd",
+  registrationNo: "202201031135 (1476832-W)",
+  address:
+    "1831-B, Jalan KPB 1, Kawasan Perindustrian Balakong, 43300 Seri Kembangan, Selangor.",
+  // Mirrors migration 0142's backfill (extracted from the address above). The
+  // address still carries "43300", so composeCompanyAddress leaves the printed
+  // letterhead byte-identical — this only makes the structured value available.
+  postcode: "43300",
+  phone: "011-1110 8883",
+  email: "hello@houzscentury.com",
   website: "",
   logoR2Key: "",
   printLogoR2Key: "",

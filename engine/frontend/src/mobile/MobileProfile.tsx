@@ -9,7 +9,7 @@ import {
 /** Footer product label — HOUZS keeps the historic literal. */
 function appFooterLabel(): string {
   return getBrandingCompanyCode() === HOUZS_COMPANY_CODE
-    ? "Carres"
+    ? "Houzs ERP"
     : `${shortCompanyName(getBrandingCache().companyName)} ERP`;
 }
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -165,7 +165,7 @@ type MemberRow = {
 
 // A stable colour per person for the initial avatar (matches the design's
 // teal-family palette).
-const AVATAR_COLORS = ["#1B1B39", "#2f7d70", "#3d6b8a", "#8a6a3d", "#7a5c86", "#4d7a55"];
+const AVATAR_COLORS = ["#16695f", "#2f7d70", "#3d6b8a", "#8a6a3d", "#7a5c86", "#4d7a55"];
 const avatarColor = (seed: string): string => {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0xffff;
@@ -311,7 +311,7 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
     browserNotificationsEnabled && browserNotificationPermission === "granted";
 
   const doLogout = async () => {
-    if (await confirm({ title: "Log out?", confirmLabel: "Log out", danger: true })) {
+    if (await confirm({ title: "Log out of Houzs ERP?", confirmLabel: "Log out", danger: true })) {
       onLogout();
     }
   };
@@ -328,18 +328,18 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
       <header className="hdr">
         <div className="hdr-row">
           <div>
-            <div className="ey" style={{ color: "#D64F20" }}>Account</div>
+            <div className="ey" style={{ color: "#a16a2e" }}>Account</div>
             <div className="scr-title">Profile</div>
           </div>
           <button type="button" className="iconbtn" onClick={() => setScreen("personal")} aria-label="Personal details">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.4h5l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#414539" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 2.4h5l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z" /></svg>
           </button>
         </div>
       </header>
       <div className="scroll hz-scroll" style={{ padding: 14, paddingBottom: 120 }}>
         {/* Dark identity card */}
         <div style={{ position: "relative", overflow: "hidden", borderRadius: 18, background: "#15161a", padding: "20px 18px", boxShadow: "0 12px 32px -16px rgba(17,24,16,.45)" }}>
-          <div style={{ position: "absolute", right: -50, top: -60, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,rgba(27, 27, 57,.55),transparent 70%)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", right: -50, top: -60, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,rgba(22,105,95,.55),transparent 70%)", pointerEvents: "none" }} />
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 14 }}>
             {/* The photo, or initials when there isn't one. The circle is the
                 prototype's token either way; only the fill changes. The camera
@@ -352,7 +352,7 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
                 name={name}
                 email={user?.email}
                 size={58}
-                style={{ background: "#1B1B39", border: "2px solid rgba(216,168,90,.5)", color: "#D64F20" }}
+                style={{ background: "#16695f", border: "2px solid rgba(216,168,90,.5)", color: "#d8a85a" }}
               />
               <MobileAvatarEditor hasImage={user?.profile_pic_r2_key} onChanged={reload} />
             </div>
@@ -360,7 +360,7 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
               <div style={{ fontSize: 19, fontWeight: 800, color: "#fff", lineHeight: 1.15 }}>{name}</div>
               <div style={{ fontSize: 12.5, color: "rgba(231,234,228,.82)", marginTop: 3 }}>{roleLine}</div>
               {staffCode && (
-                <div className="money" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "#D64F20", marginTop: 6 }}>{"STAFF · " + staffCode}</div>
+                <div className="money" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "#d8a85a", marginTop: 6 }}>{"STAFF · " + staffCode}</div>
               )}
             </div>
           </div>
@@ -369,11 +369,11 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
         {/* Three stat tiles (all wired to real, self-scoped sources) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9, marginTop: 13 }}>
           <StatTile value={mtdOrders.toLocaleString("en-US")} label="Orders MTD" />
-          <StatTile value={mtdSales} label="Sales MTD" color="#D64F20" />
+          <StatTile value={mtdSales} label="Sales MTD" color="#a16a2e" />
           <StatTile value={openCases.toLocaleString("en-US")} label="Open cases" />
         </div>
 
-        <div className="ey" style={{ color: "#6B7280", margin: "18px 2px 9px" }}>Account</div>
+        <div className="ey" style={{ color: "#767b6e", margin: "18px 2px 9px" }}>Account</div>
         <div className="card" style={{ overflow: "hidden" }}>
           <Item icon="users" label="Personal details" onClick={() => setScreen("personal")} first />
           <Item icon="lock" label="Password & security" onClick={() => setScreen("security")} />
@@ -396,7 +396,7 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
             the SAME Item pattern (icon + label + chevron) as Account above. */}
         {onOpenOrg && (orgItems?.length ?? 0) > 0 && (
           <>
-            <div className="ey" style={{ color: "#6B7280", margin: "18px 2px 9px" }}>Organisation</div>
+            <div className="ey" style={{ color: "#767b6e", margin: "18px 2px 9px" }}>Organisation</div>
             <div className="card" style={{ overflow: "hidden" }}>
               {(orgItems ?? []).map((it, i) => (
                 <Item key={it.to} icon={orgIconOf(it.to)} label={it.label} onClick={() => onOpenOrg(it.to, it.label)} first={i === 0}
@@ -406,7 +406,7 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
           </>
         )}
 
-        <div className="ey" style={{ color: "#6B7280", margin: "18px 2px 9px" }}>App</div>
+        <div className="ey" style={{ color: "#767b6e", margin: "18px 2px 9px" }}>App</div>
         <div className="card" style={{ overflow: "hidden" }}>
           <Item icon="shield" label="Help & Support" onClick={() => setScreen("help")} first />
         </div>
@@ -422,9 +422,9 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
 // big tabular number, uppercase caption.
 function StatTile({ value, label, color }: { value: string; label: string; color?: string }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 12, padding: 13, textAlign: "center" }}>
-      <div className="tnum" style={{ fontSize: 24, fontWeight: 800, color: color ?? "#111827", lineHeight: 1 }}>{value}</div>
-      <div className="ey" style={{ color: "#6B7280", marginTop: 6 }}>{label}</div>
+    <div style={{ background: "#fff", border: "1px solid #d6d9d2", borderRadius: 12, padding: 13, textAlign: "center" }}>
+      <div className="tnum" style={{ fontSize: 24, fontWeight: 800, color: color ?? "#11140f", lineHeight: 1 }}>{value}</div>
+      <div className="ey" style={{ color: "#767b6e", marginTop: 6 }}>{label}</div>
     </div>
   );
 }
@@ -465,12 +465,12 @@ function Item({ icon, label, right, onClick, first, badge }: { icon: keyof typeo
     <button
       type="button"
       onClick={onClick}
-      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "none", border: "none", borderTop: first ? "none" : "1px solid #EEF0F3", padding: "12px 13px", cursor: "pointer", fontFamily: "inherit" }}
+      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "none", border: "none", borderTop: first ? "none" : "1px solid #e3e6e0", padding: "12px 13px", cursor: "pointer", fontFamily: "inherit" }}
     >
-      <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#F8F9FA", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B1B39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{ROW_ICONS[icon]}</svg>
+      <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#f4f6f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16695f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{ROW_ICONS[icon]}</svg>
       </span>
-      <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#111827" }}>{label}</span>
+      <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: "#11140f" }}>{label}</span>
       {/* Unread count pill — notification-style. Only rendered when > 0. */}
       {badge != null && badge > 0 && (
         <span style={{ flex: "none", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: "#c0392b", color: "#fff", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>
@@ -816,7 +816,7 @@ function LanguageScreen({ onBack }: { onBack: () => void }) {
               style={{
                 display: "flex", alignItems: "center", gap: 12, width: "100%",
                 padding: "14px 14px", background: "none", border: "none",
-                borderTop: i === 0 ? "none" : "1px solid #EEF0F3",
+                borderTop: i === 0 ? "none" : "1px solid #e3e6e0",
                 fontFamily: "inherit", textAlign: "left", cursor: "pointer",
               }}
             >
@@ -867,7 +867,7 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
           href="mailto:operation@houzscentury.com"
           style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "1px solid var(--line)", borderRadius: 13, padding: "13px 14px", textDecoration: "none" }}
         >
-          <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#DCE6FD", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#e1efed", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
           </span>
           <span style={{ flex: 1 }}>
@@ -881,7 +881,7 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
           style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "1px solid var(--line)", borderRadius: 13, padding: "13px 14px", textDecoration: "none" }}
         >
           <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#f3ece0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#D64F20" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.5a16 16 0 0 0 6 6l1.1-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2Z" /></svg>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#a16a2e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.5a16 16 0 0 0 6 6l1.1-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2Z" /></svg>
           </span>
           <span style={{ flex: 1 }}>
             <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>Call operations</span>
@@ -896,7 +896,7 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
         {["Creating a Sales Order", "Scanning order slips (OCR)", "Logging a service case"].map((g, i) => (
           <div
             key={g}
-            style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "12px 13px", borderTop: i === 0 ? "none" : "1px solid #EEF0F3" }}
+            style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", padding: "12px 13px", borderTop: i === 0 ? "none" : "1px solid #e3e6e0" }}
           >
             <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{g}</span>
             <span style={{ color: "#c2c6bd" }}>{"›"}</span>

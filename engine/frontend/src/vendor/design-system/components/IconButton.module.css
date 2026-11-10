@@ -1,15 +1,15 @@
 /* IconButton — Plan B "Soft Card" (design handoff 2026-07-10).
    White card + hairline border, radius 10; hover turns the border petrol,
    lifts 1px and casts a petrol glow; active settles back. Colors are Theme C
-   tokens only (petrol = --c-orange #1B1B39). */
+   tokens only (petrol = --c-orange #16695f). */
 
 .iconButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--c-beige);              /* #EEF0F3 hairline */
+  border: 1px solid var(--c-beige);              /* #e3e6e0 hairline */
   background: var(--c-cream);                    /* #fff */
-  color: var(--c-ink);                           /* #111827 */
+  color: var(--c-ink);                           /* #11140f */
   border-radius: 10px;
   box-shadow: 0 1px 1px rgba(17, 20, 15, 0.04);
   cursor: pointer;
@@ -27,7 +27,7 @@
 .iconButton:hover:not(:disabled) {
   border-color: var(--c-orange);
   color: var(--c-orange);
-  box-shadow: 0 2px 8px rgba(27, 27, 57, 0.18);
+  box-shadow: 0 2px 8px rgba(22, 105, 95, 0.18);
   transform: translateY(-1px);
 }
 /* active: settle back */
@@ -51,19 +51,19 @@
   background: var(--c-orange);
   border-color: var(--c-orange);
   color: var(--fg-on-orange);
-  box-shadow: 0 1px 3px rgba(27, 27, 57, 0.35);
+  box-shadow: 0 1px 3px rgba(22, 105, 95, 0.35);
 }
 .variant-primary:hover:not(:disabled) {
-  background: var(--c-burnt);                    /* petrol-deep #2F55E0 */
+  background: var(--c-burnt);                    /* petrol-deep #0c3f39 */
   border-color: var(--c-burnt);
   color: var(--fg-on-orange);
-  box-shadow: 0 3px 10px rgba(27, 27, 57, 0.3);
+  box-shadow: 0 3px 10px rgba(22, 105, 95, 0.3);
   transform: translateY(-1px);
 }
 
 /* secondary: low-emphasis, paper background */
 .variant-secondary {
-  background: var(--c-paper);                    /* #F8F9FA */
+  background: var(--c-paper);                    /* #f4f6f3 */
   border-color: transparent;
   color: var(--fg-muted);                        /* Theme C ink-muted */
 }
@@ -71,7 +71,7 @@
   background: var(--c-orange);
   border-color: var(--c-orange);
   color: var(--fg-on-orange);
-  box-shadow: 0 2px 8px rgba(27, 27, 57, 0.18);
+  box-shadow: 0 2px 8px rgba(22, 105, 95, 0.18);
   transform: translateY(-1px);
 }
 

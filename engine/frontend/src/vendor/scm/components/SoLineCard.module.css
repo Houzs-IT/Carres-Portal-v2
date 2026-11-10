@@ -119,12 +119,12 @@
   font-weight: 500;
   color: var(--c-burnt);
   background: color-mix(in srgb, var(--c-accent-soft, #f5ecd8) 55%, var(--c-paper));
-  border-color: color-mix(in srgb, var(--c-orange, #D64F20) 45%, var(--line));
+  border-color: color-mix(in srgb, var(--c-orange, #a16a2e) 45%, var(--line));
   box-shadow: inset 0 0 0 1px rgba(161, 106, 46, 0.14);
 }
 
 .priceInput:focus {
-  border-color: var(--c-orange, #D64F20);
+  border-color: var(--c-orange, #a16a2e);
   background: var(--c-cream);
   box-shadow:
     inset 0 0 0 1px rgba(161, 106, 46, 0.35),

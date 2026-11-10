@@ -17,27 +17,27 @@ type Tab = 'cost' | 'selling' | 'supplier';
 
 const H3: React.CSSProperties = {
   fontSize: 'var(--fs-12)', fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.06em', color: '#6B7280', marginBottom: 'var(--space-2)',
+  letterSpacing: '0.06em', color: '#767b6e', marginBottom: 'var(--space-2)',
 };
-const muted: React.CSSProperties = { color: '#6B7280', fontSize: 'var(--fs-13)' };
-const dateStyle: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-11)', color: '#6B7280' };
+const muted: React.CSSProperties = { color: '#767b6e', fontSize: 'var(--fs-13)' };
+const dateStyle: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-11)', color: '#767b6e' };
 
 function tabButton(active: boolean): React.CSSProperties {
   return {
     fontSize: 'var(--fs-12)', fontWeight: 600, cursor: 'pointer',
     borderRadius: 'var(--radius-sm)', padding: '4px 10px',
-    border: `1px solid ${active ? '#1B1B39' : '#c2c6bd'}`,
-    background: active ? '#1B1B39' : '#fff',
+    border: `1px solid ${active ? '#16695f' : '#c2c6bd'}`,
+    background: active ? '#16695f' : '#fff',
     color: active ? '#fff' : '#3a3f36',
   };
 }
 
 function Row({ date, main, meta }: { date: string; main: ReactNode; meta?: ReactNode }) {
   return (
-    <div style={{ padding: '8px 0', borderBottom: '1px solid #EEF0F3' }}>
+    <div style={{ padding: '8px 0', borderBottom: '1px solid #e3e6e0' }}>
       <div style={dateStyle}>{date}</div>
       <div style={{ fontSize: 'var(--fs-13)', color: '#2b2f28', marginTop: 1 }}>{main}</div>
-      {meta != null && <div style={{ fontSize: 'var(--fs-12)', color: '#6B7280', marginTop: 1 }}>{meta}</div>}
+      {meta != null && <div style={{ fontSize: 'var(--fs-12)', color: '#767b6e', marginTop: 1 }}>{meta}</div>}
     </div>
   );
 }

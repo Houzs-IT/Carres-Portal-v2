@@ -18,7 +18,7 @@ const cn = (over: Partial<CreditNote>): CreditNote => ({
 const odn: ArListRow = {
   kind: 'ODB', docKind: 'DN', id: 'b7', invoiceNumber: 'HC-ODN-2611-001', partyKey: 'D:d2', partyCode: null, partyName: 'OLD DEBTOR', debtorId: 'd2',
   ref: null, description: 'Damaged booth', invoiceDate: '2026-11-01', dueDate: null, currency: 'MYR', totalSen: 10_000, paidSen: 0,
-  depositAppliedSen: 0, outstandingSen: 10_000, status: 'POSTED',
+  depositAppliedSen: 0, creditNotesSen: 0, outstandingSen: 10_000, status: 'POSTED',
 };
 
 describe('a note as a row', () => {
@@ -56,6 +56,12 @@ describe('segments, chips, search, order, the URL', () => {
     expect([inNoteChip(x, 'any'), inNoteChip(x, 'draft'), inNoteChip(x, 'posted')]).toEqual([true, true, false]);
     for (const q of ['cn-2611', 'tan mei', 'so-2611-004', 'scratched', '150.00']) expect(matchesNote(x, q), q).toBe(true);
     expect(matchesNote(x, 'nothing like it')).toBe(false);
+  });
+
+  test('the search finds an other debtor’s note by the debtor’s account code, a credit note and a debit note alike', () => {
+    expect(matchesNote(noteItem(cn({ kind: 'OCN', party_code: null, debtor_code: '305-E003' })), '305-e003')).toBe(true);
+    expect(matchesNote(debitBillItem({ ...odn, partyCode: '305-O001' }), '305-o001')).toBe(true);
+    expect(matchesNote(debitBillItem(odn), '305-o001')).toBe(false);
   });
 
   test('newest first; the URL’s kind and status read back, junk to the defaults', () => {

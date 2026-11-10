@@ -1,13 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { NAV_TABS, type NavTab } from './Sidebar';
 import { ACCOUNTING_TABS } from '../pages/scm-v2/accounting-tabs';
 import { STAFF_LEGACY_REDIRECT_PATTERNS } from '../routing/routeManifest';
-
-// Carres: these pin Houzs's whole menu and its gates; the Carres trim is tested in carres/navOnly.test.ts.
-vi.mock('./Sidebar', async (importOriginal) => {
-  const m = await importOriginal<typeof import('./Sidebar')>();
-  return { ...m, NAV_TABS: m.ALL_NAV_TABS };
-});
 
 /**
  * THE FINANCE SIDEBAR IS GROUPED BY THE JOB, NOT A FLAT LIST (docs/bugs/0824).

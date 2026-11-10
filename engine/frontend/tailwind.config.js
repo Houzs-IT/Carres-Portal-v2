@@ -16,49 +16,49 @@ export default {
         // (logo, eyebrows, doc numbers, soft backgrounds).
 
         // ── Canvas ─────────────────────────────────────────
-        bg: "#F6F7F9", // Carres ground (apps/web carres-tokens.css), as every colour below
+        bg: "#eef0ec",
         surface: "#ffffff",
-        "surface-2": "#F8F9FA", // table headers, nested/inset surfaces, search fields
-        "surface-dim": "#EEF0F3",
+        "surface-2": "#f4f6f3", // table headers, nested/inset surfaces, search fields
+        "surface-dim": "#e3e6e0",
 
         border: {
-          DEFAULT: "#E5E7EB",
-          subtle: "#F1F2F4",
-          strong: "#D5D9DE",
+          DEFAULT: "#d6d9d2",
+          subtle: "#e3e6e0",
+          strong: "#c2c6bd",
         },
 
         // ── Ink ────────────────────────────────────────────
         ink: {
-          DEFAULT: "#111827",
-          secondary: "#4B5563",
-          muted: "#6B7280",
+          DEFAULT: "#11140f",
+          secondary: "#414539",
+          muted: "#767b6e",
         },
 
         // ── Primary (petrol/teal) — NEW functional accent ──
         primary: {
-          DEFAULT: "#1B1B39", // Carres main button
-          soft: "#DCE6FD", // Carres selection // selected-row bg, soft chips, month-P&L card
-          ink: "#2F55E0", // text on primary-soft (Carres selection)
+          DEFAULT: "#16695f",
+          soft: "#e1efed", // selected-row bg, soft chips, month-P&L card
+          ink: "#0c3f39", // text on primary-soft
         },
 
         // ── Brass accent (brand only — not primary CTAs) ───
         accent: {
-          DEFAULT: "#D64F20", // Carres brand orange
-          soft: "#FBEDE7",
-          bright: "#2F55E0", // gold for text on dark sidebar/headers
-          hover: "#BC4319",
-          ink: "#7A2E12",
+          DEFAULT: "#a16a2e",
+          soft: "#f3ece0",
+          bright: "#d8a85a", // gold for text on dark sidebar/headers
+          hover: "#8a5a26",
+          ink: "#5a3a14",
         },
 
         // ── Sidebar palette (dark ink-green slab) ──────────
         sidebar: {
-          DEFAULT: "#FFFFFF", // Carres light menu
-          ink: "#1F2937",
-          "ink-muted": "#5C6168",
-          "ink-soft": "#6B7280",
-          border: "#E5E7EB",
-          hover: "#EDEFF2",
-          active: "#DCE6FD",
+          DEFAULT: "#13201c",
+          ink: "#e7eae4",
+          "ink-muted": "#8c968a",
+          "ink-soft": "#6f786d",
+          border: "rgba(231,234,228,0.12)",
+          hover: "rgba(231,234,228,0.06)",
+          active: "rgba(22,105,95,0.22)", // petrol 22%
         },
 
         // ── Semantic ───────────────────────────────────────
@@ -87,12 +87,12 @@ export default {
         // 一字体". So the whole surface is one face again, and the 7-24 note is
         // kept rather than deleted because it explains what this replaced.
         //
-        // font-extrabold (800) is covered: public/fonts/fonts-v2.css declares
+        // font-extrabold (800) is covered: public/fonts/fonts-v3.css (was -v2) declares
         // an 800 face over the same 400-700 variable file, so 88 heading sites
         // clamp to real 700 outlines instead of synthesising. The -v2 name is
         // load-bearing — /fonts/* is immutable-cached for a year, so the sheet
         // had to be renamed for the fix to reach existing users at all.
-        body: ['"Inter"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+        body: ['"IBM Plex Sans"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
         // Nick 2026-07-09 "整个系统页面都要 C 字体": Ink & Petrol admin
         // rhythm wants sans titles, not display serif. Point `font-display`
         // at the same IBM Plex Sans stack as body so every V2 list / detail

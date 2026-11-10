@@ -63,10 +63,12 @@ import {
 // the intake sheet another branch is editing stays untouched.
 import {
   ASSR_ISSUE_CATEGORIES as ISSUE_CATEGORY_OPTIONS,
+  missingCaseFields,
   ASSR_NOTE_AUDIENCES, assrOrderPoText,
   type AssrNoteAudience as NoteAudience,
 } from "../vendor/scm/lib/assr/case-fields";
 import "./mobile.css";
+import { FormTouchScope, useFormGuard } from "../hooks/useLeaveGuard";
 
 // The core /api/assr route (NOT scm). The list returns
 // { data, page, per_page, total } with assr_cases.* columns; the detail
@@ -86,12 +88,12 @@ import "./mobile.css";
 // fields live inside Under Verification.
 
 // ── Theme C colour tokens (design SC_T) ───────────────────────────
-const INK = "#111827";
+const INK = "#11140f";
 const INK_SEC = "#3f463a";
-const MUTED = "#6B7280";
-const TEAL = "#1B1B39";
-const TEAL_DK = "#2F55E0";
-const BROWN = "#D64F20";
+const MUTED = "#767b6e";
+const TEAL = "#16695f";
+const TEAL_DK = "#0c3f39";
+const BROWN = "#a16a2e";
 const BROWN_SOFT = "#f6efd9";
 const BROWN_FG = "#8a6a2e";
 const GREEN = "#2f8a5b";
@@ -102,10 +104,10 @@ const RED = "#b23a3a";
 const ERR_BG = "rgba(178,58,58,0.08)";
 const GREY = "#9aa093";
 const BLUE = "#1F3A8A";
-const LINE = "#E5E7EB";
+const LINE = "#d6d9d2";
 const LINE_SOFT = "rgba(34,31,32,0.10)";
-const DIM = "#EEF0F3";
-const FIELD_BG = "#F8F9FA";
+const DIM = "#e3e6e0";
+const FIELD_BG = "#f4f6f3";
 
 // Ordered stage pipeline + the resolution-routing rule now live in the SHARED
 // vendor/scm/lib/assr/stages module so desktop + mobile can't drift on them
@@ -254,7 +256,6 @@ function useAssignableUsers(): PicUser[] {
   });
   return Array.isArray(data) ? data : [];
 }
-
 
 /** Mobile Service Case (ASSR) — Status Cards list + tabbed detail
  *  (Overview / Stage / Info / Timeline) + new-case sheet, all wired to
@@ -757,7 +758,6 @@ function CaseDetail({ id, onBack }: { id: number; onBack: () => void }) {
     runWrite(async () => {
       await api.patch(`/api/assr/${id}`, body);
     }, failTitle);
-
 
   const addNote = useMutation({
     mutationFn: (payload: { note: string; category: NoteAudience }) =>
@@ -1540,7 +1540,7 @@ function CaseDetail({ id, onBack }: { id: number; onBack: () => void }) {
                           <a
                             href={`tel:${String(get(c, "phone", "customerPhone", "customer_phone")).replace(/[^+\d]/g, "")}`}
                             aria-label="Call customer"
-                            style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#DCE6FD", color: TEAL_DK, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                            style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "#e1efed", color: TEAL_DK, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
                           >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11 11 0 0 0 3.4.55 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11 11 0 0 0 .55 3.4 1 1 0 0 1-.24 1Z" /></svg>
                           </a>
@@ -1552,7 +1552,7 @@ function CaseDetail({ id, onBack }: { id: number; onBack: () => void }) {
                           {[get(c, "addr1"), get(c, "addr2"), get(c, "addr3"), get(c, "addr4")].filter(Boolean).join(", ") || "—"}
                         </div>
                         {get(c, "location", "customerState", "customer_state") && (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, fontWeight: 600, color: TEAL_DK, background: "#DCE6FD", borderRadius: 7, padding: "4px 10px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, fontWeight: 600, color: TEAL_DK, background: "#e1efed", borderRadius: 7, padding: "4px 10px" }}>
                             {String(get(c, "location", "customerState", "customer_state"))}
                           </span>
                         )}
@@ -1975,6 +1975,7 @@ function CloseCaseSheet({ busy, onClose, onConfirm }: {
 // supplier are resolved server-side from the SO. The design shows a
 // "SO # / reference / customer" lookup + item; we keep both fields wired.
 function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: number) => void }) {
+  const { markTouched, allowLeave, guardedBack: guardedClose } = useFormGuard(onClose);
   const qc = useQueryClient();
   const notify = useNotify();
   // Lookups sourced the SAME way desktop CreatePanel does — from
@@ -2157,7 +2158,7 @@ function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: n
       // detail page and taps back, or returns to the list directly.
       qc.invalidateQueries({ queryKey: ["mobile-assr-list-paged"], refetchType: "all" });
       const id = Number(get(res ?? {}, "id"));
-      onClose();
+      allowLeave(); onClose();
       if (id) onOpen(id);
     },
     onError: async (e: any) => {
@@ -2172,13 +2173,10 @@ function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: n
     },
   });
 
-  // Issue category is REQUIRED (owner ruling 2026-07-19): the field already
-  // carries a "*" marker, so the submit gate must actually block on it — same
-  // greyed-out disabled Create button the other required fields use.
-  //
-  // Items MAY be empty (owner 2026-07-22) — driver-damaged floor, lorry
-  // problem etc. don't tie to a specific product. Dropped from the gate.
-  const valid = docNo.trim() && complaint.trim() && complainedDate.trim() && category.trim();
+  // Issue category is required (owner ruling 2026-07-19). Items may be empty (owner
+  // 2026-07-22): a damaged floor or a lorry problem ties to no product.
+  const missing = missingCaseFields([["order or customer", docNo], ["issue description", complaint], ["issue category", category], ["complaint date", complainedDate]]);
+  const valid = missing.length === 0;
 
   // FIXED + z-index 40 (the .sheet-bd pattern) — NOT absolute/z20. When
   // Service is the active TAB this sheet renders inside the tab-content
@@ -2187,7 +2185,7 @@ function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: n
   // Create button entirely (owner: "no way to create"). Fixed + 40 lifts
   // the whole sheet above the tab bar, exactly like the Menu sheet.
   return (
-    <div className="hz-m" style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(17,20,15,.4)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={onClose}>
+    <FormTouchScope onTouch={markTouched}><div className="hz-m" style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(17,20,15,.4)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={guardedClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--app-bg)", borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: "92%", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }}>
         {/* header (.hdr) — design: eyebrow "Document" + title, top-right × close */}
         <header className="hdr" style={{ borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
@@ -2196,7 +2194,7 @@ function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: n
               <div className="eyebrow">Document</div>
               <div className="scr-title" style={{ marginTop: 2 }}>New Service Case</div>
             </div>
-            <span onClick={onClose} role="button" aria-label="Close" style={{ fontSize: 24, color: MUTED, cursor: "pointer", lineHeight: 1 }}>×</span>
+            <span onClick={guardedClose} role="button" aria-label="Close" style={{ fontSize: 24, color: MUTED, cursor: "pointer", lineHeight: 1 }}>×</span>
           </div>
         </header>
 
@@ -2473,6 +2471,7 @@ function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: n
 
         {/* actbar (.actbar / .btn) */}
         <footer className="actbar">
+          {!valid && <div role="status" style={{ fontSize: 12, color: "var(--red)", marginBottom: 6 }}>Still needed: {missing.join(", ")}</div>}
           <button
             onClick={() => valid && create.mutate()}
             disabled={!valid || create.isPending}
@@ -2487,7 +2486,7 @@ function NewCaseSheet({ onClose, onOpen }: { onClose: () => void; onOpen: (id: n
           </button>
         </footer>
       </div>
-    </div>
+    </div></FormTouchScope>
   );
 }
 

@@ -61,7 +61,7 @@ describe("BUG-111 letterhead follows the tab's company", () => {
 
   test("printing fetches the active company's letterhead while the cache still holds the hostname company's", async () => {
     setActiveCompanyId(2);
-    expect(getBrandingCache().companyName).toBe(DEFAULT_BRANDING.companyName);
+    expect(getBrandingCache().companyName).toBe("Houzs Century Sdn Bhd");
 
     await ensureBrandingForActiveCompany();
 
@@ -73,6 +73,6 @@ describe("BUG-111 letterhead follows the tab's company", () => {
     apiGet.mockRejectedValue(new Error("network down"));
 
     await expect(ensureBrandingForActiveCompany()).rejects.toThrow(/letterhead/i);
-    expect(getBrandingCache().companyName).toBe(DEFAULT_BRANDING.companyName);
+    expect(getBrandingCache().companyName).toBe("Houzs Century Sdn Bhd");
   });
 });

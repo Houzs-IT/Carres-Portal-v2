@@ -126,7 +126,7 @@ export const ArInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
      debtor off the registry, so `?debtor=` always names one. */
   const partyOptions = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const d of debtorsQ.data?.debtors ?? []) if (d.is_active) seen.set(`D:${d.id}`, d.name);
+    for (const d of debtorsQ.data?.debtors ?? []) if (d.is_active) seen.set(`D:${d.id}`, d.code ? `${d.code} · ${d.name}` : d.name);
     for (const x of items) if (x.partyKey && x.billTo !== '—') seen.set(x.partyKey, x.ar?.partyCode ? `${x.ar.partyCode} · ${x.billTo}` : x.billTo);
     return [{ value: '', label: 'All customers and debtors' }, ...[...seen].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))];
   }, [debtorsQ.data, items]);
@@ -285,6 +285,18 @@ export const ArInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
       render: (x) => (x.cancelled ? <span className={ui.muted}>—</span> : <span className={ui.money}>{fmtSen(x.totalSen)}</span>),
       getValue: (x) => x.totalSen, exportValue: (x) => x.totalSen / 100, exportFormat: 'money',
       total: (rows) => fmtSen(rows.filter((x) => !x.cancelled).reduce((s, x) => s + x.totalSen, 0)),
+    },
+    {
+      /* What customers' credit notes knocked off a sales invoice (owner 2026-11-03:
+         「要」) — kept apart from what was paid; a bill's own credit notes sit in
+         what it received. */
+      key: 'creditNotes', label: 'Credit notes', align: 'right',
+      render: (x) => (x.kind === 'si' && !x.cancelled && (x.ar?.creditNotesSen ?? 0) > 0
+        ? <span className={ui.money}>{fmtSen(x.ar!.creditNotesSen)}</span>
+        : <span className={ui.muted}>—</span>),
+      getValue: (x) => (x.kind === 'si' ? x.ar?.creditNotesSen ?? 0 : null),
+      exportValue: (x) => (x.kind === 'si' ? (x.ar?.creditNotesSen ?? 0) / 100 : null), exportFormat: 'money',
+      total: (rows) => fmtSen(rows.reduce((s, x) => s + (x.kind === 'si' && !x.cancelled ? x.ar?.creditNotesSen ?? 0 : 0), 0)),
     },
     {
       key: 'outstanding', label: 'Outstanding', align: 'right',

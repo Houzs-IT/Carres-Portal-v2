@@ -11,7 +11,7 @@ import { SearchScopeHint } from "../components/SearchScopeHint";
 import { useSearchResultTransition } from "../hooks/useServerSearch";
 import { booleanPreference, useIdentityPreference } from "../hooks/useIdentityPreference";
 import { useAuth } from "../auth/AuthContext";
-import { isSalesNonDirector, isSalesDirectorUser, canLogSalesEntry, canCreateEvent } from "../auth/salesAccess";
+import { isSalesNonDirector, isSalesDirectorUser, canLogSalesEntry, canCreateEvent, quickActionAccess } from "../auth/salesAccess";
 import { NewProjectSheet } from "./MobileNewProject";
 import { capability } from "../auth/capabilities";
 import { roleLabelAdmitsRole } from "../auth/roleLabelAdmits";
@@ -41,7 +41,9 @@ import { floorPlanTileVisible } from "./MobilePmsFloorPlanTiles";
 import { MobilePmsSalesOrders } from "./MobilePmsSalesOrders";
 import { MobilePmsPosSales, useMobileProjectPosSales } from "./MobilePmsPosSales";
 import { MobilePmsSalesBills, useMobileProjectSalesBills, type MobileProjectSalesBillsQuery } from "./MobilePmsSalesBills";
+import { MobileProjectChat, MOBILE_PROJECT_CHAT_ID } from "./MobileProjectChat";
 import { fmtRmSen, notOpenedByRepId } from "../lib/projectSalesBills";
+import { saleAmountRm, validateSaleAmount } from "./saleAmount";
 import { SoloSafeName, useCanSeeSoloOrganizer, isSoloMasked, shownProjectName } from "../pages/projects/SoloSafeName";
 import type { EventPnl } from "../pages/projects/types";
 
@@ -334,20 +336,53 @@ const STAGE_TO_INDEX: Record<string, number> = {
 };
 
 // ── Component ──
-export function MobilePMS({ onBack, initialProjectId }: { onBack?: () => void; initialProjectId?: number }) {
+export function MobilePMS({
+  onBack,
+  initialProjectId,
+  onCreateSO,
+  onCreateCase,
+}: {
+  onBack?: () => void;
+  initialProjectId?: number;
+  /** Owner 2026-11-09 "letak balik button tu": the + speed-dial on the project
+   *  detail reuses these from MobileApp so New Sales Order and New Service Case
+   *  reach the same screens the Orders-tab FAB opens — one setScreen path per
+   *  action, not a duplicated navigation surface. */
+  onCreateSO?: () => void;
+  onCreateCase?: () => void;
+}) {
   const [openId, setOpenId] = useState<number | null>(initialProjectId ?? null);
   // When entered straight into a detail (e.g. tapped from the Calendar), Back
   // leaves PMS entirely; once the user visits the list, Back returns to it.
   const [direct, setDirect] = useState<boolean>(initialProjectId != null);
+  // Lifted from ProjectListView so the + FAB inside ProjectDetailView can open
+  // the New Project sheet after it closes itself back to the list.
+  const [creating, setCreating] = useState(false);
 
   // Peter 2026-10-14: the list screen unmounts while a detail is open, so its
   // scroll position died with it — remember it here and restore on return.
   const listScroll = useRef(0);
 
   if (openId != null) {
-    return <ProjectDetailView id={openId} onBack={() => (direct ? onBack?.() : setOpenId(null))} />;
+    return (
+      <ProjectDetailView
+        id={openId}
+        onBack={() => (direct ? onBack?.() : setOpenId(null))}
+        onCreateSO={onCreateSO ?? null}
+        onCreateCase={onCreateCase ?? null}
+        onCreateProject={() => { setOpenId(null); setDirect(false); setCreating(true); }}
+      />
+    );
   }
-  return <ProjectListView onOpen={(id) => { setDirect(false); setOpenId(id); }} onBack={onBack} scrollMemory={listScroll} />;
+  return (
+    <ProjectListView
+      onOpen={(id) => { setDirect(false); setOpenId(id); }}
+      onBack={onBack}
+      scrollMemory={listScroll}
+      creating={creating}
+      setCreating={setCreating}
+    />
+  );
 }
 
 // ── List ──
@@ -368,10 +403,10 @@ const stageVariant = pmsStageVariant;
 // the screen (amber = open, green/teal = in-progress, grey = neutral/closed,
 // clay-red = error). bg/fg pairs match the ListChip tints.
 const STAGE_TINT: Record<StageVariant, { bg: string; fg: string }> = {
-  neutral: { bg: "#F6F7F9", fg: "#6B7280" },
+  neutral: { bg: "#eef0ec", fg: "#767b6e" },
   open: { bg: "#f6efd9", fg: "#6e4d12" },
   "in-progress": { bg: "#e2f0e9", fg: "#2f8a5b" },
-  closed: { bg: "#F6F7F9", fg: "#6B7280" },
+  closed: { bg: "#eef0ec", fg: "#767b6e" },
   error: { bg: "#f7e7e5", fg: "#a13a34" },
 };
 
@@ -387,7 +422,21 @@ const STAGE_FILTERS: [string, string][] = [
 
 const PMS_PAGE_SIZE = 30;
 
-function ProjectListView({ onOpen, onBack, scrollMemory }: { onOpen: (id: number) => void; onBack?: () => void; scrollMemory?: { current: number } }) {
+function ProjectListView({
+  onOpen,
+  onBack,
+  scrollMemory,
+  creating,
+  setCreating,
+}: {
+  onOpen: (id: number) => void;
+  onBack?: () => void;
+  scrollMemory?: { current: number };
+  /** Lifted up to MobilePMS so the project-detail + FAB can trigger "New
+   *  Project" by closing itself and setting this flag. */
+  creating: boolean;
+  setCreating: (v: boolean) => void;
+}) {
   const { can, user } = useAuth();
   // Owner 2026-07-21: the sales cohort's list rows show progress over THEIR
   // OWN deliverables (SALES PIC tasks) — the admin section chip ("CONTRACT
@@ -411,7 +460,8 @@ function ProjectListView({ onOpen, onBack, scrollMemory }: { onOpen: (id: number
   // daily reminder can arm the same filter on either shell.
   const [myPendingOn, setMyPendingOn] = useIdentityPreference("projects:myPending", false, booleanPreference);
   // New-event sheet (owner 2026-07-31), gated by canCreateEvent below.
-  const [creating, setCreating] = useState(false);
+  // `creating`/`setCreating` now come from MobilePMS so the detail-view + FAB
+  // can open it after closing itself back to the list.
   const notify = useNotify();
   // Owner 2026-07-21: field/sales roles (Sales Executive/Manager except Sales
   // Director, plus Driver/Helper/Storekeeper) get a slimmed filter bar — only
@@ -574,7 +624,7 @@ function ProjectListView({ onOpen, onBack, scrollMemory }: { onOpen: (id: number
             <button
               onClick={() => { if (tickOnly) setAssignedOnly(!showAssigned); }}
               className={myEventsOn ? "chip on" : "chip"}
-              style={myEventsOn ? undefined : { borderColor: "#bcdcd7", color: "#1B1B39" }}
+              style={myEventsOn ? undefined : { borderColor: "#bcdcd7", color: "#16695f" }}
             >
               My events
             </button>
@@ -648,7 +698,7 @@ function ProjectListView({ onOpen, onBack, scrollMemory }: { onOpen: (id: number
                     {!!(r as any).my_pending_titles && (
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                         {String((r as any).my_pending_titles).split("|").map((t: string) => (
-                          <span key={t} className="rbadge" style={{ background: "#fdf1e3", color: "#D64F20" }}>
+                          <span key={t} className="rbadge" style={{ background: "#fdf1e3", color: "#a16a2e" }}>
                             ⏳ {t}
                           </span>
                         ))}
@@ -656,7 +706,7 @@ function ProjectListView({ onOpen, onBack, scrollMemory }: { onOpen: (id: number
                     )}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f1ed" }}>
                       <span className="tnum" style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--mut)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {dates}{r.pic_name ? <> · PIC <b style={{ color: "#4B5563" }}>{r.pic_name}</b></> : ""}
+                        {dates}{r.pic_name ? <> · PIC <b style={{ color: "#414539" }}>{r.pic_name}</b></> : ""}
                       </span>
                       {salesList
                         ? (r.sales_tasks_total ?? 0) > 0 && (
@@ -702,7 +752,25 @@ function ProjectListView({ onOpen, onBack, scrollMemory }: { onOpen: (id: number
 }
 
 // ── Detail ──
-function ProjectDetailView({ id, onBack }: { id: number; onBack: () => void }) {
+function ProjectDetailView({
+  id,
+  onBack,
+  onCreateSO,
+  onCreateCase,
+  onCreateProject,
+}: {
+  id: number;
+  onBack: () => void;
+  /** Owner 2026-11-09: the right-bottom + FAB on the project detail — a mobile
+   *  mirror of the desktop QuickActionsFAB. These callbacks reach into
+   *  MobileApp's setScreen (SO, Service) and MobilePMS's own list flag
+   *  (Project), so a tap routes to the SAME create screens the rest of the
+   *  phone already uses. Each is a required null when absent so the gate check
+   *  has only one shape to read. */
+  onCreateSO: (() => void) | null;
+  onCreateCase: (() => void) | null;
+  onCreateProject: (() => void) | null;
+}) {
   const { pageAccess, can, user } = useAuth();
   // NOTE: the old `canSeeFinance = pageAccess("projects.finances") !== "none"`
   // is gone. It was only ever the FALLBACK arm of the finance gate, and it
@@ -717,6 +785,22 @@ function ProjectDetailView({ id, onBack }: { id: number; onBack: () => void }) {
   const canWrite = can("projects.write");
   const canManage = can("projects.manage");
   const canTick = canWrite || can("projects.checklist.tick");
+
+  // Owner 2026-11-09 "letak balik button tu": the + speed-dial on project
+  // detail — same three actions as the desktop QuickActionsFAB (New Sales
+  // Order / New Service Case / New Project), filtered by the same three
+  // gates (quickActionAccess + canCreateEvent). Hidden entirely when nothing
+  // is eligible so a view-only cohort doesn't see a dead "+".
+  const { canNewSo, canNewCase } = quickActionAccess(user, can, pageAccess);
+  const canNewProject = canCreateEvent(user);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const quickActions = useMemo(() => {
+    const list: Array<{ key: "so" | "case" | "project"; label: string; onClick: () => void }> = [];
+    if (canNewSo && onCreateSO) list.push({ key: "so", label: "New Sales Order", onClick: onCreateSO });
+    if (canNewCase && onCreateCase) list.push({ key: "case", label: "New Service Case", onClick: onCreateCase });
+    if (canNewProject && onCreateProject) list.push({ key: "project", label: "New Project", onClick: onCreateProject });
+    return list;
+  }, [canNewSo, canNewCase, canNewProject, onCreateSO, onCreateCase, onCreateProject]);
 
   const qc = useQueryClient();
   const confirm = useConfirm();
@@ -1114,7 +1198,7 @@ function ProjectDetailView({ id, onBack }: { id: number; onBack: () => void }) {
     <div className="hz-m" style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--app-bg)" }}>
       <header className="hdr" style={{ background: "var(--ink-dark)", borderBottom: "none" }}>
         <div className="hdr-row" style={{ marginBottom: 10, gap: 7 }}>
-          <button className="back" onClick={onBack} aria-label="Back to list" style={{ color: "#D64F20" }}>
+          <button className="back" onClick={onBack} aria-label="Back to list" style={{ color: "#d8a85a" }}>
             <span className="chev">‹</span> Projects
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -1157,7 +1241,7 @@ function ProjectDetailView({ id, onBack }: { id: number; onBack: () => void }) {
                 disabled={busy}
                 onChange={(e) => { void patchProject({ status: e.target.value }); }}
                 className="tinybtn"
-                style={{ background: "rgba(216,168,90,.16)", borderColor: "rgba(216,168,90,.4)", color: "#D64F20" }}
+                style={{ background: "rgba(216,168,90,.16)", borderColor: "rgba(216,168,90,.4)", color: "#d8a85a" }}
                 aria-label="Change status"
               >
                 {PROJECT_STATUS_OPTIONS.map((o) => (
@@ -1636,9 +1720,140 @@ function ProjectDetailView({ id, onBack }: { id: number; onBack: () => void }) {
                 reload={reload}
               />
             )}
+
+            {/* Chat — the project's message thread. Owner 2026-11-09 asked for
+                this box on mobile so the sales floor can paste the evening
+                report without opening the web browser. Read for anyone who can
+                see the project; posting gated the same way the server gates
+                POST /api/projects/:id/notes (projects.write OR projects.chat).
+                Server-side parser (routes/lib/sales-report-bills.ts) picks up
+                any bill lines without any extra UI on this phone. */}
+            <MobileProjectChat projectId={id} onPosted={reload} />
           </>
         )}
       </div>
+      {/* Chat jump button (owner 2026-11-09: "quick button for chat for mobile
+          version. easy to find compare need to scroll down"). Fixed bottom-left
+          — the owner's green "+ Add" sits bottom-right, so this doesn't fight
+          with it — and jumps the page to the Chat panel. Clamped above the
+          mobile bottom nav with env(safe-area-inset-bottom) so it clears the
+          iOS home indicator. */}
+      <button
+        type="button"
+        aria-label="Jump to chat"
+        onClick={() => {
+          const el = document.getElementById(MOBILE_PROJECT_CHAT_ID);
+          if (!el) return;
+          if (el instanceof HTMLDetailsElement) el.open = true;
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+        style={{
+          position: "fixed",
+          left: 14,
+          bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
+          width: 48,
+          height: 48,
+          borderRadius: "50%",
+          background: "#16695f",
+          color: "#fff",
+          border: "none",
+          boxShadow: "0 4px 14px rgba(17,20,15,.28)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          zIndex: 30,
+        }}
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </button>
+      {/* Quick-actions "+" speed-dial (owner 2026-11-09 "letak balik button
+          tu. asal ko buang"). Right-bottom, so the left-bottom Chat FAB
+          above still clears it. One-action operators tap through directly;
+          2+ actions open the pills. Hidden when the user has none of the
+          three. */}
+      {quickActions.length > 0 && (
+        <>
+          {quickOpen && (
+            <div
+              onClick={() => setQuickOpen(false)}
+              aria-hidden
+              style={{ position: "fixed", inset: 0, zIndex: 40 }}
+            />
+          )}
+          {quickOpen && (
+            <div
+              style={{
+                position: "fixed",
+                right: 16,
+                bottom: "calc(140px + env(safe-area-inset-bottom, 0px))",
+                zIndex: 50,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                alignItems: "flex-end",
+              }}
+            >
+              {quickActions.map((a, i) => (
+                <button
+                  key={a.key}
+                  type="button"
+                  onClick={() => { setQuickOpen(false); a.onClick(); }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: i === 0 ? "#16695f" : "#fff",
+                    color: i === 0 ? "#fff" : "#414539",
+                    border: i === 0 ? "none" : "1px solid #d6d9d2",
+                    borderRadius: 22,
+                    padding: "9px 14px",
+                    boxShadow: "0 4px 12px rgba(17,20,15,.18)",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            aria-label={quickActions.length === 1 ? quickActions[0].label : quickOpen ? "Close quick actions" : "Quick actions"}
+            onClick={() => {
+              if (quickActions.length === 1) { quickActions[0].onClick(); return; }
+              setQuickOpen((o) => !o);
+            }}
+            style={{
+              position: "fixed",
+              right: 16,
+              bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              background: "#16695f",
+              color: "#fff",
+              border: "none",
+              boxShadow: "0 6px 18px rgba(17,20,15,.3)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              zIndex: 50,
+              transform: quickOpen ? "rotate(45deg)" : "none",
+              transition: "transform 180ms ease-out",
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        </>
+      )}
     </div>
     </DefectActionsCtx.Provider>
   );
@@ -1745,7 +1960,7 @@ function SalesAttending({
       </div>
       {adding && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid #EEF0F3", borderRadius: 10 }}>
+          <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid #e3e6e0", borderRadius: 10 }}>
             {pickItems.length === 0 && (
               <div style={{ fontSize: 12, color: "#9aa093", padding: "9px 11px" }}>Everyone is already attending.</div>
             )}
@@ -1769,7 +1984,7 @@ function SalesAttending({
             ))}
             {others.length > 0 && (
               <button type="button" onClick={() => setShowOthers(!showOthers)}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 11px", borderTop: "1px solid #eceee9", background: "none", border: 0, color: "#1B1B39", fontSize: 12 }}>
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 11px", borderTop: "1px solid #eceee9", background: "none", border: 0, color: "#16695f", fontSize: 12 }}>
                 {showOthers ? "Hide staff outside the Sales Team" : `Show other staff (${others.length}) - not in the Sales Team`}
               </button>
             )}
@@ -1777,7 +1992,7 @@ function SalesAttending({
           <div style={{ display: "flex", gap: 7, marginTop: 7 }}>
             <button
               className="tinybtn"
-              style={{ background: "#1B1B39", borderColor: "#1B1B39", color: "#fff" }}
+              style={{ background: "#16695f", borderColor: "#16695f", color: "#fff" }}
               disabled={busy || pickedCount === 0}
               onClick={addSelected}
             >
@@ -1789,11 +2004,11 @@ function SalesAttending({
       )}
       {attendees.length === 0 && <div style={{ fontSize: 12, color: "#9aa093" }}>None assigned.</div>}
       {attendees.length > 0 && (
-        <div style={{ border: "1px solid #EEF0F3", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ border: "1px solid #e3e6e0", borderRadius: 10, overflow: "hidden" }}>
           {attendees.map((s, i) => (
             <div key={s.sales_rep_id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 11px", borderTop: i === 0 ? "none" : "1px solid #eceee9" }}>
               <span className="money" style={{ fontSize: 10, color: "#9aa093" }}>{s.rep_code || "—"}</span>
-              <span style={{ fontSize: 12.5, fontWeight: 600, color: "#111827", flex: 1, minWidth: 0 }}>{s.rep_name || s.user_name || "—"}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: "#11140f", flex: 1, minWidth: 0 }}>{s.rep_name || s.user_name || "—"}</span>
               {(notOpenedByRep.get(s.sales_rep_id) ?? 0) > 0 && (
                 <span className="money" style={{ fontSize: 11, fontWeight: 700, color: "#b42318" }}>{fmtRmSen(notOpenedByRep.get(s.sales_rep_id))}</span>
               )}
@@ -1842,7 +2057,7 @@ function SalesPanel({
     const amtStr = await prompt({
       title: "Sale amount (RM)",
       placeholder: "0.00",
-      validate: (v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 ? null : "Enter a positive number."; },
+      validate: validateSaleAmount,
     });
     if (amtStr == null) return;
     const ref = await prompt({ title: "Reference no. (optional)", placeholder: "e.g. INV-123" });
@@ -1853,7 +2068,7 @@ function SalesPanel({
       await api.post(`/api/sales/entries`, {
         project_id: projectId,
         quick_log: true,
-        amount: parseFloat(amtStr),
+        amount: saleAmountRm(amtStr),
         ref_no: ref.trim() || null,
         occurred_at: today,
       });
@@ -1883,7 +2098,7 @@ function SalesPanel({
         {!posQ.data?.pos_enabled && <MobilePmsSalesOrders projectId={projectId} finalTotalRm={finalTotalRm} />}
         <div style={{ display: "flex", alignItems: "center", margin: "0 0 6px" }}>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#9aa093" }}>Sales entries</span>
-          {canLogSale && <button className="tinybtn" style={{ marginLeft: "auto", color: "#1B1B39", borderColor: "#bcdcd7" }} disabled={busy} onClick={logSale}>+ Log sale</button>}
+          {canLogSale && <button className="tinybtn" style={{ marginLeft: "auto", color: "#16695f", borderColor: "#bcdcd7" }} disabled={busy} onClick={logSale}>+ Log sale</button>}
         </div>
         {income.length === 0 ? (
           <div style={{ fontSize: 12, color: "#9aa093" }}>No sales recorded.</div>
@@ -1891,7 +2106,7 @@ function SalesPanel({
           <div style={{ border: "1px solid #eceee9", borderRadius: 10, overflow: "hidden" }}>
             {income.map((line, i) => (
               <div key={`${line.source ?? "l"}-${line.id}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderTop: i === 0 ? "none" : "1px solid #eceee9", flexWrap: "wrap" }}>
-                <span style={{ flex: 1, minWidth: 90, fontSize: 12, color: "#4B5563" }}>{line.description || ledgerCategoryLabel(line.category || "sales")}</span>
+                <span style={{ flex: 1, minWidth: 90, fontSize: 12, color: "#414539" }}>{line.description || ledgerCategoryLabel(line.category || "sales")}</span>
                 <span className="money" style={{ fontSize: 12, fontWeight: 700, color: "#2f8a5b" }}>{formatCurrency(line.amount)}</span>
               </div>
             ))}
@@ -1936,7 +2151,7 @@ function StagePipeline({ stage, sections }: { stage: string | null; sections?: S
       ? { background: "#2f8a5b", color: "#fff" }
       : state === "current"
         ? { background: "#cf9a2e", color: "#fff" }
-        : { background: "#fff", border: "2px solid #E5E7EB", color: "#9aa093" };
+        : { background: "#fff", border: "2px solid #d6d9d2", color: "#9aa093" };
 
   return (
     <div className="card"><div className="card-b">
@@ -1946,7 +2161,7 @@ function StagePipeline({ stage, sections }: { stage: string | null; sections?: S
         {([["#2f8a5b", "Done"], ["#cf9a2e", "Pending"], ["#b23a3a", "Overdue"]] as const).map(([c, t]) => (
           <div key={t} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 9, height: 9, borderRadius: "50%", background: c }} />
-            <span style={{ fontSize: 10, color: "#4B5563" }}>{t}</span>
+            <span style={{ fontSize: 10, color: "#414539" }}>{t}</span>
           </div>
         ))}
       </div>
@@ -1954,7 +2169,7 @@ function StagePipeline({ stage, sections }: { stage: string | null; sections?: S
         {steps.map((st, i) => (
           <div key={`${st.label}-${i}`} className="pstage">
             <span className="pdot" style={dotStyle(st.state)}>{i + 1}</span>
-            <span style={{ fontSize: 9, fontWeight: st.state === "todo" ? 400 : 700, color: st.state === "todo" ? "#6B7280" : "#111827", lineHeight: 1.1 }}>{st.label}</span>
+            <span style={{ fontSize: 9, fontWeight: st.state === "todo" ? 400 : 700, color: st.state === "todo" ? "#767b6e" : "#11140f", lineHeight: 1.1 }}>{st.label}</span>
             {st.sub && <span style={{ fontSize: 8, color: "#9aa093" }}>{st.sub}</span>}
           </div>
         ))}
@@ -2039,7 +2254,7 @@ function TasklistSectionView({
       <div
         key={it.id}
         id={`pms-task-${it.id}`}
-        style={flashId === it.id ? { outline: "2px solid #1B1B39", outlineOffset: 2, borderRadius: 8 } : undefined}
+        style={flashId === it.id ? { outline: "2px solid #16695f", outlineOffset: 2, borderRadius: 8 } : undefined}
       >
         <TaskRow
           item={it}
@@ -2093,7 +2308,7 @@ function TasklistSectionView({
                 <div key={sec.id} style={{ marginTop: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0 2px" }}>
                     {/* Owner 2026-07-15: drop the trailing "DOCUMENTS" word — display only, section name in data stays intact (backend gating matches it). */}
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#111827" }}>{(sec.name || "").replace(/\s+documents$/i, "")}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#11140f" }}>{(sec.name || "").replace(/\s+documents$/i, "")}</span>
                     {prog && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "#9aa093" }}>{prog.done}/{prog.total}</span>}
                   </div>
                   {renderRows(rows)}
@@ -2107,7 +2322,7 @@ function TasklistSectionView({
               return (
                 <div style={{ marginTop: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0 2px" }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#111827" }}>Uncategorised</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#11140f" }}>Uncategorised</span>
                   </div>
                   {renderRows(rows)}
                 </div>
@@ -2450,7 +2665,7 @@ function TaskRow({
       <div className="docrow" style={{ flexWrap: "wrap", alignItems: "flex-start" }}>
         <span style={{ width: 15, height: 15, flex: "none" }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{it.title}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#11140f" }}>{it.title}</div>
           {it.role_label && c && roleLabelParts(it.role_label).map((part) => (
             <span key={part} className="rbadge" style={{ background: `${roleColor(part)}1f`, color: roleColor(part), marginTop: 4, marginRight: 4, display: "inline-flex" }}>{formatRoleLabel(part)}</span>
           ))}
@@ -2462,7 +2677,7 @@ function TaskRow({
               key={v}
               className="tinybtn"
               disabled={!canTick || busy || on}
-              style={{ background: on ? (v === "none" ? "#F8F9FA" : v === "unpaid" ? "#f6efd9" : "#e2f0e9") : "#fff", color: v === "none" ? "#6B7280" : v === "unpaid" ? "#6e4d12" : "#2f8a5b", fontWeight: on ? 800 : 700 }}
+              style={{ background: on ? (v === "none" ? "#f4f6f3" : v === "unpaid" ? "#f6efd9" : "#e2f0e9") : "#fff", color: v === "none" ? "#767b6e" : v === "unpaid" ? "#6e4d12" : "#2f8a5b", fontWeight: on ? 800 : 700 }}
               onClick={() => setPill(v)}
             >
               {label}
@@ -2472,7 +2687,7 @@ function TaskRow({
         {canAttach && (
           <>
             <input ref={fileRef} type="file" multiple style={{ display: "none" }} onChange={async (e) => { const files = Array.from(e.target.files || []); for (const f of files) await upload(f); if (fileRef.current) fileRef.current.value = ""; }} />
-            <button className="tinybtn" style={{ minWidth: 60, display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, lineHeight: 1, boxSizing: "border-box", border: "none", background: "transparent", color: "#6B7280", padding: "4px 6px" }} disabled={busy} onClick={() => fileRef.current?.click()} title={attachments.length ? `${attachments.length} file(s)` : "Attach"}>
+            <button className="tinybtn" style={{ minWidth: 60, display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, lineHeight: 1, boxSizing: "border-box", border: "none", background: "transparent", color: "#767b6e", padding: "4px 6px" }} disabled={busy} onClick={() => fileRef.current?.click()} title={attachments.length ? `${attachments.length} file(s)` : "Attach"}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M13.2 6.5 7 12.7a4.4 4.4 0 1 0 6.2 6.2l6.5-6.5a2.9 2.9 0 1 0-4.1-4.1l-6.5 6.5a1.5 1.5 0 1 0 2.1 2.1l6.1-6.2" /></svg>
               <span style={{ fontSize: 9, fontWeight: 700 }}>{attachments.length ? `Attach (${attachments.length})` : "Attach"}</span>
             </button>
@@ -2501,13 +2716,13 @@ function TaskRow({
             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
           </span>
         ) : na ? (
-          <span style={{ width: 15, height: 15, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #E5E7EB", fontSize: 8, fontWeight: 800, color: "#9aa093" }}>N</span>
+          <span style={{ width: 15, height: 15, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #d6d9d2", fontSize: 8, fontWeight: 800, color: "#9aa093" }}>N</span>
         ) : (
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9aa093" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /></svg>
         )}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: na ? "#9aa093" : "#111827", textDecoration: na ? "line-through" : "none" }}>{it.title}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: na ? "#9aa093" : "#11140f", textDecoration: na ? "line-through" : "none" }}>{it.title}</div>
         {it.role_label && c && roleLabelParts(it.role_label).map((part) => (
           <span key={part} className="rbadge" style={{ background: `${roleColor(part)}1f`, color: roleColor(part), marginTop: 4, marginRight: 4, display: "inline-flex" }}>{formatRoleLabel(part)}</span>
         ))}
@@ -2516,7 +2731,7 @@ function TaskRow({
       {canAttach && (
         <>
           <input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; const cap = pendingCaptionRef.current; pendingCaptionRef.current = undefined; if (f) void upload(f, cap); }} />
-          <button className="tinybtn" style={{ minWidth: 60, display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, lineHeight: 1, boxSizing: "border-box", border: "none", background: "transparent", color: "#6B7280", padding: "4px 6px" }} disabled={busy} onClick={() => void startAttach()} title={isDefectList ? "Write a remark, then upload" : attachments.length ? `${attachments.length} file(s)` : "Attach"}>
+          <button className="tinybtn" style={{ minWidth: 60, display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, lineHeight: 1, boxSizing: "border-box", border: "none", background: "transparent", color: "#767b6e", padding: "4px 6px" }} disabled={busy} onClick={() => void startAttach()} title={isDefectList ? "Write a remark, then upload" : attachments.length ? `${attachments.length} file(s)` : "Attach"}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none" }}><path d="M13.2 6.5 7 12.7a4.4 4.4 0 1 0 6.2 6.2l6.5-6.5a2.9 2.9 0 1 0-4.1-4.1l-6.5 6.5a1.5 1.5 0 1 0 2.1 2.1l6.1-6.2" /></svg>
             <span style={{ fontSize: 9, fontWeight: 700 }}>{attachments.length ? `Attach (${attachments.length})` : isDefectList ? "Add photo" : "Attach"}</span>
           </button>
@@ -2620,7 +2835,7 @@ function CrewLine({ role, person }: { role: string; person: CrewPerson }) {
   return (
     <div style={{ display: "flex", gap: 7, fontSize: 10.5, lineHeight: 1.45, marginBottom: 3 }}>
       <span style={{ flex: "none", width: 44, color: "#9aa093", fontWeight: 600 }}>{role}</span>
-      <span style={{ flex: 1, minWidth: 0, color: "#4B5563" }}>
+      <span style={{ flex: 1, minWidth: 0, color: "#414539" }}>
         {person.name}
         {person.phone ? <span style={{ color: "#8a8f82" }}> · {formatPhone(person.phone)}</span> : null}
       </span>
@@ -2788,8 +3003,8 @@ function SetupDismantle({
             2026-07-29: hidden from everyone except logistic (view/download)
             and the BD/owner edit tier. */}
         {canScheduleView && (
-        <div style={{ border: "1px dashed #E5E7EB", borderRadius: 10, padding: "9px 11px", marginBottom: 14 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#6B7280", marginBottom: 6 }}>Schedule reference</div>
+        <div style={{ border: "1px dashed #d6d9d2", borderRadius: 10, padding: "9px 11px", marginBottom: 14 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#767b6e", marginBottom: 6 }}>Schedule reference</div>
           {scheduleShots.length === 0 && <div style={{ fontSize: 12, color: "#9aa093", marginBottom: canScheduleEdit ? 8 : 0 }}>No schedule screenshot uploaded yet.</div>}
           {scheduleShots.length > 0 && (
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: canScheduleEdit ? 8 : 0 }}>
@@ -2801,7 +3016,7 @@ function SetupDismantle({
                       items: scheduleShots.map((s): MediaItem => ({ r2_key: s.r2_key, content_type: mimeFromKey(s.r2_key), caption: s.caption ?? "Schedule reference" })),
                       idx: i,
                     })}
-                    style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #EEF0F3", cursor: "pointer" }}
+                    style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e3e6e0", cursor: "pointer" }}
                   >
                     <R2Thumb r2Key={ph.r2_key} style={{ width: 84, height: 64 }} />
                   </div>
@@ -2810,7 +3025,7 @@ function SetupDismantle({
                       aria-label="Remove schedule screenshot"
                       disabled={busy}
                       onClick={() => void removeSchedule(ph)}
-                      style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "1px solid #E5E7EB", background: "#fff", color: "#a13a34", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
+                      style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "1px solid #d6d9d2", background: "#fff", color: "#a13a34", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
                     >
                       ×
                     </button>
@@ -2852,8 +3067,8 @@ function SetupDismantle({
 
         {/* Service / Exchange photos (owner 2026-07-29): mobile-only capture of
             the mid-fair service/exchange trip; desktop keeps a read-only gallery. */}
-        <div style={{ border: "1px dashed #E5E7EB", borderRadius: 10, padding: "9px 11px", marginBottom: 14 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#6B7280", marginBottom: 6 }}>Service / Exchange photos</div>
+        <div style={{ border: "1px dashed #d6d9d2", borderRadius: 10, padding: "9px 11px", marginBottom: 14 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#767b6e", marginBottom: 6 }}>Service / Exchange photos</div>
           {serviceShots.length === 0 && <div style={{ fontSize: 12, color: "#9aa093", marginBottom: canScheduleEdit ? 8 : 0 }}>No service photo yet.</div>}
           {serviceShots.length > 0 && (
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: canScheduleEdit ? 8 : 0 }}>
@@ -2865,7 +3080,7 @@ function SetupDismantle({
                       items: serviceShots.map((s): MediaItem => ({ r2_key: s.r2_key, content_type: mimeFromKey(s.r2_key), caption: s.caption ?? "Service photo" })),
                       idx: i,
                     })}
-                    style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #EEF0F3", cursor: "pointer" }}
+                    style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e3e6e0", cursor: "pointer" }}
                   >
                     <R2Thumb r2Key={ph.r2_key} style={{ width: 84, height: 64 }} />
                   </div>
@@ -2874,7 +3089,7 @@ function SetupDismantle({
                       aria-label="Remove service photo"
                       disabled={busy}
                       onClick={() => void removeService(ph)}
-                      style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "1px solid #E5E7EB", background: "#fff", color: "#a13a34", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
+                      style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "1px solid #d6d9d2", background: "#fff", color: "#a13a34", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
                     >
                       ×
                     </button>
@@ -2919,7 +3134,7 @@ function SetupDismantle({
           reloadPhotos={reloadPhotos}
           confirm={confirm}
         />
-        <div style={{ height: 1, background: "#EEF0F3", margin: "14px 0" }} />
+        <div style={{ height: 1, background: "#e3e6e0", margin: "14px 0" }} />
         <PhaseBlock
           kind="Dismantle"
           projectId={projectId}
@@ -2999,7 +3214,7 @@ function PhaseBlock({
   // schedule/crew fields stay canWrite-only.
   const canPhoto = canWrite || !!canPhotoProp;
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const accent = kind === "Setup" ? "#1B1B39" : "#D64F20";
+  const accent = kind === "Setup" ? "#16695f" : "#a16a2e";
   const phase = kind.toLowerCase() as "setup" | "dismantle";
   const isSetup = kind === "Setup";
   const startAt = isSetup ? project.setup_start_at : project.dismantle_start_at;
@@ -3156,7 +3371,7 @@ function PhaseBlock({
           type="button"
           disabled={busy || (!photoKey && !canPhoto)}
           onClick={() => { if (photoKey) setPhotoOpen(true); else if (canPhoto) fileRef.current?.click(); }}
-          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 11, background: "#fff", display: "flex", alignItems: "center", gap: 10, marginTop: 0, overflow: "hidden", cursor: photoKey || canPhoto ? "pointer" : "default", fontFamily: "inherit", padding: 0, textAlign: "left" }}
+          style={{ width: "100%", border: "1px solid #d6d9d2", borderRadius: 11, background: "#fff", display: "flex", alignItems: "center", gap: 10, marginTop: 0, overflow: "hidden", cursor: photoKey || canPhoto ? "pointer" : "default", fontFamily: "inherit", padding: 0, textAlign: "left" }}
         >
           {photoKey ? (
             <R2Thumb r2Key={photoKey} style={{ width: 64, height: 54, flex: "none" }} />
@@ -3166,7 +3381,7 @@ function PhaseBlock({
             </div>
           )}
           <div style={{ padding: "7px 0", minWidth: 0 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#111827" }}>{kind} photo{photoKey ? " · tap to view" : canPhoto ? " · tap to upload" : ""}</div>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#11140f" }}>{kind} photo{photoKey ? " · tap to view" : canPhoto ? " · tap to upload" : ""}</div>
             <div style={{ fontSize: 9.5, color: "#9aa093", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{uploaderCredit(photo)}</div>
           </div>
         </button>
@@ -3187,7 +3402,7 @@ function PhaseBlock({
                 setBusy(false);
               }
             }}
-            style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "1px solid #E5E7EB", background: "#fff", color: "#a13a34", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
+            style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", border: "1px solid #d6d9d2", background: "#fff", color: "#a13a34", fontSize: 12, lineHeight: 1, cursor: "pointer" }}
           >
             ×
           </button>
@@ -3426,7 +3641,7 @@ function FloorPlans({
             2026-07-23: sales/SD/mgt/BD only). */}
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {([
-            { key: "Display", label: "Display floor plan", files: displayPlanFiles, atts: displayPlanAtts, badge: "PLAN", bg: "#f3ece0", col: "#D64F20", item: displayItem, task: displayItem },
+            { key: "Display", label: "Display floor plan", files: displayPlanFiles, atts: displayPlanAtts, badge: "PLAN", bg: "#f3ece0", col: "#a16a2e", item: displayItem, task: displayItem },
             { key: "3D Design", label: "3D Design", files: threeDFiles, atts: threeDAtts, badge: "3D", bg: "#e9e6f4", col: "#5b4b8a", item: threeDItem, task: threeDItem },
             { key: "2D Design", label: "2D Design", files: twoDFiles, atts: twoDAtts, badge: "2D", bg: "#e2ecf5", col: "#2f5c8a", item: twoDItem, task: twoDItem },
             { key: "Unfilled", label: "Unfilled plan", files: unfilledFiles, atts: unfilledAtts, badge: "DRAFT", bg: "#f6efd9", col: "#6e4d12", item: undefined, task: blankItem },
@@ -3442,9 +3657,9 @@ function FloorPlans({
             // have none, so they stay view-only, exactly as before.
             const removable = canDeleteFiles && t.atts.length === files.length;
             return (
-              <div key={t.key} style={{ border: "1px solid #E5E7EB", borderRadius: 12, background: "#fff", padding: "10px 11px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div key={t.key} style={{ border: "1px solid #d6d9d2", borderRadius: 12, background: "#fff", padding: "10px 11px", display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "#111827", marginRight: "auto" }}>{t.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#11140f", marginRight: "auto" }}>{t.label}</span>
                   {tileItem && <ReviewBadge reviewStatus={tileItem.review_status} item={tileItem} hasFiles={files.length > 0} />}
                   <span className="rbadge" style={{ background: files.length ? t.bg : "#f0f1ed", color: files.length ? t.col : "#9aa093" }}>
                     {files.length ? `${t.badge}${files.length > 1 ? ` · ${files.length}` : ""}` : "NONE"}
@@ -3467,7 +3682,7 @@ function FloorPlans({
                     tabIndex={canWrite && t.task ? 0 : undefined}
                     onClick={() => { if (canWrite && t.task && !busy) startPlanUpload(t.task); }}
                     onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && canWrite && t.task && !busy) { e.preventDefault(); startPlanUpload(t.task); } }}
-                    style={{ border: "1px dashed #E5E7EB", borderRadius: 9, padding: "13px 10px", textAlign: "center", fontSize: 11, color: "#9aa093", ...(canWrite && t.task ? { cursor: "pointer" } : {}) }}
+                    style={{ border: "1px dashed #d6d9d2", borderRadius: 9, padding: "13px 10px", textAlign: "center", fontSize: 11, color: "#9aa093", ...(canWrite && t.task ? { cursor: "pointer" } : {}) }}
                   >
                     {canWrite && t.task ? "No file yet — tap to upload" : "No file yet"}
                   </div>
@@ -3498,7 +3713,7 @@ function FloorPlans({
         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#9aa093", margin: "10px 0 6px" }}>Stock transfer record</div>
         {stockOutAtts.length === 0 && <div style={{ fontSize: 12, color: "#9aa093", marginBottom: 8 }}>No stock transfer recorded yet.</div>}
         {stockOutAtts.length > 0 && (
-          <div style={{ border: "1px solid #EEF0F3", borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
+          <div style={{ border: "1px solid #e3e6e0", borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
             {stockOutAtts.map((a, i) => (
               <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 11px", borderTop: i === 0 ? "none" : "1px solid #eceee9", flexWrap: "wrap" }}>
                 {/* Owner 2026-07-31: show the record itself, not just its file
@@ -3507,7 +3722,7 @@ function FloorPlans({
                 <span
                   role="button"
                   onClick={() => setDocView({ r2_key: a.r2_key, content_type: a.mime_type ?? mimeFromKey(a.r2_key), caption: a.file_name ?? "Stock transfer record" })}
-                  style={{ flex: "none", width: 54, height: 44, borderRadius: 7, overflow: "hidden", border: "1px solid #EEF0F3", cursor: "pointer", display: "block" }}
+                  style={{ flex: "none", width: 54, height: 44, borderRadius: 7, overflow: "hidden", border: "1px solid #e3e6e0", cursor: "pointer", display: "block" }}
                 >
                   {/^image\//.test(a.mime_type ?? mimeFromKey(a.r2_key) ?? "")
                     ? <R2Thumb r2Key={a.r2_key} style={{ width: 54, height: 44 }} />
@@ -3516,7 +3731,7 @@ function FloorPlans({
                 <span className="rbadge" style={a.dir === "IN"
                   ? { background: "#e2ecf5", color: "#2f5c8a" }
                   : { background: "#e2f0e9", color: "#2f8a5b" }}>{a.dir}</span>
-                <span style={{ flex: 1, minWidth: 80, fontSize: 11, color: "#4B5563" }}>
+                <span style={{ flex: 1, minWidth: 80, fontSize: 11, color: "#414539" }}>
                   {[a.file_name || "Record", a.uploader_name || null, a.uploaded_at ? dm(a.uploaded_at) : null].filter(Boolean).join(" · ")}
                 </span>
                 <button
@@ -3651,7 +3866,7 @@ function QuickTotalSalesField({
   };
 
   return (
-    <label style={{ background: "#F8F9FA", borderRadius: 10, padding: 11, display: "block" }}>
+    <label style={{ background: "#f4f6f3", borderRadius: 10, padding: 11, display: "block" }}>
       <span className="pkv-l">Total sales (RM)</span>
       <input
         className="fld-i money"
@@ -3731,9 +3946,9 @@ function QuickRentalField({
 
   if (fromBooks.length > 0) {
     return (
-      <div style={{ background: "#F8F9FA", borderRadius: 10, padding: 11 }}>
+      <div style={{ background: "#f4f6f3", borderRadius: 10, padding: 11 }}>
         <span className="pkv-l">Rental (RM) · 入账</span>
-        <div className="money" style={{ fontSize: 15, fontWeight: 700, color: "#111827", marginTop: 4 }}>
+        <div className="money" style={{ fontSize: 15, fontWeight: 700, color: "#11140f", marginTop: 4 }}>
           {formatCurrency(fromBooks.reduce((s, l) => s + (l.amount || 0), 0))}
         </div>
         <div style={{ fontSize: 10, color: "#9aa093", marginTop: 2 }}>{[...new Set(fromBooks.map((l) => l.doc_no).filter(Boolean))].join(", ")}</div>
@@ -3742,7 +3957,7 @@ function QuickRentalField({
   }
 
   return (
-    <label style={{ background: "#F8F9FA", borderRadius: 10, padding: 11, display: "block" }}>
+    <label style={{ background: "#f4f6f3", borderRadius: 10, padding: 11, display: "block" }}>
       <span className="pkv-l">Rental (RM)</span>
       <input
         className="fld-i money"
@@ -3812,19 +4027,19 @@ function FinancialSnapshot({
       </summary>
       <div className="pbody">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div style={{ background: "#F8F9FA", borderRadius: 10, padding: 11 }}>
+          <div style={{ background: "#f4f6f3", borderRadius: 10, padding: 11 }}>
             <div className="pkv-l">Total sales</div>
-            <div className="money" style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 3 }}>{formatCurrency(sales)}</div>
+            <div className="money" style={{ fontSize: 16, fontWeight: 800, color: "#11140f", marginTop: 3 }}>{formatCurrency(sales)}</div>
           </div>
-          <div style={{ background: "#F8F9FA", borderRadius: 10, padding: 11 }}>
+          <div style={{ background: "#f4f6f3", borderRadius: 10, padding: 11 }}>
             <div className="pkv-l">Total cost</div>
-            <div className="money" style={{ fontSize: 16, fontWeight: 800, color: "#111827", marginTop: 3 }}>{formatCurrency(cost)}</div>
+            <div className="money" style={{ fontSize: 16, fontWeight: 800, color: "#11140f", marginTop: 3 }}>{formatCurrency(cost)}</div>
           </div>
-          <div style={{ background: "#F8F9FA", borderRadius: 10, padding: 11 }}>
+          <div style={{ background: "#f4f6f3", borderRadius: 10, padding: 11 }}>
             <div className="pkv-l">Net profit</div>
             <div className="money" style={{ fontSize: 16, fontWeight: 800, color: netColor, marginTop: 3 }}>{formatCurrency(net)}</div>
           </div>
-          <div style={{ background: "#F8F9FA", borderRadius: 10, padding: 11 }}>
+          <div style={{ background: "#f4f6f3", borderRadius: 10, padding: 11 }}>
             <div className="pkv-l">Margin</div>
             <div className="money" style={{ fontSize: 16, fontWeight: 800, color: netColor, marginTop: 3 }}>{marginPct == null ? "—" : `${marginPct.toFixed(1)}%`}</div>
           </div>
@@ -3864,7 +4079,7 @@ function FinancialSnapshot({
               const receiptKey = pick(line.r2_key, line.r2Key);
               return (
                 <div key={line.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderTop: i === 0 ? "none" : "1px solid #eceee9", flexWrap: "wrap" }}>
-                  <span style={{ flex: 1, minWidth: 90, fontSize: 12, color: "#4B5563" }}>
+                  <span style={{ flex: 1, minWidth: 90, fontSize: 12, color: "#414539" }}>
                     {line.description || ledgerCategoryLabel(line.category)}
                     {auto && <span style={{ marginLeft: 5, fontSize: 9, color: "#9aa093" }}>auto</span>}
                     {fromBooks && <span style={{ marginLeft: 5, fontSize: 9, color: "#8a4b12" }}>入账 {line.doc_no}</span>}
@@ -3874,7 +4089,7 @@ function FinancialSnapshot({
                 </div>
               );
             })}
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", borderTop: "1px solid #eceee9", fontSize: 12, fontWeight: 700, color: "#111827", background: "#F8F9FA" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", borderTop: "1px solid #eceee9", fontSize: 12, fontWeight: 700, color: "#11140f", background: "#f4f6f3" }}>
               <span>Net profit{marginPct != null ? ` (${marginPct.toFixed(1)}%)` : ""}</span>
               <span className="money" style={{ color: netColor }}>{formatCurrency(net)}</span>
             </div>

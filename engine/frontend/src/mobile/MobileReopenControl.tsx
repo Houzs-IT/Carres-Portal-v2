@@ -8,9 +8,9 @@ import { createPortal } from "react-dom";
 import { api } from "../api/client";
 import { REOPEN_STAGE_OPTIONS } from "../vendor/scm/lib/assr/reopen";
 
-const INK = "#111827";
-const MUTED = "#6B7280";
-const LINE = "#E5E7EB";
+const INK = "#11140f";
+const MUTED = "#767b6e";
+const LINE = "#d6d9d2";
 const TEAL = "#0f6d63";
 
 const inp: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 11px", border: `1px solid ${LINE}`, borderRadius: 9, fontSize: 14, marginTop: 4 };
