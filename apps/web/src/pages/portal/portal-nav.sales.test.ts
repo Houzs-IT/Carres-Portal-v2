@@ -36,7 +36,7 @@ describe("the approved Sales Orders navigation", () => {
     );
   });
 
-  it("holds exactly six children, in the approved order", () => {
+  it("holds the Houzs Sales Order rows in Houzs order, then Subscription", () => {
     const block = navBlocks(OPERATIONS, "operation").find(
       (b) => b.kind === "module" && b.module.section === "Sales",
     );
@@ -44,11 +44,13 @@ describe("the approved Sales Orders navigation", () => {
     const pages = block!.kind === "module" ? block!.pages : [];
     expect(pages.map((p) => p.label)).toEqual([
       "Sales Orders",
-      "Subscription",
+      "Fair Links to Settle",
       "Sales Order Amendment",
+      "Payment Backdate Requests",
       "Delivery Orders",
       "Sales Invoices",
       "Delivery Returns",
+      "Subscription",
     ]);
   });
 

@@ -49,7 +49,8 @@ import {
   ClipboardX,
   Handshake,
   MapPin,
-  Gauge,
+  ClipboardCheck,
+  Sofa,
   FolderKanban,
   type LucideIcon,
 } from "lucide-react";
@@ -336,8 +337,10 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only (0261-0263): the claim desk, where a claim ends up.
       { key: "guarantees", label: "Guarantees", icon: ShieldCheck, section: "Customer Care" },
 
-      /* PROJECTS — Sidebar.tsx:367-404 (0750). Overview and Calendar come in later slices. */
+      /* PROJECTS — Houzs Sidebar.tsx "Projects": its four rows, each the engine's page (ENGINE_PAGES). */
+      { key: "project-overview", label: "Project Overview", icon: BarChart3, path: "/operation/sc/project-overview", section: "Projects" },
       { key: "projects", label: "Project List", icon: ClipboardList, section: "Projects" },
+      { key: "project-calendar", label: "Calendar", icon: CalendarDays, path: "/operation/sc/project-calendar", section: "Projects" },
       { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, section: "Projects" },
 
       /* SALES ORDER — Sidebar.tsx:533-546. */
@@ -365,9 +368,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // Carres-only: My Work / Team Work and a person's own leave (0670).
       { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
       { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
-      // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order.
-      { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
+      { key: "fair-pending", label: "Fair Links to Settle", icon: MapPin, path: "/operation/sc/fair-pending", section: "Sales" },
       { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/amendments", section: "Sales" },
+      { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", section: "Sales" },
       {
         key: "delivery-orders",
         label: "Delivery Orders",
@@ -378,11 +381,15 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       },
       { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/finance/sales-invoices", activeFor: ["path:/finance/sales-invoices"], section: "Sales" },
       { key: "delivery-returns", label: "Delivery Returns", icon: Undo2, tab: "delivery-returns", section: "Sales" },
+      // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order. Last, so the Houzs rows above keep Houzs's order.
+      { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
 
       /* CONSIGNMENT — Sidebar.tsx:558-567. */
       { key: "customer-consignment-orders", label: "Consignment Order", icon: FileText, tab: "customer-consignment-orders", section: "Consignment" },
       { key: "consignment-notes", label: "Consignment Note", icon: FileText, tab: "consignment-notes", section: "Consignment" },
       { key: "customer-consignment-returns", label: "Consignment Return", icon: Undo2, tab: "customer-consignment-returns", section: "Consignment" },
+      { key: "purchase-consignment-orders", label: "Purchase Consignment Order", icon: HandCoins, path: "/operation/sc/purchase-consignment-orders", section: "Consignment" },
+      { key: "product-requests", label: "Product Request", icon: Sofa, path: "/operation/sc/product-requests", section: "Consignment" },
       { key: "consignment-receives", label: "Purchase Consignment Receive", icon: PackageCheck, section: "Consignment" },
       { key: "consignment-returns", label: "Purchase Consignment Return", icon: Undo2, section: "Consignment" },
       // Carres-only, not built: goods Carres buys for a floor.
@@ -436,10 +443,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
         section: "Delivery",
       },
       { key: "delivery-planning", label: "Delivery Planning", icon: CalendarDays, tab: "delivery-planning", section: "Delivery" },
+      { key: "delivery-planning-driver", label: "Last Mile Delivery (Driver)", icon: ClipboardList, path: "/operation/sc/delivery-planning-driver", section: "Delivery" },
       { key: "dp-orders", label: "DP Orders", icon: ClipboardList, tab: "dp-orders", section: "Delivery" },
       { key: "fleet-day", label: "Last Mile Delivery", icon: Users, section: "Delivery" },
-      { key: "fleet-map", label: "Lorry Live Map", icon: MapPin, section: "Delivery" },
-      { key: "fleet-capacity", label: "Lorry Capacity", icon: Gauge, section: "Delivery" },
       { key: "crew-leave", label: "Crew Leave", icon: CalendarOff, section: "Delivery" },
       // Carres-only (0716): DOs marked Delivered by load scan.
       { key: "load-scan", label: "Load Scan", icon: PackageCheck, tab: "load-scan", section: "Delivery" },
@@ -718,6 +724,13 @@ export const PORTAL_NAV: PortalNavGroup[] = [
 export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "service-quality": "/assr?view=metrics", "service-notes": "/assr?view=cases",
   "service-maintenance": "/assr?view=settings", "service-mine": "/my-cases",
+  "project-overview": "/projects?view=finances", projects: "/projects?view=list",
+  "project-calendar": "/projects?view=calendar", "project-maintenance": "/projects?view=maintenance",
+  "fair-pending": "/scm/fair-pending", "payment-backdate-requests": "/scm/payment-backdate-requests",
+  "customer-consignment-orders": "/scm/consignment-orders", "consignment-notes": "/scm/consignment-notes",
+  "customer-consignment-returns": "/scm/consignment-returns", "purchase-consignment-orders": "/scm/purchase-consignment-orders",
+  "product-requests": "/scm/product-requests", "consignment-receives": "/scm/purchase-consignment-receives",
+  "consignment-returns": "/scm/purchase-consignment-returns", "delivery-planning-driver": "/scm/delivery-planning-driver",
   orders: "/scm/sales-orders", "orders-shortcut": "/scm/sales-orders", amendments: "/scm/amendments",
   "delivery-orders": "/scm/delivery-orders", "delivery-returns": "/scm/delivery-returns",
   // Sales Invoices stays Carres Finance's own page (/finance/sales-invoices): it feeds the Carres books.
@@ -726,7 +739,7 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "po-cancellation-requests": "/scm/cancel-requests", receiving: "/scm/grns",
   "purchase-invoices": "/scm/purchase-invoices", "purchase-returns": "/scm/purchase-returns",
   "logistic-overview": "/scm/logistic-overview", "delivery-planning": "/scm/delivery-planning", "dp-orders": "/scm/dp-orders",
-  "fleet-day": "/scm/fleet-day", "fleet-map": "/scm/lorry-live-map", "fleet-capacity": "/scm/lorry-capacity",
+  "fleet-day": "/scm/fleet-day",
   "crew-leave": "/scm/driver-leave", "coverage-fleet": "/scm/delivery-maintenance", "delivery-zones": "/scm/delivery-zones",
   "rate-cards": "/scm/delivery-rate-cards", "fleet-health": "/fleet-health",
   "wh-loading-list": "/scm/loading-list", "wh-warehouses": "/scm/warehouses", "wh-racks": "/scm/warehouses/racks",

@@ -8,10 +8,10 @@ describe("the old supply chain, turned off (owner, 10 Nov 2026)", () => {
   afterEach(() => { vi.unstubAllEnvs(); vi.resetModules(); });
 
   it("hides its rows with no engine page, keeps engine rows, Sales Invoices and the other areas", () => {
-    for (const k of ["guarantees", "rental", "customer-consignment-orders", "supplier-items", "claims", "load-scan", "wh-inbound", "showroom"]) {
+    for (const k of ["guarantees", "rental", "display-requests", "supplier-items", "claims", "load-scan", "wh-inbound", "showroom"]) {
       expect(isOldSupplyChainRow(row(k)), k).toBe(true);
     }
-    for (const k of ["orders", "purchase-orders", "service-notes", "sales-invoices", "payments", "projects", "dashboard", "issue-tracker"]) {
+    for (const k of ["orders", "purchase-orders", "service-notes", "customer-consignment-orders", "sales-invoices", "payments", "projects", "dashboard", "issue-tracker"]) {
       expect(isOldSupplyChainRow(row(k)), k).toBe(false);
     }
   });

@@ -159,7 +159,9 @@ describe("what typing searches", () => {
       matchDestinations(permittedDestinations("operation"), "purch").map((d) => d.label),
     ).toEqual([
       /* Follows Houzs Sidebar.tsx:552 per Weisiang's ruling (2026-10-22):
-         the consignment receive and return pages are live destinations. */
+         the consignment receive and return pages are live destinations. The
+         Purchase Consignment Order row joined with the engine pages (11 Nov 2026). */
+      "Purchase Consignment Order",
       "Purchase Consignment Receive",
       "Purchase Consignment Return",
       "Purchase Orders",

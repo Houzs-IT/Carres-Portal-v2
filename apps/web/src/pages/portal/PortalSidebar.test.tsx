@@ -680,7 +680,8 @@ describe("the tree line", () => {
     renderAt("/operation/orders");
     expect(trunk("orders").style.height).toBe("100%");
     expect(trunk("sales-invoices").style.height).toBe("100%");
-    expect(trunk("delivery-returns").style.height).toBe("calc(50% - 8px)");
+    expect(trunk("delivery-returns").style.height).toBe("100%");
+    expect(trunk("rental").style.height).toBe("calc(50% - 8px)");
   });
 
   it("the trunk stops at the last page of EACH group", () => {
@@ -942,18 +943,20 @@ describe("PortalSidebar — Commission is ONE HR entry (Loo 2026-07-27)", () => 
  * not delete the legacy page whose menu row was removed earlier.
  */
 describe("PortalSidebar — the Sales Order module", () => {
-  it("is exactly Sales Orders, Subscription, Sales Order Amendment, Delivery Orders, Sales Invoices, Delivery Returns", () => {
+  it("is the Houzs Sales Order rows in Houzs order, then Subscription", () => {
     renderAt("/operation/orders");
     expect(within(module_("sales")).getByText("Sales Order")).toBeInTheDocument();
     const group = screen.getByTestId("nav-children-sales");
     const rows = Array.from(group.querySelectorAll("[data-testid^='nav-child-']"));
     expect(rows.map((r) => r.textContent?.trim())).toEqual([
       "Sales Orders",
-      "Subscription",
+      "Fair Links to Settle",
       "Sales Order Amendment",
+      "Payment Backdate Requests",
       "Delivery Orders",
       "Sales Invoices",
       "Delivery Returns",
+      "Subscription",
     ]);
   });
 
@@ -1592,7 +1595,7 @@ describe("PortalSidebar — the menu stores no open groups", () => {
  * (Houzs-ERP Sidebar.tsx:558-567). Display Requests joined it on 2026-11-01
  * and is still unbuilt. */
 describe("PortalSidebar — the Consignment module", () => {
-  it("carries the three customer consignment pages, the two purchase ones and Display Requests, in Houzs order", () => {
+  it("carries the seven Houzs consignment rows in Houzs order, then Display Requests", () => {
     renderAt("/operation?tab=consignment-notes");
     expect(screen.getByTestId("nav-module-consignment")).toBeInTheDocument();
     const rows = Array.from(
@@ -1604,6 +1607,8 @@ describe("PortalSidebar — the Consignment module", () => {
       "Consignment Order",
       "Consignment Note",
       "Consignment Return",
+      "Purchase Consignment Order",
+      "Product Request",
       "Purchase Consignment Receive",
       "Purchase Consignment Return",
       "Display Requests",
@@ -1667,10 +1672,9 @@ describe("PortalSidebar — the Transportation module", () => {
       "Logistic Overview",
       "Monitor",
       "Delivery Planning",
+      "Last Mile Delivery (Driver)",
       "DP Orders",
       "Last Mile Delivery",
-      "Lorry Live Map",
-      "Lorry Capacity",
       "Crew Leave",
       "Load Scan",
       "Coverage & Fleet",
@@ -1687,9 +1691,8 @@ describe("PortalSidebar — the Transportation module", () => {
       ["delivery", "/operation?tab=delivery"],
       ["delivery-planning", "/operation?tab=delivery-planning"],
       ["dp-orders", "/operation?tab=dp-orders"],
+      ["delivery-planning-driver", "/operation/sc/delivery-planning-driver"],
       ["fleet-day", "/operation?tab=fleet-day"],
-      ["fleet-map", "/operation?tab=fleet-map"],
-      ["fleet-capacity", "/operation?tab=fleet-capacity"],
       ["crew-leave", "/operation?tab=crew-leave"],
       ["load-scan", "/operation?tab=load-scan"],
       ["coverage-fleet", "/operation?tab=coverage-fleet"],

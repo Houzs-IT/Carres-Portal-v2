@@ -27,15 +27,15 @@ describe("the Houzs tree", () => {
       { head: "Workspace", blocks: ["Overview", "Sales Orders", "Workspace", "Leave"] },
       {
         head: "Operations",
-        blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases · Guarantees", "Projects: Project List · Project Maintenance"],
+        blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases · Guarantees", "Projects: Project Overview · Project List · Calendar · Project Maintenance"],
       },
       {
         head: "row:Supply Chain",
         blocks: [
-          "Sales Order: Sales Orders · Subscription · Sales Order Amendment · Delivery Orders · Sales Invoices · Delivery Returns",
-          "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Receive · Purchase Consignment Return · Display Requests",
+          "Sales Order: Sales Orders · Fair Links to Settle · Sales Order Amendment · Payment Backdate Requests · Delivery Orders · Sales Invoices · Delivery Returns · Subscription",
+          "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Order · Product Request · Purchase Consignment Receive · Purchase Consignment Return · Display Requests",
           "Procurement: Procurement Overview · Products & Maintenance · Suppliers · Supplier items · MRP · Stock Status · SO Batch Purchase · Forecast Purchase · Manual Purchase Request · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns · Supplier Claims · Repair Orders",
-          "Transportation: Logistic Overview · Monitor · Delivery Planning · DP Orders · Last Mile Delivery · Lorry Live Map · Lorry Capacity · Crew Leave · Load Scan · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
+          "Transportation: Logistic Overview · Monitor · Delivery Planning · Last Mile Delivery (Driver) · DP Orders · Last Mile Delivery · Crew Leave · Load Scan · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
           "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take · Arrival Schedule · Pickup Schedule · Inbound · Outbound",
         ],
       },

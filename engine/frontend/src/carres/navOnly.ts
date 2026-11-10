@@ -1,18 +1,17 @@
 // Carres only (not part of Houzs's code). The Carres copy of this engine is Supply Chain and Service Cases,
-// opened from the Carres portal's own menu (owner, 6 Nov 2026). Carres keeps its own Projects and Finance.
+// opened from the Carres portal's own menu (owner, 6 Nov 2026). Projects joined on 11 Nov 2026 (the engine replaces
+// the Carres Projects pages); Carres keeps its own Finance.
 // Everything that builds a menu reads the registry in components/Sidebar.tsx, so trimming it here keeps the
 // desktop rail, the mobile menu and the hub pages in agreement.
 
 /** Top-level menu entries kept, by their label in the registry. Sales Orders stay: the supply chain starts
  *  from them. Team and Settings stay so an administrator can set people and company details. */
-const KEEP = new Set(["Sales Orders", "Service Cases", "Supply Chain", "Team", "Settings"]);
+const KEEP = new Set(["Sales Orders", "Service Cases", "Projects", "Supply Chain", "Team", "Settings"]);
 
 /** Houzs modules switched off here: their menu entries are dropped and their addresses go to CARRES_HOME
  *  (App.tsx). Path prefixes, matched on whole segments. */
 export const CARRES_HIDDEN_PATHS: readonly string[] = [
   "/scm/forecast", "/scm/finance-dashboard", "/scm/hr",
-  "/scm/consignment", "/scm/consignment-orders", "/scm/consignment-notes", "/scm/consignment-returns",
-  "/scm/purchase-consignment-orders", "/scm/purchase-consignment-receives", "/scm/purchase-consignment-returns",
   "/autocount-sync", "/pos-admin",
 ];
 

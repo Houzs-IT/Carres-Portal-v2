@@ -83,16 +83,15 @@ describe("the approved hierarchy", () => {
     ]);
   });
 
-  it("Transportation draws its nine direct rows, then the one Maintenance group", () => {
+  it("Transportation draws its eight direct rows, then the one Maintenance group", () => {
     const blocks = moduleChildBlocks(delivery);
     expect(blocks.map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
       "Logistic Overview",
       "Monitor",
       "Delivery Planning",
+      "Last Mile Delivery (Driver)",
       "DP Orders",
       "Last Mile Delivery",
-      "Lorry Live Map",
-      "Lorry Capacity",
       "Crew Leave",
       "Load Scan",
       "Maintenance",
