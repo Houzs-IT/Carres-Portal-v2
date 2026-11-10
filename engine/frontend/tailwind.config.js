@@ -92,7 +92,7 @@ export default {
         // clamp to real 700 outlines instead of synthesising. The -v2 name is
         // load-bearing — /fonts/* is immutable-cached for a year, so the sheet
         // had to be renamed for the fix to reach existing users at all.
-        body: ['"Inter"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+        body: ['"IBM Plex Sans"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
         // Nick 2026-07-09 "整个系统页面都要 C 字体": Ink & Petrol admin
         // rhythm wants sans titles, not display serif. Point `font-display`
         // at the same IBM Plex Sans stack as body so every V2 list / detail
