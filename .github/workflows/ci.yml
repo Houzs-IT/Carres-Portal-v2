@@ -149,10 +149,12 @@ jobs:
           key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
       - name: Install chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
+        # The runner's Ubuntu download servers sometimes fail to resolve (PR #2268 failed twice on it), so retry once,
+        # then fall back to the browser alone: the runner image already carries chromium's main libraries.
+        run: pnpm exec playwright install --with-deps chromium || { sleep 30; sudo apt-get update -q || true; pnpm exec playwright install --with-deps chromium; } || pnpm exec playwright install chromium
       - name: Install chromium's system libraries
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+        run: pnpm exec playwright install-deps chromium || { sleep 30; sudo apt-get update -q || true; pnpm exec playwright install-deps chromium; } || echo "::warning::chromium system libraries not installed; using the runner image's own"
       - name: Kit check on the moved screens (1025, 1164 and 1440 wide)
         run: pnpm kit:check
 
