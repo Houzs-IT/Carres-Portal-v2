@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { requireOperation } from "../../lib/auth-guards";
+import { canEditSettings } from "../../lib/settings-editor";
 import type { AppEnv } from "../../types";
 
 /**
@@ -18,9 +19,9 @@ const b64url = (bytes: ArrayBuffer | Uint8Array) =>
 
 /** A 45-second statement of who is signed in, signed with the secret only the two Workers hold
  *  (checked by engine/backend/src/carres/sso.ts). */
-export async function engineAssertion(secret: string, who: { email: string; role: string }, now = Date.now()): Promise<string> {
+export async function engineAssertion(secret: string, who: { email: string; role: string; settingsEditor?: boolean }, now = Date.now()): Promise<string> {
   const enc = new TextEncoder();
-  const body = b64url(enc.encode(JSON.stringify({ email: who.email, role: who.role, exp: now + 45_000 })));
+  const body = b64url(enc.encode(JSON.stringify({ email: who.email, role: who.role, settingsEditor: who.settingsEditor === true, exp: now + 45_000 })));
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return `${body}.${b64url(await crypto.subtle.sign("HMAC", key, enc.encode(body)))}`;
 }
@@ -33,11 +34,13 @@ router.post("/session", requireOperation, async (c) => {
   try {
     // Through the service binding when there is one: a public workers.dev call between two Workers of one
     // account is refused by Cloudflare.
+    // Named under Settings editors -> Supply Chain (or the owner): may change Supply Chain Settings in the engine.
+    const settingsEditor = await canEditSettings(c.env, auth.jwt, "supply_chain", auth.role).catch(() => false);
     const call = c.env.SCM_ENGINE ? c.env.SCM_ENGINE.fetch.bind(c.env.SCM_ENGINE) : fetch;
     res = await call(`${api.replace(/\/+$/, "")}/api/carres-sso`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ assertion: await engineAssertion(secret, { email: auth.email, role: auth.role }) }),
+      body: JSON.stringify({ assertion: await engineAssertion(secret, { email: auth.email, role: auth.role, settingsEditor }) }),
     });
   } catch {
     return c.json({ error: "engine_unreachable", message: UNREACHABLE }, 502);

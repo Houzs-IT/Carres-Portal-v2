@@ -25,6 +25,7 @@ export const SETTINGS_SECTIONS = [
   "delivery",
   "issue_tracker",
   "service",
+  "supply_chain",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 

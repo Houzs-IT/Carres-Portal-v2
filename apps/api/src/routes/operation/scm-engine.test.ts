@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vites
 import { signTestJwt, useTestJwks } from "../../test/jwt";
 import app from "../../index";
 import { _setJwksForTesting } from "../../middleware/auth";
+import { canEditSettings } from "../../lib/settings-editor";
+
+vi.mock("../../lib/settings-editor", async (orig) => ({ ...(await orig<object>()), canEditSettings: vi.fn(async () => false) }));
 
 const USER = "11111111-1111-1111-1111-000000000998";
 const baseEnv = {
@@ -40,7 +43,16 @@ describe("POST /api/operation/scm-engine/session", () => {
     expect(url).toBe("https://engine.test/api/carres-sso");
     const { assertion } = JSON.parse(String(init.body)) as { assertion: string };
     const claims = JSON.parse(atob(assertion.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
-    expect(claims).toMatchObject({ email: "ops@carres.com", role: "operation" });
+    expect(claims).toMatchObject({ email: "ops@carres.com", role: "operation", settingsEditor: false });
+  });
+
+  it("tells the engine when the person is named under Settings editors -> Supply Chain", async () => {
+    vi.mocked(canEditSettings).mockResolvedValueOnce(true);
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ token: "tok" }), { status: 200 }));
+    expect((await post(engineEnv)).status).toBe(200);
+    const { assertion } = JSON.parse(String((spy.mock.calls[0] as [string, RequestInit])[1].body)) as { assertion: string };
+    expect(JSON.parse(atob(assertion.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")))).toMatchObject({ settingsEditor: true });
+    expect(vi.mocked(canEditSettings).mock.calls.at(-1)?.[2]).toBe("supply_chain");
   });
 
   it("calls the engine through the service binding when there is one", async () => {
