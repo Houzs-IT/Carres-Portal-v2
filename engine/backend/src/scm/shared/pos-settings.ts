@@ -105,7 +105,7 @@ export function posSettingsDefaults(): PosSettings {
       receipt_no_format: "{TERM}-{000000}",
       alert_pending_days: 3,
       alert_event_end_days: 3,
-      alert_email: "hello@houzscentury.com",
+      alert_email: "", // Carres: no alert mail until someone types an address (never a Houzs mailbox)
       heartbeat_minutes: 5,
       daily_summary_email: false,
       customer_field: "OPTIONAL",

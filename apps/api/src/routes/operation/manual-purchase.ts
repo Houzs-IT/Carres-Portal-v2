@@ -49,10 +49,28 @@ import {
 } from "../../lib/purchasing-settings";
 import { forecastIssueRefusal, forecastItemWord } from "../../lib/forecast-purchase-read";
 import { fail, mapPgError } from "../../lib/route-helpers";
-import { readyStockRefusedUnitId } from "./so-batch-ready-stock";
 import { userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
 import { todayIsoMYT } from "../../lib/delivery-order-issue";
+
+/**
+ * The Unit a refusal is about, off the DETAIL 0473 writes (`unit_id=<uuid>`).
+
+ * It reads DETAIL first and the message second because PostgREST puts the two
+ * in different fields and older refusals carried neither — this never invents
+ * an id, it only finds one that is there.
+ */
+function readyStockRefusedUnitId(error: {
+  details?: string | null;
+  message?: string | null;
+}): string | null {
+  const where = `${error.details ?? ""} ${error.message ?? ""}`;
+  return (
+    where.match(
+      /unit_id=([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/,
+    )?.[1] ?? null
+  );
+}
 
 /**
  * MANUAL PURCHASE — the request lane's doors

@@ -18,44 +18,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
+import { askHidden, askLine } from "./ask.mjs";
 
 const DIR = fileURLToPath(new URL("./migrations/", import.meta.url));
 const DRY = process.argv.includes("--dry-run");
 const CI = process.argv.includes("--ci");
 const ENGINE_REF = "pxdnkoduwwsmzrgbfsqq"; // the engine's own Supabase project (Carres-SCM-Engine, ww)
 const REFUSED_REFS = ["kfprgpjpaffedghytstl"]; // Carres-Portal-v2, the portal's own database
-
-let piped = null;
-async function pipedLine() {
-  if (!piped) { let t = ""; for await (const c of process.stdin) t += c; piped = t.split(/\r?\n/); }
-  return piped.shift() ?? "";
-}
-/** Reads one line without echoing it. Never logged, never written anywhere. */
-function askHidden(question) {
-  return new Promise((resolve, reject) => {
-    const { stdin, stdout } = process;
-    if (!stdin.isTTY) { stdout.write(question + "\n"); pipedLine().then(resolve, reject); return; }
-    stdout.write(question);
-    stdin.setRawMode(true); stdin.resume(); stdin.setEncoding("utf8");
-    let value = "";
-    const done = (fn) => { stdin.setRawMode(false); stdin.pause(); stdin.removeListener("data", onData); stdout.write("\n"); fn(); };
-    const onData = (chunk) => {
-      for (const ch of chunk) {
-        if (ch === "\r" || ch === "\n") return done(() => resolve(value));
-        if (ch === "\u0003") return done(() => reject(new Error("Cancelled. Nothing was applied.")));
-        if (ch === "\u007f" || ch === "\b") value = value.slice(0, -1);
-        else if (ch >= " ") value += ch;
-      }
-    };
-    stdin.on("data", onData);
-  });
-}
-async function askLine(question) {
-  if (!process.stdin.isTTY) { process.stdout.write(question + "\n"); return (await pipedLine()).trim(); }
-  const { createInterface } = await import("node:readline/promises");
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
-}
 
 let url;
 if (CI) url = (process.env.ENGINE_DATABASE_URL ?? "").trim();

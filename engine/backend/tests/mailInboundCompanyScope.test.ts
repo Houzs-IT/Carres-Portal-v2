@@ -37,7 +37,7 @@ async function ingest(deliveredTo: string, messageId: string, inReplyTo?: string
     env.DB,
     {
       from: "someone@example.com",
-      to: ["hello@houzscentury.com", "hello@2990shome.com"],
+      to: ["hello@carresofficial.com", "hello@2990shome.com"],
       deliveredTo,
       subject: "Hello",
       text: "hi",
@@ -59,7 +59,7 @@ async function companyOf(threadId: string): Promise<number> {
 
 describe("A6: inbound threading and de-duplication are per company", () => {
   test("an In-Reply-To pointing at the other company's message opens a new thread in this company", async () => {
-    const houzs = await ingest("hello@houzscentury.com", "<houzs-1@example.com>");
+    const houzs = await ingest("hello@carresofficial.com", "<houzs-1@example.com>");
     expect(await companyOf(houzs.threadId)).toBe(1);
 
     const forged = await ingest("hello@2990shome.com", "<forged-1@example.com>", "<houzs-1@example.com>");
@@ -74,7 +74,7 @@ describe("A6: inbound threading and de-duplication are per company", () => {
   });
 
   test("one mail copied to both companies is stored once in each, and a re-delivery is still deduped", async () => {
-    const a = await ingest("hello@houzscentury.com", "<both-1@example.com>");
+    const a = await ingest("hello@carresofficial.com", "<both-1@example.com>");
     const b = await ingest("hello@2990shome.com", "<both-1@example.com>");
     expect(a.deduped).toBeUndefined();
     expect(b.deduped).toBeUndefined();
@@ -122,7 +122,7 @@ describe("R8: inbound endpoint limits", () => {
       {
         method: "POST",
         headers: { "x-mail-secret": SECRET, "content-type": "application/json" },
-        body: JSON.stringify({ from: "a@example.com", to: ["hello@houzscentury.com"], messageId: "<ok-1@example.com>" }),
+        body: JSON.stringify({ from: "a@example.com", to: ["hello@carresofficial.com"], messageId: "<ok-1@example.com>" }),
       },
       inboundEnv,
     );

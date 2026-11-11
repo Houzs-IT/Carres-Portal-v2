@@ -174,6 +174,10 @@ export type Env = {
   // Public origin for building email links (portal survey URLs etc.).
   // Falls back to the worker URL if unset.
   PUBLIC_APP_URL?: string;
+  /** Carres: the engine's own site (public survey / invite / reset pages). */
+  ENGINE_PUBLIC_URL?: string;
+  /** Carres: who gets the daily client-error digest; blank = the Branding email. */
+  CLIENT_ERROR_DIGEST_TO?: string;
   // Commit this Worker build was deployed from. Stamped ONLY by deploy.yml
   // (`wrangler deploy --var GIT_SHA:<sha>`); absent on any bare local deploy.
   // Read by GET /health and compared against main by the deploy-watchdog

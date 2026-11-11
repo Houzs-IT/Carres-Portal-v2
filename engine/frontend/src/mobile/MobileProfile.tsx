@@ -21,6 +21,7 @@ import { useThemePreference, type ThemePreference } from "../lib/theme";
 // below already calls the new name.
 import { useAnnouncementUnread } from "./useAnnouncementUnread";
 import { useToast } from "../hooks/useToast";
+import { useBranding } from "../hooks/useBranding"; // Carres
 import { validatePasswordStrength } from "../lib/passwordStrength";
 import {
   biometricSessionEnabled,
@@ -907,18 +908,17 @@ function AppearanceScreen({ onBack }: { onBack: () => void }) {
 
 // ── Help & support (static) ──
 function HelpScreen({ onBack }: { onBack: () => void }) {
+  /* Carres: the support desk comes from Settings > Branding (customer-service contact first, else the
+     company contact); a blank one is not shown. Never Houzs's mailbox or phone. */
+  const branding = useBranding();
+  const supportEmail = (branding.csEmail || branding.email || "").trim();
+  const supportPhone = (branding.csPhone || branding.phone || "").trim();
   return (
     <SubScreen title="Help & support" onBack={onBack}>
-      <div style={sectionLabel}>Get in touch</div>
+      {(supportEmail || supportPhone) && <div style={sectionLabel}>Get in touch</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 18 }}>
-        {/* Shared/default support desk. Intentionally NOT swapped to the active
-            company's branding.email: that field is the general contact
-            (hello@houzscentury.com), not this ops support mailbox, and 2990's
-            is blank (would break the mailto). This operations desk backs both
-            companies in the unified ERP; revisit if a per-company support
-            address is ever configured in branding. */}
-        <a
-          href="mailto:operation@houzscentury.com"
+        {supportEmail && <a
+          href={`mailto:${supportEmail}`}
           style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--hz-c-surface)", border: "1px solid var(--line)", borderRadius: 13, padding: "13px 14px", textDecoration: "none" }}
         >
           <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "var(--hz-c-primary-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -926,12 +926,12 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
           </span>
           <span style={{ flex: 1 }}>
             <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>Email support</span>
-            <span style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>operation@houzscentury.com</span>
+            <span style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>{supportEmail}</span>
           </span>
           <span style={{ color: "#c2c6bd" }}>{"›"}</span>
-        </a>
-        <a
-          href="tel:+60327108800"
+        </a>}
+        {supportPhone && <a
+          href={`tel:${supportPhone.replace(/[^\d+]/g, "")}`}
           style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--hz-c-surface)", border: "1px solid var(--line)", borderRadius: 13, padding: "13px 14px", textDecoration: "none" }}
         >
           <span style={{ width: 34, height: 34, flex: "none", borderRadius: 9, background: "var(--hz-c-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -939,10 +939,10 @@ function HelpScreen({ onBack }: { onBack: () => void }) {
           </span>
           <span style={{ flex: 1 }}>
             <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: "var(--ink)" }}>Call operations</span>
-            <span className="money" style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>+60 3-2710 8800</span>
+            <span className="money" style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>{supportPhone}</span>
           </span>
           <span style={{ color: "#c2c6bd" }}>{"›"}</span>
-        </a>
+        </a>}
       </div>
 
       <div style={sectionLabel}>Guides</div>

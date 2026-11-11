@@ -160,16 +160,6 @@ export async function readAllPages<T = Record<string, unknown>>(
 }
 
 /**
- * The most ids one read may spell into an `in (…)` URL.
- *
- * ponytail: 200 uuids is ~7 kB of query string — the same order of magnitude
- * as the LINK_SLICE of 100 that `routes/finance/ledger.ts` already calls
- * "well inside a URL". A filter needing more ids than this cannot name them
- * all; push it into an RPC that filters inside the database instead.
- */
-export const IN_URL_MAX = 200;
-
-/**
  * A read that overran its ceiling. The same answer the account ledger
  * already gives ("Choose a shorter period for this account."): 422, code
  * `too_many_rows`, one plain sentence — never a silently shorter list.

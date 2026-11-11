@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Mail, MapPin, ShieldCheck } from "lucide-react";
+import { Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
 import { todayMyt } from "../../vendor/scm/lib/dates";
+import { publicAddressLines, usePublicCompany } from "../../carres/publicBranding"; // Carres
 
 // Customer-facing portal shell. Designed to feel like a considered,
 // well-made document rather than a generic SaaS layout — this is a
@@ -19,6 +20,9 @@ const LOGO_WORDMARK = "/logo-wordmark.png";
 
 export function PortalFrame({ children }: { children: ReactNode }) {
   const year = todayMyt().slice(0, 4);
+  // Carres: company identity and contact from Settings > Branding (never Houzs's); a blank line is not shown.
+  const company = usePublicCompany();
+  const addressLines = publicAddressLines(company);
 
   return (
     <div className="flex min-h-screen flex-col bg-bg">
@@ -32,11 +36,11 @@ export function PortalFrame({ children }: { children: ReactNode }) {
           <Link
             to="/track"
             className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 rounded"
-            aria-label="Houzs Century — service case tracking"
+            aria-label={`${company.companyName} service case tracking`}
           >
             <img
               src={LOGO_WORDMARK}
-              alt="Houzs Century"
+              alt={company.companyName}
               className="h-8 w-auto max-w-[140px] object-contain sm:h-10 sm:max-w-[180px]"
               draggable={false}
             />
@@ -74,7 +78,7 @@ export function PortalFrame({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3 text-accent/60">
             <span className="h-px w-8 bg-current" />
             <span className="font-display text-[10px] font-bold uppercase tracking-[4pt]">
-              Houzs Century
+              {company.companyName}
             </span>
             <span className="h-px w-8 bg-current" />
           </div>
@@ -88,19 +92,23 @@ export function PortalFrame({ children }: { children: ReactNode }) {
                 Company
               </div>
               <div className="font-display text-[14px] font-extrabold uppercase leading-tight tracking-wide text-ink">
-                Houzs Century Sdn. Bhd.
+                {company.companyName}
               </div>
-              <div className="mt-1 font-mono text-[11px] tracking-tight text-ink-muted">
-                202201031135&nbsp;&middot;&nbsp;(1476832-W)
-              </div>
-              <div className="mt-4 flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-secondary">
-                <MapPin size={13} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden />
-                <address className="not-italic">
-                  1831-B, Jalan KPB 1,<br />
-                  Kawasan Perindustrian Balakong,<br />
-                  43300 Seri Kembangan, Selangor.
-                </address>
-              </div>
+              {company.registrationNo && (
+                <div className="mt-1 font-mono text-[11px] tracking-tight text-ink-muted">
+                  {company.registrationNo}
+                </div>
+              )}
+              {addressLines.length > 0 && (
+                <div className="mt-4 flex items-start gap-2.5 text-[12.5px] leading-relaxed text-ink-secondary">
+                  <MapPin size={13} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden />
+                  <address className="not-italic">
+                    {addressLines.map((line, i) => (
+                      <span key={i}>{i > 0 && <br />}{line}</span>
+                    ))}
+                  </address>
+                </div>
+              )}
             </section>
 
             {/* ── Contact ────────────────────────────────── */}
@@ -109,17 +117,29 @@ export function PortalFrame({ children }: { children: ReactNode }) {
                 Get in touch
               </div>
               <ul className="space-y-2.5 text-[12.5px] text-ink-secondary">
-                {/* Phone removed (Nick 2026-07-06) — email is the service
-                    desk's contact channel. */}
-                <li>
-                  <a
-                    href="mailto:operation_service@houzscentury.com"
-                    className="inline-flex items-center gap-2.5 py-1 transition-colors hover:text-accent"
-                  >
-                    <Mail size={13} className="shrink-0 text-ink-muted" aria-hidden />
-                    <span className="font-medium">operation_service@houzscentury.com</span>
-                  </a>
-                </li>
+                {/* Carres: the customer-service contact from Settings > Branding; each line only when set. */}
+                {company.email && (
+                  <li>
+                    <a
+                      href={`mailto:${company.email}`}
+                      className="inline-flex items-center gap-2.5 py-1 transition-colors hover:text-accent"
+                    >
+                      <Mail size={13} className="shrink-0 text-ink-muted" aria-hidden />
+                      <span className="font-medium">{company.email}</span>
+                    </a>
+                  </li>
+                )}
+                {company.phone && (
+                  <li>
+                    <a
+                      href={`tel:${company.phone.replace(/[^\d+]/g, "")}`}
+                      className="inline-flex items-center gap-2.5 py-1 transition-colors hover:text-accent"
+                    >
+                      <Phone size={13} className="shrink-0 text-ink-muted" aria-hidden />
+                      <span className="font-medium">{company.phone}</span>
+                    </a>
+                  </li>
+                )}
               </ul>
               <div className="mt-4 border-l-2 border-accent/30 pl-3 text-[11.5px] leading-relaxed text-ink-muted">
                 <div className="text-[10px] font-semibold uppercase tracking-[1.5pt] text-ink-secondary">
@@ -157,7 +177,7 @@ export function PortalFrame({ children }: { children: ReactNode }) {
           {/* Bottom strip — inline on sm+, stacked on xs */}
           <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-5 text-[10.5px] text-ink-muted sm:flex-row sm:gap-4">
             <div className="order-2 sm:order-1">
-              &copy; {year} Houzs Century Sdn. Bhd. All rights reserved.
+              &copy; {year} {company.companyName}. All rights reserved.
             </div>
             <div className="order-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:order-2 sm:justify-end">
               <span className="inline-flex items-center gap-1.5">

@@ -69,6 +69,9 @@ export interface Branding {
  *  (frontend pdf-common.ts COMPANY + AuthScreens "Houzs Century" lockup + the
  *  email from-address). Mirrors the 0038_branding_config.sql seed row so the
  *  fetch returns the same values it falls back to. */
+// Carres: the mail domain when Settings > Branding has no email yet (never a Houzs domain).
+export const CARRES_MAIL_DOMAIN = "carresofficial.com";
+
 export const DEFAULT_BRANDING: Branding = {
   // Carres: blank until set in Settings > Branding, so nothing prints another company's details.
   companyName: "Carres",

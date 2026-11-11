@@ -11,7 +11,7 @@ describe("pos-settings", () => {
     expect(d.sst_receipt.sst_default_on).toBe(false);
     expect(d.sst_receipt.paper_width).toBe(58);
     expect(d.general.idle_logout_minutes).toBe(15);
-    expect(d.general.alert_email).toBe("hello@houzscentury.com");
+    expect(d.general.alert_email).toBe("");
     expect(d.general.alert_pending_days).toBe(3);
     expect(d.general.booth_brands).toEqual(["AKEMI Cash & Carry", "AKEMI FRAGRANCE"]);
     expect(normalizePosSettingsGroup("general", { booth_brands: ["ZANOTTI", 7] }).booth_brands).toEqual(["ZANOTTI", "7"]);
@@ -30,7 +30,7 @@ describe("pos-settings", () => {
     expect(g.idle_logout_minutes).toBe(30);
     expect(g.price_override).toBe("OFF");
     expect(g.payment_methods).toEqual({ QR: true, CREDIT: true, DEBIT: true, EWALLET: true, CASH: true });
-    expect(g.alert_email).toBe("hello@houzscentury.com");
+    expect(g.alert_email).toBe("");
     expect((g as Record<string, unknown>).surprise).toBeUndefined();
     expect(g.pos_store_warehouse_id).toBe("abc-uuid");
     expect(normalizePosSettingsGroup("sst_receipt", "corrupt").paper_width).toBe(58);

@@ -3348,7 +3348,7 @@ export function EditMemberPanel({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="member@houzscentury.com"
+            placeholder="member@carresofficial.com"
             className={inputCls}
           />
         </EditMemberField>
@@ -3358,7 +3358,7 @@ export function EditMemberPanel({
             type="email"
             value={emailAlias}
             onChange={(e) => setEmailAlias(e.target.value)}
-            placeholder="e.g. lim@houzscentury.com (optional)"
+            placeholder="e.g. lim@carresofficial.com (optional)"
             className={inputCls}
           />
           <div className="mt-1 text-[10px] text-ink-muted">
@@ -5380,7 +5380,7 @@ export function InvitePanel({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="member@houzscentury.com"
+              placeholder="member@carresofficial.com"
               className="h-10 w-full rounded-md border border-border bg-surface px-3 text-[13px] text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </div>

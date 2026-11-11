@@ -46,8 +46,9 @@ export function carresNavOnly<T extends NavNode>(tabs: T[]): T[] {
   return pruneHidden(tabs.filter((t) => KEEP.has(t.label)));
 }
 
-/** No AutoCount in the Carres engine: Settings drops its Sync tab and never asks for that status. */
-export const CARRES_AUTOCOUNT: boolean = true; // Settings shows its Sync tab as in Houzs (owner, 11 Nov 2026: same as Houzs except colour)
+/** No AutoCount in the Carres engine: the Worker does not serve /api/sync/*, so Settings drops its Sync tab
+ *  and never asks for that status (showing it only produced an error). Everything else in Settings is Houzs's. */
+export const CARRES_AUTOCOUNT: boolean = false;
 
 /** Where a switched-off module's address goes. The landing page itself is Houzs's Overview, as in Houzs. */
 export const CARRES_HOME = "/scm/sales-orders";

@@ -108,6 +108,17 @@ migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent
    Build a throwaway database from that folder (PGlite) before merging; the owner applies them to the
    engine database with `engine/backend/scripts/carres-db/apply.mjs`.
 
+**Test data: Houzs's master data in the engine** (`engine/backend/scripts/carres-db/seed-from-houzs.mjs`, 11 Nov
+2026). To test-run the whole engine flow on real master data, the owner runs, from `engine/backend` on the machine
+that holds Houzs's masked local database (`houzs_local`, built by `houzs-erp-local/.local-dev/import-snapshot.sh`):
+`node scripts/carres-db/seed-from-houzs.mjs --dry-run`, then without `--dry-run`. It asks for the engine database
+connection string hidden, like `apply.mjs`, and copies only master/config rows (catalogue, suppliers and bindings,
+warehouses and racks, customers, delivery rates, lead times, Finance chart of accounts and settings, lookup lists)
+of Houzs's main company, re-labelled to the Carres company, in one transaction; never transactions, stock, history,
+tokens or users, and it never changes or deletes a row already there (re-runs copy nothing new).
+`--classify` lists every Houzs table as copied or skipped with the reason. Before go-live, the engine database
+starts clean again (CLAUDE.md §6): this is test data.
+
 ---
 
 ## 3 · RLS performance — three rules that are not optional

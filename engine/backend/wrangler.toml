@@ -1,7 +1,8 @@
 # Carres's copy of the Houzs supply chain engine (Houzs commit a87a841be, 5 Nov 2026), in CARRES's
 # Cloudflare account. Rules, copied from the Conts engine that runs the same code:
 #   - only Carres resources: never a Houzs database, bucket, queue, KV, domain or account;
-#   - no scheduled jobs (no [triggers]), no AutoCount, no routes, no queues;
+#   - Houzs's scheduled jobs run (the [triggers] below, Houzs's own list) but no AutoCount job (AUTOCOUNT_SYNC_DISABLED),
+#     no routes, no queues. Every mail they send goes to Carres addresses (Branding / CLIENT_ERROR_DIGEST_TO), never Houzs's;
 #   - the database is the engine's OWN Supabase project, never Carres-Portal-v2: its tables share names
 #     with Carres's (projects, purchase_orders, warehouses ...).
 # The REPLACE_ME ids are filled once those Carres resources exist; until then a deploy fails on purpose.
@@ -29,6 +30,11 @@ SESSION_FALLBACK_ENABLED = "false"
 SESSION_FALLBACK_TTL_MS = "60000"
 HOUZS_OWNS_2990 = "true"
 PUBLIC_APP_URL = "https://carres-portal.pages.dev"
+# The engine's own site: the public pages a link must open (/survey/<token>, /invite/<token>, /reset/<token>,
+# /portal/case/<token>) live here, not on the Carres portal.
+ENGINE_PUBLIC_URL = "https://carres-scm.pages.dev"
+# Who gets the daily client-error digest. Blank = the Settings > Branding email; neither set = no digest.
+CLIENT_ERROR_DIGEST_TO = ""
 EMAIL_FROM = "Carres <noreply@carresofficial.com>"
 SO_ITEM_PHOTOS_BUCKET_NAME = "carres-scm"
 SENTRY_ENVIRONMENT = "production"
@@ -57,6 +63,24 @@ bucket_name = "carres-scm"
 [[kv_namespaces]]
 binding = "SESSION_CACHE"
 id = "f11f807086f14251bd6fcdad0193129a"
+
+# Houzs's cron schedule, unchanged (houzs-erp backend/wrangler.toml at origin/main). What each slot runs is in
+# src/index.ts scheduled(); AutoCount jobs stay off (AUTOCOUNT_SYNC_DISABLED = "true", scm.autocount_writeback off),
+# and jobs that need an outside service (Velocity, Connect, the IT hub, Venture Portal, Anthropic) do nothing
+# until that service's secret or setting exists.
+#   */5    keep-warm, email outbox, stock allocation sweep, amendment backstop
+#   */15   MRP snapshot, procurement overview
+#   */30   Service Case alerts, notice escalation, lead-time activations, 3PL bills, slip reaper, job alerts
+#   0 2    daily batch: SLA, Service Case digest, project reminders, client-error digest, retention sweeps
+#   5 16   month-end stock close (00:05 MYT), lorry day routes, DO stamp retry, nightly integrity / self-check
+[triggers]
+crons = [
+  "*/5 * * * *",
+  "*/15 * * * *",
+  "*/30 * * * *",
+  "0 2 * * *",
+  "5 16 * * *"
+]
 
 [alias]
 zod = "./node_modules/zod"

@@ -20,7 +20,8 @@ export function consumeCarresSignIn(): void {
   let path = "/";
   try {
     const { t, sp, p } = JSON.parse(atob(m[1].replace(/-/g, "+").replace(/_/g, "/"))) as { t?: string; sp?: string; p?: string };
-    // Session storage only: the portal hands over a fresh session on every visit.
+    // Session storage only: the portal hands over its session for this tab on every visit
+    // (apps/web/src/lib/engine-session.ts), and a new one when this app reports it refused (carres/ready.ts).
     if (t) tokenStore.set(t, false);
     if (t && sp) passStore.set(sp, false);
     if (typeof p === "string" && p.startsWith("/") && !p.startsWith("//")) path = p;

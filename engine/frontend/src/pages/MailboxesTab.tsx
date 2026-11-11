@@ -40,6 +40,7 @@ import { useToast } from "../hooks/useToast";
 import { useDialog } from "../hooks/useDialog";
 import { api } from "../api/client";
 import { useBranding } from "../hooks/useBranding";
+import { CARRES_MAIL_DOMAIN } from "../lib/branding"; // Carres
 import { cn } from "../lib/utils";
 import type { TeamMember, Department } from "../types";
 import {
@@ -239,11 +240,11 @@ function NewMailboxModal({
 }) {
   const toast = useToast();
   const branding = useBranding();
-  // The verified company domain (e.g. houzscentury.com) — derived from Branding
-  // so the address suggestion + the @-suffix hint track Settings.
+  // The verified company domain — derived from Branding so the address
+  // suggestion + the @-suffix hint track Settings. Carres: else carresofficial.com.
   const domain = useMemo(() => {
     const fromEmail = (branding.email || "").split("@")[1];
-    return (fromEmail || "houzscentury.com").trim().toLowerCase();
+    return (fromEmail || CARRES_MAIL_DOMAIN).trim().toLowerCase();
   }, [branding.email]);
 
   const [kind, setKind] = useState<"person" | "dept">("person");

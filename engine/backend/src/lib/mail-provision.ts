@@ -2,7 +2,7 @@
 // helper moved here from routes/users.ts unchanged; invite, accept-invite and
 // the user edit screen all provision through it.
 import type { Env } from "../types";
-import { getBranding } from "../services/branding";
+import { getBranding, brandingMailDomain, CARRES_MAIL_DOMAIN } from "../services/branding";
 import { resolveDatabaseUrl } from "../db/pg";
 
 // Auto-provision a member's PERSONAL Mail Center mailbox when their email_alias
@@ -28,10 +28,10 @@ export class AliasMailboxCollisionError extends Error {
 }
 
 export async function companyMailboxDomain(env: Env): Promise<string> {
-  const fallback = "houzscentury.com";
+  // Carres: Branding email's domain, else carresofficial.com (never a Houzs domain).
+  const fallback = CARRES_MAIL_DOMAIN;
   try {
-    const branding = await getBranding(env);
-    return (branding.email.split("@")[1] || fallback).trim().toLowerCase();
+    return brandingMailDomain(await getBranding(env));
   } catch {
     // Branding is optional during bootstrap. Provisioning writes below remain
     // fail-closed; this is only the established default-domain fallback.

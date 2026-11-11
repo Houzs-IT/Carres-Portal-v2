@@ -287,7 +287,8 @@ describe("GET /summary — super-admin only", () => {
 // emailOutbox.test.ts does and hand the service an env with a key set (the real
 // test env leaves RESEND_API_KEY unset on purpose).
 
-const liveEnv = { ...env, RESEND_API_KEY: "re_test_key" } as typeof env;
+// Carres: the digest recipient is configured (CLIENT_ERROR_DIGEST_TO, else the Branding email), never a literal.
+const liveEnv = { ...env, RESEND_API_KEY: "re_test_key", CLIENT_ERROR_DIGEST_TO: "it@carresofficial.com" } as typeof env;
 let outbound: ReturnType<typeof createOutboundFetchMock>;
 
 function mockResend(status: number, body: unknown) {
@@ -361,7 +362,7 @@ describe("daily digest", () => {
     expect(rows.results?.length).toBe(1);
     const mail = rows.results![0];
     expect(mail.status).toBe("sent");
-    expect(mail.to_address).toBe("hello@houzscentury.com");
+    expect(mail.to_address).toBe("it@carresofficial.com");
     expect(mail.subject).toContain("2 distinct");
     expect(mail.subject).toContain("45 occurrence");
     const html = mail.body_html;

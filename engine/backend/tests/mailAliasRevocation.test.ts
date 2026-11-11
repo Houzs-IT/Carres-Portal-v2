@@ -139,7 +139,7 @@ afterAll(async () => {
   await env.DB.prepare(`DELETE FROM email_address_access WHERE user_id IN (?, ?)`)
     .bind(userId, otherUserId)
     .run();
-  await env.DB.prepare(`DELETE FROM email_addresses WHERE assigned_user_id IN (?, ?) OR address LIKE 'alias-%@houzscentury.com'`)
+  await env.DB.prepare(`DELETE FROM email_addresses WHERE assigned_user_id IN (?, ?) OR address LIKE 'alias-%@carresofficial.com'`)
     .bind(userId, otherUserId)
     .run();
   await env.DB.prepare(`DELETE FROM sessions WHERE token IN (?, ?)`)
@@ -169,7 +169,7 @@ describe("personal Mail Center alias revocation", () => {
   });
 
   test("claims an inbound-created unowned mailbox and creates the self-grant atomically", async () => {
-    const inboundAlias = `alias-inbound-${crypto.randomUUID()}@houzscentury.com`;
+    const inboundAlias = `alias-inbound-${crypto.randomUUID()}@carresofficial.com`;
     const inboundMailboxId = crypto.randomUUID();
     await env.DB.prepare(`UPDATE users SET email_alias = NULL WHERE id = ?`)
       .bind(userId)
@@ -227,8 +227,8 @@ describe("personal Mail Center alias revocation", () => {
 
   test("rejects an alias owned by another user without revoking the current alias", async () => {
     const suffix = crypto.randomUUID();
-    const oldAlias = `alias-collision-old-${suffix}@houzscentury.com`;
-    const collisionAlias = `alias-collision-new-${suffix}@houzscentury.com`;
+    const oldAlias = `alias-collision-old-${suffix}@carresofficial.com`;
+    const collisionAlias = `alias-collision-new-${suffix}@carresofficial.com`;
     const oldMailboxId = crypto.randomUUID();
     const collisionMailboxId = crypto.randomUUID();
     await env.DB.prepare(`UPDATE users SET email_alias = ? WHERE id = ?`)
@@ -299,8 +299,8 @@ describe("personal Mail Center alias revocation", () => {
   });
 
   test("a D1 batch failure rolls back grant, assignment, and users.email_alias together", async () => {
-    const oldAlias = `alias-rollback-${crypto.randomUUID()}@houzscentury.com`;
-    const nextAlias = `alias-never-committed-${crypto.randomUUID()}@houzscentury.com`;
+    const oldAlias = `alias-rollback-${crypto.randomUUID()}@carresofficial.com`;
+    const nextAlias = `alias-never-committed-${crypto.randomUUID()}@carresofficial.com`;
     const mailboxId = crypto.randomUUID();
     await env.DB.prepare(`UPDATE users SET email_alias = ? WHERE id = ?`)
       .bind(oldAlias, userId)
@@ -379,8 +379,8 @@ describe("personal Mail Center alias revocation", () => {
 
   test("old From is revoked, new From works, and another user's shared grant survives", async () => {
     const suffix = crypto.randomUUID();
-    const oldAlias = `alias-old-${suffix}@houzscentury.com`;
-    const newAlias = `alias-new-${suffix}@houzscentury.com`;
+    const oldAlias = `alias-old-${suffix}@carresofficial.com`;
+    const newAlias = `alias-new-${suffix}@carresofficial.com`;
 
     await env.DB.prepare(`UPDATE users SET email_alias = ? WHERE id = ?`)
       .bind(oldAlias, userId)

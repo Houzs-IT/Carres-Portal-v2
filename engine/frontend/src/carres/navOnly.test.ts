@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { carresNavOnly, isCarresHiddenPath } from "./navOnly";
+import { CARRES_AUTOCOUNT, carresNavOnly, isCarresHiddenPath } from "./navOnly";
 
 describe("carresNavOnly", () => {
   it("keeps only the Carres areas and drops switched-off children", () => {
@@ -28,5 +28,11 @@ describe("carresNavOnly", () => {
     for (const p of ["/scm/finance", "/scm/forecast", "/scm/finance-dashboard", "/scm/accounting?tab=pnl", "/scm/receipts", "/scm/daily-bank?view=board"]) {
       expect(isCarresHiddenPath(p)).toBe(false);
     }
+  });
+});
+
+describe("CARRES_AUTOCOUNT", () => {
+  it("is off: the Carres engine serves no /api/sync/*, so Settings hides its Sync tab", () => {
+    expect(CARRES_AUTOCOUNT).toBe(false);
   });
 });

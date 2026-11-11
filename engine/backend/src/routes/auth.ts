@@ -22,7 +22,7 @@ import { isFinanceViewer, isProductCostViewer } from "../services/pmsAccess";
 import { userCanWriteScmConfig } from "../services/positionPolicy";
 import { resolveCapabilities } from "../services/capabilities";
 import { isCostingDisplayEnabled } from "../scm/lib/costing-enabled";
-import { sendEmail, publicUrl, resetEmailHtml, inviteEmailHtml, erpProductName } from "../services/email";
+import { sendEmail, enginePublicUrl, resetEmailHtml, inviteEmailHtml, erpProductName } from "../services/email";
 import { getBrandingForCompany } from "../services/branding";
 import { defaultCompanyCodeForHost } from "../middleware/companyContext";
 import { validatePasswordStrength } from "../services/passwordStrength";
@@ -460,7 +460,7 @@ app.post("/forgot-password", async (c) => {
       to: user.email,
       subject: `You're invited to ${inviteProduct}`,
       html: inviteEmailHtml({
-        link: publicUrl(c.env, `/invite/${inviteToken}`, inviteCompanyCode),
+        link: enginePublicUrl(c.env, `/invite/${inviteToken}`) /* Carres: engine page */,
         roleName: user.role_name || "a team member",
         inviterName: inviteProduct,
         expiresIn: "14 days",
@@ -519,7 +519,7 @@ app.post("/forgot-password", async (c) => {
     subject: `Reset your ${resetProduct} password`,
     html: resetEmailHtml({
       name,
-      link: publicUrl(c.env, `/reset/${token}`, resetCompanyCode),
+      link: enginePublicUrl(c.env, `/reset/${token}`) /* Carres: engine page */,
       expiresIn: "1 hour",
       requestedBy: null,
       productName: resetProduct,
