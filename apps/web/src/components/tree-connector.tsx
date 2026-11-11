@@ -35,8 +35,6 @@
 export const CONNECTOR_ELBOW_W = 11;
 /** The corner radius — the "subtle curve". */
 export const CONNECTOR_ELBOW_R = 9;
-/** The vertical air between two siblings that the trunk crosses. */
-export const CONNECTOR_ROW_GAP = 2;
 
 /**
  * The corner: down the trunk from `gapAbove` above this child's box, then a

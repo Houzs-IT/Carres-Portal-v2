@@ -33,12 +33,9 @@ import { useRef,
 } from "react";
 import Icon, { type IconName } from "@/components/kit/Icon";
 import MIcon from "@/components/carres/MIcon";
-import { SummaryPanelSurface, rememberPanelOpener } from "@/components/kit/Drawer";
+import { SummaryPanelSurface } from "@/components/kit/Drawer";
 import { useShellHeader } from "./shell-header-context";
 
-/* The v4 recipe, typed once so no row in this file drifts from another. */
-const GROUP_LABEL =
-  "text-[10px] font-semibold uppercase leading-[13px] tracking-[0.12em] text-c-muted";
 /** A rail row: 7px × 10px, 13/18, radius 8 (the side menu's item grammar). */
 const ROW =
   "relative flex min-h-8 w-full gap-2 rounded-lg px-2.5 py-[7px] text-left text-[13px] leading-[18px] max-[767px]:min-h-10";
@@ -46,67 +43,7 @@ const ROW_ON = "bg-c-select-bg font-semibold text-c-select-fg";
 const ROW_REST = "text-c-body hover:bg-c-hover";
 const COUNT = "shrink-0 tabular-nums text-[12px] leading-[18px] font-normal text-c-muted";
 
-export function RailGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="py-1">
-      <div className="flex items-center px-2.5 pb-1 pt-1.5">
-        <span className={GROUP_LABEL}>{title}</span>
-      </div>
-      <div className="flex flex-col gap-0.5">{children}</div>
-    </div>
-  );
-}
 
-export function RailItem({
-  label,
-  count,
-  active,
-  onClick,
-  title,
-  danger,
-  testId,
-}: {
-  label: string;
-  /** Omitted renders no number at all — an absent count and a zero are
-   *  different facts, and a queue that has not been read yet must not print a
-   *  reassuring `0`. */
-  count?: number;
-  active: boolean;
-  onClick: () => void;
-  title?: string;
-  /** §8.4 — danger reads first inside a group, and only while unselected: a
-   *  picked row is already carrying the selection's own colour. */
-  danger?: boolean;
-  testId: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      title={title}
-      data-testid={testId}
-      className={[
-        // Hover is GREY; the theme select colours mark the chosen row only.
-        `${ROW} items-center`,
-        active ? ROW_ON : ROW_REST,
-      ].join(" ")}
-    >
-      <span
-        className={`flex-1 truncate ${danger && !active ? "text-c-err-fg" : ""}`}
-      >
-        {label}
-      </span>
-      {count != null && <span className={COUNT}>{count}</span>}
-    </button>
-  );
-}
 
 /**
  * ── THE READABLE FILTER RAIL — style C, the Portal default ──────────────────
@@ -148,41 +85,6 @@ function useReportChosen(label: string | null) {
   }, [group, id, label]);
 }
 
-/**
- * ⭐ THE RESTORE CONTROL — the rail's own button, extracted 2026-09-18.
- *
- * `FilterRail` draws its `Hide filters` control; the button that brings the
- * rail BACK lives in the register's toolbar, so four pages had each drawn it
- * inline with the same 145-character class string (UI-KIT §6.6, and §6.1's
- * "the second occurrence is a full stop" — Purchase Returns would have been
- * the sixth copy). Hide and restore are two halves of one interaction and now
- * live in one file, so neither half can drift alone.
- *
- * Each page keeps its OWN `testId`: the tests that assert this control are
- * page tests, and renaming their hooks would be a behaviour change dressed as
- * a refactor.
- */
-export function ShowFiltersButton({
-  onShow,
-  testId,
-}: {
-  onShow: () => void;
-  testId: string;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label="Show filters"
-      title="Show filters"
-      data-testid={testId}
-      onClick={(event) => { rememberPanelOpener("Summary", event.currentTarget); onShow(); }}
-      /* The v4 toolbar icon button: 36 round, no border, body ink, grey hover. */
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-c-body hover:bg-c-hover"
-    >
-      <MIcon name="left_panel_open" size={20} />
-    </button>
-  );
-}
 
 export function FilterRail({
   children,
@@ -432,87 +334,6 @@ export function FilterRailRow({
   );
 }
 
-/**
- * ── A RAIL ROW THAT CAN OPEN, WITHOUT FILTERING — owner ruling 2026-09-17 ───
- * (Receiving's `GRN date` group, Purchasing MASTER §9.4.)
- *
- * ```
- *   ▸  14 – 20 Sep                                                        7
- *      └ pressing the LABEL filters the register by that week
- *        pressing the ARROW only shows its days — it filters NOTHING
- * ```
- *
- * The two jobs are two controls, because one control doing both is how a
- * person loses a filter they meant to keep: an operator opening a week to see
- * which day carried the GRNs would otherwise silently narrow the whole
- * register to that week. Both are real buttons, both reachable by keyboard,
- * and the arrow states what it is doing through `aria-expanded`.
- *
- * It is the `FilterRailRow` geometry unchanged — 32px minimum, wrapping label,
- * right-aligned count, the same selected treatment — with the disclosure in
- * front of it. A group that has nothing to open passes no `children` and gets
- * an ordinary row.
- */
-export function FilterRailExpandableRow({
-  label,
-  count,
-  active,
-  onClick,
-  testId,
-  expandLabel,
-  children,
-}: {
-  label: string;
-  count?: number;
-  active: boolean;
-  onClick: () => void;
-  testId: string;
-  /** The arrow's accessible name — `Show the days in 14 – 20 Sep`. */
-  expandLabel: string;
-  /** The rows revealed beneath. Absent = no arrow is drawn. */
-  children?: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const bodyId = useId();
-  useReportChosen(active ? label : null);
-  return (
-    <div>
-      <div className="relative flex items-start">
-        {children ? (
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls={bodyId}
-            aria-label={expandLabel}
-            title={expandLabel}
-            data-testid={`${testId}-expand`}
-            onClick={() => setOpen((v) => !v)}
-            className="mt-[7px] grid h-[18px] w-4 shrink-0 place-items-center rounded-lg text-c-muted hover:bg-c-hover hover:text-c-body"
-          >
-            <MIcon name={open ? "expand_more" : "chevron_right"} size={16} />
-          </button>
-        ) : (
-          <span className="w-4 shrink-0" aria-hidden />
-        )}
-        <button
-          type="button"
-          onClick={onClick}
-          aria-pressed={active}
-          data-testid={testId}
-          className={[`${ROW} items-start`, active ? ROW_ON : ROW_REST].join(" ")}
-        >
-          <span className="min-w-0 flex-1 break-words">{label}</span>
-          {count != null && <span className={COUNT}>{count}</span>}
-        </button>
-      </div>
-      {children && (
-        <div id={bodyId} hidden={!open} className={`ml-4 flex-col gap-0.5 ${open ? "flex" : "hidden"}`}>
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * ── THE COMPACT FACT DROPDOWN — owner ruling 2026-09-11 ─────────────────────
@@ -682,134 +503,6 @@ export function useFilterRailOpen(
   return [open && !narrowHidden, setVisible];
 }
 
-/**
- * ── THE MONTH GRID — the rail's calendar, Monday to Saturday ──────────────
- * (Jess, 2026-09-26: "full 1 month, need to see Sat work — office doesn't
- * work Saturday, but the Workspace needs to see it". Sunday is never drawn.)
- *
- * ```
- *    MON TUE WED THU FRI SAT
- *          1   2   3   4   5
- *      7   8   9  10  11  12
- *     14  15  16  17  18  19      ← a tile: the day number over its count
- *              2   3   2   1
- * ```
- *
- * Nothing is written in words — the count line is EMPTY when nothing is due,
- * a closed day (public holiday) is grey text with its name only in the
- * accessible name and tooltip. Today is the number in a RING; the week that
- * holds today is the tinted row (Jess, 2026-09-26: "circle the day you are
- * today, not write today; the week should have colour"). The full grid's
- * chosen tile wears the theme select colours. The compact Work grid has NO
- * select colour (Jess, 2026-09-28: one selection colour in the Work rail = the
- * chosen order row): its chosen day is the darker grey chip, today a dark
- * ring. Six columns share the 216px row.
- */
-export interface RailWeekDay {
-  iso: string;
-  /** `Mon, 28 Sep` — the accessible name's first part. */
-  label: string;
-  /** `MON` · `28`, both cut from that one spelling. */
-  weekday: string;
-  dayNumber: string;
-  /** The holiday's name when the day is closed, else null. */
-  closed: string | null;
-  count: number;
-  today: boolean;
-}
 
-const MONTH_GRID_COLUMNS = ["MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 
-export function FilterRailMonthGrid({
-  weeks,
-  chosenIso,
-  onPick,
-  testId,
-  compact = false,
-}: {
-  /** The Work inbox's month: 36px rows, the count under the number, a day
-   *  with work dark and a day without it grey (Jess, 2026-09-27). */
-  compact?: boolean;
-  weeks: readonly (readonly (RailWeekDay | null)[])[];
-  chosenIso: string | null;
-  onPick: (iso: string) => void;
-  testId: string;
-}) {
-  return (
-    <div className={compact ? "py-1" : "py-2"} data-testid={testId}>
-      <div className="grid grid-cols-6 gap-x-1" aria-hidden="true">
-        {MONTH_GRID_COLUMNS.map((c) => (
-          <span key={c} className="text-center text-[10px] font-semibold leading-4 text-c-muted">{c}</span>
-        ))}
-      </div>
-      {weeks.map((week, row) => {
-        const thisWeek = week.some((d) => d?.today);
-        return (
-        <div key={row} className={`grid grid-cols-6 gap-x-1 gap-y-1 rounded-lg ${thisWeek ? "bg-c-ground" : ""}`} data-testid={`${testId}-week-${row}`} data-this-week={thisWeek ? "yes" : undefined}>
-          {week.map((d, col) => {
-            if (!d) return <span key={col} aria-hidden="true" />;
-            const chosen = chosenIso === d.iso;
-            const closed = d.closed !== null;
-            const name = `${d.label}${d.today ? " · Today" : ""}${d.closed ? ` · ${d.closed}` : ""} · ${d.count} ${d.count === 1 ? "action" : "actions"}`;
-            return (
-              <button
-                key={d.iso}
-                type="button"
-                onClick={() => onPick(d.iso)}
-                aria-pressed={chosen}
-                aria-label={name}
-                title={d.closed ?? undefined}
-                data-testid={`${testId.replace(/s$/, "")}-${d.iso}`}
-                data-today={d.today ? "yes" : undefined}
-                data-closed={closed ? "yes" : undefined}
-                className={[
-                  /* The count sits UNDER the day number in both grids (Workspace
-                     §5.10 8b; Jess 2026-09-28 on the compact grid's count beside
-                     the number: "failed ui. how to make it easy read"). */
-                  "flex h-9 min-w-0 flex-col items-center justify-start rounded-lg pt-0.5 tabular-nums",
-                  chosen ? (compact ? "bg-c-btn-border text-c-ink" : "bg-c-select-bg text-c-select-fg") : closed || (compact && d.count === 0) ? "text-c-muted hover:bg-c-hover" : "text-c-ink hover:bg-c-hover",
-                ].join(" ")}
-              >
-                <span className={`grid h-5 w-5 place-items-center rounded-full leading-4 ${compact ? `text-[13px] ${(d.count > 0 && !closed) || chosen ? "font-semibold" : "font-normal"}` : "text-[13px] font-semibold"} ${d.today ? (!compact && chosen ? "ring-1 ring-c-select-fg" : "ring-1 ring-c-ink") : ""}`}>{d.dayNumber}</span>
-                <span className={compact ? `h-3.5 text-[11px] leading-[14px] ${chosen ? "text-c-ink" : "text-c-secondary"}` : `h-3.5 text-[10px] leading-[14px] ${chosen ? "text-c-select-fg" : "text-c-secondary"}`}>
-                  {!closed && d.count > 0 ? d.count : ""}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        );
-      })}
-    </div>
-  );
-}
 
-/** Shared value-list filter: OR within a group; owner-approved SO pilot. */
-export function FilterRailMultiSelect({label, values, options, onChange, allLabel, testId, compact = false}: {
- label: string; values: readonly string[]; options: readonly {value:string; label:string}[];
- onChange:(values:string[])=>void; allLabel:string; testId:string; compact?:boolean;
-}) {
- const [query,setQuery]=useState("");
- const [expanded,setExpanded]=useState(false);
- const listId=useId();
- useReportChosen(values.length ? (values.length===1 ? values[0] : `${values.length} selected`) : null);
- const content = <div data-testid={testId} className="flex min-w-0 flex-col gap-1">
-  <input aria-label={`Search ${label}`} placeholder="Search…" value={query} onChange={e=>setQuery(e.target.value)} className="h-8 min-w-0 rounded-lg border border-c-input-border bg-c-card px-2.5 text-[13px] text-c-ink placeholder:text-c-muted" />
-  <button type="button" aria-pressed={!values.length} onClick={()=>onChange([])} className={`${ROW} items-center font-medium ${ROW_REST}`}>{allLabel}</button>
-  <div className={compact ? "max-h-36 overflow-y-auto" : "max-h-48 overflow-y-auto"}>
-   {options.filter(o=>o.label.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(o=><button
-    key={o.value} type="button" aria-pressed={values.includes(o.value)}
-    onClick={()=>onChange(values.includes(o.value)?values.filter(v=>v!==o.value):[...values,o.value])}
-    className={`${ROW} items-center ${values.includes(o.value)?ROW_ON:ROW_REST}`}>
-    <span className="min-w-0 break-words">{o.label}</span>
-   </button>)}
-  </div>
- </div>;
- if (!compact) return content;
- return <div className="flex min-w-0 flex-col gap-1">
-  <button type="button" className="flex h-8 w-full items-center justify-between gap-1 rounded-lg border border-c-input-border bg-c-card px-2.5 text-left text-[13px] text-c-body hover:bg-c-hover" aria-label={`Select ${label}`} aria-expanded={expanded} aria-controls={listId} onClick={()=>setExpanded(value=>!value)}>
-   <span className="truncate">{values.length === 0 ? allLabel : values.length === 1 ? values[0] : `${values.length} selected`}</span><MIcon name={expanded ? "expand_less" : "expand_more"} size={18} className="text-c-muted" />
-  </button>
-  {expanded && <div id={listId} className="rounded-lg border border-c-btn-border bg-c-card p-1.5">{content}</div>}
- </div>;
-}

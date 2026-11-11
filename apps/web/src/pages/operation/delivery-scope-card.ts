@@ -28,24 +28,6 @@ export interface DeliveryScopeCardState {
   failed: boolean;
 }
 
-/** Resolve an order from what a Work item carries: its id, or `SO-{n}`. */
-export function useOrderIdFromRef(ref: { orderId?: string | null; soLabel?: string | null; doNumber?: string | null }): string | null {
-  const ordersQ = useOperationOrders();
-  const docsQ = useDeliveryOrdersRegister({ enabled: Boolean(ref.doNumber) && !ref.orderId });
-  return useMemo(() => {
-    if (ref.orderId) return ref.orderId;
-    if (ref.doNumber) {
-      const doc = (docsQ.data?.deliveryOrders ?? []).find((d) => d.do_number === ref.doNumber);
-      if (doc?.order_id) return doc.order_id;
-    }
-    const so = ref.soLabel?.match(/^SO-(\d+)/)?.[1];
-    if (so) {
-      const order = (ordersQ.data?.orders ?? []).find((o) => String(o.so) === so);
-      if (order) return order.id;
-    }
-    return null;
-  }, [ref.orderId, ref.soLabel, ref.doNumber, ordersQ.data, docsQ.data]);
-}
 
 export function useDeliveryScopeCard(orderId: string | null, leg = 0, knownOrder?: operationOrderListRow): DeliveryScopeCardState {
   const ordersQ = useOperationOrders();

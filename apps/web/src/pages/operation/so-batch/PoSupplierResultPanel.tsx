@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { documentDisplayNumber } from "@carres/shared";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { useNavigate, useLocation } from "react-router-dom";
 import Drawer from "@/components/kit/Drawer";
 import Modal from "@/components/kit/Modal";
@@ -12,23 +10,6 @@ import type { PoTemplateData } from "@/lib/pdf/types";
 import type { IssuedPo } from "../components/PoIssueEvidence";
 import PoSupplierBundle, { type PoSupplierPreparation } from "./PoSupplierBundle";
 
-/** Recover exact Register lineage after a reload. One failed or mismatched
- * source refuses the entire preparation; it cannot masquerade as no POs. */
-export function useVisiblePoResults(onLoaded: (pos: IssuedPo[]) => void, onOpening: () => void) {
-  const result = useMutation<IssuedPo[], Error, readonly string[]>({
-    onMutate: onOpening,
-    mutationFn: async (poIds: readonly string[]) => Promise.all([...new Set(poIds)].map(async id => {
-      const po = await apiFetch<IssuedPo>(`/api/operation/pos/${encodeURIComponent(id)}/issue-context`);
-      if (po.id !== id || !po.supplierId) throw new Error("invalid_po_context");
-      return po;
-    })),
-    onSuccess: onLoaded,
-    onError: (_error, poIds) => toast.error("Supplier details could not be loaded.", {
-      action: { label: "Try again", onClick: () => result.mutate(poIds) },
-    }),
-  });
-  return result;
-}
 
 /** Issued result scope, beside the retained register. Each PO keeps its own document/evidence. */
 export default function PoSupplierResultPanel({ open, onOpenChange, pos, roundWindow, onChanged, initialPreparation }: {

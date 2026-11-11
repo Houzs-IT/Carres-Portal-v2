@@ -13,25 +13,6 @@ import { resolveFabricDelta } from "@carres/shared";
 import type { DraftLine } from "./draft";
 import { SpecialAddonsPicker, useSpecials } from "./special-addons-picker";
 
-/**
- * Per-category product configurators + the sofa-mutex helper, extracted from
- * the legacy `ProductPicker` so BOTH the old inline picker (now removed) and
- * the new full-screen POS catalog flow (`dealer/pos/*`) build identical
- * `DraftLine` objects from one source of truth.
- *
- * Each configurator owns its own transient state and only commits a DraftLine
- * via `onAdd` when the user clicks Add. The CALLER is responsible for forcing
- * a remount (`key={model.id}`) when the selected model changes — see the
- * SO-1006 note in `SofaConfigurator` below.
- */
-
-/** The three configurable product families (accessory/service have no
- *  variant axis and are not sold through these configurators). */
-export const PRODUCT_CATEGORIES: { key: ProductCategory; label: string; icon: string }[] = [
-  { key: "mattress", label: "Mattress", icon: "▭" },
-  { key: "bedframe", label: "Bed Frame", icon: "▤" },
-  { key: "sofa", label: "Sofa", icon: "▦" },
-];
 
 /**
  * Compute the set of categories that are locked out for "Add line" given the

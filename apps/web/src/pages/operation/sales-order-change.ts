@@ -79,14 +79,6 @@ export function qtyWords(
   return parts.length ? parts.join(" · ") : "No goods";
 }
 
-/**
- * A disposal service — the old mattress, sofa or bed frame the lorry takes
- * away — known by the catalogue's own Service SKU family `SVC-DISPOSE-…`
- * (0172; production 2026-09-24: mattress · sofa · big sofa · bed frame). Not a
- * name match. Falsifier: the catalogue gains a service category — read that.
- */
-export const isDisposalService = (catalogServiceSku: string | null | undefined): boolean =>
-  typeof catalogServiceSku === "string" && catalogServiceSku.startsWith("SVC-DISPOSE-");
 
 /** `Dispose old mattress ×2 · Delivery fee` — name, and quantity when above 1. */
 export function servicesWords(

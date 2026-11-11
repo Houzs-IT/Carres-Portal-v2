@@ -15,17 +15,6 @@
 import { orderMoney, type OrderMoney } from "@carres/shared";
 import type { operationOrderListRow } from "@/lib/queries";
 
-/**
- * **Rental orders are not customer orders on this register** (SO-1 FINAL).
- * The Rental module owns a rent-to-own agreement end to end; migration 0275
- * mints a Sales Order alongside the agreement so the rented item has one, and
- * that minted row is the agreement's shadow, not a sale. Measured on production
- * 2026-08-09: 8 such orders, **0 priced**, 1 line each — so on a register whose
- * job is *what did they buy, what is it worth* they answer neither question.
- */
-export function isRental(o: operationOrderListRow): boolean {
-  return o.source_system === "rental";
-}
 
 /**
  * What ONE line is called, in words.
