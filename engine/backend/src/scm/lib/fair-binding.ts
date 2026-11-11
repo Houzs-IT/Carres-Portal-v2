@@ -275,9 +275,29 @@ export async function loadVenueMaster(
     )
     .bind()
     .all<Record<string, unknown>>();
-  return ((rows.results ?? []) as Array<Record<string, unknown>>)
+  const venues = ((rows.results ?? []) as Array<Record<string, unknown>>)
     .map((r) => ({ id: String(r.id), name: String(r.name ?? '').trim() }))
     .filter((r) => r.id && r.name);
+  /* Carres (11 Nov 2026): showroom venues too, so a non-fair sale can be placed at a showroom. Carres runs no
+     fairs in the engine and its Project Maintenance is not on the menu; showrooms are kept under Warehouses
+     (Showroom + venue name). Same rows, ids and name de-duplication as GET /api/projects/venues?includeShowrooms. */
+  const showrooms = await db
+    .prepare(
+      `SELECT id, venue_name FROM scm.warehouses
+        WHERE is_showroom = true AND is_active = true
+          AND venue_name IS NOT NULL AND btrim(venue_name) <> ''${companySql}
+        ORDER BY venue_name`,
+    )
+    .bind()
+    .all<Record<string, unknown>>();
+  const seen = new Set(venues.map((v) => v.name.toLowerCase()));
+  for (const r of (showrooms.results ?? []) as Array<Record<string, unknown>>) {
+    const name = String(r.venue_name ?? '').trim();
+    if (!r.id || !name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    venues.push({ id: `showroom:${String(r.id)}`, name });
+  }
+  return venues;
 }
 
 /**

@@ -46,6 +46,7 @@ import OfficeSettings from "./settings-core/OfficeSettings";
 import SettingsEditors from "./settings-core/SettingsEditors";
 import AddressListsSettings from "./settings-core/AddressListsSettings";
 import { DELIVERY_SETTINGS_SECTIONS } from "@carres/shared";
+import SupplyChainEngine from "./SupplyChainEngine";
 
 /**
  * A GROUP MAY OWN MORE THAN ONE ROW (Warehouse, 2026-09-09).
@@ -91,6 +92,9 @@ const SECTIONS = [
   { group: "Issue Tracker", items: [{ slug: "issue-tracker", label: "Issue Tracker Settings" }] },
   // 0711 — Weisiang's decision (Mr Lim, WhatsApp 2026-10-22): Houzs Service Maintenance.
   { group: "Service", items: [{ slug: "service", label: "Service Settings" }] },
+  /* The supply chain engine's own Settings (company details printed on its documents, email, documents),
+     shown in the engine frame (owner, 11 Nov 2026). Its menu is not drawn inside the portal, so this is the way in. */
+  { group: "Supply Chain", items: [{ slug: "supply-chain", label: "Supply Chain Settings" }] },
   {
     group: "Warehouse",
     items: WAREHOUSE_SETTINGS_SECTIONS.map((s) => ({
@@ -249,6 +253,7 @@ export default function SettingsWorkspace() {
           <Route path="payment" element={<PaymentSettings />} />
           <Route path="issue-tracker" element={<IssueTrackerSettings />} />
           <Route path="service" element={<ServiceSettings />} />
+          <Route path="supply-chain" element={<SupplyChainEngine path="/settings?tab=branding" />} />
           <Route path="warehouse" element={<Navigate to="details" replace />} />
           <Route path="warehouse/:section" element={<WarehouseSettings />} />
           <Route path="delivery" element={<Navigate to="partners" replace />} />

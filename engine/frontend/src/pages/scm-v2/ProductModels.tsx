@@ -844,7 +844,13 @@ export function NewModelDialog({
        written silently, that only surfaces when someone raises a PO against it. */
     for (const [i, r] of rows.entries()) {
       for (const sup of r.suppliers) {
-        if (!sup.supplierId || !sup.supplierCode.trim()) continue;
+        /* A supplier picked without its own item code used to be skipped in silence (the link needs the
+           supplier's code), so the product saved with no supplier. Say so before anything is created. */
+        if (sup.supplierId && !sup.supplierCode.trim()) {
+          setBatchError(`Row ${i + 1}: type the supplier code for the chosen supplier, or set the supplier back to None.`);
+          return;
+        }
+        if (!sup.supplierId) continue;
         const price = parseMoneyToSen(sup.unitPrice, `Supplier price on row ${i + 1}`);
         if (!price.ok) { setBatchError(price.message); return; }
       }

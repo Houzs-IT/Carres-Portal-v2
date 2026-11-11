@@ -467,7 +467,11 @@ export function useCreateSupplier() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    // The Suppliers page reads 'suppliers-paged'; refreshing only 'suppliers' left a new supplier off the list until a reload.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: ['suppliers-paged'] });
+    },
     onError: writeFailed,
   });
 }
@@ -482,6 +486,7 @@ export function useUpdateSupplier() {
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['suppliers'] });
+      qc.invalidateQueries({ queryKey: ['suppliers-paged'] });
       qc.invalidateQueries({ queryKey: ['supplier-detail', vars.id] });
     },
   });
