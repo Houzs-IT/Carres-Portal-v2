@@ -2,6 +2,8 @@ import { Suspense, type ReactNode } from "react";
 import { BACKDATE_DECIDER_PERMS } from "./vendor/scm/lib/payment-backdate-perms";
 import { Routes, Route, Navigate, useParams, useLocation, createRoutesFromChildren, matchRoutes } from "react-router-dom";
 import { CARRES_HOME, CARRES_EXTRAS, isCarresHiddenPath } from "./carres/navOnly";
+import { CARRES_EMBEDDED } from "./carres/embed";
+import { CarresBadgeReporter } from "./carres/BadgeReporter";
 import { lazyPage, preloadElementChunks } from "./lib/lazyPage";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./auth/AuthContext";
@@ -534,6 +536,8 @@ export default function App() {
       <AnnouncementBanner />
       <LazySlot resetKey="pending-reminder" fallback={null}><PendingTasksReminder /></LazySlot>
       <QuickActionsFAB />
+      {/* Carres: the menu counts go to the portal's menu (carres/BadgeReporter.tsx). */}
+      {CARRES_EMBEDDED && <CarresBadgeReporter />}
       <BackToTopFAB />
       <LineGridNav />
       <AssistantPanelProvider>
