@@ -18,7 +18,6 @@ import {
   createLogistics,
   patchLogistics,
   logActivity,
-  nextServicePONumber,
   setCaseCreditorManual,
   setItemRemark,
   setItemSupplierRemark,
@@ -26,6 +25,7 @@ import {
   setItemCartonQty,
 } from "../services/assr";
 import { normalizeSlaHours } from "../services/assrSla";
+import { assignServicePoNumber, nextManualCreditorCode } from "../services/assrNumbers";
 import { assrWindow } from "./lib/assr-window";
 import { openSupplierReturnRoute, patchSupplierReturnRoute, archiveSupplierReturnRoute } from "../services/assrSupplierReturns";
 import { reopenCaseRoute } from "../services/assrReopen";
@@ -63,8 +63,9 @@ import { pickupTrackingError } from "../scm/shared/assr-pickup-tracking";
 import { verificationFieldsError } from "../scm/shared/assr-verification-fields";
 import { getVerificationNotes, saveVerificationNotes, takeVerificationNotes } from "../services/assrVerificationNotes";
 import { sendCompletionSurvey } from "../services/assrCompletionSurvey";
-import { sendServiceCaseReceivedAck } from "../services/assrConnectAck";
 import { overviewFilter, withOverviewFilter } from "./lib/assr-overview-filter";
+import { todayMyt } from "../scm/lib/my-time";
+import { assrExportShowsCost, buildAssrCasesCsv } from "./lib/assr-export-csv";
 
 /* The context the extracted handlers below receive. They are exported so the
    route tests can drive them directly; the shape is exactly what app.get/post
@@ -572,10 +573,10 @@ export const assrCostSuggestionHandler = async (c: HandlerCtx) => {
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
 
   const caseRow = await c.env.DB.prepare(
-    `SELECT doc_no, po_no, item_code FROM assr_cases WHERE id = ?${assrCompanySql(c)}`
+    `SELECT doc_no, po_no, item_code, company_id FROM assr_cases WHERE id = ?${assrCompanySql(c)}`
   )
     .bind(id)
-    .first<{ doc_no: string | null; po_no: string | null; item_code: string | null }>();
+    .first<{ doc_no: string | null; po_no: string | null; item_code: string | null; company_id: number | null }>();
   if (!caseRow) return c.json({ error: "Not found" }, 404);
   /* Go-live review #11 — this sub-panel used requirePermission("service_cases.
      read"), 403-ing a Sales viewer who legitimately opened this case. Gate on
@@ -630,10 +631,12 @@ export const assrCostSuggestionHandler = async (c: HandlerCtx) => {
               original_qty  AS ord_qty,
               unit_price    AS price
          FROM purchase_orders
-        WHERE doc_no = ? AND item_code = ?
+        WHERE doc_no = ? AND item_code = ? AND company_id = ?
         LIMIT 1`
     )
-      .bind(caseRow.po_no, itemCode)
+      // The case's own company: PO numbers come from each company's AutoCount
+      // and are not unique across companies.
+      .bind(caseRow.po_no, itemCode, caseRow.company_id)
       .first<{ qty: number | null; ord_qty: number | null; price: number | null }>();
     if (poRow && poRow.price != null) {
       const qty = poRow.ord_qty ?? poRow.qty ?? 1;
@@ -921,7 +924,7 @@ app.post("/:id/resolve-creditor", requirePermission("service_cases.manage"), asy
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
 
   const row = await c.env.DB.prepare(
-    `SELECT item_code FROM assr_cases WHERE id = ? AND archived_at IS NULL`
+    `SELECT item_code FROM assr_cases WHERE id = ? AND archived_at IS NULL${assrCompanySql(c)}`
   )
     .bind(id)
     .first<{ item_code: string | null }>();
@@ -1001,12 +1004,10 @@ app.post("/creditors/create", requirePermission("service_cases.write"), async (c
 
   let code = (body.creditor_code || "").trim();
   if (!code) {
-    const row = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM creditors WHERE creditor_code LIKE 'MAN-%'`
-    ).first<{ n: number }>();
-    code = `MAN-${String(Number(row?.n ?? 0) + 1).padStart(4, "0")}`;
+    code = await nextManualCreditorCode(c.env);
   }
 
+  // company-scope: creditor_code is the table's GLOBAL primary key (0000_baseline), so the duplicate check must see every company or the INSERT below fails on the key.
   const dup = await c.env.DB.prepare(
     `SELECT creditor_code, company_name FROM creditors WHERE creditor_code = ?`
   )
@@ -1019,15 +1020,17 @@ app.post("/creditors/create", requirePermission("service_cases.write"), async (c
     );
   }
 
+  // The supplier belongs to the company raising it; unresolved (legacy) keeps the column default.
+  const creditorCo = assrCreateCompanyId(c);
   await c.env.DB.prepare(
-    `INSERT INTO creditors (creditor_code, company_name, phone1, email, type, type_description, updated_at)
-     VALUES (?, ?, ?, ?, 'MANUAL', 'Added manually from Service Cases', datetime('now'))`
+    `INSERT INTO creditors (creditor_code, company_name, phone1, email, type, type_description, updated_at${creditorCo != null ? ", company_id" : ""})
+     VALUES (?, ?, ?, ?, 'MANUAL', 'Added manually from Service Cases', datetime('now')${creditorCo != null ? ", ?" : ""})`
   )
     // phone1 is stored E.164 like every other creditor phone written through
     // the SCM supplier routes; this "add supplier from a Service Case" path was
     // the one creditor writer that only trimmed, so it seeded rows the supplier
     // screens then displayed in a different format from their neighbours.
-    .bind(code, name, normalizePhone(body.phone), (body.email || "").trim() || null)
+    .bind(code, name, normalizePhone(body.phone), (body.email || "").trim() || null, ...(creditorCo != null ? [creditorCo] : []))
     .run();
 
   return c.json({ creditor_code: code, company_name: name }, 201);
@@ -1203,7 +1206,7 @@ app.post("/bulk/assign", requirePermission("service_cases.manage"), async (c) =>
     // (un-assign has nobody new to notify). Best-effort — never throws.
     if (assigneeId != null) {
       const row = await c.env.DB.prepare(
-        `SELECT assr_no, customer_name FROM assr_cases WHERE id = ?`,
+        `SELECT assr_no, customer_name FROM assr_cases WHERE id = ?${coSql}`,
       )
         .bind(id)
         .first<{ assr_no: string | null; customer_name: string | null }>();
@@ -1235,41 +1238,14 @@ app.get("/export.csv", requireServiceCaseAccess(), async (c) => {
     archived_only: c.req.query("archived_only") === "1",
     exclude_stage: c.req.query("exclude_stage") || undefined,
   });
-  const headers = [
-    "ASSR No", "SO No", "Delivery Order", "Stage", "Status", "Priority",
-    "Customer", "Phone", "Location", "Salesperson",
-    "Category", "NCR Category", "Resolution",
-    "Item", "Issue",
-    "Complained Date", "Created", "Deadline",
-    "PO Amount", "PO No",
-    "Assigned To", "Created By", "Creditor",
-    "SLA Breached",
-  ];
-  const fields = [
-    "assr_no", "doc_no", "delivery_order", "stage", "status", "priority",
-    "customer_name", "customer_phone", "location", "sales_agent",
-    "service_category", "ncr_category", "resolution_method",
-    "item_code", "complaint_issue",
-    "complained_date", "created_at", "deadline_at",
-    "po_amount", "po_no",
-    "assigned_to_name", "created_by_name", "creditor_name",
-    "is_breached",
-  ];
-  const esc = (v: any) => {
-    if (v == null) return "";
-    const s = String(v);
-    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const lines = [headers.join(",")];
   for (const r of rows as any[]) {
     if (csvVisibleIds !== undefined) stripCreditorFields(r);
     // Hand-entered DO wins; the live SCM merge (do_numbers) fills the rest —
     // same precedence as the list's DO No column.
     r.delivery_order = r.delivery_order || r.do_numbers || null;
-    lines.push(fields.map((f) => esc(f === "po_amount" && r[f] != null && Number.isFinite(Number(r[f])) ? Number(r[f]).toFixed(2) : r[f])).join(","));
   }
-  const csv = "\uFEFF" + lines.join("\r\n");
-  const date = new Date().toISOString().slice(0, 10);
+  const csv = buildAssrCasesCsv(rows as Array<Record<string, unknown>>, assrExportShowsCost(c.get("user") ?? null));
+  const date = todayMyt();
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
@@ -1845,6 +1821,7 @@ app.post(
   // throws, and it is awaited so it can't be dropped by isolate suspension —
   // it adds only one small insert. A raw env.DB read returns snake_case.
   try {
+    // company-scope: reads back the row THIS request just created (result.id), stamped with assrCreateCompanyId above.
     const row = await c.env.DB.prepare(
       `SELECT assigned_to, assigned_to_2, sales_agent, customer_name, phone, doc_no, created_by
          FROM assr_cases WHERE id = ?`,
@@ -1871,8 +1848,7 @@ app.post(
         userIds: [row.assigned_to, row.assigned_to_2, row.created_by],
         agentNames: [row.sales_agent],
       });
-      // Customer WhatsApp ack via Houzs Connect (best-effort, create-only; doc_no = SO/ref_1) — see assrConnectAck.ts.
-      await sendServiceCaseReceivedAck(c.env, result.assr_no, row.doc_no, row.customer_name, row.phone);
+      // No customer WhatsApp on create (HC-0222, Operation 2026-11): staff only.
     }
   } catch (e) {
     console.error("[assr.create] notify failed:", (e as Error).message);
@@ -1907,11 +1883,14 @@ app.patch("/:id{[0-9]+}", requirePermission("service_cases.write"), async (c) =>
   // also rewrite sales_agent, so we compare committed before/after values
   // rather than trusting which keys the caller sent. Raw env.DB read is
   // snake_case (D1-compat shim).
+  // Company scope: another company's case is "not found" before anything is written.
+  const patchCoSql = assrCompanySql(c);
   const before = await c.env.DB.prepare(
-    `SELECT assigned_to, assigned_to_2, sales_agent FROM assr_cases WHERE id = ?`,
+    `SELECT assigned_to, assigned_to_2, sales_agent FROM assr_cases WHERE id = ?${patchCoSql}`,
   )
     .bind(id)
     .first<{ assigned_to: number | null; assigned_to_2: number | null; sales_agent: string | null }>();
+  if (!before) return c.json({ error: "Not found or no changes" }, 404);
 
   const notes = takeVerificationNotes(body);
   const ok = await patchAssrCase(c.env, id, body, userId);
@@ -1923,7 +1902,7 @@ app.patch("/:id{[0-9]+}", requirePermission("service_cases.write"), async (c) =>
   try {
     const after = await c.env.DB.prepare(
       `SELECT assigned_to, assigned_to_2, sales_agent, customer_name, assr_no
-         FROM assr_cases WHERE id = ?`,
+         FROM assr_cases WHERE id = ?${patchCoSql}`,
     )
       .bind(id)
       .first<{
@@ -2004,7 +1983,7 @@ app.post("/:id/track-link", requirePermission("service_cases.write"), async (c) 
   const id = parseInt(c.req.param("id"), 10);
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
   const exists = await c.env.DB.prepare(
-    `SELECT id FROM assr_cases WHERE id = ?`
+    `SELECT id FROM assr_cases WHERE id = ?${assrCompanySql(c)}`
   )
     .bind(id)
     .first();
@@ -2021,7 +2000,7 @@ app.post("/:id/sales-link", requirePermission("service_cases.write"), async (c) 
   const id = parseInt(c.req.param("id"), 10);
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
   const exists = await c.env.DB.prepare(
-    `SELECT id FROM assr_cases WHERE id = ?`
+    `SELECT id FROM assr_cases WHERE id = ?${assrCompanySql(c)}`
   )
     .bind(id)
     .first();
@@ -2085,7 +2064,7 @@ app.post("/:id/supplier-link", requirePermission("service_cases.write"), async (
   const id = parseInt(c.req.param("id"), 10);
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
   const row = await c.env.DB.prepare(
-    `SELECT id, creditor_code FROM assr_cases WHERE id = ?`
+    `SELECT id, creditor_code FROM assr_cases WHERE id = ?${assrCompanySql(c)}`
   )
     .bind(id)
     .first<{ id: number; creditor_code: string | null }>();
@@ -2771,12 +2750,9 @@ app.post("/:id/generate-po", requirePermission("service_cases.manage"), async (c
     return c.json({ error: `PO already exists: ${existing.po_no}`, po_no: existing.po_no }, 409);
   }
 
-  const poNo = await nextServicePONumber(c.env);
-  await c.env.DB.prepare(
-    `UPDATE assr_cases SET po_no = ?, updated_at = datetime('now') WHERE id = ?`
-  )
-    .bind(poNo, id)
-    .run();
+  const claim = await assignServicePoNumber(c.env, id);
+  if (!claim.ok) return c.json({ error: `PO already exists: ${claim.poNo ?? ""}`, po_no: claim.poNo }, 409);
+  const poNo = claim.poNo;
 
   // Name when the mirror has the creditor, else the raw code — a case can carry
   // a creditor_code the mirror has not synced yet, and the code still tells the
@@ -2890,7 +2866,7 @@ function noteCategory(v?: string): "service" | "customer" | "supplier" | "sales"
   return NOTE_CATEGORIES.has(v ?? "") ? (v as any) : "service";
 }
 
-app.post("/:id/notes", requirePermission("service_cases.write"), async (c) => {
+app.post("/:id/notes", requireAnyPermission(["service_cases.write", "service_cases.create", "service_cases.manage"]), async (c) => {
   const id = parseInt(c.req.param("id"), 10);
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
   const userId = (c as any).get?.("userId") ?? 0;
@@ -3286,6 +3262,7 @@ app.get("/logistics/all", requirePermission("service_cases.read"), async (c) => 
     visLog.sql;
   binds.push(...visLog.binds);
 
+  // company-scope: whereSql above carries assrCompanySql(c, "ca.company_id") for both statements.
   const totalRow = await c.env.DB.prepare(
     `SELECT COUNT(*) as n
        FROM assr_logistics l
@@ -3294,6 +3271,7 @@ app.get("/logistics/all", requirePermission("service_cases.read"), async (c) => 
   ).bind(...binds).first<{ n: number }>();
 
   const offset = (page - 1) * perPage;
+  // company-scope: same whereSql (assrCompanySql on ca.company_id).
   const rows = await c.env.DB.prepare(
     `SELECT l.*,
             ca.assr_no,

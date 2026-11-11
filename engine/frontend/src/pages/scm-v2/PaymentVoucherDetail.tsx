@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, ChevronDown, Copy, ListPlus, Pencil, Plus, Printer, RotateCcw, Save, Send, Ban, Trash2, X, XCircle } from 'lucide-react';
 import { Button } from '@2990s/design-system';
-import { fmtDate, fmtDateOrDash } from '../../vendor/shared/format';
+import { fmtDateOrDash } from '../../vendor/shared/format';
 import {
   usePaymentVoucherDetail,
   useUpdatePaymentVoucher,
@@ -33,7 +33,6 @@ import {
   useCheckPaymentVoucher,
   useApprovePaymentVoucher,
   useRejectPaymentVoucher,
-  useSupplierAdvances, useApplyAdvance,
   usePvFiles, useUploadPvFile, useDeletePvFile, fetchPvFileBlobUrl,
   usePvReservations, NO_RESERVATIONS,
 } from '../../vendor/scm/lib/payment-voucher-queries';
@@ -55,6 +54,8 @@ import { SupplierFinanceReminder, SupplierPayTo } from '../../vendor/scm/compone
 import { EventSelect } from '../../vendor/scm/components/EventSelect';
 import { useEventLabels } from '../../vendor/scm/lib/event-queries';
 import { PvLineEventCell } from './PvLineEventCell';
+import { AdvanceKnockOff } from './AdvanceKnockOff';
+import { PvTextEdit } from './PvTextEdit';
 import { StatusPill } from '../../vendor/scm/components/StatusPill';
 import { SkeletonDetailPage } from '../../vendor/scm/components/Skeleton';
 import { useConfirm } from '../../vendor/scm/components/ConfirmDialog';
@@ -64,6 +65,8 @@ import { PageHeader } from '../../components/Layout';
 import { OfficialDocActions } from '../../vendor/scm/components/OfficialDoc';
 import { EntityHistoryPanel } from './EntityHistoryPanel';
 import { BooksLine, PvTrail, StageTag, VoucherTaskDrawer, pvStage } from './PvDocParts';
+import { NO_PAY_TO, isBlankPayTo, payToBody, payToOfVoucher, type PayTo } from './pv-pay-to';
+import { PvPayToFields } from './PvPayToFields';
 import { returnToWorkspaceOpener, useWorkspaceOpener } from '../../lib/useWorkspaceOpener';
 import { PAYMENT_VOUCHER_AUDIT_LABELS } from './entity-audit-labels';
 import { resolveFxRate, deriveRateFromMyrPaid } from './fx-rate';
@@ -220,6 +223,11 @@ export const PaymentVoucherDetail = () => {
 
   const isDraft = pv?.status === 'DRAFT';
   const [isEditing, setIsEditing] = useState(() => searchParams.get('edit') === '1');
+  /* The first yes locks the voucher but not its words or its bank, until the second
+     (owner 2026-11-06: 有时我要改 description; 2026-11-09: 可以，开放). The list's
+     Edit text & bank opens with ?text=1. */
+  const mayEditText = isDraft && canWrite && isChecked && !isApprovedPv;
+  const [editingText, setEditingText] = useState(() => searchParams.get('text') === '1');
   /* F3 / Ctrl+S = Save while editing (owner 2026-09-08: 像 autocount 按 f3).
      A hook, so it sits above the loading return; onSave is defined below
      that return and the key reaches it through this ref. */
@@ -233,6 +241,7 @@ export const PaymentVoucherDetail = () => {
   const [creditAccountCode, setCreditAccountCode] = useState('');
   const [voucherDate, setVoucherDate]             = useState('');
   const [notes, setNotes]                         = useState('');
+  const [payTo, setPayTo]                         = useState<PayTo>(NO_PAY_TO);
   const [bankChargeSen, setBankChargeSen]         = useState(0);
   /* Multi-currency (Phase 1-A) — MYR per 1 unit of the PV currency, string-typed.
      Seeded from the voucher on enter-edit; shown only for a foreign currency. */
@@ -274,6 +283,7 @@ export const PaymentVoucherDetail = () => {
     setCreditAccountCode(pv.credit_account_code ?? '');
     setVoucherDate(pv.voucher_date ?? '');
     setNotes(pv.notes ?? '');
+    setPayTo(payToOfVoucher(pv));
     setBankChargeSen(Number(pv.bank_charge_sen ?? 0));
     setExchangeRate(String(pv.exchange_rate ?? '1'));
     /* Cleared on entering edit, never back-derived from the stored rate: the MYR
@@ -468,6 +478,7 @@ export const PaymentVoucherDetail = () => {
         creditAccountCode,
         voucherDate,
         notes:             notes || null,
+        ...payToBody(payTo),
         bankChargeSen,
         // Multi-currency (Phase 1-A) — resolved currency + rate. MYR forces 1
         // (server enforces too); a blank/invalid foreign rate → 1.
@@ -540,6 +551,12 @@ export const PaymentVoucherDetail = () => {
       void notify({ title: 'Approve failed', body: err instanceof Error ? err.message : 'Something went wrong.', tone: 'error' });
     }
   };
+  const onRetryPosting = async () => {
+    if (!(await askConfirm({ title: `Retry posting ${pv.pv_number}?`, body: 'It was approved, but the journal entry was not written. This posts it to the General Ledger now; the approval stays as it is.', confirmLabel: 'Retry posting' }))) return;
+    try { await approve.mutateAsync(id); } catch (err) {
+      void notify({ title: 'Posting failed again', body: err instanceof Error ? err.message : 'Something went wrong.', tone: 'error' });
+    }
+  };
   const onRejectConfirm = async () => {
     try {
       await reject.mutateAsync({ id, note: rejectNote ?? '' });
@@ -595,6 +612,11 @@ export const PaymentVoucherDetail = () => {
                     <Pencil {...ICON} /> Edit
                   </Button>
                 )}
+                {mayEditText && !editingText && (
+                  <Button variant="ghost" size="md" onClick={() => setEditingText(true)} disabled={busy}>
+                    <Pencil {...ICON} /> Edit text &amp; bank
+                  </Button>
+                )}
                 {isDraft && canWrite && !isPrepared && (
                   <Button variant="primary" size="md" onClick={() => void onPrepare()} disabled={busy}>
                     <Send {...ICON} /> Prepare
@@ -614,6 +636,15 @@ export const PaymentVoucherDetail = () => {
                 {isDraft && canApprove && isChecked && !isApprovedPv && rejectNote === null && (
                   <Button variant="primary" size="md" onClick={() => void onApprove()} disabled={busy}>
                     <CheckCircle2 {...ICON} /> Approve & post
+                  </Button>
+                )}
+                {/* Approved but still a draft = the approval stamped and the
+                    posting died. Approving again resumes the post without
+                    re-stamping (approvePaymentVoucherHandler); with the button
+                    hidden there was no way to finish the voucher. */}
+                {isDraft && canApprove && isApprovedPv && rejectNote === null && (
+                  <Button variant="primary" size="md" onClick={() => void onRetryPosting()} disabled={busy}>
+                    <RotateCcw {...ICON} /> Retry posting
                   </Button>
                 )}
                 {/* Reject opens to EITHER key, at either layer — back to raw
@@ -688,7 +719,17 @@ export const PaymentVoucherDetail = () => {
               <InfoCell label="Currency" value={viewCurrency} />
               {viewCurrency !== 'MYR' && <InfoCell label="Exchange Rate" value={`${pv.exchange_rate} (MYR per 1 ${viewCurrency})`} />}
               <InfoCell label="Bank Charges" value={Number(pv.bank_charge_sen ?? 0) > 0 ? `${fmtRm(Number(pv.bank_charge_sen), 'MYR')} (not in total)` : null} />
-              <InfoCell label="Notes" value={pv.notes ?? null} />
+              {/* What is paid for, as the bills say it — never the bill number (owner 2026-11-09:
+                  description 就是 purpose; 只显示单上的费用) — and what Finance typed beside it. */}
+              <InfoCell label="Description" value={(pv.description_text as string | undefined) || null} />
+              <InfoCell label="Remark" value={pv.notes ?? null} />
+              {isBlankPayTo(payToOfVoucher(pv))
+                ? <InfoCell label="Bank" value={null} />
+                : <>
+                  <InfoCell label="Bank" value={payToOfVoucher(pv).bank || null} />
+                  <InfoCell label="Account no." value={payToOfVoucher(pv).accountNo || null} />
+                  <InfoCell label="Account name" value={payToOfVoucher(pv).accountName || null} />
+                </>}
               {/* The bill's own number and date (item 1) and its official invoice (欠正式单, item 3). */}
               {(pv.bill_ref || pv.bill_date) && <InfoCell label="Bill" value={`${pv.bill_ref ?? '—'}${pv.bill_date ? ` · ${fmtDateOrDash(pv.bill_date)}` : ''}`} />}
               {!isRefundPv && pv.status !== 'CANCELLED' && (
@@ -702,7 +743,7 @@ export const PaymentVoucherDetail = () => {
             <div className={styles.formGrid2}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>{isRefundPv ? 'Customer' : 'Payee *'}</span>
-                <input type="text" value={payeeName} onChange={(e) => setPayeeName(e.target.value)} className={styles.fieldInput} readOnly={isRefundPv} />
+                <input data-upper type="text" value={payeeName} onChange={(e) => setPayeeName(e.target.value)} className={styles.fieldInput} readOnly={isRefundPv} />
               </label>
               {isRefundPv && (
                 <label className={styles.field}>
@@ -777,13 +818,19 @@ export const PaymentVoucherDetail = () => {
                   inputClassName={styles.fieldInput} selectOnFocus />
               </label>
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>Notes</span>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={styles.fieldInput} rows={2} style={{ resize: 'vertical', minHeight: 60 }} />
+                <span className={styles.fieldLabel}>Remark</span>
+                <textarea data-upper value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Voucher remark" className={styles.fieldInput} rows={2} style={{ resize: 'vertical', minHeight: 60 }} />
               </label>
+              <PvPayToFields value={payTo} onChange={setPayTo} />
             </div>
           )}
         </div>
       </section>
+
+      {mayEditText && editingText && (
+        <PvTextEdit pvId={String(pv.id)} notes={pv.notes ?? null} payTo={payToOfVoucher(pv)} onClose={() => setEditingText(false)}
+          lines={lines.map((l) => ({ id: String(l.id), description: l.description ?? null }))} />
+      )}
 
       {/* ── Lines ─────────────────────────────────────────────────────── */}
       <section className={styles.card}>
@@ -856,7 +903,7 @@ export const PaymentVoucherDetail = () => {
                       <span className={styles.previewPrice}>{fmtRm(l.amountSen, currency)}</span>
                       {editLines.length > 1 && (
                         <button type="button" onClick={() => dropLine(l.rid)} title="Remove line"
-                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-festive-b, #B8331F)', padding: 4, display: 'inline-flex' }}>
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))', padding: 4, display: 'inline-flex' }}>
                           <Trash2 {...SM_ICON} />
                         </button>
                       )}
@@ -871,7 +918,7 @@ export const PaymentVoucherDetail = () => {
                     </label>
                     <label className={styles.field}>
                       <span className={styles.fieldLabel}>Description</span>
-                      <input type="text" value={l.description} onChange={(e) => setLine(l.rid, { description: e.target.value })} className={styles.fieldInput} />
+                      <input data-upper type="text" value={l.description} onChange={(e) => setLine(l.rid, { description: e.target.value })} className={styles.fieldInput} />
                     </label>
                   </div>
                   <div className={styles.formGrid4} style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
@@ -904,7 +951,7 @@ export const PaymentVoucherDetail = () => {
           <div className={styles.cardHeader}>
             <h2 className={styles.cardTitle}>Applies to</h2>
             {isEditing && editApplyToPi ? (
-              <span style={{ fontSize: 'var(--fs-12)', color: editOverAllocated ? 'var(--c-festive-b, #B8331F)' : 'var(--fg-muted)' }}>
+              <span style={{ fontSize: 'var(--fs-12)', color: editOverAllocated ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--fg-muted)' }}>
                 {apEdit
                   ? `Applying ${fmtRm(editAllocatedSen)}${editAdvanceSen > 0 ? ` + prepay ${fmtRm(editAdvanceSen)}` : ''} = ${fmtRm(editTotalSen)}`
                   : `Allocated ${fmtRm(editAllocatedSen)} / PV total ${fmtRm(editTotalSen)}`}
@@ -924,7 +971,7 @@ export const PaymentVoucherDetail = () => {
               ) : (
                 <>
                   {editOverAllocated && (
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, #B8331F)', marginBottom: 'var(--space-2)' }}>
+                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))', marginBottom: 'var(--space-2)' }}>
                       You've applied more than the voucher total — reduce the amounts below before saving.
                     </div>
                   )}
@@ -1045,15 +1092,16 @@ export const PaymentVoucherDetail = () => {
       {/* ── Files — the bill behind this voucher (owner 2026-09-03: 我希望可以
           print pv include ocr 的文件一起, which first needs the file to LIVE
           here). Scan attaches automatically; this card takes manual adds,
-          views, and deletes — deleting only until CHECKED: evidence locks
-          with the document (server enforces both). */}
-      <PvFilesCard pvId={String(pv.id)} canWrite={canWrite} locked={isChecked} cancelled={pv.status === 'CANCELLED'} />
+          views, and deletes — deleting until APPROVED (owner 2026-11-09), each
+          removal on the voucher's history; then the evidence stays with the
+          journal (server enforces both). */}
+      <PvFilesCard pvId={String(pv.id)} canWrite={canWrite} locked={isApprovedPv} cancelled={pv.status === 'CANCELLED'} />
 
       {/* ── The advance this voucher holds, and the knock-off that spends it
           (预付挂在 supplier, 2026-09-02). Rendered only when a posted supplier
           voucher paid ahead and money remains on it. */}
       {pv.status === 'POSTED' && pv.supplier_id && (
-        <AdvanceCard pvId={String(pv.id)} supplierId={String(pv.supplier_id)} />
+        <AdvanceKnockOff pvId={String(pv.id)} supplierId={String(pv.supplier_id)} />
       )}
 
       {/* ── Totals ────────────────────────────────────────────────────── */}
@@ -1127,118 +1175,12 @@ export const PaymentVoucherDetail = () => {
   );
 };
 
-/* ── The advance card — money this voucher paid ahead, spent from HERE ──────
-   Knock-off only: applying settles the invoice's paid_sen and burns the
-   advance; NOTHING posts, because both legs already live in AP. The card
-   disappears when the advance is spent to zero. */
-const AdvanceCard = ({ pvId, supplierId }: { pvId: string; supplierId: string }) => {
-  const advancesQ = useSupplierAdvances(supplierId);
-  const applyM = useApplyAdvance();
-  const piListQ = usePurchaseInvoices();
-  /* The other creditor's bills (2026-09-06): an advance to a 405-x supplier
-     lands on its AP INVOICES, which the purchase-invoice list never carries. */
-  const apListQ = useApInvoices('API');
-  const [amounts, setAmounts] = useState<Record<string, number>>({});
-  const [note, setNote] = useState<string | null>(null);
-
-  const mine = (advancesQ.data?.advances ?? []).find((a: { pv_id: string }) => a.pv_id === pvId) ?? null;
-
-  type Open = { key: string; kind: 'PI' | 'API'; id: string; number: string; date: string | null; outSen: number };
-  const outstanding = useMemo<Open[]>(() => {
-    const pis = ((piListQ.data?.purchaseInvoices ?? []) as Array<{
-      id: string; invoice_number?: string | null; supplier_id?: string | null;
-      supplier?: { id?: string | null } | null; status?: string | null;
-      total_sen?: number | null; paid_sen?: number | null; invoice_date?: string | null;
-    }>)
-      .filter((r) => {
-        const sid = String(r.supplier_id ?? r.supplier?.id ?? '');
-        const st = String(r.status ?? '').toUpperCase();
-        return sid === supplierId && (st === 'POSTED' || st === 'PARTIALLY_PAID')
-          && Number(r.total_sen ?? 0) - Number(r.paid_sen ?? 0) > 0;
-      })
-      .map((r): Open => ({ key: `pi:${r.id}`, kind: 'PI', id: String(r.id), number: String(r.invoice_number ?? r.id), date: r.invoice_date ?? null, outSen: Number(r.total_sen ?? 0) - Number(r.paid_sen ?? 0) }));
-    const apis = (apListQ.data?.rows ?? [])
-      .filter((r) => r.supplierId === supplierId && (r.status === 'POSTED' || r.status === 'PARTIALLY_PAID') && r.outstandingSen > 0)
-      .map((r): Open => ({ key: `api:${r.id}`, kind: 'API', id: r.id, number: r.invoiceNumber, date: r.invoiceDate, outSen: r.outstandingSen }));
-    return [...pis, ...apis].sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
-  }, [piListQ.data, apListQ.data, supplierId]);
-
-  if (!mine) return null;
-  const remaining = mine.remaining_sen;
-  const asked = Object.values(amounts).reduce((s, v) => s + v, 0);
-  const over = asked > remaining;
-
-  return (
-    <section className={styles.card}>
-      <div className={styles.cardHeader}>
-        <h2 className={styles.cardTitle}>Advance on this voucher</h2>
-        <span style={{ fontSize: 'var(--fs-12)', color: over ? 'var(--c-festive-b, #B8331F)' : 'var(--fg-muted)' }}>
-          {fmtRm(remaining)} unspent{asked > 0 ? ` · applying ${fmtRm(asked)}` : ''}
-        </span>
-      </div>
-      <div className={styles.cardBody} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <p style={{ fontSize: 'var(--fs-13)', color: 'var(--fg-muted)', margin: 0 }}>
-          This voucher paid ahead of any invoice. Knock the remainder off the supplier&rsquo;s
-          outstanding invoices below — purchase invoices and AP invoices alike; no money moves, both legs are already in AP.
-        </p>
-        {outstanding.length === 0 ? (
-          <p style={{ fontSize: 'var(--fs-13)', color: 'var(--fg-muted)', margin: 0 }}>No outstanding invoice from this supplier yet — the advance waits.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-13)' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--fg-muted)', fontSize: 'var(--fs-11)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                <th style={{ padding: '6px 8px' }}>Invoice</th>
-                <th style={{ padding: '6px 8px' }}>Date</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Outstanding</th>
-                <th style={{ padding: '6px 8px', textAlign: 'right' }}>Knock off</th>
-              </tr>
-            </thead>
-            <tbody>
-              {outstanding.map((r) => (
-                <tr key={r.key} style={{ borderTop: '1px solid var(--line)' }}>
-                  <td style={{ padding: '6px 8px', fontFamily: 'var(--font-mono)' }}>
-                    {r.number}
-                    {r.kind === 'API' && <span style={{ marginLeft: 6, fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-11)', fontWeight: 600, color: 'var(--c-orange, #b06000)' }}>AP</span>}
-                  </td>
-                  <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', color: 'var(--fg-muted)' }}>{fmtDate(r.date)}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--fg-muted)' }}>{fmtRm(r.outSen)}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                    <MoneyInput bare valueSen={amounts[r.key] ?? 0}
-                      onCommit={(sen) => setAmounts((prev) => ({ ...prev, [r.key]: Math.max(0, Math.min(r.outSen, sen ?? 0)) }))}
-                      inputClassName={styles.fieldInput} selectOnFocus />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <span style={{ flex: 1, fontSize: 'var(--fs-12)', color: 'var(--fg-muted)' }}>{note}</span>
-          <Button variant="primary" size="sm"
-            disabled={applyM.isPending || asked === 0 || over}
-            onClick={() => {
-              setNote(null);
-              const allocations = outstanding
-                .filter((r) => (amounts[r.key] ?? 0) > 0)
-                .map((r) => (r.kind === 'API' ? { apInvoiceId: r.id, amountSen: amounts[r.key]! } : { piId: r.id, amountSen: amounts[r.key]! }));
-              applyM.mutate({ pvId, allocations }, {
-                onSuccess: (d: { appliedSen: number; remainingSen: number }) => { setAmounts({}); setNote(`Knocked off ${fmtRm(d.appliedSen)} — ${fmtRm(d.remainingSen)} of the advance remains.`); },
-                onError: (e) => setNote(e instanceof Error ? e.message : 'Not applied.'),
-              });
-            }}>
-            {applyM.isPending ? 'Applying…' : 'Apply advance'}
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
-};
-
 /* ── Files card — the bill pages behind this voucher (mig 0352). The card
    itself is the shared DocFilesCard (since 2026-09-06 the AP invoice shows
-   the same one); this binds the voucher's hooks and its four-layer rule:
-   a CHECKED voucher's evidence stays (remove hidden, server refuses too),
-   a CANCELLED one takes no more files. */
+   the same one); this binds the voucher's hooks and its rule: a wrong file
+   may go until the voucher is APPROVED (owner 2026-11-09: 「如果我不小心放错」
+   → 可以), each removal on its history; an approved voucher's evidence stays
+   (remove hidden, server refuses too); a CANCELLED one takes no more files. */
 const PvFilesCard = ({ pvId, canWrite, locked, cancelled }: { pvId: string; canWrite: boolean; locked: boolean; cancelled: boolean }) => {
   const filesQ = usePvFiles(pvId);
   const upload = useUploadPvFile();
@@ -1247,9 +1189,9 @@ const PvFilesCard = ({ pvId, canWrite, locked, cancelled }: { pvId: string; canW
     <DocFilesCard
       files={filesQ.data?.files ?? []}
       canWrite={canWrite} locked={locked} closed={cancelled}
-      lockedNote=" · Checked vouchers keep their files. Nothing can be removed."
+      lockedNote=" · Approved vouchers keep their files. Nothing can be removed."
       emptyNote="No files attached. The bill or quotation goes here and prints with the voucher; one opened from Scan bills attaches its scans by itself."
-      removeBody="The stored file is deleted with its row. A checked voucher refuses this — evidence locks with the document."
+      removeBody="The stored file is deleted, and the voucher's history records who removed which file. Once the voucher is approved, its files stay."
       attachAriaLabel="Attach voucher files"
       uploading={upload.isPending} removing={remove.isPending}
       onUpload={(file) => upload.mutateAsync({ pvId, file })}

@@ -21,9 +21,6 @@ const WIDTHS = [1025, 1164, 1440] as const;
 const FIXED_NOW = new Date("2026-10-14T10:00:00+08:00");
 
 const PAGES: ReadonlyArray<{ name: string; path: string; ready: string }> = [
-  { name: "sales-order", path: "/sales-orders-shell-preview.html", ready: '[data-testid^="outright-row-"]' },
-  { name: "so-batch", path: "/so-batch-shell-preview.html", ready: '[data-testid="by-supplier"]' },
-  { name: "forecast-purchase", path: "/forecast-purchase-shell-preview.html", ready: "main" },
   {
     name: "workspace",
     path: `/work-preview.html?shell=1&pw=1&at=${encodeURIComponent("/operation?tab=work")}`,
@@ -103,19 +100,4 @@ for (const { name, path, ready } of PAGES) {
       }
     }
   }
-}
-
-/* The Tasks panel on its own, as the approved round 3 draws it beside SO Batch. */
-for (const width of WIDTHS) {
-  test(`tasks panel at ${width}`, async ({ page }) => {
-    await open(page, "/so-batch-shell-preview.html", '[data-testid="by-supplier"]', width);
-    expect(await setTasks(page, true), "the Tasks panel opens").toBe(true);
-    await page.locator("[data-task-card]").first().waitFor();
-    await settle(page);
-    await expect(page.locator(TASKS)).toHaveScreenshot(`tasks-panel-${width}.png`, {
-      animations: "disabled",
-      caret: "hide",
-      maxDiffPixelRatio: 0.002,
-    });
-  });
 }

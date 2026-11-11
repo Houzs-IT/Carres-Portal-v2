@@ -72,11 +72,13 @@ import { sortByText, sortByNumeric } from '../../vendor/scm/lib/sort-options';
 import { SearchableSelect } from '../../vendor/scm/components/SearchableSelect';
 import { DebtorSuggestList } from '../../vendor/scm/components/DebtorSuggestList';
 import styles from './SalesOrderDetail.module.css';
+import { DetailLoadFailure } from './DetailLoadFailure';
 import { PageHeader } from '../../components/Layout';
 import { PrintPreviewModal, usePrintPreview } from '../../components/scm-v2/PrintPreviewModal';
 import type { PdfAction } from '../../vendor/scm/lib/pdf-common';
 import { DateField } from "../../vendor/scm/components/DateField";
 import { warehouseLabel } from "../../vendor/scm/lib/warehouse-label";
+import { todayMyt } from "../../vendor/scm/lib/dates";
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -86,7 +88,7 @@ const EMERGENCY_HEADER_NOTE_STYLE: CSSProperties = {
 const DATES_XOR_WARN_STYLE: CSSProperties = {
   background: 'rgba(184, 51, 31, 0.08)',
   border: '1px solid var(--c-festive-b, #B8331F)',
-  color: 'var(--c-festive-b, #B8331F)',
+  color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
   padding: '4px var(--space-2)',
   borderRadius: 'var(--radius-sm)',
   fontSize: 'var(--fs-11)',
@@ -207,7 +209,7 @@ export const ConsignmentOrderDetail = () => {
         ))}
         <div style={{
           fontSize: 'var(--fs-11)', marginTop: 1,
-          color: remaining > 0 ? 'var(--c-festive-b, #B8331F)' : 'var(--c-secondary-a, #2F5D4F)',
+          color: remaining > 0 ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--c-secondary-a, #2F5D4F)',
         }}>
           {remaining > 0 ? `Balance ${remaining}` : 'Fully delivered'}
         </div>
@@ -505,10 +507,7 @@ export const ConsignmentOrderDetail = () => {
           <ArrowLeft {...ICON} />
           <span>Back</span>
         </Link>
-        <div className={styles.bannerWarn}>
-          <strong>Consignment order not found.</strong>
-          {detail.error instanceof Error ? ` ${detail.error.message}` : null}
-        </div>
+        <DetailLoadFailure noun="Consignment order" error={detail.isError ? detail.error : null} onRetry={() => void detail.refetch()} retrying={detail.isFetching} />
       </div>
     );
   }
@@ -633,6 +632,7 @@ export const ConsignmentOrderDetail = () => {
                      offenders when processingDate is set). Was defaulting to
                      true. */
                   variantsRequired={!!header.processing_date}
+                  specLockedReason={null}
                   lineDateLocked={false}
                   seedSofaLegDefault={true}
                   attachOptions={null}
@@ -649,6 +649,7 @@ export const ConsignmentOrderDetail = () => {
                 canRemove
                 // Same rule as the saved lines above.
                 variantsRequired={!!header.processing_date}
+                specLockedReason={null}
                 lineDateLocked={false}
                 seedSofaLegDefault={true}
                 attachOptions={null}
@@ -911,7 +912,7 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
 
   const datesXor =
     (form.processingDate.trim() !== '') !== (form.customerDeliveryDate.trim() !== '');
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = todayMyt();
   const originalProcessing = header.processing_date ?? '';
   const originalDelivery = header.customer_delivery_date ?? '';
   const processingLocked = originalProcessing !== '' && originalProcessing < today;

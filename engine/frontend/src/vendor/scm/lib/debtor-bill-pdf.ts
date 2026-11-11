@@ -19,6 +19,7 @@ import {
 import { getBrandingCache } from '../../../lib/branding';
 import type { DebtorBill, OtherDebtor } from './accounting-queries';
 import { partyAddressLines, type DebtorPartyColumns } from './debtor-party';
+import { PDF_COMPRESS } from './pdf-options';
 
 export type DebtorBillPdfData = {
   bill: DebtorBill;
@@ -66,6 +67,7 @@ export async function renderDebtorBillInto(doc: JsPdf, autoTable: AutoTable, d: 
       title: 'BILL TO',
       rows: [
         ['Name', d.debtor.name],
+        ['Account', d.debtor.code ?? null],
         /* The address as the registry holds it; a blank label keeps the continuation lines under the first. */
         ...partyAddressLines(d.debtor).map((line, i): [string, string] => [i === 0 ? 'Address' : ' ', line]),
         ['Attention', d.debtor.attention || d.debtor.contact_person || null],
@@ -176,7 +178,7 @@ export async function renderDebtorBillInto(doc: JsPdf, autoTable: AutoTable, d: 
 export async function generateDebtorBillPdf(d: DebtorBillPdfData, opts?: { action?: PdfAction }): Promise<void> {
   const [{ jsPDF }, autoTableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const autoTable = autoTableModule.default as unknown as AutoTable;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4', orientation: 'portrait' });
   await renderDebtorBillInto(doc, autoTable, d);
   deliverPdf(doc, `${d.bill.bill_number}-${safeName(d.debtor.name)}.pdf`, opts?.action);
 }

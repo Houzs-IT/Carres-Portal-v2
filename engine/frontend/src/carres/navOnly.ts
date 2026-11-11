@@ -1,18 +1,17 @@
 // Carres only (not part of Houzs's code). The Carres copy of this engine is Supply Chain and Service Cases,
-// opened from the Carres portal's own menu (owner, 6 Nov 2026). Carres keeps its own Projects and Finance.
+// opened from the Carres portal's own menu (owner, 6 Nov 2026). Projects joined on 11 Nov 2026 (the engine replaces
+// the Carres Projects pages); Carres keeps its own Finance.
 // Everything that builds a menu reads the registry in components/Sidebar.tsx, so trimming it here keeps the
 // desktop rail, the mobile menu and the hub pages in agreement.
 
 /** Top-level menu entries kept, by their label in the registry. Sales Orders stay: the supply chain starts
  *  from them. Team and Settings stay so an administrator can set people and company details. */
-const KEEP = new Set(["Sales Orders", "Service Cases", "Supply Chain", "Team", "Settings"]);
+const KEEP = new Set(["Overview", "Sales Orders", "Service Cases", "Projects", "Supply Chain", "Team", "Settings"]);
 
 /** Houzs modules switched off here: their menu entries are dropped and their addresses go to CARRES_HOME
  *  (App.tsx). Path prefixes, matched on whole segments. */
 export const CARRES_HIDDEN_PATHS: readonly string[] = [
   "/scm/forecast", "/scm/finance-dashboard", "/scm/hr",
-  "/scm/consignment", "/scm/consignment-orders", "/scm/consignment-notes", "/scm/consignment-returns",
-  "/scm/purchase-consignment-orders", "/scm/purchase-consignment-receives", "/scm/purchase-consignment-returns",
   "/autocount-sync", "/pos-admin",
 ];
 
@@ -46,9 +45,9 @@ export function carresNavOnly<T extends NavNode>(tabs: T[]): T[] {
 }
 
 /** No AutoCount in the Carres engine: Settings drops its Sync tab and never asks for that status. */
-export const CARRES_AUTOCOUNT: boolean = false;
+export const CARRES_AUTOCOUNT: boolean = true; // Settings shows its Sync tab as in Houzs (owner, 11 Nov 2026: same as Houzs except colour)
 
-/** Where the app opens: the old landing page is an overview of areas switched off here. */
+/** Where a switched-off module's address goes. The landing page itself is Houzs's Overview, as in Houzs. */
 export const CARRES_HOME = "/scm/sales-orders";
 
 /** The floating quick-add button and the AI assistant: off (the assistant needs a key this copy does not have). */

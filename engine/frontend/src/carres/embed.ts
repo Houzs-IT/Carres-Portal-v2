@@ -42,3 +42,40 @@ export function followCarresMenu(): void {
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
 }
+
+/** The portal shows which page the frame is on: every move inside this app (a link, a button, Back) is told
+ *  to the portal as { type: "carres:location", path }, so its menu lights the right row and its address can
+ *  reopen the same page after a refresh. Sent only to the portal that framed this app (the referrer, if it
+ *  is an allowed portal address). */
+export function reportCarresLocation(): void {
+  if (!CARRES_EMBEDDED) return;
+  let portal: string | null = null;
+  try { portal = document.referrer ? new URL(document.referrer).origin : null; } catch { portal = null; }
+  if (!portal || !PORTAL.test(portal)) return;
+  const target = portal;
+  let last = "";
+  const send = () => {
+    const path = window.location.pathname + window.location.search;
+    if (path === last) return;
+    last = path;
+    window.parent.postMessage({ type: "carres:location", path }, target);
+  };
+  for (const name of ["pushState", "replaceState"] as const) {
+    const original = window.history[name].bind(window.history);
+    window.history[name] = ((...args: Parameters<History["pushState"]>) => {
+      original(...args);
+      queueMicrotask(send);
+    }) as History["pushState"];
+  }
+  window.addEventListener("popstate", send);
+  send();
+}
+
+/** The portal that framed this app (the referrer, if it is an allowed portal address); null otherwise. */
+export function carresPortalOrigin(): string | null {
+  if (!CARRES_EMBEDDED) return null;
+  try {
+    const origin = document.referrer ? new URL(document.referrer).origin : null;
+    return origin && PORTAL.test(origin) ? origin : null;
+  } catch { return null; }
+}

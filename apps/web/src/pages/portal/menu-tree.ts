@@ -29,13 +29,12 @@ export const PAGE_GROUPS: ReadonlyArray<PageGroup> = [
 ];
 
 /**
- * PURCHASING'S LANDING PAGE, NAMED RATHER THAN DERIVED: `SO Batch Purchase`,
- * the buyer's daily page. Taking "the first live row" made the landing a side
- * effect of row order. It is PERMANENT — there is no Purchasing Home to hand
- * it to (`docs/purchasing/MASTER.md` §4). The module record in `portal-nav.ts`
- * carries it as `landingKey`.
+ * PROCUREMENT'S LANDING PAGE, NAMED RATHER THAN DERIVED: `Procurement Overview`,
+ * the first page of Houzs's Procurement (the engine page). SO Batch Purchase, the
+ * landing before, was removed with the old Carres pages (11 Nov 2026). The module
+ * record in `portal-nav.ts` carries it as `landingKey`.
  */
-export const PURCHASING_LANDING_KEY = "purchase";
+export const PURCHASING_LANDING_KEY = "procurement-overview";
 
 /** One row-group inside an open module. */
 export type ModuleChildBlock =

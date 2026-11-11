@@ -15,7 +15,7 @@ import UpdatePassword from "@/pages/UpdatePassword";
 import Me from "@/pages/Me";
 import DealerApp from "@/pages/dealer/DealerApp";
 import PrincipalApp from "@/pages/principal/PrincipalApp";
-import RequestFlowOperationApp from "@/pages/operation/RequestFlowOperationApp";
+import OperationApp from "@/pages/operation/OperationApp";
 import PartnerApp from "@/pages/partner/PartnerApp";
 import FinanceApp from "@/pages/finance/FinanceApp";
 import SupplierApp from "@/pages/supplier/SupplierApp";
@@ -143,7 +143,7 @@ export default function App() {
                   area is reachable by the boss. DB twin: migration 0189 widens
                   is_operation(); API twin: requireOperation admits principal. */}
               <RequireRole roles={["operation", "principal"]}>
-                <RequestFlowOperationApp />
+                <OperationApp />
               </RequireRole>
             </RequireAuth>
           }

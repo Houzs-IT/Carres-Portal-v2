@@ -65,11 +65,13 @@ import { RelationshipMapButton } from '../../vendor/scm/components/RelationshipM
 import { StatusPill } from '../../vendor/scm/components/StatusPill';
 import { sortByText } from '../../vendor/scm/lib/sort-options';
 import styles from './SalesOrderDetail.module.css';
+import { DetailLoadFailure } from './DetailLoadFailure';
 import { PageHeader } from '../../components/Layout';
 import { PrintPreviewModal, usePrintPreview } from '../../components/scm-v2/PrintPreviewModal';
 import type { PdfAction } from '../../vendor/scm/lib/pdf-common';
 import { computeTotalHeight, isTotalHeightCategory, isTotalHeightPart } from '../../vendor/shared/total-height';
 import { DateField } from "../../vendor/scm/components/DateField";
+import { supplierEmailList } from "../../vendor/shared/supplier-emails";
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -295,10 +297,7 @@ export const PurchaseConsignmentOrderDetail = () => {
           <ArrowLeft {...ICON} />
           <span>Back</span>
         </Link>
-        <div className={styles.bannerWarn}>
-          <strong>Purchase consignment order not found.</strong>
-          {detail.error instanceof Error ? ` ${detail.error.message}` : null}
-        </div>
+        <DetailLoadFailure noun="Purchase consignment order" error={detail.isError ? detail.error : null} onRetry={() => void detail.refetch()} retrying={detail.isFetching} />
       </div>
     );
   }
@@ -325,7 +324,7 @@ export const PurchaseConsignmentOrderDetail = () => {
         ))}
         <div style={{
           fontSize: 'var(--fs-11)', marginTop: 1,
-          color: remaining > 0 ? 'var(--c-festive-b, #B8331F)' : 'var(--c-secondary-a, #2F5D4F)',
+          color: remaining > 0 ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--c-secondary-a, #2F5D4F)',
         }}>
           {remaining > 0 ? `Balance ${remaining}` : 'Fully received'}
         </div>
@@ -688,7 +687,7 @@ export const PurchaseConsignmentOrderDetail = () => {
                     <td className={styles.priceCell}>{fmtRm(it.line_total_sen, po.currency)}</td>
                     <td className={styles.tableRight}>{it.delivery_date ?? '—'}</td>
                     <td>{renderReceived(it)}</td>
-                    <td className={styles.tableRight} style={{ fontWeight: balance > 0 ? 600 : 400, color: balance > 0 ? 'var(--c-festive-b, #B8331F)' : 'var(--fg-muted)' }}>
+                    <td className={styles.tableRight} style={{ fontWeight: balance > 0 ? 600 : 400, color: balance > 0 ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--fg-muted)' }}>
                       {balance > 0 ? balance : '—'}
                     </td>
                   </tr>
@@ -777,7 +776,7 @@ const SupplierCard = ({
             <div />
             <InfoCell label="Contact" value={supplier?.contact_person ?? supplier?.attention ?? null} />
             <InfoCell label="Phone" value={formatPhone(supplier?.phone ?? supplier?.mobile) || null} />
-            <InfoCell label="Email" value={supplier?.email ?? null} />
+            <InfoCell label="Email" value={supplierEmailList(supplier).join(", ") || null} />
             <div />
             <div style={{ gridColumn: 'span 2' }}>
               <InfoCell label="Address"
@@ -895,7 +894,7 @@ const SupplierCard = ({
             <InfoCell label="Contact"       value={supplier.contact_person ?? supplier.attention} />
             <InfoCell label="Phone"         value={formatPhone(supplier.phone ?? supplier.mobile)} />
             <InfoCell label="Payment terms" value={supplier.payment_terms} />
-            <InfoCell label="Email"         value={supplier.email} />
+            <InfoCell label="Email"         value={supplierEmailList(supplier).join(", ") || null} />
             <InfoCell label="TIN"           value={supplier.tin_number} />
             <InfoCell label="Country / state" value={[supplier.country, supplier.state].filter(Boolean).join(' / ') || null} />
             <InfoCell label="Bindings count" value={String(supplierDetail.data?.bindings?.length ?? 0)} />

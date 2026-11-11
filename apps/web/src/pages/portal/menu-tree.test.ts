@@ -17,7 +17,7 @@ import {
 
 /**
  * PROCUREMENT AND TRANSPORTATION IN THE HOUZS TREE (Weisiang, WhatsApp
- * 2026-11-01). Procurement is one flat list of sixteen pages with no groups;
+ * 2026-11-01). Procurement is one flat list of ten pages with no groups;
  * the only page group left is Transportation's `Maintenance`. This file owns
  * the grouping rules and the Procurement page list: words and order, the live
  * addresses byte-for-byte, and the rows that may never return.
@@ -39,6 +39,13 @@ const RETIRED = [
   "consignment-overview",
   "consignment-receipts",
   "purchasing-report",
+  /* Removed with the old Carres Supply Chain pages (owner, 11 Nov 2026). */
+  "supplier-items",
+  "purchase",
+  "forecast-purchase",
+  "manual-purchase",
+  "claims",
+  "repair-orders",
 ];
 
 describe("the page groups", () => {
@@ -62,39 +69,30 @@ describe("the page groups", () => {
 });
 
 describe("the approved hierarchy", () => {
-  it("Procurement draws sixteen direct rows, in the Houzs order", () => {
+  it("Procurement draws ten direct rows, in the Houzs order", () => {
     expect(moduleChildBlocks(purchasing).map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
       "Procurement Overview",
       "Products & Maintenance",
       "Suppliers",
-      "Supplier items",
       "MRP · Stock Status",
-      "SO Batch Purchase",
-      "Forecast Purchase",
-      "Manual Purchase Request",
       "Purchase Orders",
       "PO Amendments",
       "Cancellation Requests",
       "Goods Receipt",
       "Purchase Invoices",
       "Purchase Returns",
-      "Supplier Claims",
-      "Repair Orders",
     ]);
   });
 
-  it("Transportation draws its nine direct rows, then the one Maintenance group", () => {
+  it("Transportation draws its six direct rows, then the one Maintenance group", () => {
     const blocks = moduleChildBlocks(delivery);
     expect(blocks.map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
       "Logistic Overview",
-      "Monitor",
       "Delivery Planning",
+      "Last Mile Delivery (Driver)",
       "DP Orders",
       "Last Mile Delivery",
-      "Lorry Live Map",
-      "Lorry Capacity",
       "Crew Leave",
-      "Load Scan",
       "Maintenance",
     ]);
     const group = blocks.find((b) => b.kind === "group");
@@ -106,8 +104,8 @@ describe("the approved hierarchy", () => {
     ]);
   });
 
-  it("is exactly sixteen pages", () => {
-    expect(purchasing).toHaveLength(16);
+  it("is exactly ten pages", () => {
+    expect(purchasing).toHaveLength(10);
   });
 
   it("no row carries a hairline — Reports are central, not a Purchasing row", () => {
@@ -150,70 +148,35 @@ describe("the approved hierarchy", () => {
 
 /** THE ROUTE TRUTH — the Card's own minimum assertion. Words moved; no address did. */
 describe("the live destinations keep their exact current addresses", () => {
-  it("sixteen live pages, at their unchanged addresses", () => {
+  it("ten live pages, each at its own engine address", () => {
     expect(
       purchasing
         .filter((item) => !item.soon)
         .map((item) => [item.label, navItemHref(operation, item)]),
     ).toEqual([
-      ["Procurement Overview", "/operation?tab=procurement-overview"],
-      ["Products & Maintenance", "/operation?tab=op-catalog"],
-      ["Suppliers", "/operation?tab=suppliers"],
-      ["Supplier items", "/operation?tab=supplier-items"],
-      ["MRP · Stock Status", "/operation?tab=mrp"],
-      ["SO Batch Purchase", "/operation?tab=purchase"],
-      /* Forecast Purchase · Outright opened 13 Oct 2026; no other address moved. */
-      ["Forecast Purchase", "/operation?tab=forecast-purchase"],
-      ["Manual Purchase Request", "/operation?tab=manual-purchase"],
-      ["Purchase Orders", "/operation/procurement"],
+      ["Procurement Overview", "/operation/sc/procurement-overview"],
+      ["Products & Maintenance", "/operation/sc/op-catalog"],
+      ["Suppliers", "/operation/sc/suppliers"],
+      ["MRP · Stock Status", "/operation/sc/mrp"],
+      ["Purchase Orders", "/operation/sc/purchase-orders"],
       /* 0717 · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22; Jess was not part of this decision). */
-      ["PO Amendments", "/operation?tab=po-amendments"],
-      ["Cancellation Requests", "/operation?tab=po-cancellation-requests"],
-      ["Goods Receipt", "/operation?tab=receiving"],
-      ["Purchase Invoices", "/operation?tab=purchase-invoices"],
-      /* §9.6 — Purchase Returns opened 2026-09-19 (migration 0548). */
-      ["Purchase Returns", "/operation?tab=purchase-returns"],
-      ["Supplier Claims", "/operation?tab=claims"],
-      /* §9.7 — Repair Orders opened with slice A (migration 0602). */
-      ["Repair Orders", "/operation?tab=repair-orders"],
+      ["PO Amendments", "/operation/sc/po-amendments"],
+      ["Cancellation Requests", "/operation/sc/po-cancellation-requests"],
+      ["Goods Receipt", "/operation/sc/receiving"],
+      ["Purchase Invoices", "/operation/sc/purchase-invoices"],
+      ["Purchase Returns", "/operation/sc/purchase-returns"],
     ]);
   });
 
-  it("`Manual Purchase Request` kept its key and its address — only the word changed", () => {
-    const item = purchasing.find((i) => i.key === "manual-purchase");
-    expect(item?.label).toBe("Manual Purchase Request");
-    expect(navItemHref(operation, item as PortalNavItem)).toBe(
-      "/operation?tab=manual-purchase",
-    );
-  });
-
-  it("`Goods Receipt` kept the key and address `receiving` had", () => {
+  it("`Goods Receipt` kept the key `receiving` had", () => {
     const item = purchasing.find((i) => i.key === "receiving");
     expect(item?.label).toBe("Goods Receipt");
-    expect(navItemHref(operation, item as PortalNavItem)).toBe("/operation?tab=receiving");
+    expect(navItemHref(operation, item as PortalNavItem)).toBe("/operation/sc/receiving");
   });
 
-  it("SO Batch Purchase answers to BOTH its entrances, and links to one", () => {
-    const item = purchasing.find((i) => i.key === "purchase");
-    expect(item?.activeFor).toEqual(["tab:purchase", "path:/operation/to-order"]);
-    expect(navItemHref(operation, item as PortalNavItem)).toBe("/operation?tab=purchase");
-  });
-
-  it("Procurement has no unbuilt page; Display Requests (still soon) sits in Consignment, with no route", () => {
+  it("Procurement has no unbuilt page, and the removed Display Requests row is gone", () => {
     expect(purchasing.filter((i) => i.soon)).toEqual([]);
-    const display = operation.items.find((i) => i.key === "display-requests");
-    expect(display?.section).toBe("Consignment");
-    expect(display?.soon).toBe(true);
-    expect(display?.path).toBeUndefined();
-    expect(display?.badge).toBeUndefined();
-    expect(display?.tab).toBeUndefined();
-  });
-
-  it("the named landing page is permanent, and it is SO Batch Purchase", () => {
-    expect(PURCHASING_LANDING_KEY).toBe("purchase");
-    const landing = purchasing.find((i) => i.key === PURCHASING_LANDING_KEY);
-    expect(landing?.label).toBe("SO Batch Purchase");
-    expect(landing?.soon).toBeUndefined();
+    expect(operation.items.find((i) => i.key === "display-requests")).toBeUndefined();
   });
 });
 

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { CSVColumn } from "../lib/csv";
 import type { LayoutSeed } from "../lib/tableLayouts";
-import type { DataTableLineExport, ExportCell, ExportFormat } from "./dataTableLineExport";
+import type { DataTableLineExport, ExportCell, ExportFormat, TablePdfView } from "./dataTableLineExport";
 
 export interface Column<T, L = never> {
   key: string;
@@ -261,6 +261,17 @@ export interface DataTableProps<T, L = never> {
   /** Export the on-screen rows as .xlsx (each column's `exportFormat` kept)
    *  instead of CSV — what the SCM DataGrid lists always wrote. */
   exportXlsx?: boolean;
+  /** With `exportXlsx`: the sheet's name and the lines above its table (a title, what
+   *  narrowed it), asked at the press with the rows being written. Default "Sheet1", none. */
+  exportSheet?: (rows: readonly T[]) => { name: string; heading?: readonly string[] };
+  /** A table that prints: the header's right-click menu offers Export to PDF, and this
+   *  receives the cells the Excel would hold, for the same rows and the visible columns. */
+  onExportPdf?: (view: TablePdfView<T>) => void;
+  /** Told the columns showing, in their order, whenever that changes — for a page
+   *  whose export reaches past this one table: Payments not matched yet's "Export
+   *  all" writes three tables, each with the columns its reader has showing (owner
+   *  2026-11-10: 这个export可以根据我显示的column 来export). Keep it cheap: a ref, not state. */
+  onShownColumnsChange?: (columns: Column<T, L>[]) => void;
   /** Extra toolbar button(s) rendered beside Export/Columns, for a caller that
    *  needs a second export variant (e.g. MRP's per-tab export) without a whole
    *  second toolbar. */

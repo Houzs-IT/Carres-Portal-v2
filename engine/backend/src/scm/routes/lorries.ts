@@ -9,6 +9,7 @@
 // '/lorries' in scm/index.ts.
 // ----------------------------------------------------------------------------
 
+import { idOrNull, lorryWarehouseColumns } from '../lib/lorry-warehouses';
 import { Hono } from 'hono';
 import { supabaseAuth } from '../middleware/auth';
 import type { Env, Variables } from '../env';
@@ -17,6 +18,7 @@ import { normalizePlate } from '../lib/plate-normalize';
 import { carrierLinkForInsert, resolveCarrierLink } from '../lib/threepl-link';
 import { costSen, kmFromFixes, myDayWindow, type Fix } from '../lib/lorry-km';
 import { paginateAll } from '../lib/paginate-all';
+import { roadTrack, type ChunkCache, type Point } from '../lib/gps-road-track';
 
 export const lorries = new Hono<{ Bindings: Env; Variables: Variables }>();
 lorries.use('*', supabaseAuth);
@@ -54,6 +56,8 @@ const COLS = [
   'manufacture_date', 'registration_date', 'in_service_date',
   // Own-lorry running cost (km x this); NULL = not set.
   'cost_per_km_sen',
+  // The crew usually on it (mig 20261107T2000).
+  'usual_driver_id', 'usual_helper_id',
 ].join(', ');
 
 const CAPACITY_LAYERS = new Set(['SETS', 'REVENUE', 'BOTH']);
@@ -93,12 +97,18 @@ function toNumericOrNull(v: unknown): number | null {
    not that exact shape is REJECTED rather than coerced: these are compliance
    dates, and a silently-mangled road-tax expiry is worse than a 400. Postgres
    would 22007 on garbage anyway; this turns that 500 into an honest 400. */
-/* A lorry serves one or more warehouses (owner, 2026-10-16). warehouse_ids is
-   the set; warehouse_id stays as its first entry for readers that know one. */
-function warehouseColumns(body: Record<string, unknown>): { warehouse_id: string | null; warehouse_ids: string[] } {
-  const raw = Array.isArray(body.warehouseIds) ? body.warehouseIds : body.warehouseId ? [body.warehouseId] : [];
-  const ids = [...new Set(raw.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim()))];
-  return { warehouse_id: ids[0] ?? null, warehouse_ids: ids };
+const warehouseColumns = lorryWarehouseColumns;
+
+/* usualDriverId / usualHelperId: undefined = untouched, else a uuid or a clear. */
+function crewColumns(body: Record<string, unknown>): { ok: true; cols: Record<string, string | null> } | { ok: false; field: string } {
+  const cols: Record<string, string | null> = {};
+  for (const [wire, col] of [['usualDriverId', 'usual_driver_id'], ['usualHelperId', 'usual_helper_id']] as const) {
+    if (body[wire] === undefined) continue;
+    const v = idOrNull(body[wire]);
+    if (!v.ok) return { ok: false, field: wire };
+    cols[col] = v.value;
+  }
+  return { ok: true, cols };
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -191,8 +201,12 @@ lorries.post('/', async (c) => {
     ownFlag: body.isInternal === undefined ? undefined : body.isInternal !== false,
   });
 
+  const crew = crewColumns(body);
+  if (!crew.ok) return c.json({ error: 'invalid_id', reason: `${crew.field} must be a driver / helper id or blank` }, 400);
+
   const sb = c.get('supabase');
   const { data, error } = await sb.from('lorries').insert({
+    ...crew.cols,
     company_id: activeCompanyId(c),
     plate,
     type,
@@ -258,7 +272,10 @@ lorries.patch('/:id', async (c) => {
     if (!LORRY_TYPES.has(type)) return c.json({ error: 'invalid_type' }, 400);
     updates.type = type;
   }
-  if (body.warehouseIds !== undefined || body.warehouseId !== undefined) Object.assign(updates, warehouseColumns(body));
+  if (body.warehouseIds !== undefined || body.warehouseId !== undefined || body.homeWarehouseId !== undefined) Object.assign(updates, warehouseColumns(body));
+  const crew = crewColumns(body);
+  if (!crew.ok) return c.json({ error: 'invalid_id', reason: `${crew.field} must be a driver / helper id or blank` }, 400);
+  Object.assign(updates, crew.cols);
   if (body.capacityM3 !== undefined) updates.capacity_m3 = toNumericOrNull(body.capacityM3);
   if (body.capacityKg !== undefined) updates.capacity_kg = toNumericOrNull(body.capacityKg);
   // WS3: box dimensions (ft). When the edit carries all three, capacity_m3 is
@@ -346,19 +363,65 @@ lorries.patch('/:id', async (c) => {
   return c.json({ lorry: data });
 });
 
+/* Delete a lorry that never worked (owner 2026-11-07). A lorry with runs, positions,
+   documents, repairs or service records keeps its history: it is stopped, not deleted.
+   One shared fleet across companies, as PATCH /:id above. */
+lorries.delete('/:id', async (c) => {
+  // company-scope: UNIFIED FLEET — the lorry master is one roster across companies (see PATCH /:id).
+  const id = c.req.param('id');
+  const sb = c.get('supabase');
+  const { data: row, error: rowErr } = await sb.from('lorries').select('id').eq('id', id).maybeSingle();
+  if (rowErr) return c.json({ error: 'load_failed', reason: rowErr.message }, 500);
+  if (!row) return c.json({ error: 'lorry_not_found' }, 404);
+  for (const table of ['trips', 'lorry_positions', 'lorry_service_records', 'lorry_compliance_documents', 'lorry_work_orders']) {
+    const { count, error } = await sb.from(table).select('lorry_id', { count: 'exact', head: true }).eq('lorry_id', id);
+    if (error) return c.json({ error: 'load_failed', reason: `${table}: ${error.message}` }, 500);
+    if ((count ?? 0) > 0) return c.json({ error: 'lorry_has_history', reason: 'This lorry has runs or records. Stop using it instead, so its history stays.' }, 409);
+  }
+  const { error } = await sb.from('lorries').delete().eq('id', id);
+  if (error) {
+    if (error.code === '23503') return c.json({ error: 'lorry_has_history', reason: 'This lorry is still referenced. Stop using it instead.' }, 409);
+    return c.json({ error: 'delete_failed', reason: error.message }, 500);
+  }
+  return c.json({ ok: true });
+});
+
 // DEV-42: each lorry's latest Velocity fix in the last 24 h (scm/lib/velocity-poll.ts
 // writes them every 5 min). Unified fleet like GET / — not scoped by company.
+export type LatestFix = {
+  lorry_id: string; lat: number; lng: number; speed_kmh: number | null; heading: number | null;
+  ignition: boolean | null; street: string | null; recorded_at: string; received_at: string | null;
+};
+
+/* Newest fix per lorry since `since`. PAGED: a moving lorry writes 12 fixes an
+   hour, so the newest 1,000 rows (all one plain select returns) covered only the
+   last few hours of a 4+ lorry fleet, and a lorry parked since the morning
+   silently dropped off the map. `truncated` = more than 50,000 fixes in the
+   window (about 170 lorries), reported, not hidden. */
+export async function latestFixPerLorry(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- scm-scoped supabase-js client
+  sb: any,
+  since: string,
+): Promise<{ data: LatestFix[]; error: string | null; truncated: boolean }> {
+  // ponytail: reads 24 h of rows (288 per tracked lorry); a DISTINCT ON view if the fleet grows large.
+  const { data, error, truncated } = await paginateAll<LatestFix>((f, t) => sb.from('lorry_positions')
+    .select('lorry_id, lat, lng, speed_kmh, heading, ignition, street, recorded_at, received_at')
+    .gte('recorded_at', since)
+    .order('recorded_at', { ascending: false }).order('id')
+    .range(f, t));
+  if (error) return { data: [], error: error.message, truncated: false };
+  const latest = new Map<string, LatestFix>();
+  for (const r of data ?? []) if (!latest.has(r.lorry_id)) latest.set(r.lorry_id, r);
+  return { data: [...latest.values()], error: null, truncated };
+}
+
 lorries.get('/positions/latest', async (c) => {
   const sb = c.get('supabase');
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-  // ponytail: scans 24 h of rows (288 per tracked lorry); a DISTINCT ON view if the fleet grows large.
-  const { data, error } = await sb.from('lorry_positions')
-    .select('lorry_id, lat, lng, speed_kmh, heading, ignition, street, recorded_at, received_at')
-    .gte('recorded_at', since)
-    .order('recorded_at', { ascending: false });
-  if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
-  const latest = new Map<string, NonNullable<typeof data>[number]>();
-  for (const r of data) if (!latest.has(r.lorry_id)) latest.set(r.lorry_id, r);
+  const { data: fixes, error, truncated } = await latestFixPerLorry(sb, since);
+  if (error) return c.json({ error: 'load_failed', reason: error }, 500);
+  if (truncated) return c.json({ error: 'too_many_fixes', reason: 'More GPS fixes in 24 hours than one read can take; the map would miss lorries.' }, 500);
+  const latest = new Map(fixes.map((r) => [r.lorry_id, r]));
   if (!latest.size) return c.json({ positions: [] });
   const { data: plates, error: pErr } = await sb.from('lorries').select('id, plate').in('id', [...latest.keys()]);
   if (pErr) return c.json({ error: 'load_failed', reason: pErr.message }, 500);
@@ -420,6 +483,47 @@ lorries.get('/:id/track', async (c) => {
   if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
   const fixes = data ?? [];
   return c.json({ date, km: kmFromFixes(fixes), fixes });
+});
+
+// The same day's fixes drawn along the roads (owner 2026-11-10), for the live map and
+// the lorry page. Each chunk's road is kept in the edge cache by its own points, so the
+// 5-min poll asks Google only for a chunk it has not seen. Unified fleet like /:id/track.
+const ROAD_CACHE_DAYS = 30;
+function edgeChunkCache(origin: string): ChunkCache {
+  const url = (key: string) => `${origin}/__gps-road-cache/v1?${encodeURIComponent(key)}`;
+  return {
+    async get(key) {
+      try {
+        const hit = await caches.default.match(url(key));
+        return hit ? ((await hit.json()) as Point[] | null) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    async put(key, road) {
+      try {
+        await caches.default.put(url(key), new Response(JSON.stringify(road), {
+          headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${ROAD_CACHE_DAYS * 86_400}` },
+        }));
+      } catch { /* best effort: a miss only costs one more Directions call */ }
+    },
+  };
+}
+
+lorries.get('/:id/track/road', async (c) => {
+  // company-scope: UNIFIED FLEET — one shared fleet across all companies (lorries.ts:132), same as /:id/track.
+  const date = c.req.query('date') ?? new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+  const day = ISO_DATE.test(date) ? myDayWindow(date) : null;
+  if (!day) return c.json({ error: 'invalid_date', reason: 'date must be YYYY-MM-DD' }, 400);
+  const { data, error } = await paginateAll<Fix>((f, t) => c.get('supabase').from('lorry_positions')
+    .select('lat, lng, recorded_at')
+    .eq('lorry_id', c.req.param('id'))
+    .gte('recorded_at', day.from).lt('recorded_at', day.to)
+    .order('recorded_at').order('id')
+    .range(f, t));
+  if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
+  const track = await roadTrack(c.env, data ?? [], edgeChunkCache(new URL(c.req.url).origin));
+  return c.json({ date, ...track });
 });
 
 export default lorries;

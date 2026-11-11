@@ -26,6 +26,7 @@
 //   return_items→pc_receive_item_id.
 // Numbering: PCT-YYMM-NNN.
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { supabaseAuth } from '../middleware/auth';
@@ -49,6 +50,7 @@ import { scopeToCompany, activeCompanyId, stampCompany, companyDocPrefix,
   requireActiveCompanyId, scopeToCompanyId, NOT_THIS_COMPANY,
   isCrossCompanySource, crossCompanyConversionBlocked } from '../lib/companyScope';
 import { unlinkedEditRefusal } from '../lib/unlinked-line-edit-guard';
+import { foldTargetsIntoOwnBuckets, stockBucketKeyResolver } from '../lib/stock-bucket-key';
 
 export const purchaseConsignmentReturns = new Hono<{ Bindings: Env; Variables: Variables }>();
 purchaseConsignmentReturns.use('*', supabaseAuth);
@@ -124,12 +126,16 @@ async function resyncPcReturnInventory(sb: any, returnId: string, performedBy: s
     const batchByWh = new Map<string, Map<string, string | null>>();
     for (const wh of allWh) batchByWh.set(wh, await resolveWarehouseLotBatches(sb, wh));
 
+    /* SKU category + canonical key, written as the stocked bucket's own string
+       when canonically equal (lib/stock-bucket-key.ts). */
+    const keyOf = await stockBucketKeyResolver(sb, (header as { company_id?: number | null }).company_id ?? null,
+      (lineList).map((it) => ({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: (it.pc_receive_item_id ? whByRecvItem.get(it.pc_receive_item_id) : null) ?? fallbackWh ?? null })));
     for (const it of lineList) {
       const qty = Number(it.qty_returned ?? 0);
       if (qty <= 0) continue;
       const wh = (it.pc_receive_item_id ? whByRecvItem.get(it.pc_receive_item_id) : null) ?? fallbackWh;
       if (!wh) continue;
-      const vk = computeVariantKey(it.item_group, (it.variants as VariantAttrs | null) ?? null);
+      const vk = keyOf({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: (it.pc_receive_item_id ? whByRecvItem.get(it.pc_receive_item_id) : null) ?? fallbackWh ?? null });
       const batch = batchByWh.get(wh)?.get(`${it.item_code}::${vk}`) ?? null;
       const k = `${wh}::${it.item_code}::${vk}::${batch ?? ''}`;
       const cur = targetByBucket.get(k);
@@ -159,6 +165,8 @@ async function resyncPcReturnInventory(sb: any, returnId: string, performedBy: s
   type MovOut = Parameters<typeof writeMovements>[1][number];
   const writes: MovOut[] = [];
   const pcReturnEmitted = new Set<string>(); // product::variant given a PC_RETURN this run
+  /* A target canonically equal to a bucket this document already moved IS that bucket. */
+  foldTargetsIntoOwnBuckets(targetByBucket, aggByBucket.keys(), (header as { company_id?: number | null }).company_id ?? null);
   for (const k of new Set<string>([...targetByBucket.keys(), ...aggByBucket.keys()])) {
     const t = targetByBucket.get(k);
     const a = aggByBucket.get(k) ?? { out_qty: 0, in_qty: 0, out_total_cost: 0, product_name: null };
@@ -225,8 +233,7 @@ const ITEM =
 const nextNum = async (sb: any, c: any): Promise<string> => {
   // PCT-YYMM-NNN. max(suffix)+1 (NEVER count+1) so a deleted mid-month row can't
   // make the counter re-mint a surviving number forever — see doc-no.ts.
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, 'purchase_consignment_returns', 'return_number', `${p}PCT-${yymm}`);
 };
@@ -376,7 +383,7 @@ purchaseConsignmentReturns.get('/:id', async (c) => {
   const sb = c.get('supabase'); const id = c.req.param('id');
   const [h, i] = await Promise.all([
     scopeToCompany(sb.from('purchase_consignment_returns')
-      .select(`${HEADER}, supplier:suppliers(id, code, name, contact_person, phone, email, address), purchase_consignment_order:purchase_consignment_orders(id, pc_number), pc_receive:purchase_consignment_receives(id, receive_number)`)
+      .select(`${HEADER}, supplier:suppliers(id, code, name, contact_person, phone, email, email2, email3, address), purchase_consignment_order:purchase_consignment_orders(id, pc_number), pc_receive:purchase_consignment_receives(id, receive_number)`)
       .eq('id', id), c).maybeSingle(),
     sb.from('purchase_consignment_return_items').select(ITEM).eq('purchase_consignment_return_id', id).order('created_at'),
   ]);

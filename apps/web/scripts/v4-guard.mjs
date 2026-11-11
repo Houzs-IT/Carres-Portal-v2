@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const FILES = [
-  "src/pages/operation/OperationOrdersControl.tsx",
+  // OperationOrdersControl.tsx was removed on 11 Nov 2026 (the Houzs engine replaces the old order pages).
   "src/pages/operation/components/OrderDetailDrawer.tsx",
   "src/pages/operation/components/StockPickerGrid.tsx",
 ];

@@ -28,6 +28,7 @@ import { safeRate, toMyrSen } from '../lib/fx';
 import { todayMyt } from '../lib/my-time';
 import { hasHouzsPerm } from '../lib/houzs-perms';
 import { postJournal, reverseJournal } from '../../acc/engine';
+import { upperTyped } from '../../acc/typed-text';
 import { CONVERT_SOURCE, backfillSoPayments, paymentEntryDisagreements, unbookedPayments } from '../../acc/payments';
 import { dailyBankHandler } from './accounting-daily-bank';
 import { systemTakings, postCashOverShort } from '../../acc/daily-close';
@@ -57,7 +58,7 @@ import {
 import { bankMonths, bankMonthDetail, bankMonthClosing } from './accounting-bank-months';
 import { bankLocks, bankMonthLock, bankMonthUnlock } from './accounting-bank-locks';
 import { paymentCorrections } from './accounting-payment-corrections';
-import { unmatchedPaymentsHandler } from './accounting-unmatched-payments';
+import { unmatchedBankLinesHandler, unmatchedPaymentsHandler } from './accounting-unmatched-payments';
 import { arAgingHandler, apAgingHandler } from './accounting-aging';
 import { productProfitHandler } from './accounting-product-profit';
 import { bankConfigList, bankConfigSave } from './accounting-bank-config';
@@ -81,7 +82,7 @@ import { dashboardHandler } from './accounting-dashboard';
 import { financeTodoHandler, financeTodoCountHandler } from './accounting-todo';
 import {
   todoPeopleHandler, todoSettingsGetHandler, todoSettingsPutHandler, todoGroupAddHandler,
-  todoTaskCreateHandler, todoTaskGetHandler, todoTaskPatchHandler, todoTaskDoneHandler, todoTaskReopenHandler,
+  todoTaskCreateHandler, todoTaskGetHandler, todoTaskPatchHandler, todoTaskDeleteHandler, todoTaskDoneHandler, todoTaskReopenHandler,
   todoTaskMoveHandler, todoRemarkAddHandler, todoRemarkEditHandler, todoLinkSearchHandler, todoRuleAddHandler,
 } from './accounting-todo-tasks';
 import { todoCalendarHandler } from './accounting-todo-calendar';
@@ -159,6 +160,9 @@ accounting.get('/settlement/in-transit', settlementInTransit);
 /* Card AND transfer payments not matched yet, on one list (owner 2026-09-30:
    我有没有一个表是显示全部还没 match 的). Rules in acc/unmatched-payments. */
 accounting.get('/unmatched-payments', unmatchedPaymentsHandler);
+/* And the bank's money-in lines nothing in the books is matched to (owner
+   2026-11-10: 如果银行那边的收款有，也没有对应的transaction 也可以显示). */
+accounting.get('/unmatched-bank-lines', unmatchedBankLinesHandler);
 /* The acquirer's own payment advice — Public Bank's IBG, which says which
    reports one bank credit pays (owner: 几份 excel 对一份 pdf). */
 accounting.post('/settlement/payouts', payoutUpload);
@@ -237,6 +241,7 @@ accounting.post('/receipts/rebank', rebankMoveHandler);
 accounting.post('/todo/tasks', todoTaskCreateHandler);
 accounting.get('/todo/tasks/:id', todoTaskGetHandler);
 accounting.patch('/todo/tasks/:id', todoTaskPatchHandler);
+accounting.delete('/todo/tasks/:id', todoTaskDeleteHandler);
 accounting.post('/todo/tasks/:id/done', todoTaskDoneHandler);
 accounting.post('/todo/tasks/:id/reopen', todoTaskReopenHandler);
 accounting.post('/todo/tasks/:id/move', todoTaskMoveHandler);
@@ -542,7 +547,8 @@ accounting.post('/journal-entries', async (c) => {
      idempotency and dodging the manual-journal control-account block. */
   const sourceType = 'MANUAL';
   const sourceDocNo = body.sourceDocNo ?? null;
-  const narration = body.narration ?? null;
+  /* A hand-written journal's words in upper case (owner 2026-11-09; acc/typed-text.ts). */
+  const narration = upperTyped(typeof body.narration === 'string' ? body.narration : null);
   const lines = Array.isArray(body.lines) ? (body.lines as JeLineIn[]) : [];
   if (lines.length < 2) return c.json({ error: 'min_2_lines' }, 400);
 
@@ -575,7 +581,7 @@ accounting.post('/journal-entries', async (c) => {
       partyType: l.partyType ?? null,
       partyCode: l.partyCode ?? null,
       partyName: l.partyName ?? null,
-      notes: l.notes ?? null,
+      notes: upperTyped(typeof l.notes === 'string' ? l.notes : null),
     })),
     postNow: false,
   });

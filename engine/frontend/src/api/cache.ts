@@ -14,7 +14,15 @@ const TTL_MS = 15_000;
 // Never cache: auth probes (login state must always be live), the project
 // chat/activity feed (polled every 3s — staleness would delay messages),
 // and presence (who-is-online must stay live).
-const NEVER_CACHE = [/^\/api\/auth\//, /\/activity(\?|$)/, /^\/api\/presence/, /^\/api\/admin\/health/];
+// The sidebar's combined counts too: no mutation family covers that path, so a
+// cached copy could outlive the write it should reflect.
+const NEVER_CACHE = [
+  /^\/api\/auth\//,
+  /\/activity(\?|$)/,
+  /^\/api\/presence/,
+  /^\/api\/admin\/health/,
+  /^\/api\/badge-counts/,
+];
 
 type Entry = { at: number; data: unknown };
 const store = new Map<string, Entry>();
@@ -76,7 +84,9 @@ export function getInflight<T>(path: string): Promise<T> | undefined {
 
 export function setInflight(path: string, p: Promise<unknown>): void {
   inflight.set(path, p);
-  p.finally(() => inflight.delete(path)).catch(() => {});
+  /* Only our own entry: an invalidation may already have replaced it with a newer
+     read, and deleting that one sent every later caller to the network again (Hookka #890). */
+  p.finally(() => { if (inflight.get(path) === p) inflight.delete(path); }).catch(() => {});
 }
 
 function invalidateLocal(prefix: string): void {

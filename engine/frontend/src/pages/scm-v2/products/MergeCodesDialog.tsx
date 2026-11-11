@@ -3,11 +3,21 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../../components/Button';
 import { Modal } from '../../../vendor/scm/components/Modal';
 import { authedFetch } from '../../../vendor/scm/lib/authed-fetch';
+import { movedText } from './mergeWords';
 
 /* Merge duplicate SKU codes into one kept code (POST /mfg-products/merge/*).
    Check plans and writes nothing; Merge sends back the phrase Check returned,
-   so the server refuses if anything changed in between. AutoCount is merged by
-   hand in AutoCount - this dialog lists which AutoCount item each code sends to. */
+   so the server refuses if anything changed in between. A dropped code's Model
+   that is left with no active code is folded into the kept code's Model in the
+   same Merge; Check says which, and the result says what happened. */
+
+type ModelFold = { from: string | null; into: string; fold: boolean; codes: number; reason: string | null };
+
+export function foldLines(folds: ReadonlyArray<ModelFold> | undefined, done: boolean): string[] {
+  return (folds ?? []).map((f) => (f.fold
+    ? `Model ${f.from} ${done ? 'was' : 'will be'} merged into Model ${f.into}${f.codes > 0 ? ` (${f.codes} switched-off code(s) move with it)` : ''}.`
+    : `Model ${f.from} ${done ? 'was not merged' : 'will not be merged'}: ${f.reason}.`));
+}
 
 type Plan = {
   pairs: Array<{
@@ -19,7 +29,7 @@ type Plan = {
   keepStock: Array<{ warehouse: string; qty: number }>;
   totals: { pairs: number; refused: number; rowsToRekey: number; unitsMoved: number; toRetire: number };
   confirm: string;
-  autoCount: Array<{ code: string; acItemCode: string | null; detail: string | null }>;
+  modelFolds?: ModelFold[];
 };
 
 const stockText = (s: Array<{ warehouse: string; qty: number }>) => s.map((x) => `${x.warehouse} ${x.qty}`).join(', ') || 'none';
@@ -36,8 +46,9 @@ export const MergeCodesDialog = ({ codes, onClose }: { codes: string[]; onClose:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [doneFolds, setDoneFolds] = useState<string[]>([]);
 
-  const changed = () => { setPlan(null); setDone(null); setError(null); };
+  const changed = () => { setPlan(null); setDone(null); setDoneFolds([]); setError(null); };
   const add = () => {
     const code = draft.trim();
     if (!code) return;
@@ -60,12 +71,14 @@ export const MergeCodesDialog = ({ codes, onClose }: { codes: string[]; onClose:
     if (!plan) return;
     setBusy(true);
     try {
-      const r = await authedFetch<{ merged: string[]; rekeyed: number }>('/mfg-products/merge/apply', {
+      const r = await authedFetch<{ merged: string[]; rekeyed: number; modelFolds?: ModelFold[] }>('/mfg-products/merge/apply', {
         method: 'POST', body: JSON.stringify({ keep: keep.trim(), drops, confirm: plan.confirm }),
       });
-      setDone(`Merged ${r.merged.length} code(s) into "${keep.trim()}", ${r.rekeyed} line(s) moved. Stock allocation is being recomputed.`);
+      setDone(`Merged ${r.merged.length} code(s) into ${keep.trim()}.`);
+      setDoneFolds(foldLines(r.modelFolds, true));
       setPlan(null); setDrops([]);
       void qc.invalidateQueries({ queryKey: ['mfg-products'] });
+      void qc.invalidateQueries({ queryKey: ['product-models'] });
     } catch (e) {
       setError(`The merge was not done: ${e instanceof Error ? e.message : 'please try again.'}`);
     } finally { setBusy(false); }
@@ -74,7 +87,7 @@ export const MergeCodesDialog = ({ codes, onClose }: { codes: string[]; onClose:
   const canMerge = plan && plan.totals.refused === 0 && plan.totals.pairs > 0;
   const summary = !keep.trim() ? 'Step 1: choose the code to keep.'
     : drops.length === 0 ? `Keeping ${keep.trim()}. Step 2: add at least one code to merge into it.`
-      : `Keeping ${keep.trim()}, merging ${drops.length} code(s) into it. ${plan ? (canMerge ? 'Check passed.' : 'Check found a problem.') : 'Not checked yet.'}`;
+      : `Keeping ${keep.trim()}, merging ${drops.length} code(s) into it. ${plan ? (canMerge ? 'Ready to merge.' : 'This merge cannot go ahead.') : 'Press Check next.'}`;
   return (
     <Modal title="Merge product codes" onClose={onClose} width="min(760px, 100%)">
       <datalist id="merge-sku-codes">{codes.map((c) => <option key={c} value={c} />)}</datalist>
@@ -101,38 +114,34 @@ export const MergeCodesDialog = ({ codes, onClose }: { codes: string[]; onClose:
 
       {plan && (
         <div>
-          <p style={{ margin: 0 }}>Stock on "{plan.pairs[0]?.keep}" now: {stockText(plan.keepStock)}. Each stock batch keeps its own cost; nothing is re-costed.</p>
+          <p style={{ margin: 0 }}>Stock under {plan.pairs[0]?.keep} now: {stockText(plan.keepStock)}. Merging does not change what the stock cost.</p>
           {plan.pairs.map((p) => (
             <div key={p.drop} style={{ marginTop: 8, padding: 8, border: '1px solid var(--line)', borderRadius: 4 }}>
               <div style={mono}>{p.drop} → {p.keep}</div>
               {p.refusals.length > 0
-                ? p.refusals.map((r) => <div key={r} role="alert" style={{ color: 'var(--c-err, #b3261e)' }}>Refused: {r}</div>)
+                ? p.refusals.map((r) => <div key={r} role="alert" style={{ color: 'var(--c-err, #b3261e)' }}>Cannot merge: {r}</div>)
                 : (
                   <div>
-                    Moves {p.rekey.reduce((s, r) => s + r.rows, 0)} line(s) ({p.rekey.map((r) => `${r.table} ${r.rows}`).join(', ') || 'none'});
-                    {' '}stock {stockText(p.dropStock)}{p.retire ? '; then switched off.' : '.'}
+                    Moves {movedText(p.rekey)} to {p.keep}. Stock moved: {stockText(p.dropStock)}.
+                    {p.retire ? ` ${p.drop} is then turned off.` : ''}
                   </div>
                 )}
             </div>
           ))}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontWeight: 600 }}>AutoCount: merge these by hand in AutoCount (Change Item Code, "Perform Merge")</div>
-            {plan.autoCount.map((a) => (
-              <div key={a.code} style={mono}>{a.code}: {a.acItemCode ?? `no single AutoCount item (${a.detail ?? ''})`}</div>
-            ))}
-          </div>
+          {foldLines(plan.modelFolds, false).map((l) => <p key={l} style={{ margin: '8px 0 0' }}>{l}</p>)}
         </div>
       )}
 
       <p style={{ margin: 0, fontWeight: 600 }} role="status">{summary}</p>
       {plan && !canMerge && <p style={hint}>Merge is off: {plan.totals.pairs === 0 ? 'there is nothing to merge.' : 'some codes are refused above. Fix or remove them, then press Check again.'}</p>}
-      {!plan && <p style={hint}>Press Check first. Merge turns on only after a Check that has no refused codes. Changing any code asks for a new Check.</p>}
+      {!plan && <p style={hint}>Press Check first. It changes nothing and shows what will move. Then press Merge.</p>}
       {error && <p role="alert" style={{ color: 'var(--c-err, #b3261e)', margin: 0 }}>{error}</p>}
       {done && <p role="status" style={{ margin: 0 }}>{done}</p>}
+      {doneFolds.map((l) => <p key={l} style={{ margin: 0 }}>{l}</p>)}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button variant="secondary" onClick={() => void check()} disabled={busy || !keep.trim() || drops.length === 0}>Check</Button>
         <Button variant="danger" onClick={() => void merge()} disabled={busy || !canMerge}>
-          {busy ? 'Working…' : `Merge ${plan ? plan.totals.pairs - plan.totals.refused : 0} code(s)`}
+          {busy ? 'Working…' : plan ? `Merge ${plan.totals.pairs - plan.totals.refused} code(s)` : 'Merge'}
         </Button>
       </div>
     </Modal>

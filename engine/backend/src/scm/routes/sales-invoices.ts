@@ -36,6 +36,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
+import { lineDiscountShare } from '../shared/line-discount-share';
 import { normalizePhone, buildVariantSummary, isServiceLine, fmtSen, computeVariantKey } from '../shared';
 import { PAYMENT_METHOD_CODES } from '../shared/payment-methods';
 import { supabaseAuth } from '../middleware/auth';
@@ -58,6 +59,8 @@ import { SI_STATUS_BUCKETS } from '../lib/si-status-buckets';
 import { postSiRevenue, reverseSiRevenue, resyncSiRevenue } from '../lib/post-si-revenue';
 import { buildItemRow, createSalesInvoiceFromDoLines, migratedRefusalForDeliveries, nextSiNumber, recomputeTotals, recordSiCreate } from '../lib/si-from-do';
 import { releaseDepositInvoicesBestEffort } from '../../acc/deposit-invoices';
+import { releaseSalesInvoiceKnockOffs } from '../../acc/credit-note-si';
+import { siCreditNotesSen } from '../lib/si-credit-notes';
 import { mintMonthlyDocNo, insertWithDocNoRetry } from '../lib/doc-no';
 import { todayMyt } from '../lib/my-time';
 import { resolveSalesScopeIds, salesDocOutOfScope } from '../lib/salesScope';
@@ -76,6 +79,7 @@ import { enqueueConvert, enqueueCancel, enqueueEdit, retiredLineOf, type AcRetir
 import { recordSiAutoCountSource } from '../lib/si-autocount-source';
 import { refuseMigratedSources } from '../lib/migrated-chain';
 import { withSoRefDocNos } from '../lib/so-ref-search';
+import { noWriteUntilMarked, writesFromHere } from '../lib/no-write-refusal';
 
 /* ERP -> AutoCount Sales Invoice edit. AutoCount calls it IV
    (AcSyncService.cs:443). See queueAcDoEdit for the shape. */
@@ -480,7 +484,7 @@ salesInvoices.get('/', async (c) => {
   if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
   const total = count ?? (data?.length ?? 0);
 
-  /* Status counts mirror the FE filter-pill buckets (sent / partial / paid /
+  /* Status counts mirror the FE filter-pill buckets (draft / sent / partial / paid /
      cancelled) over the SAME scope + company filters but WITHOUT status /
      search / pagination. */
   const countBase = () => {
@@ -489,15 +493,16 @@ salesInvoices.get('/', async (c) => {
     cq = scopeToCompany(cq, c);
     return cq;
   };
-  const [allC, sentC, partialC, paidC, cancelledC] = await Promise.all([
+  const [allC, draftC, sentC, partialC, paidC, cancelledC] = await Promise.all([
     countBase(),
+    countBase().in('status', SI_STATUS_BUCKETS.draft),
     countBase().in('status', SI_STATUS_BUCKETS.sent),
     countBase().in('status', SI_STATUS_BUCKETS.partial),
     countBase().in('status', SI_STATUS_BUCKETS.paid),
     countBase().in('status', SI_STATUS_BUCKETS.cancelled),
   ]);
   // A count that could not be READ is reported, never served as 0; an empty bucket still answers 0 (lib/status-counts.ts).
-  const counted = readStatusCounts({ all: allC, sent: sentC, partial: partialC, paid: paidC, cancelled: cancelledC });
+  const counted = readStatusCounts({ all: allC, draft: draftC, sent: sentC, partial: partialC, paid: paidC, cancelled: cancelledC });
   if (!counted.ok) return c.json({ error: 'status_counts_failed', reason: counted.reason }, 500);
   const statusCounts = counted.counts;
 
@@ -614,6 +619,9 @@ salesInvoices.get('/:id', async (c) => {
      deposit, which renders the LARGER outstanding. */
   (h.data as unknown as Record<string, unknown>).so_deposit_applied_sen =
     dep.ok ? (dep.deposit?.applied_sen ?? 0) : null;
+  /* The customers' credit notes knocked off it, the list rows' own key (si-credit-notes.ts); null = unread. */
+  (h.data as unknown as Record<string, unknown>).credit_notes_sen =
+    await siCreditNotesSen(sb, (h.data as { company_id?: number | null }).company_id ?? activeCompanyId(c) ?? null, id);
   /* Every sum received towards this invoice — the order's rows and its own —
      for the printed "Payments received" list (lib/si-receipts; owner
      2026-10-06: the print called all of it "Deposit"). Stamped on the header
@@ -1025,7 +1033,8 @@ export const appendDoLinesToSalesInvoiceHandler = async (c: any) => {
       uom: it.uom,
       qty: Math.min(Number(it.qty ?? 0), remaining),
       unitPriceSen: it.unit_price_sen,
-      discountSen: it.discount_sen,
+      // This invoice's share of the DO line's discount, not all of it.
+      discountSen: lineDiscountShare(Number(it.discount_sen ?? 0), Number(it.qty ?? 0), Number(it.qty ?? 0) - remaining, Math.min(Number(it.qty ?? 0), remaining)),
       unitCostSen: it.unit_cost_sen,
       variants: it.variants,
       notes: it.notes,
@@ -1570,6 +1579,8 @@ export const postSalesInvoicePaymentHandler = async (c: any) => {
   if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400);
   const p = parsed.data;
 
+  /* The refusals above only read, so they released the Idempotency-Key (noWriteUntilMarked). */
+  writesFromHere(c);
   const { data, error } = await insertSiPaymentRow(sb, {
     salesInvoiceId: id, companyId: activeCompanyId(c), paidAt: p.paidAt,
     method: p.method, merchantProvider: p.merchantProvider, installmentMonths: p.installmentMonths,
@@ -1610,7 +1621,7 @@ export const postSalesInvoicePaymentHandler = async (c: any) => {
 
   return c.json({ payment: data }, 201);
 };
-salesInvoices.post('/:id/payments', postSalesInvoicePaymentHandler);
+salesInvoices.post('/:id/payments', noWriteUntilMarked, postSalesInvoicePaymentHandler);
 
 salesInvoices.delete('/:id/payments/:paymentId', async (c) => {
   const sb = c.get('supabase'); const id = c.req.param('id'); const paymentId = c.req.param('paymentId');
@@ -1911,6 +1922,8 @@ export const patchSalesInvoiceStatusHandler = async (c: any) => {
       companyId: auditCompanyId ?? null, siId: id, siNumber: d.invoice_number,
       actor: String((c.get('houzsUser') as { name?: string } | undefined)?.name ?? '') || null,
     });
+    /* The credit notes knocked off it get their credit back: a cancelled invoice owes nothing. */
+    await releaseSalesInvoiceKnockOffs(sb, { companyId: auditCompanyId ?? null, siId: id });
 
     /* A SEPARATE row from the CANCEL above, not a duplicate of it: that was a
        document-status event, this is the AR/GL contra, and a cancel whose

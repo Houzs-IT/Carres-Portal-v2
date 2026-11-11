@@ -16,7 +16,7 @@
 
 import { describe, expect, test, vi } from "vitest";
 import type { RowMenuItem } from "../../lib/rowMenu";
-import { salesOrderRowMenu } from "./row-menus";
+import { salesOrderRowMenu, soOffersReopen } from "./row-menus";
 
 type Row = {
   status?: string | null;
@@ -24,13 +24,15 @@ type Row = {
   doc_no: string;
   do_refs?: Array<{ id: string; docNo: string }> | null;
   si_refs?: Array<{ id: string; docNo: string }> | null;
+  has_undelivered?: boolean | null;
+  reopenable?: boolean | null;
 };
 const labels = (m: RowMenuItem[]) => m.map((x) => (x.divider ? "—" : x.label));
 /* Fills the doc_no every Sales Order row really has, so each test still says
    only what it is about. No `do_refs` / `si_refs`, so these rows offer exactly
    one print entry — `Print` — and the chain entries are pinned in
    printChain.test.ts against rows that DO carry them. */
-const R = (o: { status?: string | null; on_hold?: boolean | null } = {}): Row =>
+const R = (o: { status?: string | null; on_hold?: boolean | null; has_undelivered?: boolean | null; reopenable?: boolean | null } = {}): Row =>
   ({ doc_no: "SO-0001", ...o });
 const noop = () => {};
 
@@ -214,5 +216,39 @@ describe("Copy as new", () => {
     const copyAsNew = vi.fn();
     soMenu({ copyAsNew })(R({ status: "CONFIRMED" })).find((x) => x.label === "Copy as new")!.onClick();
     expect(copyAsNew).toHaveBeenCalledWith(expect.objectContaining({ doc_no: "SO-0001" }));
+  });
+});
+
+/* Conts #699: a fully delivered order was offered Transfer to Delivery Order,
+   which opened an empty DO form. `has_undelivered` is the list's live reading. */
+describe("Transfer to Delivery Order needs something left to deliver", () => {
+  test("is not offered on a row whose has_undelivered is false", () => {
+    expect(labels(soMenu()(R({ status: "DELIVERED", has_undelivered: false }))).join("|")).not.toMatch(/Delivery Order/);
+  });
+
+  test("is offered while a remainder is outstanding", () => {
+    expect(labels(soMenu()(R({ status: "DELIVERED", has_undelivered: true }))).join("|")).toMatch(/Delivery Order/);
+  });
+});
+
+/* TODO.md (2026-09-15): Reopen showed on every cancelled order and the server
+   refused it every time it was not a carried-over AutoCount order. The list now
+   carries the server's `reopenable`, and the entry follows it. */
+describe("Reopen", () => {
+  test("is offered on a cancelled order the server will reopen", () => {
+    const reopen = vi.fn();
+    const item = soMenu({ reopen })(R({ status: "CANCELLED", reopenable: true })).find((i) => i.label === "Reopen");
+    item!.onClick();
+    expect(reopen).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([false, null, undefined])("is NOT offered on a cancel that is final (reopenable=%s)", (reopenable) => {
+    expect(labels(soMenu()(R({ status: "CANCELLED", reopenable })))).not.toContain("Reopen");
+  });
+
+  test("is never offered on a live order, whatever the flag says", () => {
+    expect(labels(soMenu()(R({ status: "CONFIRMED", reopenable: true })))).not.toContain("Reopen");
+    expect(soOffersReopen({ status: "CONFIRMED", reopenable: true })).toBe(false);
+    expect(soOffersReopen({ status: "Cancelled", reopenable: true })).toBe(true);
   });
 });

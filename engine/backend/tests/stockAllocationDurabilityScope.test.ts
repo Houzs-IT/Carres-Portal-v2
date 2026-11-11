@@ -5,6 +5,7 @@ import consignmentReturns from '../src/scm/routes/consignment-returns.ts?raw';
 import deliveryOrdersMfg from '../src/scm/routes/delivery-orders-mfg.ts?raw';
 import deliveryReturns from '../src/scm/routes/delivery-returns.ts?raw';
 import grns from '../src/scm/routes/grns.ts?raw';
+import grnPostTail from '../src/scm/lib/grn-post-tail.ts?raw';
 import inventoryAdjustments from '../src/scm/routes/inventory-adjustments.ts?raw';
 import { soRouterSource } from './lib/so-router-source';
 import purchaseConsignmentReceives from '../src/scm/routes/purchase-consignment-receives.ts?raw';
@@ -103,7 +104,10 @@ const LEDGER: Array<{
      commit together. Four GRN routes remain (header PATCH, line add, line edit,
      and the create paths), with postGrnHandler deliberately last.
      docs/ALLOCATION-DURABILITY-PLAN.md. */
-  { module: 'routes/grns.ts', source: grns, inline: 4, durable: 2, deferred: 0 },
+  { module: 'routes/grns.ts', source: grns, inline: 3, durable: 2, deferred: 0 },
+  /* 2026-11-10: the GRN post's recompute moved, unchanged and still inline, into
+     the post's after-commit tail (GRN_POST_MODE, lib/stock-post-tx.ts). */
+  { module: 'lib/grn-post-tail.ts', source: grnPostTail, inline: 1, durable: 0, deferred: 0 },
   /* inventory-adjustments.ts went 1 -> 2 inline on 2026-10-07 (BUG-66): the
      adjustment became an editable document, and an edit that changes a
      bucket's net moves stock, so it re-walks the allocation like the create. */
@@ -116,7 +120,11 @@ const LEDGER: Array<{
      and timed out into repeated retries. Same guarantee (best-effort, no queue
      row), lower latency — the header PATCH was already deferred. The 3 inline
      that remain are status / proceed / cancel. docs/ALLOCATION-DURABILITY-PLAN.md. */
-  { module: 'routes/mfg-sales-orders.ts', source: mfgSalesOrders, inline: 3, durable: 3, deferred: 5 },
+  /* 5 -> 6 deferred on 2026-11-10: the SO hold / release (document-hold-routes.ts,
+     read into the SO router family) now sweeps, because a held order gets no
+     stock. It also writes a queue row first, but outside any transaction, so it
+     is a REPAIR REQUEST for the cron and is counted as deferred, not durable. */
+  { module: 'routes/mfg-sales-orders.ts', source: mfgSalesOrders, inline: 3, durable: 3, deferred: 6 },
   { module: 'routes/purchase-consignment-receives.ts', source: purchaseConsignmentReceives, inline: 1, durable: 0, deferred: 0 },
   { module: 'routes/purchase-consignment-returns.ts', source: purchaseConsignmentReturns, inline: 1, durable: 0, deferred: 0 },
   { module: 'routes/purchase-returns.ts', source: purchaseReturns, inline: 3, durable: 0, deferred: 0 },
@@ -137,19 +145,20 @@ describe('durable allocation coverage is stated honestly', () => {
     });
   }
 
-  test('the totals match the documented scope: 6 durable of 38 triggers', () => {
+  test('the totals match the documented scope: 6 durable of 40 triggers', () => {
     const durable = LEDGER.reduce((sum, entry) => sum + entry.durable, 0);
     const inline = LEDGER.reduce((sum, entry) => sum + entry.inline, 0);
     const deferred = LEDGER.reduce((sum, entry) => sum + entry.deferred, 0);
     expect(durable).toBe(6);
     expect(inline).toBe(28);
-    expect(deferred).toBe(5);
+    expect(deferred).toBe(6);
     /* The trigger count is unchanged: deferring the four SO line routes
        (2026-09-11) moved them between columns, it did not remove them. 32 are
        still best-effort (27 inline + 5 deferred). The stock-adjustment edit
-       (2026-10-07) added one inline trigger: 33 best-effort, 39 in all. */
-    expect(inline + deferred).toBe(33);
-    expect(durable + inline + deferred).toBe(39);
+       (2026-10-07) added one inline trigger: 33 best-effort, 39 in all. The SO
+       hold / release (2026-11-10) added one deferred trigger: 34 and 40. */
+    expect(inline + deferred).toBe(34);
+    expect(durable + inline + deferred).toBe(40);
   });
 
   test('the code says out loud that the other triggers are still best-effort', () => {

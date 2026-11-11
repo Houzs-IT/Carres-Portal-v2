@@ -35,6 +35,7 @@ import {
   type NewPoItem,
   type MaterialKind,
 } from '../../vendor/scm/lib/suppliers-queries';
+import { defaultSupplierBinding } from '../../vendor/scm/lib/default-supplier-binding';
 import { useMfgProducts, useMaintenanceConfig, mfgCategoryLabel } from '../../vendor/scm/lib/mfg-products-queries';
 import { pickableBindings } from '../../vendor/scm/lib/pickable-bindings';
 import { withMasterPickerPools } from '../../vendor/scm/lib/picker-maint';
@@ -58,6 +59,7 @@ import { DateField } from "../../vendor/scm/components/DateField";
 import { showsVariantEditor } from '../../vendor/scm/lib/variant-editor-groups';
 
 import { fmtMoneySen } from '../../vendor/shared/format';
+import { supplierEmailList } from '../../vendor/shared/supplier-emails';
 const ICON    = { size: 16, strokeWidth: 1.75 } as const;
 
 const fmtRm = (centi: number | null | undefined, currency = 'MYR'): string => {
@@ -234,8 +236,8 @@ export const PurchaseConsignmentOrderNew = () => {
     if (supplierId) { setPendingItemPick(null); return; }
     if (itemSuppliersQuery.isLoading) return;
     const matches = itemSuppliersQuery.data?.bindings ?? [];
-    const b = matches[0];
-    if (matches.length === 1 && b) {
+    const b = defaultSupplierBinding(matches);
+    if (b) {
       setSupplierId(b.supplier.id);
       setLines((prev) => prev.map((l) => (l.rid === pendingItemPick.rid ? {
         ...l,
@@ -564,7 +566,7 @@ export const PurchaseConsignmentOrderNew = () => {
             }}>
               {supplier.contact_person && <span>Contact: <strong>{supplier.contact_person}</strong></span>}
               {supplier.phone          && <span>Phone: <strong>{formatPhone(supplier.phone)}</strong></span>}
-              {supplier.email          && <span>Email: <strong>{supplier.email}</strong></span>}
+              {supplierEmailList(supplier).length > 0          && <span>Email: <strong>{supplierEmailList(supplier).join(", ")}</strong></span>}
               {supplier.payment_terms  && <span>Terms: <strong>{supplier.payment_terms}</strong></span>}
               <span>Currency: <strong>{currency}</strong></span>
             </div>
@@ -698,7 +700,7 @@ export const PurchaseConsignmentOrderNew = () => {
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        color: 'var(--c-festive-b, #B8331F)',
+                        color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
                         padding: 4,
                         display: 'inline-flex',
                       }}

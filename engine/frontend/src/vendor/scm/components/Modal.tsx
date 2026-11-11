@@ -9,8 +9,9 @@
 // a modal is never hidden behind it.
 // ----------------------------------------------------------------------------
 
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { useEscapeLayer } from '../../../lib/escapeStack';
 
 const backdrop: CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(34,31,32,0.4)',
@@ -24,7 +25,7 @@ const panel: CSSProperties = {
 };
 const header: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)',
-  padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--line, rgba(34,31,32,0.2))', background: 'var(--c-paper, #fff)',
+  padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--line, rgba(34,31,32,0.2))', background: 'var(--c-paper, var(--hz-c-surface))',
 };
 const titleStyle: CSSProperties = { fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 'var(--fs-15, 15px)', color: 'var(--c-ink)', margin: 0 };
 const body: CSSProperties = { padding: 'var(--space-4)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' };
@@ -40,11 +41,7 @@ export const Modal = ({ title, onClose, width = 'min(1100px, 100%)', actions, ch
   children: ReactNode;
   ariaLabel?: string;
 }) => {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); };
-  }, [onClose]);
+  useEscapeLayer(onClose, true);
 
   return (
     <div style={backdrop} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} role="presentation">

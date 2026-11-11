@@ -33,6 +33,12 @@ export type StatementColumn = {
   to: string;
   /** A % rides beside the amount. */
   pct: boolean;
+  /** A column under a heading it shares with its neighbours (the Cash Flow's Settlement |
+      Deposit under each month): the heading's key, its name, its small grey line. */
+  group?: { key: string; label: string; sub?: string };
+  /** A small coloured mark before the column's name, so two columns of one heading tell
+      apart at a glance (the Cash Flow's Settlement petrol, Deposit gold — owner 2026-11-10). */
+  mark?: 'petrol' | 'gold';
 };
 
 export type StatementLine = MonthlyLine;

@@ -22,11 +22,12 @@
 //
 // Mounted at '/consignment-notes' in apps/api/src/index.ts. Numbering CN-YYMM-NNN.
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { normalizePhone } from '../shared/phone';
 import { PAYMENT_METHOD_CODES } from '../shared/payment-methods';
-import { DO_SHIPPED_STATES } from '../shared/do-shipped-states';
+import { DO_SHIPPED_STATES, DO_STATUSES } from '../shared/do-shipped-states';
 import { buildVariantSummary } from '../shared';
 import { supabaseAuth } from '../middleware/auth';
 import type { Env, Variables } from '../env';
@@ -43,6 +44,7 @@ import { changedLockedCols, identityLockedRefusal } from '../shared/header-inher
 import { CN_LOCK_COLS, CN_LOCK_LABELS } from '../shared/document-policy';
 import { enrichLinesWithFabricSupplierCode } from '../lib/fabric-supplier-code';
 import { paginateAll, chunkIn } from '../lib/paginate-all';
+import { moneySkipsCancelled, NOT_CANCELLED_OR } from '../lib/list-money-cancelled';
 import { escapeForOr } from '../lib/postgrest-search';
 import { scopeToCompany, activeCompanyId, stampCompany, companyDocPrefix,
   requireActiveCompanyId, scopeToCompanyId, NOT_THIS_COMPANY } from '../lib/companyScope';
@@ -50,6 +52,7 @@ import { canViewScmFinance } from '../lib/houzs-perms';
 import { SO_ITEM_FINANCE_KEYS } from '../lib/finance-keys';
 import { sourceUnitCostByItemId } from '../lib/source-cost';
 import { assertSourceLinesInCompany } from '../lib/ref-in-company';
+import { foldTargetsIntoOwnBuckets, stockBucketKeyResolver } from '../lib/stock-bucket-key';
 
 export const consignmentNotes = new Hono<{ Bindings: Env; Variables: Variables }>();
 consignmentNotes.use('*', supabaseAuth);
@@ -164,8 +167,7 @@ function gateCnFinance(
 const SHIPPED_STATES: string[] = [...DO_SHIPPED_STATES];
 
 const nextNum = async (sb: any, c: any): Promise<string> => {
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, 'consignment_delivery_orders', 'do_number', `${p}CN-${yymm}`);
 };
@@ -339,12 +341,16 @@ async function resyncNoteInventory(sb: any, noteId: string, performedBy: string 
     const distinctWh = [...new Set(((items ?? []) as Array<{ id: string }>).map((it) => lineWh.get(it.id)).filter((x): x is string => !!x))];
     const batchByWh = new Map<string, Map<string, string | null>>();
     for (const wh of distinctWh) batchByWh.set(wh, await resolveWarehouseLotBatches(sb, wh));
+    /* SKU category + canonical key, written as the stocked bucket's own string
+       when canonically equal (lib/stock-bucket-key.ts). */
+    const keyOf = await stockBucketKeyResolver(sb, (header as { company_id?: number | null }).company_id ?? null,
+      ((items ?? []) as Array<{ id: string; item_code: string; item_group?: string | null; variants?: VariantAttrs | null }>).map((it) => ({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: lineWh.get(it.id) ?? null })));
     for (const it of ((items ?? []) as Array<{ id: string; item_code: string; description: string | null; qty: number; item_group?: string | null; variants?: VariantAttrs | null }>)) {
       const qty = Number(it.qty ?? 0);
       if (qty <= 0) continue;
       const wh = lineWh.get(it.id) ?? null;
       if (!wh) continue;
-      const vk = computeVariantKey(it.item_group ?? null, it.variants ?? null);
+      const vk = keyOf({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: lineWh.get(it.id) ?? null });
       const batch = batchByWh.get(wh)?.get(`${it.item_code}::${vk}`) ?? null;
       const k = `${wh}::${it.item_code}::${vk}::${batch ?? ''}`;
       const cur = targetByBucket.get(k);
@@ -374,6 +380,8 @@ async function resyncNoteInventory(sb: any, noteId: string, performedBy: string 
   type MovOut = Parameters<typeof writeMovements>[1][number];
   const writes: MovOut[] = [];
   const csDoEmitted = new Set<string>(); // product::variant given a CS_DO this run (avoid 2nd-warehouse collision)
+  /* A target canonically equal to a bucket this document already moved IS that bucket. */
+  foldTargetsIntoOwnBuckets(targetByBucket, aggByBucket.keys(), (header as { company_id?: number | null }).company_id ?? null);
   for (const k of new Set<string>([...targetByBucket.keys(), ...aggByBucket.keys()])) {
     const t = targetByBucket.get(k);
     const a = aggByBucket.get(k) ?? { out_qty: 0, in_qty: 0, out_total_cost: 0, product_name: null };
@@ -535,9 +543,10 @@ consignmentNotes.get('/', async (c) => {
     const moneyRes = await paginateAll<{ local_total_sen: number | null; total_cost_sen: number | null; total_margin_sen: number | null }>((mfrom, mto) => {
       let mq = sb.from('consignment_delivery_orders').select('local_total_sen, total_cost_sen, total_margin_sen');
       if (status) mq = mq.eq('status', status);
+      if (moneySkipsCancelled(status)) mq = mq.or(NOT_CANCELLED_OR); // G16: a cancelled note is no revenue
       if (qText) { const s = escapeForOr(qText); if (s) mq = mq.or(`do_number.ilike.%${s}%,debtor_name.ilike.%${s}%`); }
       mq = scopeToCompany(mq, c);
-      return mq.range(mfrom, mto);
+      return mq.order('id').range(mfrom, mto);
     });
     if (moneyRes.error) return c.json({ error: 'load_failed', reason: moneyRes.error.message }, 500);
     let revenueSen = 0, costSen = 0, marginSen = 0;
@@ -1189,12 +1198,14 @@ export const patchConsignmentNoteStatusHandler = async (c: any) => {
      `"paid"`, so the assumption that callers send canonical case has already
      been broken twice on sibling documents.
 
-     Deliberately NOT accompanied by a status whitelist. The DO handler can
-     afford `DO_STATUSES.has(...)` because that vocabulary is declared in one
-     place; this document's is not, and a guessed whitelist would refuse a
-     legitimate status. Rejecting an unknown value is written up as a
-     recommendation, not shipped here. */
+     The column is the same scm.do_status enum as delivery_orders.status
+     (scm-schema/consignment/0153_consignment_module.sql), so its vocabulary IS
+     declared in one place — DO_STATUSES. An unknown value used to reach the
+     UPDATE and come back as a raw enum 500; it is now refused up front. */
   const toStatus = String(body.status).trim().toUpperCase();
+  if (!(DO_STATUSES as readonly string[]).includes(toStatus)) {
+    return c.json({ error: 'invalid_status', message: `"${String(body.status)}" is not a consignment note status. Use one of: ${DO_STATUSES.join(', ')}.` }, 400);
+  }
 
   const { data: cur } = await scopeToCompanyId(sb.from('consignment_delivery_orders').select('status').eq('id', id), co.companyId).maybeSingle();
   if (!cur) return c.json(NOT_THIS_COMPANY, 404);
@@ -1235,9 +1246,14 @@ export const patchConsignmentNoteStatusHandler = async (c: any) => {
     if (!updated) return c.json({ consignmentNote: { id, status: 'CANCELLED' } });
     data = updated as { id: string; status: string };
   } else {
+    /* Written only over the status the guards above read: a cancel landing in
+       between must not be overwritten, or the cancelled note revives and its
+       stock is shipped out again by the resync below. */
     const { data: updated, error } = await scopeToCompanyId(sb.from('consignment_delivery_orders')
-      .update({ status: toStatus, ...ts }).eq('id', id), co.companyId).select('id, status').single();
+      .update({ status: toStatus, ...ts }).eq('id', id), co.companyId)
+      .eq('status', prevStatus).select('id, status').maybeSingle();
     if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
+    if (!updated) return c.json({ error: 'status_changed', message: 'This consignment note just changed. Reload it and try again.' }, 409);
     data = updated as { id: string; status: string };
   }
 

@@ -67,7 +67,7 @@ const SEARCH_ALIAS: Record<string, string> = {
 const C = {
   surface: '#ffffff',
   surface2: '#F8F9FA',
-  border: '#E5E7EB',
+  border: 'var(--hz-c-border)',
   ink: '#111827',
   inkMuted: '#6B7280',
   primary: '#1B1B39',

@@ -43,7 +43,7 @@ describe("ReportProblemModal", () => {
 
   it("sends the module of the page it was opened on", async () => {
     vi.mocked(apiFetch).mockResolvedValue({ code: "CARRES-0008" });
-    window.history.pushState({}, "", "/operation/orders");
+    window.history.pushState({}, "", "/operation/sc/orders");
     renderModal();
     fireEvent.change(screen.getByLabelText(/What went wrong/), { target: { value: "Cannot save" } });
     fireEvent.click(screen.getByTestId("report-problem-send"));

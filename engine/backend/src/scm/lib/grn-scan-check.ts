@@ -9,9 +9,10 @@
 // ---------------------------------------------------------------------------
 
 import type { GrnExtracted } from './grn-scan-extract';
+import { byPrintedColour } from './grn-scan-colour';
 import { isGiftRow, type GiftLine } from './grn-scan-gifts';
 import type { GrnMatchResult, OpenPoLine } from './grn-scan-match';
-import { bestLines } from './scan-word-match';
+import { bestLines, lineSizeOf, printedSize } from './scan-word-match';
 
 /** One line of the working copy. `poItemId` null = not yet tied to a PO line
  *  (the operator picks one, marks it a free gift, or deletes the line); `gift`
@@ -32,7 +33,7 @@ export type ReviewLine = {
 };
 
 /** Bumped when a working copy starts holding more: older copies are rebuilt from the read. */
-export const REVIEW_VERSION = 7;
+export const REVIEW_VERSION = 9;
 
 export type GrnReview = {
   v: number;
@@ -40,6 +41,8 @@ export type GrnReview = {
   // The supplier name as printed, kept beside the resolved one.
   supplierRead: string | null;
   doNo: string | null;
+  // The day we received it: the day of the scan, never the date printed on the
+  // delivery order, which reads as goods arriving early (owner 2026-11-06).
   deliveryDate: string | null;
   notes: string | null;
   lines: ReviewLine[];
@@ -54,11 +57,24 @@ const readOf = (l: { itemCode: string | null; description: string | null; qty: n
 /** The first working copy, from the read and the matcher. Matched lines arrive
  *  tied to their PO line; lines the matcher could not place arrive untied with
  *  what was printed, so nothing read is silently dropped. */
-export function buildReview(parsed: GrnExtracted | null, supplierId: string | null, match: GrnMatchResult | null, gifts: ReadonlyArray<GiftLine>, open: ReadonlyArray<OpenPoLine>): GrnReview {
+export function buildReview(parsed: GrnExtracted | null, supplierId: string | null, match: GrnMatchResult | null, gifts: ReadonlyArray<GiftLine>, open: ReadonlyArray<OpenPoLine>, scanDate: string): GrnReview {
   const lines: ReviewLine[] = [];
   // Each piece of a set shows the one row that printed it.
   const setRow = new Map((match?.soMatches ?? []).flatMap((m) => m.poItemIds.map((id) => [id, readOf(m.line)] as const)));
-  for (const p of match?.picks ?? []) lines.push({ key: lineKey(), poItemId: p.poItemId, poNumber: null, gift: null, qty: p.qty, rack: match?.racks[p.poItemId] ?? null, suggested: false, read: setRow.get(p.poItemId) ?? null });
+  for (const p of match?.picks ?? []) {
+    const tie = { poItemId: p.poItemId, poNumber: null, gift: null, suggested: false, read: setRow.get(p.poItemId) ?? null };
+    // Rows of one PO line written onto different racks: one line per rack, each with its own qty.
+    const shares = Object.entries(match?.rackQty[p.poItemId] ?? {});
+    if (shares.length < 2) { lines.push({ key: lineKey(), ...tie, qty: p.qty, rack: match?.racks[p.poItemId] ?? null }); continue; }
+    let left = p.qty;
+    for (const [rack, q] of shares) {
+      const take = Math.min(q, left);
+      if (take <= 0) continue;
+      lines.push({ key: lineKey(), ...tie, qty: take, rack });
+      left -= take;
+    }
+    if (left > 0) lines.push({ key: lineKey(), ...tie, qty: left, rack: null });
+  }
   for (const u of match?.unmatched ?? []) {
     if (u.line.qty <= 0) continue;
     // A printed code taught as a free gift arrives already marked as one.
@@ -76,7 +92,7 @@ export function buildReview(parsed: GrnExtracted | null, supplierId: string | nu
     supplierId,
     supplierRead: parsed?.supplierName ?? null,
     doNo: parsed?.doNo ?? null,
-    deliveryDate: parsed?.deliveryDate ?? null,
+    deliveryDate: scanDate,
     notes: null,
     lines: inPrintedOrder(lines, parsed?.lines ?? [], open, new Set(setRow.keys())),
   };
@@ -119,8 +135,15 @@ export function inPrintedOrder(lines: ReviewLine[], printed: GrnExtracted['lines
   }
   for (const l of lines) {
     if (l.read) continue;
-    const code = open.find((o) => o.poItemId === l.poItemId)?.itemCode;
-    const i = code ? printed.findIndex((p, n) => !used.has(n) && (nameFits(p.description, code) || p.itemCode === code)) : -1;
+    const hit = open.find((o) => o.poItemId === l.poItemId);
+    const code = hit?.itemCode;
+    // A COVE-13 line never shows a COVE-09 row as its paper; a row on the line's own rack first.
+    const known = open.filter((o) => o.itemCode === code);
+    const fits = (p: GrnExtracted['lines'][number], n: number): boolean => !!hit && !!code && !used.has(n)
+      && (nameFits(p.description, code) || p.itemCode === code)
+      && byPrintedColour(`${p.itemCode ?? ''} ${p.description ?? ''}`, [hit], known).length > 0;
+    const onRack = l.rack ? printed.findIndex((p, n) => fits(p, n) && (p.rack ?? '').trim() === l.rack) : -1;
+    const i = onRack >= 0 ? onRack : printed.findIndex(fits);
     if (i >= 0) put(i, { ...l, read: readOf(printed[i]) }); else rest.push(l);
   }
   return [...[...placed].sort(([a], [b]) => a - b).flatMap(([, ls]) => ls), ...rest];
@@ -131,6 +154,12 @@ export function inPrintedOrder(lines: ReviewLine[], printed: GrnExtracted['lines
  *  guesses a PO: the row must fit a PO this delivery order is known to be for,
  *  or, with no such PO, exactly one open line of the supplier. Each line takes
  *  only what it still owes. */
+/** One PO, a digit typed wrong in its year and month allowed: 2010279 is 2610279,
+ *  the same running number (Nice Future, HC-PO-2010-279). */
+const samePo = (a: string, b: string): boolean =>
+  a === b || (a.length === b.length && a.length > 3 && a.slice(-3) === b.slice(-3)
+    && [...a].filter((d, i) => d !== b[i]).length === 1);
+
 export function suggestByName(lines: ReviewLine[], open: ReadonlyArray<OpenPoLine>, printedPos: ReadonlyArray<string | null | undefined>): void {
   const left = new Map(open.map((l) => [l.poItemId, l.remaining]));
   for (const l of lines) if (l.poItemId) left.set(l.poItemId, (left.get(l.poItemId) ?? 0) - l.qty);
@@ -140,9 +169,13 @@ export function suggestByName(lines: ReviewLine[], open: ReadonlyArray<OpenPoLin
     if (l.poItemId || l.gift || !l.read?.description) continue;
     const rowPo = l.read.poNo ? poKey(l.read.poNo) : null;
     const owing = open.filter((o) => (left.get(o.poItemId) ?? 0) > 0);
-    const named = owing.filter((o) => nameFits(l.read?.description, o.itemCode));
-    const fits = named.length > 0 ? named : bestLines(`${l.read.itemCode ?? ''} ${l.read.description}`, owing, (o) => `${o.itemCode} ${o.supplierSku ?? ''} ${o.materialName ?? ''}`);
-    const scoped = rowPo ? fits.filter((o) => poKey(o.poNumber) === rowPo) : onDoc.size > 0 ? fits.filter((o) => onDoc.has(poKey(o.poNumber))) : fits;
+    const size = printedSize(`${l.read.itemCode ?? ''} ${l.read.description}`);
+    const named = owing.filter((o) => nameFits(l.read?.description, o.itemCode) && (!size || !lineSizeOf(o.itemCode) || lineSizeOf(o.itemCode) === size));
+    const text = `${l.read.itemCode ?? ''} ${l.read.description}`;
+    const byName = named.length > 0 ? named : bestLines(text, owing, (o) => `${o.itemCode} ${o.supplierSku ?? ''} ${o.materialName ?? ''}`);
+    // Two lines of one code in two colours: only the line of the colour printed (HOOKKA DO-2611-035).
+    const fits = byPrintedColour(text, byName, open.filter((o) => byName.some((f) => f.itemCode === o.itemCode)));
+    const scoped = rowPo ? fits.filter((o) => samePo(poKey(o.poNumber), rowPo)) : onDoc.size > 0 ? fits.filter((o) => onDoc.has(poKey(o.poNumber))) : fits;
     if (scoped.length === 0 || (!rowPo && onDoc.size === 0 && scoped.length > 1)) continue;
     const pick = scoped.find((o) => (left.get(o.poItemId) ?? 0) >= l.qty) ?? scoped[0];
     l.poItemId = pick.poItemId;
@@ -199,9 +232,16 @@ export function picksOf(review: GrnReview): Array<{ poItemId: string; qty: numbe
   return [...byLine].map(([poItemId, qty]) => ({ poItemId, qty }));
 }
 
-/** The rack written for each PO line, for applyScanRacks. */
-export function racksOf(review: GrnReview): Record<string, string> {
-  return Object.fromEntries(review.lines.flatMap((l) => (l.poItemId && l.rack ? [[l.poItemId, l.rack]] : [])));
+/** For each PO line, the qty its rows put on each rack (as written), for
+ *  applyScanRacks: split rows of one line keep their own racks. */
+export function racksOf(review: GrnReview): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const l of review.lines) {
+    if (!l.poItemId || !l.rack || !(l.qty > 0)) continue;
+    const m = (out[l.poItemId] ??= {});
+    m[l.rack] = (m[l.rack] ?? 0) + l.qty;
+  }
+  return out;
 }
 
 /** Printed code -> our item, from rows tied to a PO line, so the next delivery

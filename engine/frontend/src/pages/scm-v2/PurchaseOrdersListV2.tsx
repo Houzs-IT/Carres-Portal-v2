@@ -7,6 +7,8 @@
 // Data: usePurchaseOrders (vendored suppliers-queries slice).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { funnelTicked } from "../../hooks/useServerColumnFunnels";
+import { conditionDateRange } from "../../components/dataTableConditionFilters";
 import { purchaseOrderRowMenu } from "./row-menus";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { buildVariantSummary, fmtSen, fmtDate, orderLineIdentity } from "@2990s/shared";
@@ -38,6 +40,7 @@ import { PoLineImportModal } from "../../components/scm-v2/PoLineImportModal";
 import { useAuth as useHouzsAuth } from "../../auth/AuthContext";
 import { canOperatePurchaseOrders } from "../../auth/salesAccess";
 import { PageHeader } from "../../components/Layout";
+import { MrpAsOf } from "../../components/MrpAsOf";
 import { StatCard } from "../../components/StatCard";
 import { FilterPills } from "../../components/FilterPills";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -86,6 +89,8 @@ import { usePrintDocument } from "../../components/scm-v2/PrintChainProvider";
 import { PrintPreviewBatchModal, usePrintPreview } from "../../components/scm-v2/PrintPreviewModal";
 import type { PdfAction } from "../../vendor/scm/lib/pdf-common";
 import { purchaseOrderPrintChain } from "../../lib/printChain";
+import { todayMyt } from "../../vendor/scm/lib/dates";
+import { supplierEmailList } from "../../vendor/shared/supplier-emails";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -519,7 +524,7 @@ function DetailDrawer({
                 </div>
                 <RowKV k="Contact" v={row.supplier?.contact_person || "—"} />
                 <RowKV k="Phone" v={formatPhone(row.supplier?.phone) || "—"} />
-                <RowKV k="Email" v={row.supplier?.email || "—"} />
+                <RowKV k="Email" v={supplierEmailList(row.supplier).join(", ") || "—"} />
                 <RowKV k="Address" v={row.supplier?.address || "—"} />
               </div>
 
@@ -829,7 +834,7 @@ export function PurchaseOrdersListV2() {
      and the MRP-derived Assigned SO / Delivered) stays
      client-side on the loaded page — those columns are line- or MRP-level and
      the list query cannot express them cheaply. */
-  const [serverFunnels, setServerFunnels] = useState<{ creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[]; docDates?: string[] }>({});
+  const [serverFunnels, setServerFunnels] = useState<{ creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[]; docDates?: string[]; from?: string; to?: string }>({});
   const { requestTerm: debouncedSearch } = useDebouncedSearchTerm(search);
 
   // Send the active tab's BUCKET NAME as `status`; the backend resolves each
@@ -838,7 +843,7 @@ export function PurchaseOrdersListV2() {
   // PARTIALLY_RECEIVED). `all` omits the filter.
   const apiStatus = status === "all" ? undefined : status;
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } = usePurchaseOrdersPaged({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = usePurchaseOrdersPaged({
     page,
     pageSize,
     status: apiStatus,
@@ -862,6 +867,7 @@ export function PurchaseOrdersListV2() {
   // and these tiles summarise the SAME payload - so a settled-looking "RM 0.00"
   // (or the PREVIOUS term's money under a placeholder page) would outlive the
   // rows it describes. Same flag SearchScopeHint already uses for its count.
+  const statsFailed = Boolean(error);
   const statsPending =
     isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale;
   const { cancelPo } = usePoCancelAction();
@@ -872,7 +878,7 @@ export function PurchaseOrdersListV2() {
   // a beat later and are merged in here, so opening the list no longer waits on a
   // company-wide computeMrp (perf/po-grn-list-mrp-off-load).
   const serverRows = (data?.purchaseOrders ?? []) as PoHeaderRow[];
-  const rows = useEnrichedPoListRows(serverRows, !listLoading);
+  const { rows, mrp: mrpStatus } = useEnrichedPoListRows(serverRows, !listLoading);
   const total = data?.total ?? 0;
   const counts = data?.statusCounts ?? {
     all: 0,
@@ -890,6 +896,19 @@ export function PurchaseOrdersListV2() {
      (owner 2026-08-12); the rationale, and why the "is a funnel active" test
      compares LENGTH rather than array identity, now live once in the hook. */
   const visible = useVisibleRows(rows);
+
+  /* A bulk action acts on the ticked rows the operator can SEE (sister review
+     G14): a tick left on a row a later search or funnel hid used to ride along
+     into "Supplier date (N)", which listed the visible POs and wrote all N.
+     A new search, tab or server filter starts with no ticks. */
+  const tickedRows = useMemo(
+    () => visible.rows.filter((r) => selectedIds.has(r.id)),
+    [visible.rows, selectedIds],
+  );
+  const serverFunnelsSig = JSON.stringify(serverFunnels);
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [debouncedSearch, status, serverFunnelsSig]);
 
   // Money-out KPIs sum the rows ON SCREEN (the paginated contract has no
   // full-set money sums), so the cards and the table can never disagree.
@@ -928,7 +947,8 @@ export function PurchaseOrdersListV2() {
       creditorNames: pick("supplier"),
       creditorCodes: pick("creditor_code"),
       currencies: pick("currency"),
-      docDates: pick("po_date"),
+      docDates: funnelTicked(colFilters, "po_date"),
+      ...conditionDateRange(colFilters.po_date),
     };
     const sig = JSON.stringify(next);
     if (sig === serverFunnelSigRef.current) return;
@@ -1040,8 +1060,8 @@ export function PurchaseOrdersListV2() {
   // Batch convert → the From-PO picker accepts a comma-separated poId list and
   // pre-ticks each PO's outstanding lines (honouring its one-warehouse lock).
   const convertSelectedToGrn = () => {
-    if (selectedIds.size === 0) return;
-    const ids = [...selectedIds];
+    if (tickedRows.length === 0) return;
+    const ids = tickedRows.map((r) => r.id);
     clearSelection();
     navigate(convertToLink('poToGrn', ids));
   };
@@ -1079,7 +1099,7 @@ export function PurchaseOrdersListV2() {
   // Download are the exits and only Download still asks combined-vs-separate.
   const deliverSelectedPos = async (action: PdfAction) => {
     if (printingDocs) return;
-    const chosen = rows.filter((r) => selectedIds.has(r.id));
+    const chosen = tickedRows;
     if (chosen.length === 0) return;
     const warehouses = warehousesQ.data ?? [];
     const toPo = (d: { purchaseOrder: PoHeaderRow; items: PoItemRow[] }) => {
@@ -1137,7 +1157,7 @@ export function PurchaseOrdersListV2() {
       }
       if (how === "one") {
         await pdf.generateCombinedPurchaseOrderPdf(pos as never, {
-          fileName: `purchase-orders-${new Date().toISOString().slice(0, 10)}.pdf`,
+          fileName: `purchase-orders-${todayMyt()}.pdf`,
           action,
         });
       } else {
@@ -1508,6 +1528,8 @@ export function PurchaseOrdersListV2() {
           />
         </div>
 
+        <MrpAsOf status={mrpStatus} className="mb-2" />
+
         {/* Stat strip */}
         <div className="mb-5 hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
           {/* Owner 2026-08-12 — every tile now describes the rows ON SCREEN, and
@@ -1516,7 +1538,7 @@ export function PurchaseOrdersListV2() {
               match count and is right until a client-side funnel hides part of
               the page, at which point it contradicts the table underneath. */}
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Total POs"
             value={(visible.filtered ? visible.rows.length : total).toLocaleString("en-MY")}
             subtitle={visible.filtered ? "Filtered · shown below" : "All matching POs"}
@@ -1524,14 +1546,14 @@ export function PurchaseOrdersListV2() {
             active
           />
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Committed"
             value={fmtRm(money.committed)}
             subtitle={visible.filtered ? "Filtered · sum shown below" : "Sum on this page"}
             rail="bg-accent"
           />
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Outstanding"
             value={fmtRm(money.outstanding)}
             subtitle={
@@ -1543,7 +1565,7 @@ export function PurchaseOrdersListV2() {
             rail="bg-accent-bright"
           />
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Received"
             value={fmtRm(money.received)}
             subtitle={
@@ -1560,7 +1582,7 @@ export function PurchaseOrdersListV2() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search PO no or notes…"
+            placeholder="Search PO no, notes or item code…"
             className="h-10 w-full rounded-lg border border-border bg-surface px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <SearchProgress active={searchTransition.isSearching} label={searchTransition.statusText} className="mt-1.5" />
@@ -1598,10 +1620,10 @@ export function PurchaseOrdersListV2() {
         <div className="hidden md:block">
           {view === "table" ? (
             <>
-              {selectedIds.size > 0 && !searchTransition.resultsAreStale && (
+              {tickedRows.length > 0 && !searchTransition.resultsAreStale && (
                 <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-2.5">
                   <span className="text-[13px] font-semibold text-primary">
-                    {selectedIds.size} selected
+                    {tickedRows.length} selected
                   </span>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" onClick={clearSelection}>
@@ -1612,7 +1634,7 @@ export function PurchaseOrdersListV2() {
                       icon={<CalendarClock size={14} />}
                       onClick={() => setBulkDateOpen(true)}
                     >
-                      Supplier date ({selectedIds.size})
+                      Supplier date ({tickedRows.length})
                     </Button>
                     <Button
                       variant="secondary"
@@ -1622,13 +1644,13 @@ export function PurchaseOrdersListV2() {
                     >
                       {printingDocs
                         ? "Printing…"
-                        : `Print all (${selectedIds.size})`}
+                        : `Print all (${tickedRows.length})`}
                     </Button>
                     <PrintPreviewBatchModal
                       open={batchPrint.open}
                       onClose={batchPrint.close}
                       docTitle="Purchase Orders"
-                      docNos={rows.filter((r) => selectedIds.has(r.id)).map((r) => poDisplayNumber(r.po_number, r.revision))}
+                      docNos={tickedRows.map((r) => poDisplayNumber(r.po_number, r.revision))}
                       {...batchPrint.handlers}
                     />
                     <Button
@@ -1636,7 +1658,7 @@ export function PurchaseOrdersListV2() {
                       icon={<Package size={14} />}
                       onClick={convertSelectedToGrn}
                     >
-                      To Goods Receipt ({selectedIds.size})
+                      To Goods Receipt ({tickedRows.length})
                     </Button>
                   </div>
                 </div>
@@ -1678,7 +1700,7 @@ export function PurchaseOrdersListV2() {
                 search={{
                   value: search,
                   onChange: setSearch,
-                  placeholder: "Search PO no or notes…",
+                  placeholder: "Search PO no, notes or item code…",
                   debounceMs: 0,
                   searching: searchTransition.isSearching,
                   countPending: isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale,
@@ -1707,7 +1729,7 @@ export function PurchaseOrdersListV2() {
                     type="search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search PO no or notes…"
+                    placeholder="Search PO no, notes or item code…"
                     className="h-9 max-w-[320px] flex-1 rounded-md border border-border bg-surface px-3.5 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                   <SearchProgress active={searchTransition.isSearching} />
@@ -1748,8 +1770,8 @@ export function PurchaseOrdersListV2() {
 
       <PoBulkSupplierDateModal
         open={bulkDateOpen}
-        poIds={[...selectedIds]}
-        pos={rows.filter((r) => selectedIds.has(r.id))}
+        poIds={tickedRows.map((r) => r.id)}
+        pos={tickedRows}
         onClose={() => setBulkDateOpen(false)}
         onDone={(res) => void onBulkDateDone(res)}
       />

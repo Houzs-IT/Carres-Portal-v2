@@ -39,6 +39,7 @@ import type { Context } from 'hono';
 import { pgrestIn, pgrestInList } from '../lib/pgrest-in-list';
 import { isSupplierFinanceCaller, supplierCodeChangeRefusal } from '../lib/supplier-finance';
 import { withoutSupplierFinance, withoutSupplierFinanceKeys } from '../shared/supplier-finance-fields';
+import { checkSupplierEmail } from '../shared/supplier-emails';
 
 type SupplierCtx = Context<{ Bindings: Env; Variables: Variables }>;
 
@@ -92,10 +93,39 @@ const SUPPLIER_STRUCTURED_ADDRESS_COLS = 'address1, address2, address3, address4
    list view froze its columns before them, like the structured address. */
 const SUPPLIER_MAINTENANCE_COLS = 'for_purchasing, bank_name, bank_account_no, bank_account_name';
 
+/* Email 2 and Email 3 (owner 2026-11-09). Base table only, like the two sets
+   above: the list view froze its columns long before. */
+const SUPPLIER_EXTRA_EMAIL_COLS = 'email2, email3';
+
+/* The three email fields a save may carry: body key = column, and the label a
+   refusal names. */
+const SUPPLIER_EMAIL_FIELDS = [['email', 'Email'], ['email2', 'Email 2'], ['email3', 'Email 3']] as const;
+
+/** The email fields this save writes, each trimmed, blank = null, otherwise
+ *  one valid address. `onFile` is what the row holds now (null on create): a
+ *  value sent back unchanged is left alone even if it is not valid, so a
+ *  supplier carrying an old free-text email can still be edited for anything
+ *  else. */
+export function supplierEmailWrites(
+  body: Record<string, unknown>,
+  onFile: Record<string, unknown> | null,
+): { ok: true; writes: Record<string, string | null> } | { ok: false; message: string } {
+  const writes: Record<string, string | null> = {};
+  for (const [key, label] of SUPPLIER_EMAIL_FIELDS) {
+    if (body[key] === undefined) continue;
+    const sent = body[key] === null ? '' : String(body[key]).trim();
+    if (onFile && sent === String(onFile[key] ?? '').trim()) continue;
+    const check = checkSupplierEmail(sent, label);
+    if (!check.ok) return { ok: false, message: check.message };
+    writes[key] = check.value;
+  }
+  return { ok: true, writes };
+}
+
 /* Base-table column set — used by the DETAIL / create / patch reads, which hit
    `scm.suppliers` directly (not the view) and so can see the structured address. */
 export const SUPPLIER_COLS =
-  `${SUPPLIER_BASE_COLS}, ${SUPPLIER_STRUCTURED_ADDRESS_COLS}, ${SUPPLIER_MAINTENANCE_COLS}, created_at, updated_at`;
+  `${SUPPLIER_BASE_COLS}, ${SUPPLIER_STRUCTURED_ADDRESS_COLS}, ${SUPPLIER_MAINTENANCE_COLS}, ${SUPPLIER_EXTRA_EMAIL_COLS}, created_at, updated_at`;
 
 /* A supplier Finance keeps to itself (for_purchasing false — owner 2026-10-02,
    A2a: 「Finance 开的 supplier 只有 Finance 看得到，采购看不到」) is not shown to a
@@ -233,6 +263,30 @@ export function validatePriceMatrix(
    be shape-validated. Returns null for non-mfg_product kinds (fabric/raw)
    or codes that aren't in the catalogue — those bindings should not carry
    a price_matrix. */
+/* One binding per supplier per item. MRP lists every binding row, so a second
+   one showed the same supplier twice for the item. There is no unique index:
+   the route is the guard until production is proven clean of old duplicates. */
+async function findSameBinding(
+  supabase: SupabaseClient,
+  companyId: number,
+  supplierId: string,
+  kind: string,
+  itemCode: string,
+  excludeId: string | null,
+): Promise<{ ok: true; id: string | null } | { ok: false; reason: string }> {
+  let q = supabase.from('supplier_material_bindings').select('id')
+    .eq('company_id', companyId).eq('supplier_id', supplierId)
+    .eq('material_kind', kind).eq('item_code', itemCode);
+  if (excludeId !== null) q = q.neq('id', excludeId);
+  const { data, error } = await q.limit(1);
+  if (error) return { ok: false, reason: error.message };
+  const rows = data as Array<{ id: string }> | null;
+  const first = rows === null ? undefined : rows.at(0);
+  return { ok: true, id: first === undefined ? null : first.id };
+}
+
+const DUPLICATE_BINDING_MESSAGE = 'This supplier is already bound to this item. Edit the existing binding instead.';
+
 async function categoryForMaterial(
   supabase: SupabaseClient,
   kind: string,
@@ -504,13 +558,17 @@ export const createSupplierHandler = async (c: SupplierCtx) => {
   const name = (body.name as string | undefined)?.trim();
   if (!code) return c.json({ error: 'code_required' }, 400);
   if (!name) return c.json({ error: 'name_required' }, 400);
+  const emails = supplierEmailWrites(body, null);
+  if (!emails.ok) return c.json({ error: 'invalid_email', message: emails.message }, 400);
 
   const row = {
     code,
     name,
     /* Task #91 — normalize phone-like fields to E.164 on the server too. */
     whatsapp_number: normPhone(body.whatsappNumber),
-    email: (body.email as string) ?? null,
+    email: emails.writes.email ?? null,
+    email2: emails.writes.email2 ?? null,
+    email3: emails.writes.email3 ?? null,
     contact_person: (body.contactPerson as string) ?? null,
     phone: normPhone(body.phone),
     address: (body.address as string) ?? null,
@@ -623,10 +681,21 @@ export const patchSupplierHandler = async (c: any) => {
     }
   }
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  /* Email, Email 2, Email 3 — checked against what is on file (supplierEmailWrites). */
+  let emailWrites: Record<string, string | null> = {};
+  if (SUPPLIER_EMAIL_FIELDS.some(([k]) => body[k] !== undefined)) {
+    const { data: cur, error: curErr } = await scopeToCompanyId(supabase.from('suppliers').select('id, email, email2, email3').eq('id', id), co.companyId).maybeSingle();
+    if (curErr) return c.json({ error: 'load_failed', reason: curErr.message }, 500);
+    if (!cur) return c.json(NOT_THIS_COMPANY, 404);
+    const emails = supplierEmailWrites(body, cur as Record<string, unknown>);
+    if (!emails.ok) return c.json({ error: 'invalid_email', message: emails.message }, 400);
+    emailWrites = emails.writes;
+  }
+
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString(), ...emailWrites };
   const map: Array<[keyof typeof body, string]> = [
     ['code', 'code'], ['name', 'name'], ['whatsappNumber', 'whatsapp_number'],
-    ['email', 'email'], ['contactPerson', 'contact_person'], ['phone', 'phone'],
+    ['contactPerson', 'contact_person'], ['phone', 'phone'],
     ['address', 'address'], ['state', 'state'], ['paymentTerms', 'payment_terms'],
     ['rating', 'rating'], ['notes', 'notes'],
     /* PR #40 — full master record */
@@ -765,6 +834,12 @@ export const createSupplierBindingHandler = async (c: any) => {
   };
   if (priceMatrix !== undefined) row.price_matrix = priceMatrix;
 
+  const co = requireActiveCompanyId(c);
+  if (!co.ok) return c.json(co.refusal, 409);
+  const same = await findSameBinding(supabase, co.companyId, supplierId, kind, String(body.itemCode), null);
+  if (!same.ok) return c.json({ error: 'load_failed', reason: same.reason }, 500);
+  if (same.id) return c.json({ error: 'duplicate_binding', message: DUPLICATE_BINDING_MESSAGE, bindingId: same.id }, 409);
+
   // If marking as main supplier, demote any other main for the same material.
   if (row.is_main_supplier) {
     await supabase
@@ -779,6 +854,8 @@ export const createSupplierBindingHandler = async (c: any) => {
   const { data, error } = await supabase.from('supplier_material_bindings').insert({ ...row, company_id: activeCompanyId(c) }).select(BINDING_COLS).single();
   if (error) {
     if (error.code === '42501') return c.json({ error: 'forbidden', reason: error.message }, 403);
+    // The unique index catches what the pre-check above loses to a concurrent create.
+    if (error.code === '23505') return c.json({ error: 'duplicate_binding', message: DUPLICATE_BINDING_MESSAGE }, 409);
     return c.json({ error: 'insert_failed', reason: error.message }, 500);
   }
   // Auto-derive stage 2b: recompute the product cost from all suppliers when the
@@ -819,10 +896,8 @@ export const createSupplierBindingsBatchHandler = async (c: any) => {
     .from('supplier_material_bindings')
     .select('item_code, material_kind')
     .eq('supplier_id', supplierId), 'item_code', codes);
-  if (existingErr) {
-    // eslint-disable-next-line no-console
-    console.error('[suppliers] existing bindings read failed:', (existingErr as { message?: unknown }).message ?? existingErr);
-  }
+  // A failed read would let every row through as new and bind them twice.
+  if (existingErr) return c.json({ error: 'load_failed', reason: existingErr.message }, 500);
   const seen = new Set<string>(
     ((existing ?? []) as Array<{ item_code: string; material_kind: string }>)
       .map((r) => `${r.material_kind}|${r.item_code}`),
@@ -896,6 +971,7 @@ export const createSupplierBindingsBatchHandler = async (c: any) => {
     .select(BINDING_COLS);
   if (error) {
     if (error.code === '42501') return c.json({ error: 'forbidden', reason: error.message }, 403);
+    if (error.code === '23505') return c.json({ error: 'duplicate_binding', message: DUPLICATE_BINDING_MESSAGE }, 409);
     return c.json({ error: 'insert_failed', reason: error.message }, 500);
   }
   // Auto-derive stage 2b: recompute each affected SKU's product cost when ON;
@@ -973,6 +1049,21 @@ export const patchSupplierBindingHandler = async (c: any) => {
     }
   }
 
+  if (updates.item_code !== undefined || updates.material_kind !== undefined) {
+    const { data: cur, error: curErr } = await scopeToCompanyId(supabase
+      .from('supplier_material_bindings')
+      .select('supplier_id, material_kind, item_code')
+      .eq('id', bindingId), co.companyId)
+      .maybeSingle();
+    if (curErr) return c.json({ error: 'load_failed', reason: curErr.message }, 500);
+    if (!cur) return c.json(NOT_THIS_COMPANY, 404);
+    const same = await findSameBinding(supabase, co.companyId, cur.supplier_id,
+      (updates.material_kind as string | undefined) ?? cur.material_kind,
+      String((updates.item_code as string | undefined) ?? cur.item_code), bindingId);
+    if (!same.ok) return c.json({ error: 'load_failed', reason: same.reason }, 500);
+    if (same.id) return c.json({ error: 'duplicate_binding', message: DUPLICATE_BINDING_MESSAGE, bindingId: same.id }, 409);
+  }
+
   // If promoting to main, demote others first (need to fetch the binding's material info).
   if (updates.is_main_supplier === true) {
     const { data: existing } = await scopeToCompanyId(supabase
@@ -995,6 +1086,7 @@ export const patchSupplierBindingHandler = async (c: any) => {
   const { data, error } = await scopeToCompanyId(supabase.from('supplier_material_bindings').update(updates).eq('id', bindingId), co.companyId).select(BINDING_COLS).maybeSingle();
   if (error) {
     if (error.code === '42501') return c.json({ error: 'forbidden', reason: error.message }, 403);
+    if (error.code === '23505') return c.json({ error: 'duplicate_binding', message: DUPLICATE_BINDING_MESSAGE }, 409);
     return c.json({ error: 'update_failed', reason: error.message }, 500);
   }
   if (!data) return c.json(NOT_THIS_COMPANY, 404);
@@ -1201,14 +1293,19 @@ suppliers.get('/:id/bindings/:bindingId/price-changes', listBindingPriceChangesH
 export const listSupplierPriceHistoryHandler = async (c: any) => {
   const co = requireActiveCompanyId(c);
   if (!co.ok) return c.json(co.refusal, 409);
-  const { data, error } = await c.get('supabase')
+  /* PAGED: `.limit(5000)` was still cut at PostgREST's 1,000 rows, so a
+     supplier with many products x dated prices lost rows and a PO line could be
+     priced from an older (or no) cost row. */
+  const { data, error, truncated } = await paginateAll((from: number, to: number) => c.get('supabase')
     .from('supplier_binding_price_history')
     .select('item_code, effective_from, unit_price_sen, price_matrix, created_at')
     .eq('company_id', co.companyId)
     .eq('supplier_id', c.req.param('id'))
     .eq('material_kind', 'mfg_product')
-    .limit(5000);
+    .order('id')
+    .range(from, to));
   if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
+  if (truncated) return c.json({ error: 'load_failed', reason: 'Too many price rows for this supplier to read in full.' }, 500);
   return c.json({ history: data ?? [] });
 };
 suppliers.get('/:id/price-history', listSupplierPriceHistoryHandler);

@@ -3,7 +3,9 @@ import { HighlightedText } from "../lib/highlight";
 import { formatDate } from "../lib/utils";
 import {
   GLOBAL_SEARCH_MIN_LENGTH,
+  searchHitStatus,
   useGlobalSearchResults,
+  useSearchStatusVocabulary,
   type SearchHit,
   type SearchHitType,
 } from "../lib/globalSearch";
@@ -56,10 +58,12 @@ const dm = (d: string | null | undefined): string => {
 /* DISPLAY ORDER, and the reason this map — not a second hand-written array —
  * defines it.
  *
- * The phone has a detail screen for only five of the ten hit types. The
+ * The phone has a detail screen for only five of the hit types. The
  * procurement/fulfilment documents (purchase_order / grn / delivery_order /
- * sales_invoice / purchase_invoice) are desktop Cmd+K sources with no mobile
- * screen to route to, so a tap on one would be a dead tap.
+ * sales_invoice / purchase_invoice) and the finance / master sources
+ * (credit_note / receipt / payment_voucher / delivery_return / supplier /
+ * customer) are desktop Cmd+K sources with no mobile screen to route to, so a
+ * tap on one would be a dead tap.
  *
  * Until 2026-08-21 the answer was to leave those five out of a separate
  * `TYPE_ORDER` array, i.e. to DROP the hits. That silently broke the screen:
@@ -91,6 +95,12 @@ const TYPE_LABEL: Record<SearchHitType, string> = {
   delivery_order: "Delivery Orders",
   sales_invoice: "Sales Invoices",
   purchase_invoice: "Purchase Invoices",
+  credit_note: "Credit / Debit Notes",
+  receipt: "Receipts",
+  payment_voucher: "Payment Vouchers",
+  delivery_return: "Delivery Returns",
+  supplier: "Suppliers",
+  customer: "Customers",
 };
 const TYPE_ORDER = Object.keys(TYPE_LABEL) as SearchHitType[];
 const TYPE_COLOR: Record<SearchHitType, string> = {
@@ -100,6 +110,12 @@ const TYPE_COLOR: Record<SearchHitType, string> = {
   delivery_order: "#1B1B39",
   sales_invoice: "#1B1B39",
   purchase_invoice: "#b76b00",
+  credit_note: "#1B1B39",
+  receipt: "#2f5d4f",
+  payment_voucher: "#b76b00",
+  delivery_return: "#1B1B39",
+  supplier: "#b76b00",
+  customer: "#1B1B39",
   project: "#2f8a5b",
   assr_case: "#D64F20",
   product: "#4b6b86",
@@ -128,6 +144,12 @@ function navFor(hit: SearchHit): SearchNav | null {
     case "delivery_order":
     case "sales_invoice":
     case "purchase_invoice":
+    case "credit_note":
+    case "receipt":
+    case "payment_voucher":
+    case "delivery_return":
+    case "supplier":
+    case "customer":
       return null;
   }
 }
@@ -141,6 +163,7 @@ export function MobileSearch({
 }) {
   const [q, setQ] = useState("");
   const { term, hits, loading, error, degradedNotice } = useGlobalSearchResults(q);
+  const vocab = useSearchStatusVocabulary();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -203,12 +226,12 @@ export function MobileSearch({
           <div role="status" aria-live="polite" style={{ padding: "30px 0", textAlign: "center", color: "var(--mut2)", fontSize: 12.5 }}>Searching for “{term}”…</div>
         )}
         {error && (
-          <div role="alert" style={{ margin: "8px 0", borderRadius: 10, border: "1px solid #e6c3c3", background: "#fbeded", padding: "10px 12px", fontSize: 12, color: "var(--red)" }}>
+          <div role="alert" style={{ margin: "8px 0", borderRadius: 10, border: "1px solid #e6c3c3", background: "var(--hz-dk-err-bg, #fbeded)", padding: "10px 12px", fontSize: 12, color: "var(--red)" }}>
             Couldn't search right now. Please try again.
           </div>
         )}
         {degradedNotice && !error && (
-          <div role="alert" style={{ margin: "8px 0", borderRadius: 10, border: "1px solid #e0cba8", background: "#fdf6e9", padding: "10px 12px", fontSize: 12, color: "var(--ink, #2b2b2b)" }}>
+          <div role="alert" style={{ margin: "8px 0", borderRadius: 10, border: "1px solid #e0cba8", background: "var(--hz-dk-warning-bg, #fdf6e9)", padding: "10px 12px", fontSize: 12, color: "var(--ink, #2b2b2b)" }}>
             {degradedNotice}
           </div>
         )}
@@ -240,12 +263,16 @@ export function MobileSearch({
                    <div>, not a <button>: showing the record is the fix, offering
                    a tap that goes nowhere would be a different lie. */
                 const nav = navFor(hit);
+                const status = searchHitStatus(hit, vocab);
                 const body = (
                   <>
                     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>
                         <HighlightedText text={hit.title} query={term} />
                       </span>
+                      {status && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: status.bg, color: status.fg, flex: "none" }}>{status.label}</span>
+                      )}
                       {hit.date && (
                         <span style={{ fontSize: 10.5, color: "var(--mut2)", flex: "none" }}>{dm(hit.date)}</span>
                       )}

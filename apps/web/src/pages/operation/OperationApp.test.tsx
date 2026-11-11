@@ -1,173 +1,37 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 /**
- * Regression test for the Phase 4.5 Chunk 2 procurement nested routing.
- *
- * Bug shipped + fixed 2026-05-07: `OperationApp` mounts a descendant `<Routes>`
- * inside the parent App's `<Route path="/operation/*">`. The original Sprint F
- * implementation declared the inner routes with absolute paths
- * (`/operation/procurement` and `/operation/procurement/:slug`). React Router 7
- * silently fails to match those — descendant Routes paths must be relative to
- * the parent route's matched portion. Symptom: URL flips to
- * `/operation/procurement` but the main area renders blank.
- *
- * The pre-existing `TabbedProcurementShell.test.tsx` rendered the shell as a
- * top-level Route, which doesn't reproduce the descendant-Routes mount path.
- * That suite passed even with the buggy OperationApp wiring. This file closes
- * that gap by exercising the actual mount path the runtime uses.
- *
- * All children are stubbed so we test routing only; child suites cover their
- * own renders.
+ * The Operations shell after 11 Nov 2026: Service Cases, Projects and Supply Chain are the engine's pages at
+ * `/operation/sc/<row>`; the old Carres pages of those areas are removed and their addresses move to the nearest
+ * engine row; Carres's own pages (Workspace, Leave, Subscription, Issue Tracker, Settings) still mount here.
+ * Children are stubbed: this suite owns routing only.
  */
-// Unified Internal Portal (2026-06-30) — the merged PortalSidebar replaced the
-// private OperationSidebar. It self-fetches badges via react-query, so stub it;
-// this suite tests OperationApp's descendant routing, not the rail. Active-tab
-// highlight moved into PortalSidebar (URL-derived) and is covered by its own
-// suite, so the old `data-active` prop assertions are gone.
-// The engine frame (engine/): Service Cases and Supply Chain rows with an engine page open it (portal-nav ENGINE_PAGES).
 vi.mock("./SupplyChainEngine", () => ({
   default: ({ path }: { path: string }) => <div data-testid="engine-stub" data-path={path}>engine</div>,
 }));
-vi.mock("@/pages/portal/PortalSidebar", () => ({
-  default: () => <div data-testid="sidebar-stub">sidebar</div>,
-}));
-vi.mock("./OperationDashboard", () => ({
-  default: () => <div data-testid="dashboard-stub">dashboard</div>,
-}));
-vi.mock("./OperationOrders", () => ({
-  default: () => <div data-testid="orders-stub">orders</div>,
-}));
-vi.mock("./OperationWarehouse", () => ({
-  default: () => <div data-testid="warehouse-stub">warehouse</div>,
-}));
-// 【WAREHOUSE】 CARD 02 — Unit Detail is a route that must MOUNT (the same
-// walk-found defect class as Edit Delivery: Route declared, `isUrlDriven`
-// unaware, dashboard drawn over a real Unit address — measured live
-// 2026-09-03). The register and plan pages self-fetch; stubs, because this
-// suite owns routing and slim-bar suppression only.
-vi.mock("./WarehouseUnitDetail", () => ({
-  default: () => <div data-testid="unit-detail-stub">unit-detail</div>,
-}));
-/* The Schedule stub ECHOES its `direction`, because the one thing this suite
-   has to prove about it is WHICH of the two pages an address resolves to. */
-vi.mock("./WarehouseWorkspace", () => ({
-  default: ({ direction }: { direction?: string }) => (
-    <div data-testid="schedule-stub" data-direction={direction}>
-      schedule
-    </div>
-  ),
-}));
-vi.mock("./WarehouseStockRegister", () => ({
-  default: ({ showroom }: { showroom?: boolean }) => <div data-testid="stock-register-stub" data-showroom={showroom}>stock-register</div>,
-}));
-vi.mock("./OperationStockPlan", () => ({
-  default: () => <div data-testid="stock-plan-stub">stock-plan</div>,
-}));
-vi.mock("./OperationMovements", () => ({
-  default: () => <div data-testid="movements-stub">movements</div>,
-}));
-vi.mock("./procurement/TabbedProcurementShell", () => ({
-  default: () => (
-    <div data-testid="procurement-shell-stub">procurement-shell</div>
-  ),
-}));
-// The bare procurement path mounts the Purchase Execution Workspace (Jess's
-// 2026-08-01 architecture freeze); slugged paths keep the legacy shell so
-// `?po=` deep links survive. Stubbed — it self-fetches via react-query.
-vi.mock("./purchase-orders/PurchaseOrdersPage", () => ({
-  default: () => (
-    <div data-testid="purchase-orders-workspace-stub">po-workspace</div>
-  ),
-}));
-vi.mock("./OperationToOrder", () => ({
-  default: () => <div data-testid="to-order-stub">to-order</div>,
-}));
-vi.mock("./OperationManualPurchase", () => ({
-  default: ({contextFlow}:{contextFlow?:boolean}) => <div data-testid="manual-purchase-stub" data-context-flow={String(contextFlow)}>manual-purchase</div>,
-}));
-// CARD-2026-09-04-delivery-01 — Monitor draws its own Destination Header and
-// self-fetches; this suite only asks which route mounts it, and whether the
-// slim global bar stands down when it does.
-vi.mock("./OperationDelivery", () => ({
-  default: () => <div data-testid="delivery-monitor-stub">delivery-monitor</div>,
-}));
-// The restored Delivery Orders register and the DO object page both
-// self-fetch; this suite owns only WHICH ROUTE MOUNTS WHICH.
-vi.mock("./DeliveryOrdersRegister", () => ({
-  default: () => <div data-testid="delivery-orders-register-stub">do-register</div>,
-}));
-vi.mock("./DeliveryOrderPage", () => ({
-  default: () => <div data-testid="delivery-order-page-stub">do-object</div>,
-}));
-// Edit Delivery (2026-08-24) self-fetches the arrangement — stubbed; what this
-// suite owns is that the URL actually MOUNTS it, which is precisely what the
-// production walk found broken: the route existed and the `isUrlDriven` gate
-// did not include it, so the main pane rendered nothing.
-// The retired Quick Rail (Calendar · Tasks · Activity) is stubbed only so a
-// test can prove the shell no longer mounts it: Calendar and Activity left the
-// shell (owner ruling 2026-10-08) and the CalendarPanel mock left with them.
-vi.mock("./components/OperationRightRail", () => ({
-  default: () => <div data-testid="right-rail-stub">rail</div>,
-}));
-// The shell's Tasks card self-fetches the Work feed — stubbed; this suite
-// owns WHERE it mounts, not what it lists.
+vi.mock("@/pages/portal/PortalSidebar", () => ({ default: () => <div data-testid="sidebar-stub">sidebar</div> }));
 vi.mock("./components/ShellTasks", () => ({
   default: () => <div data-testid="shell-tasks-stub">tasks</div>,
   TasksPill: () => null,
-  // Route tests keep the task panel closed; its real store is covered by the
-  // shell/sidebar tests, while the shell now also reads its layout state.
-  useShellTasks: (select: (state: { open: boolean; pageHosts: number }) => unknown) =>
-    select({ open: false, pageHosts: 0 }),
+  useShellTasks: (select: (state: { open: boolean; pageHosts: number }) => unknown) => select({ open: false, pageHosts: 0 }),
 }));
-// The first-entry `Pending work` reminder self-fetches the same Work feed as
-// the rail (Tasks, 2026-10-06) — stubbed for the same reason as the rail.
-vi.mock("./tasks/PendingWorkReminder", () => ({
-  default: () => null,
-}));
-// The global top bar self-fetches (orders/tasks for Alerts) — stub it too.
-// The shell no longer mounts it (2026-10-08); its icons ride the ONE shell
-// header through `TopBarIcons inShell`, stubbed here.
+vi.mock("./tasks/PendingWorkReminder", () => ({ default: () => null }));
 vi.mock("./components/GlobalTopBar", () => ({
   default: () => <div data-testid="global-topbar-stub">topbar</div>,
   TopBarIcons: () => <div data-testid="topbar-icons-stub">icons</div>,
 }));
-vi.mock("./ArrivalSourceWorkspace", () => ({
-  default: () => <div data-testid="arrival-workspace-stub">Transfer</div>,
-}));
-// ⭐ SALES ORDER PRODUCTION CUTOVER (2026-08-10) — the two Orders doors. Both
-// self-fetch, so both are stubbed; this suite tests WHICH ROUTE MOUNTS WHICH,
-// which is the whole of the cutover in code.
-// `/operation/orders` renders the Outright list since 2026-10-08 (the old
-// register was deleted on 15 Oct 2026, its capabilities moved onto Outright).
-vi.mock("./so-outright/SalesOrdersOutright", () => ({
-  default: () => <div data-testid="register-stub">register</div>,
-}));
-vi.mock("./OperationOrdersControl", () => ({
-  default: ({ onImport }: { onImport?: () => void }) => (
-    <div data-testid="old-orders-stub">
-      old-orders
-      <button type="button" onClick={onImport}>
-        import
-      </button>
-    </div>
-  ),
-}));
 vi.mock("./SettingsWorkspace", () => ({
   default: () => <div data-testid="settings-stub">Settings</div>,
-  // The shell header names a Settings page `Settings / <section>` (2026-10-08).
   settingsSectionLabel: (path: string) => (path.includes("staff-duties") ? "Staff & Duties" : null),
 }));
-vi.mock("./SalesOrderWorkspace", () => ({
-  default: () => <div data-testid="workspace-stub">workspace</div>,
-}));
-vi.mock("./OperationNewSalesOrder", () => ({
-  default: () => <div data-testid="new-sales-order-stub">new-sales-order</div>,
-}));
-vi.mock("./OperationImport", () => ({
-  default: () => <div data-testid="import-stub">import-page</div>,
-}));
+vi.mock("./tasks/WorkspaceTasks", () => ({ default: () => <div data-testid="work-stub">work</div> }));
+vi.mock("./OperationLeave", () => ({ default: () => <div data-testid="leave-stub">leave</div> }));
+vi.mock("./OperationRental", () => ({ default: () => <div data-testid="rental-stub">rental</div> }));
+vi.mock("./OperationIssueTracker", () => ({ default: () => <div data-testid="issues-stub">issues</div> }));
+vi.mock("./IssueRelatedPartyReport", () => ({ default: () => <div data-testid="issue-report-stub">report</div> }));
+vi.mock("./DocumentLinesReport", () => ({ SalesInvoiceLinesReport: () => <div data-testid="si-lines-stub">lines</div> }));
 
 import OperationApp from "./OperationApp";
 
@@ -176,492 +40,70 @@ function LocationProbe() {
   return <output data-testid="location-probe">{location.pathname}{location.search}</output>;
 }
 
-/** ONE top row on every page: the shell's 56px header, and never the retired
- *  GlobalTopBar beside it (Carres Layout Standard §1, 2026-10-08). */
-function expectOneHeader() {
-  expect(screen.getAllByTestId("shell-header")).toHaveLength(1);
-  expect(screen.queryByTestId("global-topbar-stub")).not.toBeInTheDocument();
-}
-
-function renderApp(initialPath: string,purchaseRequestContext?:boolean) {
+function renderApp(initialPath: string) {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
-        <Route path="/operation/*" element={<OperationApp purchaseRequestContext={purchaseRequestContext}/>} />
+        <Route path="/operation/*" element={<OperationApp />} />
+        <Route path="/finance/*" element={<div data-testid="finance-stub">finance</div>} />
       </Routes>
       <LocationProbe />
     </MemoryRouter>,
   );
 }
 
-describe("OperationApp — procurement descendant routing", () => {
-  it("URL /operation/to-order?so=1204 mounts the same Batch Purchase page", () => {
-    renderApp("/operation/to-order?so=1204");
-    expect(screen.getByTestId("to-order-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
-    expectOneHeader();
-  });
+const at = () => screen.getByTestId("location-probe").textContent;
 
-  it("URL /operation/procurement opens the engine's Purchase Orders (it replaced the workspace)", () => {
-    renderApp("/operation/procurement");
-    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/purchase-orders");
-    expect(screen.queryByTestId("purchase-orders-workspace-stub")).not.toBeInTheDocument();
+describe("OperationApp — the engine rows", () => {
+  it.each([
+    ["/operation/sc/orders", "/scm/sales-orders"],
+    ["/operation/sc/purchase-orders", "/scm/purchase-orders"],
+    ["/operation/sc/projects", "/projects?view=list"],
+    ["/operation/sc/service-notes", "/assr?view=cases"],
+    ["/operation/sc/consignment-receives", "/scm/purchase-consignment-receives"],
+  ])("%s opens the engine page %s", (path, page) => {
+    renderApp(path);
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", page);
+    expect(screen.getAllByTestId("shell-header")).toHaveLength(1);
   });
+});
 
-  it("the Carres workspace still opens with a query (record links, and the screen checks' door)", () => {
-    renderApp("/operation/procurement?preview=1");
-    expect(screen.getByTestId("purchase-orders-workspace-stub")).toBeInTheDocument();
+describe("OperationApp — retired Carres addresses move to the nearest engine row", () => {
+  it.each([
+    ["/operation", "/operation/sc/orders"],
+    ["/operation?tab=dashboard", "/operation/sc/orders"],
+    ["/operation/procurement", "/operation/sc/purchase-orders"],
+    ["/operation/orders/so/abc", "/operation/sc/orders"],
+    ["/operation/delivery-orders/DO-1", "/operation/sc/delivery-orders"],
+    ["/operation?tab=claims", "/operation/sc/purchase-returns"],
+    ["/operation?tab=guarantees", "/operation/sc/service-notes"],
+    ["/operation?tab=projects", "/operation/sc/projects"],
+    ["/operation?tab=warehouse-inbound", "/operation/sc/receiving"],
+    ["/operation/settings/service", "/operation/sc/service-maintenance"],
+  ])("%s → %s", (from, to) => {
+    renderApp(from);
+    expect(at()).toBe(to);
+    expect(screen.getByTestId("engine-stub")).toBeInTheDocument();
+  });
+});
+
+describe("OperationApp — Carres's own pages stay", () => {
+  it.each([
+    ["/operation?tab=work", "work-stub"],
+    ["/operation?tab=leave", "leave-stub"],
+    ["/operation?tab=rental", "rental-stub"],
+    ["/operation?tab=sales-invoice-lines", "si-lines-stub"],
+    ["/operation/issues", "issues-stub"],
+    ["/operation/issues/reports", "issue-report-stub"],
+    ["/operation/settings/staff-duties", "settings-stub"],
+  ])("%s mounts its page", (path, id) => {
+    renderApp(path);
+    expect(screen.getByTestId(id)).toBeInTheDocument();
     expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
   });
 
-  it("the Carres Sales Orders register still opens on its stage door (the screen checks' door)", () => {
-    renderApp("/operation/orders/all");
-    expect(screen.getByTestId("register-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
-    // The dashboard must NOT render alongside the workspace — `isProcurementUrl`
-    // gates the conditional so only the inner <Routes> block paints.
-    expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
+  it("the retired Payments desk forwards to the Finance monitor with its order", () => {
+    renderApp("/operation?tab=payments&so=SO-1");
+    expect(at()).toBe("/finance/monitor?order=SO-1");
   });
-
-  it("URL /operation/procurement/:slug also mounts the shell", () => {
-    renderApp("/operation/procurement/hookka-sofa");
-    expect(screen.getByTestId("procurement-shell-stub")).toBeInTheDocument();
-  });
-
-  it("URL /operation (no procurement) renders the dashboard tab as default", () => {
-    renderApp("/operation");
-    expect(screen.getByTestId("dashboard-stub")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("procurement-shell-stub"),
-    ).not.toBeInTheDocument();
-  });
-});
-
-/**
- * ⭐ SALES ORDER PRODUCTION CUTOVER — `docs/SALES-ORDER-CUTOVER.md`.
- *
- * The card's whole risk is that the cutover breaks the page 83 live orders are
- * being worked on today. Two doors, and NEITHER may serve the other's page:
- *
- *   /operation/orders      → the NEW Sales Order register  (official)
- *   /operation/old-orders  → the OLD control table         (temporary)
- *
- * The old door must also still reach the AutoCount import — it is the only
- * import surface there is, which is exactly what blocks the final delete.
- */
-describe("OperationApp — the Sales Order cutover's two doors", () => {
-  it("/operation/orders opens the engine's Sales Orders and never the old table", () => {
-    renderApp("/operation/orders");
-    // The engine's list replaced the Outright list (owner, 9 Nov 2026).
-    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/sales-orders");
-    expect(screen.queryByTestId("old-orders-stub")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sales-orders-work-surface")).toHaveClass("overflow-hidden");
-    expect(screen.getByTestId("sales-orders-work-surface")).not.toHaveClass("overflow-auto");
-  });
-
-  it("/operation/orders/:stage still mounts the NEW register", () => {
-    renderApp("/operation/orders/in_production");
-    expect(screen.getByTestId("register-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("old-orders-stub")).not.toBeInTheDocument();
-  });
-
-  it("/operation/old-orders mounts the OLD table and never the register", () => {
-    renderApp("/operation/old-orders");
-    expect(screen.getByTestId("old-orders-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("register-stub")).not.toBeInTheDocument();
-    // The old door is a URL-driven section too — the dashboard must not paint
-    // underneath it.
-    expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
-  });
-
-  it("/operation/old-orders/:stage carries the kanban slug across", () => {
-    renderApp("/operation/old-orders/in_production");
-    expect(screen.getByTestId("old-orders-stub")).toBeInTheDocument();
-  });
-
-  it("the OLD door still reaches the AutoCount import", async () => {
-    renderApp("/operation/old-orders");
-    fireEvent.click(screen.getByRole("button", { name: "import" }));
-    expect(await screen.findByTestId("import-stub")).toBeInTheDocument();
-  });
-
-  it("the workspace route is unshadowed by the old door", () => {
-    renderApp("/operation/orders/so/00000000-0000-0000-0000-0000000000a1");
-    expect(screen.getByTestId("workspace-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("sales-orders-work-surface")).not.toBeInTheDocument();
-  });
-
-  /* OVERTURNED 2026-10-22 by Weisiang (Mr Lim): office staff may create Sales
-     Orders (Houzs way). The create door opens the office create page, never
-     the object workspace (`new` is not an order id). */
-  it("the office create door opens the New Sales Order page", () => {
-    renderApp("/operation/orders/so/new");
-    expect(screen.getByTestId("new-sales-order-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("workspace-stub")).not.toBeInTheDocument();
-  });
-});
-
-/**
- * ONE HEADER ON MANUAL PURCHASE (corrections card §2, Jess 2026-08-19 on a
- * production screenshot). The shell law: the shell draws the header and a page
- * draws no second one. `?tab=manual-purchase` was missing from the
- * GlobalTopBar suppression list, so production showed two bells both reading
- * 54. The suppression is the fix; the page's own PurchasingTabs row is the ONE
- * header.
- */
-describe("OperationApp — one header on Manual Purchase", () => {
-  it("?tab=manual-purchase suppresses the global top bar like its siblings", () => {
-    renderApp("/operation?tab=manual-purchase");
-    expect(screen.getByTestId("manual-purchase-stub")).toBeInTheDocument();
-    expectOneHeader();
-  });
-
-  /* The per-page suppression list is RETIRED (2026-10-08): the shell draws ONE
-     header on every page, the dashboard included, and no page draws another. */
-  it("the dashboard gets the same one shell header — no page keeps a slim bar", () => {
-    renderApp("/operation?tab=dashboard");
-    expectOneHeader();
-    // A page that does not name itself is named by its menu item.
-    expect(screen.getByTestId("shell-title")).toHaveTextContent("Overview");
-  });
-});
-
-/**
- * ONE HEADER ON DELIVERY WORK (CARD-2026-08-21-delivery-02, caught on the
- * production walk 2026-08-21).
- *
- * The identical defect Manual Purchase shipped with: `?tab=delivery` was
- * missing from the GlobalTopBar suppression list, so the page's own 50px
- * Destination Header — which embeds TopBarIcons — sat under a slim bar carrying
- * a second Jump to, a second bell reading 59, a second Help and a second gear.
- * `Delivery Orders` never showed it because it is a real route and was
- * suppressed already, which is exactly why one route looked right and its
- * sibling did not.
- */
-describe("OperationApp — one header on Monitor", () => {
-  it("?tab=delivery mounts Monitor and stands the global top bar down", () => {
-    renderApp("/operation?tab=delivery");
-    expect(screen.getByTestId("delivery-monitor-stub")).toBeInTheDocument();
-    expectOneHeader();
-    // Monitor renders ONCE — never twice through two matching branches.
-    expect(screen.getAllByTestId("delivery-monitor-stub")).toHaveLength(1);
-  });
-
-  it("its rail choices survive the mount — every filter rides the URL", () => {
-    renderApp("/operation?tab=delivery&schedule=no_confirmed_date&logistics=p-nets");
-    expect(screen.getByTestId("delivery-monitor-stub")).toBeInTheDocument();
-  });
-});
-
-/**
- * THE FOUR DELIVERY PAGES (CARD-2026-09-04-delivery-01). Monitor is
- * `?tab=delivery`; the register address is RESTORED as a real destination —
- * it no longer redirects into Monitor — and the DO object and Edit Delivery
- * routes keep reaching their existing components unchanged.
- */
-describe("OperationApp — the Delivery destinations", () => {
-  it("/operation/delivery-orders opens the engine's Delivery Orders, not a redirect", () => {
-    renderApp("/operation/delivery-orders");
-    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/delivery-orders");
-    expect(screen.getByTestId("location-probe")).toHaveTextContent(
-      "/operation/delivery-orders",
-    );
-    expect(screen.queryByTestId("delivery-monitor-stub")).not.toBeInTheDocument();
-  });
-
-  it("the register route stands the slim global bar down", () => {
-    renderApp("/operation/delivery-orders");
-    expectOneHeader();
-  });
-
-  it("/operation/delivery-orders/:doId still mounts the DO object page", () => {
-    renderApp("/operation/delivery-orders/DO-040926-0001");
-    expect(screen.getByTestId("delivery-order-page-stub")).toBeInTheDocument();
-  });
-});
-
-/**
- * EDIT DELIVERY IS A ROUTE THAT MOUNTS (walk finding, 2026-08-24). The page
- * shipped with its Route declared and the `isUrlDriven` gate unaware of it, so
- * the URL fell through to the `?tab=` branch and drew an empty main pane. A
- * component test cannot see that — only mounting the APP at the URL can.
- */
-describe("OperationApp — the retired Edit Delivery URL lands on the Monitor row", () => {
-  it("/operation/delivery/edit/:orderId opens Monitor with that row's brief unfolded", () => {
-    renderApp("/operation/delivery/edit/order-1");
-    expect(screen.queryByTestId("edit-delivery-stub")).not.toBeInTheDocument();
-    expect(screen.getByTestId("location-probe").textContent).toContain(
-      "/operation?tab=delivery&view=all&open=order-1",
-    );
-  });
-
-  it("a leg keeps its own row", () => {
-    renderApp("/operation/delivery/edit/order-1?leg=2");
-    expect(screen.getByTestId("location-probe").textContent).toContain("open=order-1%23leg2");
-  });
-});
-
-/**
- * 【WAREHOUSE】 CARD 02 — ONE TOP ROW PER WAREHOUSE SURFACE. The Inventory
- * Register and the two de-navigated legacy Stock pages draw their own 50px
- * Destination Header (ModuleHeader embeds TopBarIcons), so the slim global bar
- * must stand down — the same defect Manual Purchase and Delivery Work each
- * shipped with, measured live on the CARD 01 production walk (two Jump to,
- * two bells, two gears on one screen).
- */
-describe("OperationApp — Warehouse surfaces draw one top row, not two", () => {
-  it("a transfer workspace owns its header without a second global bar", () => {
-    renderApp("/operation?tab=arrival-source&kind=transfer");
-    expect(screen.getByTestId("arrival-workspace-stub")).toBeInTheDocument();
-    expectOneHeader();
-  });
-  it("?tab=stock-onhand opens the engine's Inventory with no slim bar", () => {
-    renderApp("/operation?tab=stock-onhand");
-    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/scm/inventory");
-    expectOneHeader();
-  });
-
-  it("Showroom mounts the scoped existing register with only one header", () => {
-    renderApp("/operation?tab=showroom");
-    expect(screen.getByTestId("stock-register-stub")).toHaveAttribute("data-showroom", "true");
-    expectOneHeader();
-  });
-
-  it("?tab=stock-plan keeps its route and loses the slim bar", () => {
-    renderApp("/operation?tab=stock-plan");
-    expect(screen.getByTestId("stock-plan-stub")).toBeInTheDocument();
-    expectOneHeader();
-  });
-
-  it("?tab=movements keeps its route and loses the slim bar", () => {
-    renderApp("/operation?tab=movements");
-    expect(screen.getByTestId("movements-stub")).toBeInTheDocument();
-    expectOneHeader();
-  });
-
-  it("the dashboard draws the one shell header too — one rule for every surface", () => {
-    renderApp("/operation?tab=dashboard");
-    expectOneHeader();
-  });
-
-  /* THE TWO SCHEDULES (owner ruling 2026-09-14). Each draws its own 50px
-     Destination Header, so neither may sit under the slim bar. */
-  it("?tab=warehouse-arrival-schedule mounts the ARRIVAL board with no slim bar", () => {
-    renderApp("/operation?tab=warehouse-arrival-schedule");
-    expect(screen.getByTestId("schedule-stub")).toHaveAttribute("data-direction", "arrival");
-    expectOneHeader();
-  });
-
-  it("?tab=warehouse-pickup-schedule mounts the PICKUP board with no slim bar", () => {
-    renderApp("/operation?tab=warehouse-pickup-schedule");
-    expect(screen.getByTestId("schedule-stub")).toHaveAttribute("data-direction", "pickup");
-    expectOneHeader();
-  });
-
-  it("renders exactly ONE board — the two branches can never both match", () => {
-    renderApp("/operation?tab=warehouse-pickup-schedule");
-    expect(screen.getAllByTestId("schedule-stub")).toHaveLength(1);
-  });
-});
-
-/**
- * THE RETIRED WAREHOUSE CALENDAR ADDRESSES (owner ruling 2026-09-14).
- *
- * `Monitor` is gone as a Warehouse page, but the addresses an operator
- * bookmarked are not allowed to go with it. Both land on Arrival Schedule AND
- * keep the `date` and `site` they were bookmarked with — a redirect that drops
- * the day is a redirect to the wrong day, which is worse than a 404 because it
- * looks like it worked.
- */
-describe("OperationApp — the retired Warehouse Calendar addresses", () => {
-  it.each(["warehouse-monitor", "warehouse-dashboard"])(
-    "?tab=%s lands on Arrival Schedule",
-    (tab) => {
-      renderApp(`/operation?tab=${tab}`);
-      expect(screen.getByTestId("schedule-stub")).toHaveAttribute(
-        "data-direction",
-        "arrival",
-      );
-      expectOneHeader();
-    },
-  );
-
-  it("keeps the bookmarked date and Site", () => {
-    renderApp("/operation?tab=warehouse-monitor&date=2026-09-17&site=wh-9");
-    expect(screen.getByTestId("schedule-stub")).toBeInTheDocument();
-    const at = screen.getByTestId("location-probe").textContent ?? "";
-    expect(at).toContain("date=2026-09-17");
-    expect(at).toContain("site=wh-9");
-  });
-});
-
-/**
- * PURCHASE DEMANDS — the newest BUY destination
- * (CARD-2026-08-20-purchase-demands).
- *
- * The Register draws the Purchasing Destination Header itself, so the slim
- * global bar must be suppressed exactly as it is for its five siblings — the
- * same defect Manual Purchase shipped with in August.
- */
-/**
- * CARD-2026-08-22-purchasing-02 — the separate Purchase Demands page is RETIRED.
- * `purchase_demand` is hidden canonical truth, not a destination
- * (`docs/purchasing/MASTER.md` §4), and its useful capability now lives inside
- * SO Batch Purchase. The old address REDIRECTS: a bookmark an operator saved
- * must land somewhere that answers the same question, not on a 404.
- */
-describe("OperationApp — the retired Purchase Demands address", () => {
-  it("?tab=purchase-demands lands on SO Batch Purchase", () => {
-    renderApp("/operation?tab=purchase-demands");
-    expect(screen.getByTestId("to-order-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("purchase-demands-stub")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
-  });
-
-  it("a saved link with the old rail parameters still lands on the buying page", () => {
-    renderApp("/operation?tab=purchase-demands&state=no_supplier,no_sku");
-    expect(screen.getByTestId("to-order-stub")).toBeInTheDocument();
-  });
-
-  it("SO Batch Purchase suppresses the global bar — one header, not two", () => {
-    renderApp("/operation?tab=purchase");
-    expectOneHeader();
-  });
-
-  it("the legacy /operation/purchasing address lands on SO Batch Purchase, never the old dashboard", () => {
-    /* Owner ruling 2026-09-28 (Purchasing §9.1): the address rendered the old
-       Operation dashboard and its banned words. It now redirects. */
-    renderApp("/operation/purchasing");
-    expect(screen.getByTestId("to-order-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation?tab=purchase");
-  });
-
-  it("SO Batch Purchase mounts its own page at its own address", () => {
-    renderApp("/operation?tab=purchase");
-    expect(screen.getByTestId("to-order-stub")).toBeInTheDocument();
-    expect(screen.queryByTestId("purchase-demands-stub")).not.toBeInTheDocument();
-  });
-});
-
-/**
- * ⭐ THE OLD PAYMENTS URL LEADS TO THE CANONICAL EXPERIENCE (2026-09-09).
- *
- * `?tab=payments` mounted the Master-Sheet "Balance" collections desk — its
- * own Summary band, its own queue chips, its own editable balance and
- * storage-fee fields — for the whole time the approved read-only Register was
- * live at `/finance/payments`. Two forms for one act make two records
- * (`docs/ERP-ARCHITECTURE.md` ownership Law C), so the desk is deleted and the
- * address forwards. A bookmark is not a reason to keep a duplicate; it is a
- * reason to make the old address land.
- */
-describe("OperationApp — the retired Payments desk", () => {
-  it("?tab=payments leads to the Payments Monitor — the collection desk (2026-09-12)", () => {
-    renderApp("/operation?tab=payments");
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/finance/monitor");
-  });
-
-  it("a scoped bookmark keeps its order", () => {
-    renderApp("/operation?tab=payments&so=1319");
-    expect(screen.getByTestId("location-probe")).toHaveTextContent(
-      "/finance/monitor?order=1319",
-    );
-  });
-
-  it("nothing of the desk is left to render", () => {
-    renderApp("/operation?tab=payments");
-    expect(screen.queryByTestId("dashboard-stub")).not.toBeInTheDocument();
-  });
-});
-
-describe("OperationApp — the phone shell (owner review 2026-09-25, round 2)", () => {
-  function phoneMedia(matches: boolean) {
-    const previous = window.matchMedia;
-    Object.defineProperty(window, "matchMedia", {
-      configurable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: matches && query === "(max-width: 767px)",
-        media: query, onchange: null,
-        addEventListener: vi.fn(), removeEventListener: vi.fn(),
-        addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
-      })),
-    });
-    return () => Object.defineProperty(window, "matchMedia", { configurable: true, value: previous });
-  }
-
-  it("below 768px: no Tasks card, the sidebar waits behind Menu, and a chosen page closes it", () => {
-    const restore = phoneMedia(true);
-    try {
-      renderApp("/operation?tab=dashboard");
-      expect(screen.queryByTestId("right-rail-stub")).toBeNull();
-      expect(screen.queryByTestId("shell-tasks-stub")).toBeNull();
-      const drawer = screen.getByTestId("phone-menu");
-      expect(drawer.className).toContain("-translate-x-full");
-      fireEvent.click(screen.getByTestId("phone-menu-button"));
-      expect(drawer.className).toContain("translate-x-0");
-      expect(screen.getByTestId("phone-menu-backdrop")).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId("phone-menu-backdrop"));
-      expect(drawer.className).toContain("-translate-x-full");
-    } finally {
-      restore();
-    }
-  });
-
-  /* RETIRED: "opens the shared Calendar on phone…". Calendar left the shell
-     (owner ruling 2026-10-08: the right side is the Tasks panel only), so the
-     phone bar has no Calendar door. It keeps the Tasks door. */
-  it("on phone the bar keeps the Tasks door and has no Calendar door", () => {
-    const restore = phoneMedia(true);
-    try {
-      renderApp("/operation?tab=dashboard");
-      expect(screen.getByTestId("phone-tasks-door")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /^Calendar$/ })).toBeNull();
-    } finally {
-      restore();
-    }
-  });
-
-  it("from 768px: the menu column, ONE shell header and the Tasks card, no Quick Rail, no Menu", () => {
-    const restore = phoneMedia(false);
-    try {
-      renderApp("/operation?tab=dashboard");
-      expect(screen.getByTestId("shell-tasks-stub")).toBeInTheDocument();
-      // The Quick Rail (Calendar · Tasks · Activity) is replaced by the Tasks card.
-      expect(screen.queryByTestId("right-rail-stub")).toBeNull();
-      expect(screen.queryByTestId("phone-menu-button")).toBeNull();
-      expect(screen.getByTestId("sidebar-stub")).toBeInTheDocument();
-      // » expands the left sidebar in place; there is no Menu Drawer.
-      expect(screen.queryByRole("dialog", { name: "Menu" })).toBeNull();
-      expectOneHeader();
-    } finally {
-      restore();
-    }
-  });
-});
-
-
-describe("Staff & Duties relocation", () => {
-  it("preserves an old exact-duty bookmark at the canonical Settings destination", () => {
-    renderApp("/operation?tab=staff-duties&duty=grn_duty&source=work");
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation/settings/staff-duties?duty=grn_duty&source=work");
-    expect(screen.getByTestId("settings-stub")).toBeVisible();
-    expectOneHeader();
-  });
-  it("does not duplicate the destination's utility header", () => {
-    renderApp("/operation/settings/staff-duties");
-    expect(screen.getByTestId("settings-stub")).toBeVisible();
-    expectOneHeader();
-    expect(screen.getByTestId("shell-title")).toHaveTextContent("Settings/Staff & Duties");
-  });
-});
-
-
-it.each([false,true])("Manual Purchase route forwards the explicit context composition flag %s",enabled=>{
- renderApp("/operation?tab=manual-purchase",enabled);
- expect(screen.getByTestId("manual-purchase-stub")).toHaveAttribute("data-context-flow",String(enabled));
-});
-
-it("production caller with no context opt-in remains on legacy composition",()=>{
- renderApp("/operation?tab=manual-purchase");
- expect(screen.getByTestId("manual-purchase-stub")).toHaveAttribute("data-context-flow","false");
 });

@@ -121,7 +121,7 @@ vi.mock('../../vendor/scm/lib/payment-request-queries', async (importOriginal) =
   },
 }));
 vi.mock('../../vendor/scm/lib/payment-voucher-queries', () => ({
-  useExtractBills: () => ({ mutateAsync: extractAsync, isPending: false }),
+  useExtractBills: () => ({ mutateAsync: (input: unknown) => extractAsync(Array.isArray(input) ? input : (input as { bills: unknown }).bills), isPending: false }),
   useExtractRequestBill: () => ({ mutateAsync: extractRequestAsync, isPending: false }),
   fileToBase64: async (f: File) => `b64:${f.name}`,
   PV_FILE_ACCEPT: 'image/jpeg,image/png,image/webp,application/pdf',
@@ -512,6 +512,8 @@ describe('a payment request answered by a bill (?fromRequest=, owner 2026-09-30 
         notes: 'Payment request HC-PRQ-2609-001 — Booth F1 rental',
         lines: [{ description: 'BOOTH F1 RENTAL 50%', debitAccountCode: '900-A001', amountSen: 800_000, projectId: 348 }],
         paymentRequestId: 'prq-1',
+        /* One key per opened form (fix/failed-save-looks-ok). */
+        idempotencyKey: expect.any(String),
       });
     } finally {
       requestDetail = undefined;
@@ -613,7 +615,7 @@ describe('Supplier bills — the redesign', () => {
       draw();
       expect(screen.getByRole('tab', { name: /Credit notes/ }).textContent).toBe('Credit notes 1');
       /* The posted purchase invoice still owes: sand. The draft bill does not. */
-      expect(tr('2990-PI-2607-005').style.backgroundColor).toBe('rgb(252, 247, 236)');
+      expect(tr('2990-PI-2607-005').getAttribute('style') ?? '').toMatch(/#fcf7ec|252, 247, 236/);
       expect(tr('2990-API-2609-001').style.backgroundColor).toBe('');
       fireEvent.click(screen.getByRole('tab', { name: /Credit notes/ }));
       expect(screen.queryByText('2990-PI-2607-005')).toBeNull();

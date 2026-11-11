@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { assrBoardUnionSql, assrLegGuardSql } from "../src/scm/lib/assr-board-scope";
+import { assrBoardUnionSql, assrLegGuardSql, assrBoardLegs, assrLegOpen } from "../src/scm/lib/assr-board-scope";
 import { assrCompanySql } from "../src/routes/assr";
 
 /* THE DELIVERY PLANNING BOARD MUST NOT SHOW ANOTHER COMPANY'S SERVICE CASE.
@@ -106,5 +106,94 @@ describe("Delivery Planning board — scheduling a Service Case is scoped too", 
   test("unresolved company context does not blank the guard", () => {
     // A single-company install (or a cold start) must still be able to schedule.
     expect(assrLegGuardSql(ctx(undefined))).not.toContain("1=0");
+  });
+});
+
+/* A leg Logistics marks Delivered on the board (owner 2026-11-06) carries its own
+   actual_* date, so the leg shows DELIVERED while the CASE stays open — closure
+   is a separate ASSR-module action and never fires from a board mark. */
+const legCase = (o: Partial<Parameters<typeof assrBoardLegs>[0]> = {}) => ({
+  stage: null,
+  pickup_by: null, pickup_pic: null, customer_pickup_at: null, actual_pickup_at: null, sched_pickup_date: null, pickup_cancelled_at: null,
+  inspection_by: null, inspection_visit_at: null, sched_inspection_date: null, actual_inspection_at: null, inspection_cancelled_at: null,
+  delivery_by: null, do_date: null, sched_delivery_date: null, actual_delivery_at: null, delivery_cancelled_at: null,
+  ...o,
+});
+
+describe("Delivery Planning board — a board-marked Delivered leg is DELIVERED with the case still open", () => {
+  test("delivery leg: actual_delivery_at makes it DELIVERED even though caseClosed is false", () => {
+    const legs = assrBoardLegs(legCase({ delivery_by: "own", do_date: "2026-11-01", actual_delivery_at: "2026-11-06" }), false);
+    expect(legs.find((l) => l.jobKind === "delivery")?.state).toBe("DELIVERED");
+  });
+
+  test("delivery leg without an actual date is not Delivered: confirmed => PENDING_DELIVERY, request-only => PENDING_SCHEDULE", () => {
+    const confirmed = assrBoardLegs(legCase({ delivery_by: "own", sched_delivery_date: "2026-11-10" }), false);
+    expect(confirmed.find((l) => l.jobKind === "delivery")?.state).toBe("PENDING_DELIVERY");
+    const requested = assrBoardLegs(legCase({ delivery_by: "own", do_date: "2026-11-10" }), false);
+    expect(requested.find((l) => l.jobKind === "delivery")?.state).toBe("PENDING_SCHEDULE");
+  });
+
+  test("own inspection leg: actual_inspection_at makes it DELIVERED", () => {
+    const legs = assrBoardLegs(legCase({ inspection_by: "own", inspection_visit_at: "2026-11-01", actual_inspection_at: "2026-11-06" }), false);
+    expect(legs.find((l) => l.jobKind === "inspection")?.state).toBe("DELIVERED");
+  });
+
+  test("a CANCELLED leg is dropped from the board entirely (owner 2026-11-06)", () => {
+    // Delivery leg cancelled → no delivery row at all, even though it has a date.
+    const cancelled = assrBoardLegs(legCase({ delivery_by: "own", do_date: "2026-11-10", delivery_cancelled_at: "2026-11-06" }), false);
+    expect(cancelled.find((l) => l.jobKind === "delivery")).toBeUndefined();
+    // The pickup leg of the SAME case is unaffected — cancel is leg-only.
+    const mixed = assrBoardLegs(legCase({
+      pickup_by: "customer", customer_pickup_at: "2026-11-08",
+      delivery_by: "own", do_date: "2026-11-10", delivery_cancelled_at: "2026-11-06",
+    }), false);
+    expect(mixed.find((l) => l.jobKind === "customer_pickup")).toBeDefined();
+    expect(mixed.find((l) => l.jobKind === "delivery")).toBeUndefined();
+  });
+
+  test("the union selects the per-leg actual + cancelled columns the row builder reads", () => {
+    const sql = assrBoardUnionSql(ctx([1]), SINCE);
+    expect(sql).toContain("actual_inspection_at");
+    expect(sql).toContain("actual_delivery_at");
+    expect(sql).toContain("pickup_cancelled_at");
+    expect(sql).toContain("delivery_cancelled_at");
+  });
+});
+
+/* Regression (owner 2026-11-10): a case can reach Pending Delivery/Service (e.g. a
+   delivery was booked for items taken back) while a NEW inspection is scheduled for
+   the future. The board used to call that inspection done purely from the stage, so
+   it showed Delivered AND the leg could not be given a driver (the write 404'd).
+   An inspection scheduled today-or-later with no actual visit must stay a live,
+   writable PENDING leg. A past-dated / already-visited inspection stays done. */
+describe("Delivery Planning board — an upcoming inspection past the inspection stage is not Delivered/locked", () => {
+  const TODAY = "2026-11-10";
+  const pds = { stage: "pending_delivery_service", inspection_by: "own" as const };
+
+  test("future inspection date at pending_delivery_service stays a PENDING leg", () => {
+    const legs = assrBoardLegs(legCase({ ...pds, sched_inspection_date: "2026-11-11" }), false, TODAY);
+    expect(legs.find((l) => l.jobKind === "inspection")?.state).toBe("PENDING_DELIVERY");
+  });
+
+  test("a PAST inspection date at the same stage is still DELIVERED (no regression)", () => {
+    const legs = assrBoardLegs(legCase({ ...pds, sched_inspection_date: "2026-11-01" }), false, TODAY);
+    expect(legs.find((l) => l.jobKind === "inspection")?.state).toBe("DELIVERED");
+  });
+
+  test("without a board date the legacy stage-only behaviour holds (still DELIVERED)", () => {
+    const legs = assrBoardLegs(legCase({ ...pds, sched_inspection_date: "2026-11-11" }), false);
+    expect(legs.find((l) => l.jobKind === "inspection")?.state).toBe("DELIVERED");
+  });
+
+  test("assrLegOpen: an upcoming inspection is writable; a past / done / dateless one is locked", () => {
+    const base = { stage: "pending_delivery_service", actual_pickup_at: null, closed_at: null, status: "In Progress" };
+    // Scheduled for tomorrow, no actual visit → writable (the fix).
+    expect(assrLegOpen({ ...base, sched_inspection_date: "2026-11-11", actual_inspection_at: null }, "inspection", TODAY)).toBe(true);
+    // Scheduled in the past, no actual stamp → done by stage, locked.
+    expect(assrLegOpen({ ...base, sched_inspection_date: "2026-11-01", actual_inspection_at: null }, "inspection", TODAY)).toBe(false);
+    // Already visited → locked even if a stale future date lingers.
+    expect(assrLegOpen({ ...base, sched_inspection_date: "2026-11-11", actual_inspection_at: "2026-11-09" }, "inspection", TODAY)).toBe(false);
+    // No board date (legacy caller) → stage-only lock.
+    expect(assrLegOpen({ ...base, sched_inspection_date: "2026-11-11", actual_inspection_at: null }, "inspection")).toBe(false);
   });
 });

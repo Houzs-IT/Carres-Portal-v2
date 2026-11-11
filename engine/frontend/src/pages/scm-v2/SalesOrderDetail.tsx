@@ -37,7 +37,7 @@ import { SkeletonDetailPage } from '../../vendor/scm/components/Skeleton';
 import {
   useMfgSalesOrderDetail,
   useUpdateMfgSalesOrderHeader,
-  useUpdateMfgSalesOrderStatus,
+  useUpdateMfgSalesOrderStatus, useOverrideSoLock,
   useAddMfgSalesOrderItem,
   useUpdateMfgSalesOrderItem,
   useDeleteMfgSalesOrderItem,
@@ -97,6 +97,7 @@ import { DocumentRelationshipMapModal, DocumentChoiceDialog } from '../../compon
 import { useSoRelationshipMap } from './so-relationship-map';
 import { useConfirm } from '../../vendor/scm/components/ConfirmDialog';
 import { SoLockBanner } from './SoLockBanner';
+import { SaveFailedBanner } from './SaveFailedBanner';
 import { soAfterDoMode, soPriceAfterDoOn, afterDoEditableLine, afterDoHeaderFields, afterDoEditFields, afterDoAddFields, afterDoCopyProblem, type AfterDoSave } from '../../vendor/scm/lib/so-after-do-client';
 import { useNotify } from '../../vendor/scm/components/NotifyDialog';
 import { StatusPill } from '../../vendor/scm/components/StatusPill';
@@ -160,6 +161,7 @@ import {
 } from './so-version-conflict';
 import { RevisionsTab } from './so-revisions-tab';
 import styles from './SalesOrderDetail.module.css';
+import { DetailLoadFailure } from './DetailLoadFailure';
 import { PriceAfterDoModal } from './PriceAfterDoModal';
 import { DateField } from "../../vendor/scm/components/DateField";
 import { HoldChip } from "../../vendor/scm/components/HoldChip";
@@ -168,6 +170,8 @@ import { useDiscardDraftAction } from "./use-discard-draft-action";
 
 import { ADD_LINE_LABEL } from '../../vendor/scm/lib/add-line-handoff';
 import { useAddLineHandoff } from '../../vendor/scm/lib/useAddLineHandoff';
+import { FormTouchScope } from '../../components/FormTouchScope';
+import { useFormTouched, useLeaveGuard } from '../../hooks/useLeaveGuard';
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 const SM_ICON = { size: 14, strokeWidth: 1.75 } as const;
 
@@ -185,7 +189,7 @@ const LOCK_BANNER_INNER_STYLE: CSSProperties = {
 const VARIANT_WARN_BANNER_STYLE: CSSProperties = {
   background: 'rgba(184, 51, 31, 0.08)',
   border: '1px solid var(--c-festive-b, #B8331F)',
-  color: 'var(--c-festive-b, #B8331F)',
+  color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
   padding: 'var(--space-3) var(--space-4)',
   borderRadius: 'var(--radius-md)',
   fontSize: 'var(--fs-13)',
@@ -194,7 +198,7 @@ const VARIANT_WARN_LIST_STYLE: CSSProperties = { marginTop: 4, fontSize: 'var(--
 const DATES_XOR_WARN_STYLE: CSSProperties = {
   background: 'rgba(184, 51, 31, 0.08)',
   border: '1px solid var(--c-festive-b, #B8331F)',
-  color: 'var(--c-festive-b, #B8331F)',
+  color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
   padding: '4px var(--space-2)',
   borderRadius: 'var(--radius-sm)',
   fontSize: 'var(--fs-11)',
@@ -513,7 +517,7 @@ export const SalesOrderDetail = () => {
   const addLineHandoff = useAddLineHandoff();  // top-level: see useAddLineHandoff
   const detail = useMfgSalesOrderDetail(docNo ?? null);
   const updateHeader = useUpdateMfgSalesOrderHeader();
-  const updateStatus = useUpdateMfgSalesOrderStatus();
+  const updateStatus = useUpdateMfgSalesOrderStatus(); const overrideLock = useOverrideSoLock(); // unlocks only when the server kept the reason
   const requestCancel = useCancelRequestAction('so');
   const deleteDraft = useDiscardDraftAction();
   const askConfirm = useConfirm();
@@ -671,6 +675,10 @@ export const SalesOrderDetail = () => {
   const [isEditing, setIsEditing] = useState(
     editSearchParams.get('edit') === '1',
   );
+  const { touched: formTouched, markTouched, resetTouched } = useFormTouched();
+  /* Only an edit session has anything to lose. Cancel and Save both drop
+     `?edit=1` on the same path, which the guard does not count as leaving. */
+  useLeaveGuard(isEditing && formTouched, null);
   /* Print preview — the HOOK must live above the isPending / isError early
      returns (owner 2026-08-07). It arrived at its call site further down
      (#1665), which sits PAST those returns: a cold page's first render bails
@@ -835,7 +843,7 @@ export const SalesOrderDetail = () => {
     const deliv = header?.customer_delivery_date ? String(header.customer_delivery_date).slice(0, 10) : '';
     return {
       isEdit: true, hasVenue: true, hasSalesperson: true, fillAddressLater: false, companyCode: null, salesLocation: '', payments: [], ...customerCardRef.current?.fairDayKeys(),
-      phone: customerCardRef.current?.getPhone() ?? header?.phone, debtorName: header?.debtor_name,
+      phone: customerCardRef.current?.getPhone() ?? header?.phone, origPhone: header?.phone ?? '', debtorName: header?.debtor_name,
       address1: header?.address1, postcode: header?.postcode, customerState: header?.customer_state,
       items: editedDraftGroups.map((d) => ({ itemCode: d.itemCode, itemGroup: d.itemGroup, variants: d.variants, qty: d.qty })),
       origItemGroups: items.map((it) => it.item_group),
@@ -856,7 +864,7 @@ export const SalesOrderDetail = () => {
   const openEditBlockingList = () => {
     void notify({ title: saveProblemsTitle(editBlockingProblems.length), body: <SaveProblemsList problems={editBlockingProblems} />, tone: 'error' });
   };
-  const enterEdit  = () => { clearSaveFeedback(); setIsEditing(true); };
+  const enterEdit  = () => { clearSaveFeedback(); resetTouched(); setIsEditing(true); };
   const cancelEdit = () => {
     customerCardRef.current?.reset();
     clearSaveFeedback();
@@ -1182,7 +1190,7 @@ export const SalesOrderDetail = () => {
         method: 'POST',
         body: JSON.stringify({
           isEdit: true, hasVenue: true, hasSalesperson: true, fillAddressLater: false, companyCode: null, salesLocation: '', payments: [], ...handle.fairDayKeys(),
-          processingDate: '', customerDeliveryDate: '', phone: handle.getPhone(), debtorName: header?.debtor_name,
+          processingDate: '', customerDeliveryDate: '', phone: handle.getPhone(), origPhone: header?.phone ?? '', debtorName: header?.debtor_name,
           items: items.map((it) => ({ itemCode: it.item_code, itemGroup: it.item_group, variants: {}, qty: it.qty })),
           origItemGroups: items.map((it) => it.item_group),
         }),
@@ -1599,10 +1607,7 @@ export const SalesOrderDetail = () => {
           <ArrowLeft {...ICON} />
           <span>Back</span>
         </Link>
-        <div className={styles.bannerWarn}>
-          <strong>Sales order not found.</strong>
-          {detail.error instanceof Error ? ` ${detail.error.message}` : null}
-        </div>
+        <DetailLoadFailure noun="Sales order" error={detail.isError ? detail.error : null} onRetry={() => void detail.refetch()} retrying={detail.isFetching} />
       </div>
     );
   }
@@ -1829,6 +1834,7 @@ export const SalesOrderDetail = () => {
     /* Commander 2026-05-29 — a CANCELLED SO greys the whole page so it reads
        as dead/inactive. The Cancel/Reopen buttons + banner stay clickable
        (a CSS filter doesn't block pointer events). */
+    <FormTouchScope onTouch={markTouched}>
     <div className="space-y-4" style={isCancelled ? { filter: 'grayscale(0.7)' } : undefined}>
       {/* ── Header (shared PageHeader — full-bleed, design-system) ── */}
       <PageHeader back beforeBack={guardUnsavedPayments}
@@ -1941,7 +1947,7 @@ export const SalesOrderDetail = () => {
             {!isCancelled && canCancel && !isEditing ? (
               <Button variant="ghost"
                 onClick={handleCancelSo} disabled={updateStatus.isPending}
-                style={{ color: 'var(--c-festive-b, #B8331F)' }}>
+                style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>
                 <Ban {...ICON} />
                 <span>Request cancellation</span>
               </Button>
@@ -1994,12 +2000,7 @@ export const SalesOrderDetail = () => {
 
       {/* PR-A — Inline error from the page-level Save. Cleared on Edit /
           Cancel / next successful Save. */}
-      {saveError && (
-        <div className={styles.bannerWarn}>
-          <strong>Save failed.</strong>
-          <span>{saveError}</span>
-        </div>
-      )}
+      {saveError && <SaveFailedBanner message={saveError} className={styles.bannerWarn} />}
 
       {versionConflict && (
         <SoVersionConflictBanner
@@ -2059,7 +2060,7 @@ export const SalesOrderDetail = () => {
             <Button variant="ghost"
               onClick={handleDiscardDraft}
               disabled={deleteDraft.isPending || updateStatus.isPending}
-              style={{ color: 'var(--c-festive-b, #B8331F)' }}>
+              style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>
               <Trash2 {...ICON} />
               <span>{deleteDraft.isPending ? 'Discarding…' : 'Discard draft'}</span>
             </Button>
@@ -2082,7 +2083,7 @@ export const SalesOrderDetail = () => {
 
       {/* ── Lock banner + the DEV-32 after-DO notice ───────────── */}
       <SoLockBanner status={header.status} cancelled={isCancelled} migratedReason={migratedLocked ? soMigratedReason(header) : null} overridden={unlockOverride}
-        onOverride={() => { updateStatus.mutate({ docNo: header.doc_no, status: header.status, expectedStatus: header.status }); setUnlockOverride(true); }}
+        onOverride={(reason) => overrideLock.mutate({ docNo: header.doc_no, status: header.status, reason }, { onSuccess: () => setUnlockOverride(true) })}
         onRelock={() => setUnlockOverride(false)} afterDo={afterDo} afterDoTargetId={afterDoTargetId} onPickTarget={setAfterDoTargetId} />
 
       {/* ── Amendment-mode banner (Phase 1-C) ─────────────────────────
@@ -2298,7 +2299,7 @@ export const SalesOrderDetail = () => {
                        (matches this page's Save gate + the backend), so the ` *`
                        marker + red ring stay off on a no-date draft (owner
                        2026-07-14). */
-                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} seedSofaLegDefault={true}
+                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} specLockedReason={null} seedSofaLegDefault={true}
                     attachOptions={attachOptionsById[it.id] ?? null}
                   />
                 </div>
@@ -2324,7 +2325,7 @@ export const SalesOrderDetail = () => {
                     onChange={cb?.onChange ?? ((patch) => patchAddingDraft(staged.key, patch))}
                     onRemove={cb?.onRemove ?? (() => cancelAddLine(staged.key))}
                     canRemove={true} chargeOnly={chargeAdds}
-                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} seedSofaLegDefault={true}
+                    variantsRequired={requireVariants} lineDateLocked={!requireVariants} specLockedReason={null} seedSofaLegDefault={true}
                     attachOptions={attachOptionsById[staged.key] ?? null}
                   />
                 </div>
@@ -2443,7 +2444,7 @@ export const SalesOrderDetail = () => {
                             {typeof it.remaining_qty === 'number' && (
                               <div style={{
                                 fontSize: 'var(--fs-11)', marginTop: 1,
-                                color: it.remaining_qty > 0 ? 'var(--c-festive-b, #B8331F)' : 'var(--c-secondary-a, #2F5D4F)',
+                                color: it.remaining_qty > 0 ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--c-secondary-a, #2F5D4F)',
                               }}>
                                 {it.remaining_qty > 0 ? `Balance ${it.remaining_qty}` : 'Fully delivered'}
                               </div>
@@ -2562,7 +2563,7 @@ export const SalesOrderDetail = () => {
             <img
               src={header.signature_b64}
               alt="Customer signature captured at handover"
-              style={{ maxWidth: 360, width: '100%', height: 'auto', border: '1px solid var(--c-line, #E5E1DC)', borderRadius: 8, background: '#fff' }}
+              style={{ maxWidth: 360, width: '100%', height: 'auto', border: '1px solid var(--c-line, #E5E1DC)', borderRadius: 8, background: 'var(--hz-c-surface)' }}
             />
           </div>
         </section>
@@ -2692,6 +2693,7 @@ export const SalesOrderDetail = () => {
       />
       {submitDialog.element}
     </div>
+    </FormTouchScope>
   );
 };
 
@@ -3710,7 +3712,7 @@ const ScannedImageCard = ({
       </header>
       <div className={styles.cardBody}>
         {error ? (
-          <div style={{ color: 'var(--c-festive-b, #B8331F)', fontSize: 13 }}>
+          <div style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))', fontSize: 13 }}>
             Couldn&apos;t load the scanned image. {error}
           </div>
         ) : src ? (
@@ -3718,7 +3720,7 @@ const ScannedImageCard = ({
             <img
               src={src}
               alt={alt}
-              style={{ maxWidth: 360, width: '100%', height: 'auto', border: '1px solid var(--c-line, #E5E1DC)', borderRadius: 8, background: '#fff', cursor: 'zoom-in' }}
+              style={{ maxWidth: 360, width: '100%', height: 'auto', border: '1px solid var(--c-line, #E5E1DC)', borderRadius: 8, background: 'var(--hz-c-surface)', cursor: 'zoom-in' }}
             />
           </a>
         ) : (
@@ -3837,7 +3839,7 @@ const OverridePriceModal = ({
               <span className={styles.fieldLabel}>Δ vs current</span>
               <span className={styles.fieldInput} style={{
                 display: 'inline-flex', alignItems: 'center', height: 32,
-                color: delta < 0 ? 'var(--c-festive-b, #B8331F)' : 'var(--c-burnt)',
+                color: delta < 0 ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--c-burnt)',
               }}>
                 {delta >= 0 ? '+' : ''}{fmtRm(delta, currency)} ({deltaPct.toFixed(1)}%)
               </span>
@@ -3956,7 +3958,7 @@ const SupplierConfirmForm = ({
   return (
     <div style={{
       marginTop: 'var(--space-2)', padding: 'var(--space-3)',
-      background: '#fff', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)',
+      background: 'var(--hz-c-surface)', border: '1px solid var(--line)', borderRadius: 'var(--radius-md)',
     }}>
       <div className={styles.formGrid4}>
         <label className={styles.field} style={{ gridColumn: 'span 2' }}>
@@ -4009,7 +4011,7 @@ const changeTypeLabel = (t: string): string =>
 const strikeIf = (changed: boolean): CSSProperties | undefined =>
   changed ? { textDecoration: 'line-through', opacity: 0.7 } : undefined;
 const emphasiseIf = (changed: boolean): CSSProperties | undefined =>
-  changed ? { fontWeight: 700, color: '#2F55E0' } : undefined;
+  changed ? { fontWeight: 700, color: 'var(--hz-c-primary-ink)' } : undefined;
 
 /* The responsible department(s) for a row's changed atoms — de-duplicated, for
    the amendment diff modal's Dept column (accountability routing). */

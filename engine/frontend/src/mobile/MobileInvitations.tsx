@@ -19,9 +19,9 @@ import { useNotify } from "../vendor/scm/components/NotifyDialog";
 import type { Invitation } from "../types";
 
 const SMALL_BTN: CSSProperties = {
-  border: "1px solid #bcdcd7",
-  background: "#DCE6FD",
-  color: "#1B1B39",
+  border: "1px solid var(--hz-dk-primary-line, #bcdcd7)",
+  background: "var(--hz-c-primary-soft)",
+  color: "var(--hz-c-primary)",
   fontSize: 11.5,
   fontWeight: 700,
   borderRadius: 8,
@@ -30,8 +30,8 @@ const SMALL_BTN: CSSProperties = {
 
 const DANGER_BTN: CSSProperties = {
   border: "1.5px solid #f0d4d4",
-  background: "#fff",
-  color: "#b23a3a",
+  background: "var(--hz-c-surface)",
+  color: "var(--hz-c-err)",
   fontSize: 11.5,
   fontWeight: 700,
   borderRadius: 8,
@@ -186,7 +186,7 @@ export function MobileInvitations() {
             style={{
               transform: open ? "rotate(90deg)" : "none",
               transition: "transform .15s",
-              color: "var(--ink3, #6B7280)",
+              color: "var(--ink3, var(--hz-c-ink-muted))",
             }}
           >
             ›
@@ -199,7 +199,11 @@ export function MobileInvitations() {
           {q.isLoading && <div className="ph" style={{ height: 40, borderRadius: 8, marginTop: 8 }} />}
           {!q.isLoading && !!q.error && (
             <div className="empty-s" style={{ padding: "10px 0" }}>
-              Couldn't load invitations. Pull to refresh to try again.
+              Couldn't load invitations.{" "}
+              <button type="button" disabled={q.isFetching} onClick={() => void q.refetch()}
+                style={{ background: "none", border: "none", padding: 0, color: "var(--brand)", font: "inherit", fontWeight: 700, cursor: "pointer" }}>
+                {q.isFetching ? "Retrying…" : "Retry"}
+              </button>
             </div>
           )}
           {!q.isLoading && !q.error && invites.length === 0 && (
@@ -258,7 +262,7 @@ export function MobileInvitations() {
                   gap: 6,
                   marginTop: 4,
                   fontSize: 11.5,
-                  color: "var(--ink3, #6B7280)",
+                  color: "var(--ink3, var(--hz-c-ink-muted))",
                 }}
               >
                 {inv.role_name && <span className="badge b-brand">{inv.role_name}</span>}

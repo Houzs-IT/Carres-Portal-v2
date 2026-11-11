@@ -20,6 +20,7 @@ import {
 import { idempotentInit } from '../../../lib/idempotency';
 import type { EventSuggestion } from './event-queries';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
+import { runAiRead, runOneAiRead, type AiReadStage } from './ai-read-job';
 
 // baseQuery is a custom-hook factory — only ever called from use* hooks below.
 // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -45,8 +46,18 @@ export type PaymentVoucherRow = Record<string, unknown> & {
   currency?: string;
   exchange_rate?: string | number | null;
   credit_account_code?: string;
-  /** The header's Notes, as Finance typed them — the list shows them (owner 2026-10-14). */
+  /** The Remark (stored as notes): what Finance typed beside the voucher (owner
+      2026-10-14: Notes; 2026-11-08: Description; 2026-11-09: Remark — the Description
+      is now what the bills say, description_text). */
   notes?: string | null;
+  /** The Description: what is paid for, as the bills say it — an AP payment's invoices'
+      lines, else its own lines, else its requests' purposes, else the remark; never the
+      bill number (owner 2026-11-09; server: payment-vouchers-describe.ts). */
+  description_text?: string;
+  /** The bank it pays into: its own fields, else its request's, else its supplier's. */
+  pay_bank?: string | null;
+  pay_account_no?: string | null;
+  pay_account_name?: string | null;
   supplier?: { id: string; code: string; name: string } | null;
   /* The owner's four layers (2026-09-02). No marks: raw Draft. submitted:
      Prepared (still editable). checked: locked, on Daily Bank's pending.
@@ -93,6 +104,23 @@ export const usePaymentVouchers = (opts: { status?: string; q?: string; counts?:
     retry: retryUnlessClientError,
     retryDelay: 800,
     enabled: opts.enabled ?? true,
+  });
+};
+
+/** The Payment listing (owner 2026-11-08): the vouchers dated up to `to` (and
+    from `from`) at the stages asked, oldest first — whole, never cut short. */
+export type PaymentListingStage = 'DRAFT' | 'PREPARED' | 'CHECKED' | 'POSTED' | 'CANCELLED';
+export type PaymentListingRow = PaymentVoucherRow & { stage: PaymentListingStage };
+export const usePaymentListing = (q: { from: string; to: string; stages: PaymentListingStage[] }) => {
+  const params = new URLSearchParams({ to: q.to, stages: q.stages.join(',') });
+  if (q.from) params.set('from', q.from);
+  return useQuery({
+    queryKey: ['payment-listing', q.from, q.to, q.stages.join(',')],
+    queryFn: () => authedFetch<{ vouchers: PaymentListingRow[]; from: string | null; to: string; stages: PaymentListingStage[] }>(`/payment-vouchers/listing?${params.toString()}`),
+    staleTime: 30_000,
+    retry: retryUnlessClientError,
+    retryDelay: 800,
+    enabled: q.stages.length > 0,
   });
 };
 
@@ -143,6 +171,25 @@ export const useUpdatePaymentVoucher = () => {
       void qc.invalidateQueries({ queryKey: ['payment-voucher-detail', vars.id] });
       void qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
       void qc.invalidateQueries({ queryKey: ['finance-todo'] });
+    },
+  });
+};
+
+/* A voucher's words and the bank it pays into, until it is approved (owner
+   2026-11-06: 有时我要改 description; 2026-11-09: 可以，开放). The bank rides only
+   when it was changed. */
+export const useUpdatePvText = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: {
+      id: string; notes: string; lines: Array<{ id: string; description: string }>;
+      payToBankName?: string | null; payToAccountNo?: string | null; payToAccountName?: string | null;
+    }) =>
+      authedFetch<{ paymentVoucher: Record<string, unknown> }>(`/payment-vouchers/${id}/text`, { method: 'PATCH', body: JSON.stringify(body) }),
+    onSuccess: (_d, vars) => {
+      void qc.invalidateQueries({ queryKey: ['payment-voucher-detail', vars.id] });
+      void qc.invalidateQueries({ queryKey: ['payment-vouchers'] });
+      void qc.invalidateQueries({ queryKey: ['payment-listing'] });
     },
   });
 };
@@ -312,21 +359,34 @@ export const fileToBase64 = (f: File): Promise<string> => new Promise((resolve, 
   r.readAsDataURL(f);
 });
 
-export const useExtractBills = () => useMutation({
-  mutationFn: (bills: Array<{ files: Array<{ name: string; mime: string; dataBase64: string }> }>) =>
-    authedFetch<{ bills: ExtractedBill[] }>(`/payment-vouchers/extract`, {
-      method: 'POST', body: JSON.stringify({ bills }),
+/* On the scan queue (2026-11-11): one job per bill, polled, so the page can
+   show each bill waiting, being read, read or failed. A bill whose read failed
+   is that bill's answer (ok: false), never the batch's. */
+type BillsToRead = Array<{ files: Array<{ name: string; mime: string; dataBase64: string }> }>;
+export async function extractBills(
+  bills: BillsToRead, onStage: ((index: number, stage: AiReadStage) => void) | null,
+): Promise<{ bills: ExtractedBill[] }> {
+  const read = await runAiRead<{ bills: ExtractedBill[] }>('/payment-vouchers/extract', { bills }, onStage);
+  return {
+    bills: read.map((r, index): ExtractedBill => {
+      if (!r.ok) return { index, ok: false, reason: r.error.message };
+      const got = r.body.bills.at(0);
+      return got ? { ...got, index } : { index, ok: false, reason: 'The reader sent nothing back — read it again.' };
     }),
+  };
+}
+
+export const useExtractBills = () => useMutation({
+  mutationFn: (input: BillsToRead | { bills: BillsToRead; onStage: (index: number, stage: AiReadStage) => void }) =>
+    Array.isArray(input) ? extractBills(input, null) : extractBills(input.bills, input.onStage),
 });
 
 /* The bill a payment request carries, read when Finance opens the voucher or
    AP invoice that answers it (owner 2026-09-30, 6.2): the server reads the
    request's own files, so nothing is uploaded twice. No bill → `bills: []`. */
-export const useExtractRequestBill = () => useMutation({
+export const useExtractRequestBill = (onStage: ((stage: AiReadStage) => void) | null = null) => useMutation({
   mutationFn: (requestId: string) =>
-    authedFetch<{ bills: ExtractedBill[] }>(`/payment-vouchers/extract`, {
-      method: 'POST', body: JSON.stringify({ fromRequest: requestId }),
-    }),
+    runOneAiRead<{ bills: ExtractedBill[] }>('/payment-vouchers/extract', { fromRequest: requestId }, onStage),
 });
 
 /* ── PV attachments (2026-09-03) — the bill LIVES with its voucher. Before

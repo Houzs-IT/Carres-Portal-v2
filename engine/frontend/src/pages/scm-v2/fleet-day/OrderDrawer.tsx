@@ -10,6 +10,9 @@ import { useDeliveryRemarks, useAddRemark } from '../../../vendor/scm/lib/delive
 import { useMoveStop } from '../../../vendor/scm/lib/trips-queries';
 import { DoProofOfDeliveryCard, type DoPodFields } from '../DoProofOfDeliveryCard';
 import type { LorryRunVM, DocRowVM } from './vm';
+import { issueKeysOf } from './AllOrders';
+import { DeliveryIssuesCard } from '../../../components/scm-v2/DeliveryIssuesCard';
+import { issuesForRow, runKeysOf, useRunDeliveryIssues } from '../../../vendor/scm/lib/delivery-issue-queries';
 
 /** Dispatch / customer-service remarks thread for one order (phase 3). */
 function RemarksSection({ soDocNo }: { soDocNo: string }) {
@@ -65,7 +68,7 @@ function RemarksSection({ soDocNo }: { soDocNo: string }) {
 
 const STATUS_PILL: Record<string, { label: string; cls: string }> = {
   done: { label: 'Delivered', cls: 'bg-synced-bg text-synced' },
-  active: { label: 'On the way', cls: 'bg-[#e6eaf4] text-learning' },
+  active: { label: 'On the way', cls: 'bg-[color:var(--hz-dk-surface-2,#e6eaf4)] text-learning' },
   overdue: { label: 'Late', cls: 'bg-err-bg text-err' },
   scheduled: { label: 'Not started', cls: 'bg-surface-dim text-ink-muted' },
 };
@@ -175,6 +178,9 @@ export function OrderDrawer({
 }) {
   const pod = useDoPod(doc?.latestLiveDoId ?? null);
   const pill = doc ? STATUS_PILL[doc.status] : null;
+  const issueKeys = doc ? issueKeysOf(doc) : null;
+  const issuesQ = useRunDeliveryIssues(runKeysOf(issueKeys ? [issueKeys] : []), !!doc);
+  const issues = issueKeys ? issuesForRow(issuesQ.data, issueKeys) : [];
 
   return (
     <ResizableDetailDrawer open={!!doc} onClose={onClose} ariaLabel="Delivery order detail">
@@ -185,11 +191,12 @@ export function OrderDrawer({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-[11px] font-semibold text-accent">{doc.rowType === 'so' ? doc.soDocNo : (doc.codeLine || doc.soDocNo)}</span>
-                {doc.jobLabel && <span className="rounded bg-[#e6eaf4] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-brand text-learning">{doc.jobLabel}</span>}
+                {doc.jobLabel && <span className="rounded bg-[color:var(--hz-dk-surface-2,#e6eaf4)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-brand text-learning">{doc.jobLabel}</span>}
               </div>
               <div className="mt-1 truncate text-[19px] font-bold text-ink">{doc.customer || '—'}</div>
               <div className="mt-1 flex items-center gap-2">
                 {pill && <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${pill.cls}`}>{pill.label}</span>}
+                {issues.length > 0 && <span className="rounded-full bg-err-bg px-2 py-0.5 text-[10.5px] font-bold text-err">With issue</span>}
                 {doc.late && doc.lateReason && <span className="text-[11.5px] text-err">{doc.lateReason}</span>}
               </div>
             </div>
@@ -230,6 +237,9 @@ export function OrderDrawer({
                 )}
               </div>
             </div>
+
+            {/* What the crew reported at POD ("Delivered with issue") + its Service Case. */}
+            <DeliveryIssuesCard issues={issues} showDo />
 
             {/* change lorry (phase 3b) — SO deliveries only; a non-SO job is
                 scheduled + crewed in its own module (DP / PMS / ASSR), not moved

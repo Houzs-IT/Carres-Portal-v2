@@ -13,6 +13,8 @@ export type PiReviewLine = {
   grnNumber: string | null;
   qty: number;
   suggested: boolean;
+  // Tied by the AI: the row says "AI match, please check". Older copies carry no flag.
+  ai?: boolean;
   read: { itemCode: string | null; description: string | null; qty: number; unitPrice: number | null; lineTotal: number | null } | null;
 };
 export type PiReview = {
@@ -24,8 +26,42 @@ export type PiReview = {
   doNo: string | null;
   poNo: string | null;
   notes: string | null;
+  taxNote: string | null;
+  // Copies read before 2026-11-10 carry no tier.
+  lineTier?: 'invoice_po' | 'whole_receipt' | null;
   lines: PiReviewLine[];
 };
+
+/* Mirrors the backend's pi-scan-match docRefsOf: "EX-HC-PO-2609-151" (HOOKKA
+   INV-2610-097) is an exchange, a replacement for HC-PO-2609-151. */
+const EXCHANGE_MARK = /^(?:EXCH|EX)(?:\s*-\s*|\s+)(?=[A-Z0-9])/i;
+
+/** The PO refs printed, without an exchange mark, and those the invoice marks as exchange. */
+export function poRefs(poNo: string | null): { refs: string[]; exchange: string[] } {
+  const printed = (poNo ?? '').split(/[,;&\n]|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+  const bare = (s: string) => s.replace(EXCHANGE_MARK, '').trim();
+  return { refs: printed.map(bare).filter(Boolean), exchange: printed.filter((s) => EXCHANGE_MARK.test(s)).map(bare).filter(Boolean) };
+}
+
+/** Which receipt lines the scan matched against, for the operator: the PO
+ *  printed on the invoice, or every unbilled line of the receipt when none of
+ *  that PO's lines matched, and what an exchange mark on the PO means. null when
+ *  there is nothing to say. */
+export function lineTierNote(review: Pick<PiReview, 'lineTier' | 'poNo'>): string | null {
+  const { refs, exchange } = poRefs(review.poNo);
+  const named = refs.length > 0 ? refs.join(', ') : review.poNo;
+  const said = review.lineTier === 'invoice_po' ? `Matched to the lines of ${named} printed on the invoice.`
+    : review.lineTier === 'whole_receipt' ? `No line of ${named} printed on the invoice matched, so the scan matched against every unbilled line of the receipt. Check which PO each line bills.`
+    : null;
+  const ex = exchange.length > 0 ? `The invoice marks ${exchange.join(', ')} as exchange (EX): replacement goods for those orders.` : null;
+  return [said, ex].filter(Boolean).join(' ') || null;
+}
+
+/** A row printed at RM 0: a replacement or a free gift, nothing to bill. */
+export function isFreeRow(read: PiReviewLine['read']): boolean {
+  return read != null && (read.unitPrice === 0 || (read.unitPrice == null && read.lineTotal === 0));
+}
+export const FREE_ROW_NOTE = 'Free on the invoice (RM 0): a replacement / exchange, nothing to bill — tie it only if it really bills a receipt line.';
 export type PiCheckDoc = {
   id: string;
   batchId: string | null;
@@ -100,23 +136,44 @@ export function priceDiffers(printed: number | null | undefined, unitPriceSen: n
   return printed != null && Math.abs(Math.round(printed * 100) - unitPriceSen) >= 1;
 }
 
-/** The two amounts to tie off: what the invoice charges for the rows it printed,
- *  and what those rows come to at our price. A row tied to no receipt line has no
- *  price of ours, so `ours` is null until every printed row is tied. */
-export function piAmounts(review: PiReview, lines: ReadonlyMap<string, BillLine>): { invoiceSen: number | null; oursSen: number | null } {
-  const rows = review.lines.filter((l) => l.read);
-  const printed = rows.map((l) => {
+/** The amounts to tie off. `invoiceSen` is what the invoice charges for every
+ *  row it printed. `oursSen` is the rows tied to a receipt line at our price, and
+ *  `matchedInvoiceSen` what the invoice charges for those same rows, so the two
+ *  compare like for like while some rows are still untied (`unmatched`). A row
+ *  printed at RM 0 bills nothing: it counts on neither side and is not "not matched". */
+export function piAmounts(review: PiReview, lines: ReadonlyMap<string, BillLine>): { invoiceSen: number | null; oursSen: number | null; matchedInvoiceSen: number | null; unmatched: number } {
+  const printedOf = (l: PiReviewLine): number | null => {
     const r = l.read;
     if (r?.lineTotal != null) return Math.round(r.lineTotal * 100);
     return r?.unitPrice != null ? Math.round(r.unitPrice * 100 * l.qty) : null;
-  });
-  const invoiceSen = rows.length > 0 && printed.every((v) => v != null) ? printed.reduce<number>((a, v) => a + v, 0) : null;
-  const ours = review.lines.map((l) => {
+  };
+  const sum = (vs: Array<number | null>): number | null => {
+    /* A row printed with no price is a free gift (Diglant's GWP pillow): it adds nothing,
+       it does not leave the invoice without an amount. */
+    const priced = vs.filter((v): v is number => v != null);
+    return priced.length > 0 ? priced.reduce((a, v) => a + v, 0) : null;
+  };
+  const invoiceSen = sum(review.lines.filter((l) => l.read).map(printedOf));
+  const billing = review.lines.filter((l) => !isFreeRow(l.read));
+  const tied = billing.filter((l) => l.grnItemId && lines.get(l.grnItemId));
+  const oursSen = tied.length > 0 ? tied.reduce((a, l) => a + Math.round((lines.get(l.grnItemId as string) as BillLine).unitPriceSen * l.qty), 0) : null;
+  const matchedInvoiceSen = sum(tied.filter((l) => l.read).map(printedOf));
+  return { invoiceSen, oursSen, matchedInvoiceSen, unmatched: billing.length - tied.length };
+}
+
+/** The receipt side differs from what the invoice charges for the same rows. */
+export const piAmountsDiffer = (a: { oursSen: number | null; matchedInvoiceSen: number | null }): boolean =>
+  a.oursSen != null && a.matchedInvoiceSen != null && a.oursSen !== a.matchedInvoiceSen;
+
+/** Pieces on the paper and on the GRN lines chosen, for the card's total row. */
+export function piQtyTotals(review: PiReview, lines: ReadonlyMap<string, BillLine>): { qty: number; left: number } {
+  let qty = 0; let left = 0;
+  for (const l of review.lines) {
+    qty += l.qty;
     const line = l.grnItemId ? lines.get(l.grnItemId) : undefined;
-    return line ? Math.round(line.unitPriceSen * l.qty) : null;
-  });
-  const oursSen = ours.length > 0 && ours.every((v) => v != null) ? ours.reduce<number>((a, v) => a + v, 0) : null;
-  return { invoiceSen, oursSen };
+    if (line) left += line.remaining;
+  }
+  return { qty, left };
 }
 
 let seq = 0;

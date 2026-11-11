@@ -21,16 +21,20 @@ import { Hono, type Context } from 'hono';
 import { supabaseAuth } from '../middleware/auth';
 import type { Env, Variables } from '../env';
 import { scopeToAllowedCompanies, allowedCompaniesSql, allowedCompanyIds } from '../lib/companyScope';
-import { claimPodPhotos } from '../lib/pod-photo-claim';
-import { ASSR_LEG_BY_STOP } from './delivery-pod-context';
+import { claimPodPhotos, jobStopContext } from '../lib/pod-photo-claim';
+import { houzsUserIdOf, mytClock } from '../lib/crew-stop-complete';
+import { ASSR_LEG_BY_STOP, podPhotoResponse } from './delivery-pod-context';
 import { resolveDeliveryScope, scopeMatchesAssignment, type CrewAssignment } from '../lib/deliveryScope';
 import { ASSR_BOARD_LEGS } from '../lib/assr-board-scope';
 import { saveAttachment, logActivity, patchAssrCase, transitionStage } from '../../services/assr';
 import { setChecklistStatus, getUserPhasesOnProject } from '../../services/projects';
 import { sendCompletionSurvey } from '../../services/assrCompletionSurvey';
+import { todayMyt } from '../lib/my-time';
+import { paginateAll } from '../lib/paginate-all';
 
 type Ctx = Context<{ Bindings: Env; Variables: Variables }>;
-type SourceType = 'dp' | 'project' | 'assr';
+export const JOB_SOURCE_TYPES = ['dp', 'project', 'assr'] as const;
+type SourceType = (typeof JOB_SOURCE_TYPES)[number];
 
 const PROJECT_LEGS = ['SETUP', 'DISMANTLE'] as const;
 const MAX_PHOTOS = 10;
@@ -38,11 +42,13 @@ const MAX_PHOTOS = 10;
 export const deliveryJobProgress = new Hono<{ Bindings: Env; Variables: Variables }>();
 deliveryJobProgress.use('*', supabaseAuth);
 
-function parseJob(c: Ctx): { sourceType: SourceType; sourceId: string; leg: string } | { error: string } {
-  const sourceType = c.req.param('sourceType') as SourceType;
-  const sourceId = c.req.param('sourceId') ?? '';
-  const leg = c.req.param('leg') ?? '';
-  if (!['dp', 'project', 'assr'].includes(sourceType)) return { error: 'Unknown job type.' };
+export function parseJob(c: Ctx): { sourceType: SourceType; sourceId: string; leg: string } | { error: string } {
+  return parseJobParts(c.req.param('sourceType') ?? '', c.req.param('sourceId') ?? '', c.req.param('leg') ?? '');
+}
+
+export function parseJobParts(rawType: string, sourceId: string, leg: string): { sourceType: SourceType; sourceId: string; leg: string } | { error: string } {
+  const sourceType = rawType as SourceType;
+  if (!(JOB_SOURCE_TYPES as readonly string[]).includes(sourceType)) return { error: 'Unknown job type.' };
   if (!sourceId) return { error: 'Missing job id.' };
   if (sourceType === 'project' && !(PROJECT_LEGS as readonly string[]).includes(leg)) return { error: 'A project job is SETUP or DISMANTLE.' };
   if (sourceType === 'assr' && !(ASSR_BOARD_LEGS as readonly string[]).includes(leg)) return { error: 'A service case job is customer_pickup, inspection or delivery.' };
@@ -50,11 +56,18 @@ function parseJob(c: Ctx): { sourceType: SourceType; sourceId: string; leg: stri
   return { sourceType, sourceId, leg };
 }
 
-/* The id the /slips upload sessions are keyed on (slips.ts: c.get('user').id). */
-const staffIdOf = (c: Ctx): string | null => {
-  const id = (c.get('user') as { id?: unknown } | undefined)?.id;
-  return id == null ? null : String(id);
-};
+
+/* The crew share one stop, so the second person to finish is told who finished
+   it and when, not just "already completed". */
+async function alreadyCompleted(c: Ctx, cur: Record<string, unknown> | null) {
+  const by = cur?.completed_by == null ? null : (await userNamesById(c, [Number(cur.completed_by)]))[String(cur.completed_by)] || null;
+  const at = typeof cur?.completed_at === 'string' ? mytClock(cur.completed_at) : null;
+  return c.json({
+    error: 'already_completed',
+    reason: `This job was already completed${by ? ` by ${by}` : ''}${at ? ` at ${at}` : ''}.`,
+    completedBy: by, completedAt: cur?.completed_at ?? null, progress: cur,
+  }, 409);
+}
 
 const tripCrew = (t: Record<string, unknown> | null | undefined): CrewAssignment => ({
   driverIds: [(t?.driver_id as string | null) ?? null],
@@ -63,7 +76,7 @@ const tripCrew = (t: Record<string, unknown> | null | undefined): CrewAssignment
 
 /* The job's own row (for the context read and the write-backs) plus whether the
    caller may act on it, and the trip it rides when there is one. */
-async function loadJob(c: Ctx, sourceType: SourceType, sourceId: string, leg: string): Promise<
+export async function loadJob(c: Ctx, sourceType: SourceType, sourceId: string, leg: string): Promise<
   { ok: true; row: Record<string, unknown>; tripId: string | null; companyId: number | null }
   | { ok: false; status: 403 | 404 | 500; error: string; reason: string }
 > {
@@ -212,20 +225,36 @@ export async function startTripIfPlanned(sb: any, tripId: string | null): Promis
 /* GET /progress?since=YYYY-MM-DD — every job's progress touched since that day,
    so the run-sheet and the board can show On the way / Arrived / Done on
    non-DO rows without one read per row. Times and photo keys only, no party
-   data; the window is capped at 62 days. */
+   data; the window is capped at 62 days.
+   PAGED: a bare `.limit(5000)` is still cut at PostgREST's 1,000 rows, so past
+   ~22 legs a day over the 45-day window the oldest jobs silently lost their
+   Arrived / Done. `truncated` (over 50,000 legs) is refused, not hidden. */
+export async function loadJobProgressSince(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- scm-scoped supabase-js client
+  sb: any,
+  since: string,
+  companyIds: number[] | undefined,
+): Promise<{ ok: true; rows: Record<string, unknown>[] } | { ok: false; reason: string }> {
+  const { data, error, truncated } = await paginateAll<Record<string, unknown>>((from, to) => {
+    let q = sb.from('job_progress')
+      .select('source_type, source_id, leg, departed_at, arrived_at, completed_at, pod_photo_keys')
+      .gte('updated_at', since);
+    // The allowed companies, plus legs whose project / case carries no company (still the caller's run-sheet).
+    if (companyIds !== undefined) q = companyIds.length ? q.or(`company_id.in.(${companyIds.join(',')}),company_id.is.null`) : q.is('company_id', null);
+    return q.order('id').range(from, to);
+  });
+  if (error) return { ok: false, reason: error.message };
+  if (truncated) return { ok: false, reason: 'More job progress rows than one read can take; narrow the window.' };
+  return { ok: true, rows: data ?? [] };
+}
+
 deliveryJobProgress.get('/progress', async (c) => {
   const since = c.req.query('since') ?? '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(since)) return c.json({ error: 'invalid_since', reason: 'since must be YYYY-MM-DD.' }, 400);
-  const floor = new Date(Date.now() - 62 * 86400_000).toISOString().slice(0, 10);
-  let q = c.get('supabase').from('job_progress')
-      .select('source_type, source_id, leg, departed_at, arrived_at, completed_at, pod_photo_keys')
-      .gte('updated_at', since < floor ? floor : since);
-  // The allowed companies, plus legs whose project / case carries no company (still the caller's run-sheet).
-  const ids = allowedCompanyIds(c);
-  if (ids !== undefined) q = ids.length ? q.or(`company_id.in.(${ids.join(',')}),company_id.is.null`) : q.is('company_id', null);
-  const { data, error } = await q.limit(5000);
-  if (error) return c.json({ error: 'load_failed', reason: error.message }, 500);
-  return c.json({ progress: data ?? [] });
+  const floor = todayMyt(-62);
+  const r = await loadJobProgressSince(c.get('supabase'), since < floor ? floor : since, allowedCompanyIds(c));
+  if (!r.ok) return c.json({ error: 'load_failed', reason: r.reason }, 500);
+  return c.json({ progress: r.rows });
 });
 
 deliveryJobProgress.get('/:sourceType/:sourceId/:leg', async (c) => {
@@ -257,7 +286,7 @@ async function stamp(c: Ctx, step: 'depart' | 'arrive') {
   const byCol = step === 'depart' ? 'departed_by' : 'arrived_by';
   try {
     const cur = await readProgress(c, job.sourceType, job.sourceId, job.leg);
-    if (cur?.completed_at) return c.json({ error: 'already_completed', reason: 'This job is already completed.' }, 409);
+    if (cur?.completed_at) return await alreadyCompleted(c, cur);
     if (cur?.[atCol]) return c.json({ progress: cur });
     const { data, error } = await sb.from('job_progress').upsert({
       source_type: job.sourceType, source_id: job.sourceId, leg: job.leg,
@@ -305,9 +334,9 @@ deliveryJobProgress.post('/:sourceType/:sourceId/:leg/complete', async (c) => {
     : {};
   try {
     const cur = await readProgress(c, job.sourceType, job.sourceId, job.leg);
-    if (cur?.completed_at) return c.json({ error: 'already_completed', reason: 'This job is already completed.' }, 409);
-    // The photos must be this caller's uploads; claiming them also stops the slip reaper deleting them.
-    const claim = await claimPodPhotos(sb, c, staffIdOf(c), rawKeys);
+    if (cur?.completed_at) return await alreadyCompleted(c, cur);
+    // Any crew member's photos for THIS stop (loadJob admitted the caller to it); claiming also stops the reaper.
+    const claim = await claimPodPhotos(sb, c, { houzsUserId: houzsUserIdOf(c), stopContext: jobStopContext(job) }, rawKeys);
     if (!claim.ok) return c.json({ error: 'photo_not_accepted', reason: claim.reason }, 400);
     const photoKeys = claim.keys;
     if (!photoKeys.length) return c.json({ error: 'photo_required', reason: 'Take at least one POD photo before completing the job.' }, 400);
@@ -328,7 +357,7 @@ deliveryJobProgress.post('/:sourceType/:sourceId/:leg/complete', async (c) => {
       ...gps, updated_at: now,
     }).eq('source_type', key.source_type).eq('source_id', key.source_id).eq('leg', key.leg).is('completed_at', null).select('*');
     if (error) return c.json({ error: 'update_failed', reason: error.message }, 500);
-    if (!won?.length) return c.json({ error: 'already_completed', reason: 'This job is already completed.' }, 409);
+    if (!won?.length) return await alreadyCompleted(c, await readProgress(c, job.sourceType, job.sourceId, job.leg));
 
     try {
       await fileJobPhotos(c, job, loaded.row, photoKeys, me, 'completed by the crew');
@@ -445,7 +474,7 @@ deliveryJobProgress.post('/:sourceType/:sourceId/:leg/add-photos', async (c) => 
   const loaded = await loadJob(c, job.sourceType, job.sourceId, job.leg);
   if (!loaded.ok) return c.json({ error: loaded.error, reason: loaded.reason }, loaded.status);
   try {
-    const claim = await claimPodPhotos(c.get('supabase'), c, staffIdOf(c), rawKeys);
+    const claim = await claimPodPhotos(c.get('supabase'), c, { houzsUserId: houzsUserIdOf(c), stopContext: jobStopContext(job) }, rawKeys);
     if (!claim.ok) return c.json({ error: 'photo_not_accepted', reason: claim.reason }, 400);
     const photoKeys = claim.keys;
     if (!photoKeys.length) return c.json({ error: 'photo_required', reason: 'Choose at least one photo.' }, 400);
@@ -483,9 +512,7 @@ export async function streamPhoto(c: Ctx, key: string | undefined): Promise<Resp
   if (!key) return c.json({ error: 'not_found', reason: 'No such photo.' }, 404);
   const obj = await c.env.POD_BUCKET.get(key);
   if (!obj) return c.json({ error: 'not_found', reason: 'The photo file is missing from storage.' }, 404);
-  return new Response(obj.body, {
-    headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': 'private, max-age=300' },
-  });
+  return podPhotoResponse(obj);
 }
 
 /* The delivery-run POD of a stock transfer, for the Stock Transfer page (it sits
@@ -521,7 +548,11 @@ export const stockTransferDeliveryPhotoHandler = async (c: Ctx) => {
 
 /* Names of the people who tapped each step, keyed by public user id. */
 async function namesFor(c: Ctx, rows: Array<Record<string, unknown>>): Promise<Record<string, string>> {
-  const ids = [...new Set(rows.flatMap((r) => [r.departed_by, r.arrived_by, r.completed_by]).filter((v) => v != null).map(Number))];
+  return userNamesById(c, rows.flatMap((r) => [r.departed_by, r.arrived_by, r.completed_by]).filter((v) => v != null).map(Number));
+}
+
+export async function userNamesById(c: Ctx, rawIds: number[]): Promise<Record<string, string>> {
+  const ids = [...new Set(rawIds.filter((n) => Number.isSafeInteger(n)))];
   if (!ids.length) return {};
   // company-scope: staff names for ids already read from the caller's own job rows
   const res = await c.env.DB.prepare(`SELECT id, name FROM users WHERE id IN (${ids.map(() => '?').join(',')})`)

@@ -28,6 +28,7 @@ import { type RuleLine } from '../../acc/rules';
 import { requireLeafAccount } from './accounting-chart';
 import { readSoRefs } from '../lib/so-ref-lookup';
 import { chunkIn, paginateAll } from '../lib/paginate-all';
+import { noWriteUntilMarked, writesFromHere } from '../lib/no-write-refusal';
 
 type Row = Record<string, any>;
 
@@ -69,7 +70,7 @@ export const listReceiptsHandler = async (c: any): Promise<Response> => {
       .select('id, receipt_number, payer_name, receipt_date, bank_account_code, total_sen, status, notes'), 'receipt_date'), c)
       .order('receipt_number').range(from, to)),
     kind && kind !== 'DEBTOR' ? none : paginateAll<Row>((from, to) => scopeToCompany(windowed(sb.from('acc_debtor_receipts')
-      .select('id, receipt_number, receipt_date, bank_account_code, total_sen, status, debtor_id, submitted_at, checked_at, approved_at, debtor:acc_debtors(name)'), 'receipt_date'), c)
+      .select('id, receipt_number, receipt_date, bank_account_code, total_sen, status, debtor_id, submitted_at, checked_at, approved_at, debtor:acc_debtors(name, code)'), 'receipt_date'), c)
       .order('receipt_number').range(from, to)),
     kind && kind !== 'CUSTOMER' ? none : paginateAll<Row>((from, to) => scopeToCompany(windowed(sb.from('mfg_sales_order_payments')
       .select('id, so_doc_no, paid_at, method, amount_sen, is_deposit'), 'paid_at'), c)
@@ -124,7 +125,7 @@ export const listReceiptsHandler = async (c: any): Promise<Response> => {
     })),
     ...debtorRows.map((r) => ({
       kind: 'DEBTOR' as const, id: r.id, number: r.receipt_number, date: r.receipt_date,
-      payer: (r.debtor as Row | null)?.name ?? '(debtor)', moneyAccount: r.bank_account_code,
+      payer: (r.debtor as Row | null)?.name ?? '(debtor)', payerCode: (r.debtor as Row | null)?.code ?? null, moneyAccount: r.bank_account_code,
       totalSen: Number(r.total_sen ?? 0), status: r.status, debtorId: r.debtor_id,
       /* The four layers' marks — the list's stage (Draft, Prepared, Checked). */
       submittedAt: r.submitted_at ?? null, checkedAt: r.checked_at ?? null, approvedAt: r.approved_at ?? null,
@@ -193,6 +194,8 @@ export const createReceiptHandler = async (c: any): Promise<Response> => {
   const receiptDate = dateOrNull(body.receiptDate) ?? todayMyt();
   const totalSen = lines.reduce((s, l) => s + l.amountSen, 0);
 
+  /* Every refusal above only read, so it released the form's Idempotency-Key. */
+  writesFromHere(c);
   const receiptNumber = await mintMonthlyDocNo(sb, 'acc_receipts', 'receipt_number', `${companyDocPrefix(c)}OR-${docMonthTag(receiptDate)}`);
   const { data: receipt, error: insErr } = await sb.from('acc_receipts').insert({
     company_id: coId,
@@ -420,7 +423,7 @@ export const receipts = new Hono();
    service client. This router shipped without it and GET /receipts answered 500 to everyone. See docs/bugs/0648; tests/scmRouterBridge.test.ts pins it. */
 receipts.use('*', supabaseAuth);
 receipts.get('/', listReceiptsHandler);
-receipts.post('/', createReceiptHandler);
+receipts.post('/', noWriteUntilMarked, createReceiptHandler);
 receipts.post('/:id/void', voidReceiptHandler);
 receipts.get('/:id', getReceiptHandler);
 receipts.patch('/:id', updateReceiptHandler);

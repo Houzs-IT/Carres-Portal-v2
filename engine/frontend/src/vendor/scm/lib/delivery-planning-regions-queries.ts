@@ -20,6 +20,7 @@
 // is copied verbatim.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LOOKUP_CACHE } from './lookup-cache';
 import { authedFetch } from './authed-fetch';
 import { writeFailed } from './mutation-error';
 
@@ -57,7 +58,7 @@ export function useDeliveryPlanningRegions() {
     queryFn: () =>
       authedFetch<{ regions: RegionMasterRow[] }>('/delivery-planning-regions')
         .then((r) => r.regions),
-    staleTime: 60_000,
+    ...LOOKUP_CACHE,
   });
 }
 
@@ -79,7 +80,11 @@ export function useUpdateDeliveryPlanningRegion() {
       authedFetch<{ region: RegionMasterRow }>(`/delivery-planning-regions/${id}`, {
         method: 'PATCH', body: JSON.stringify(body),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: REGIONS_KEY }),
+    /* A renamed code changes which regions the state mapping points at, so refresh both. */
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: REGIONS_KEY });
+      void qc.invalidateQueries({ queryKey: STATES_KEY });
+    },
     onError: writeFailed,
   });
 }
@@ -111,7 +116,7 @@ export function useStateDeliveryRegions() {
     queryFn: () =>
       authedFetch<{ states: StateRegions[] }>('/delivery-planning-regions/states')
         .then((r) => r.states),
-    staleTime: 30_000,
+    ...LOOKUP_CACHE,
   });
 }
 

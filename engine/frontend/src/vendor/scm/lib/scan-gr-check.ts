@@ -41,7 +41,18 @@ export type CheckDoc = {
   repeatOf: string | null;
   blocked: string | null;
 };
-export type CheckPoLine = { poItemId: string; poNumber: string; supplierId: string | null; itemCode: string; supplierSku: string | null; spec?: string | null; warehouseId?: string | null; name: string | null; remaining: number; warehouse: string | null };
+/** What a card receives: only rows tied to a PO line or a gift reach the draft. */
+export const receiptItems = (r: { lines: ReadonlyArray<{ poItemId: string | null; gift: unknown; qty: number }> }): number =>
+  r.lines.reduce((sum, l) => sum + (l.poItemId || l.gift ? l.qty : 0), 0);
+
+/** One tint per warehouse, the same on every card. */
+export function warehouseTone(name: string, tones: number): number {
+  let h = 0;
+  for (const ch of name.toUpperCase()) h = (h * 31 + ch.charCodeAt(0)) % 1009;
+  return h % tones;
+}
+
+export type CheckPoLine = { poItemId: string; poNumber: string; supplierId: string | null; itemCode: string; supplierSku: string | null; spec?: string | null; colour?: string | null; warehouseId?: string | null; name: string | null; remaining: number; warehouse: string | null };
 export type CheckSupplier = { id: string; code: string | null; name: string | null };
 export type PendingResp = { success: boolean; data: { documents: CheckDoc[]; suppliers: CheckSupplier[]; poLines: CheckPoLine[] } };
 export type CreateResult = { id: string; ok: boolean; grnNumbers?: string[]; reason?: string; giftNote?: string | null };
@@ -112,10 +123,11 @@ export function skuOptions(lines: ReadonlyArray<CheckPoLine>, skus: ReadonlyArra
   const onPo = poNumber ? lines.filter((l) => l.poNumber === poNumber) : lines;
   const out: SkuOption[] = onPo.map((l) => ({
     value: `line:${l.poItemId}`,
-    label: l.supplierSku || l.itemCode,
+    // The line's colour beside the SKU, so a row tied to the wrong colour shows (HOOKKA DO-2611-035).
+    label: [l.supplierSku || l.itemCode, l.colour].filter(Boolean).join(' · '),
     detail: [l.supplierSku ? l.itemCode : null, l.spec, poNumber ? null : l.poNumber, `owed ${l.remaining}`].filter(Boolean).join(' · '),
     group: poNumber ? `Still owed on ${poNumber}` : 'Still owed on open POs',
-    search: `${l.supplierSku ?? ''} ${l.itemCode} ${l.name ?? ''} ${l.poNumber}`,
+    search: `${l.supplierSku ?? ''} ${l.itemCode} ${l.colour ?? ''} ${l.name ?? ''} ${l.poNumber}`,
   }));
   if (!poNumber) {
     const owed = new Set(lines.map((l) => l.itemCode));

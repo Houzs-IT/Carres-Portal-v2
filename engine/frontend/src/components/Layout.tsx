@@ -11,6 +11,7 @@ import { PullToRefresh, PullToRefreshGuardProvider } from "./PullToRefresh";
 import { RowActionsMenu, type MenuItem } from "./RowActionsMenu";
 import { useBranding } from "../hooks/useBranding";
 import { CompanyMark } from "./CompanyMark";
+import { whenPageChunksSettled } from "../lib/lazyPage";
 
 interface Props {
   children: ReactNode;
@@ -39,8 +40,15 @@ export function Layout({ children }: Props) {
   // which pushed initial JS to 131.5/130 KB gzip and failed the budget gate.
   // Nothing here is needed before first paint, so the table rides in its own
   // chunk, fetched on the same idle tick that uses it.
+  //
+  // AFTER the landing page's own chunks, not alongside them: each warmed route
+  // pulls its whole dependency list in parallel, and on a cold load that raced
+  // the page the user is opening for the same bandwidth (Hookka's /m preload
+  // lesson; requestIdleCallback alone did not prevent it, the main thread is
+  // idle while chunks download).
   useEffect(() => {
-    void import("../lib/prefetch-routes")
+    void whenPageChunksSettled()
+      .then(() => import("../lib/prefetch-routes"))
       .then((m) => m.prefetchTopRoutes())
       .catch(() => {});
   }, []);
@@ -205,10 +213,9 @@ interface PageHeaderProps {
    *
    *  This exists because react-router 6 can only block in-app navigation through
    *  `useBlocker`, which requires a DATA router; this app mounts a plain
-   *  `BrowserRouter` + `<Routes>`, so there is no generic blocker to hang a
-   *  guard on. Guarding the affordances a page actually owns is the honest
-   *  substitute — it is not the same thing, and the left nav / workspace tabs
-   *  remain unguarded. */
+   *  `BrowserRouter` + `<Routes>`. A form that holds lib/leaveGuard is asked
+   *  about on every exit (left nav and workspace tabs included) by
+   *  LeaveGuardBridge; this gate is for a page's own, more specific question. */
   beforeBack?: () => boolean | Promise<boolean>;
 }
 
@@ -298,7 +305,7 @@ export function PageHeader({
              content that would otherwise show through. */
         /* 2026-07-19 (fix/so-maintenance-403) — the sticky offsets were
            DESKTOP-ONLY correct. Below lg the chrome above us is MobileTopBar
-           (`sticky top-0 z-20 h-14`, 56 px), not TopNavbar (`sticky top-0 z-30
+           (`sticky top-0 z-20 h-14`, 56 px), not TopNavbar (`sticky top-0 z-40
            h-12`, 48 px). Parking at top-12 on every breakpoint left this header
            8 px INSIDE the mobile app bar, and z-20 TIED with it — a tie the
            later-painted element wins, so the pinned page header covered the

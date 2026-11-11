@@ -78,7 +78,8 @@ const HEX_RE = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g;
 // Directories/files where a raw hex is legitimate (no Tailwind at that layer).
 const HEX_ALLOW = [/(^|\/)index\.css$/, /design-standard/, /\/lib\/pdf\//, /\/pages\/print\//];
 // Pages that HAVE adopted the shell and must keep it (grows as pages migrate).
-const MUST_USE_SHELL = ["pages/operation/OperationOrdersControl.tsx"];
+// The page that first adopted the shell (OperationOrdersControl) was removed on 11 Nov 2026.
+const MUST_USE_SHELL = [];
 // PageHeader stays accepted for the pages that already use it; it is retired, and
 // components/retired-components.test.ts blocks any NEW importer (UI MASTER §0).
 const SHELL_IMPORT_RE = /from\s+["']@\/components\/(ListPageShell|PageHeader|kit\/PageShell)["']/;

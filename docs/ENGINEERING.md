@@ -54,6 +54,37 @@ from the browser to Supabase Auth. Everything after login goes through Hono with
 never in a committed `.env`, never referenced from `apps/web`, never logged, never in a
 response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must be 0.**
 
+### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
+
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`a1e33867c`**, run as its
+own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
+frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu: every Service Cases, Projects
+and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, in Houzs's order and words.
+Rule: the engine's screens match Houzs except the theme; Carres edits live only in `engine/frontend/src/carres/`,
+the files the commits below name, and the Carres config files.
+
+**The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
+the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription, Issue Tracker,
+Sales invoice lines, Settings); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
+values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still
+in the tree because Finance imports its shared components; no menu row or address opens it. Old Carres tables
+and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
+orders in the old order book (`OLD_ORDER_FLOWS`).
+
+**Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
+1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
+2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
+   Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:
+   keep the Carres light, print and dark values there (the recolour script does not touch channel triplets).
+3. Re-apply the Carres edits: `git diff <recoloured old import> origin/main -- engine/` with `git apply --3way`.
+   The first import (`f6e9ca924`) itself changed 16 files (Carres wrangler settings, dev fallbacks to
+   localhost); check they survived. **Check both `wrangler.toml` files name the Carres account, buckets and
+   URLs, never Houzs's** — a conflict there once reverted to Houzs's production settings.
+4. Copy Houzs `backend/src/db/migrations-pg/*.sql` newer than the last copied one into
+   `engine/backend/scripts/carres-db/migrations/` as the next `11xx_<original name>`, verbatim.
+   Build a throwaway database from that folder (PGlite) before merging; the owner applies them to the
+   engine database with `engine/backend/scripts/carres-db/apply.mjs`.
+
 ---
 
 ## 3 · RLS performance — three rules that are not optional
@@ -143,8 +174,14 @@ Draft  →  review business impact  →  commit the exact file  →  merge-ready
 
 ## 6 · Deployment
 
-**Authoritative automation (2026-08-13):** `.github/workflows/ci.yml` owns PR checks and
-The same workflow has a manual `diagnose_schedule` mode for read-only verification: it reads the
+**Authoritative automation (2026-08-13):** `.github/workflows/ci.yml` owns PR checks. Since 11 Nov 2026
+its checks run side by side on separate machines (it took 25 minutes in one job): `checks` (migration law,
+guards, types, build, bundle-secret grep), `web-tests` in 4 Vitest shards, `server-tests` (api in 2
+shards, plus shared), `kit` (Playwright browser cached). **`verify` is the one check to wait for**: it
+passes only when every check the PR needs passed. `scope` decides what a PR needs (engine-only,
+api-only, or all); it must never pipe into `grep -q` — under the runner's `pipefail` that SIGPIPEd on
+large PRs and skipped their web tests while CI stayed green.
+The deploy workflow has a manual `diagnose_schedule` mode for read-only verification: it reads the
 registered schedules and observes scheduled outcomes/exceptions for 95 seconds, without deploying.
 It uses its own concurrency group so diagnostics do not block production delivery. HTTP request
 payloads and credentials are not printed or uploaded. No observed event means execution remains

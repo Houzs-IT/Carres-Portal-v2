@@ -58,6 +58,8 @@ import { LinePoRefLink } from "../../vendor/scm/components/LinePoRefLink";
 import { ADD_LINE_LABEL, addLineHref } from "../../vendor/scm/lib/add-line-handoff";
 import { useAuth } from "../../auth/AuthContext";
 import { canPostGoodsReceipts } from "../../auth/salesAccess";
+import { supplierEmailList } from "../../vendor/shared/supplier-emails";
+import { FlowDocFilesCard } from "../../vendor/scm/components/FlowDocFilesCard";
 type GrnStatus = "DRAFT" | "POSTED" | "CANCELLED" | string;
 
 type GrnHeader = HoldFields & {
@@ -554,7 +556,7 @@ function GoodsReceivedDetailV2ReadOnly() {
         return (
           <div className="min-w-0">
             <div className="font-mono text-[12px] text-ink">{text}</div>
-            {unplaced > 0 && <div className="text-[11px] text-amber-700">{unplaced} not on a rack</div>}
+            {unplaced > 0 && <div className="text-[11px] text-amber-700 dark:text-amber-300">{unplaced} not on a rack</div>}
           </div>
         );
       },
@@ -752,7 +754,7 @@ function GoodsReceivedDetailV2ReadOnly() {
                 <Field label="Supplier code" value={supplierCodeOf(grn)} mono />
                 <Field label="Contact" value={grn.supplier?.contact_person || "—"} muted={!grn.supplier?.contact_person} />
                 <Field label="Phone" value={formatPhone(grn.supplier?.phone) || "Not provided"} muted={!grn.supplier?.phone} mono={!!grn.supplier?.phone} />
-                <Field label="Email" value={grn.supplier?.email || "Not provided"} muted={!grn.supplier?.email} />
+                <Field label="Email" value={supplierEmailList(grn.supplier).join(", ") || "Not provided"} muted={supplierEmailList(grn.supplier).length === 0} />
                 <Field label="Address" value={grn.supplier?.address || "—"} muted={!grn.supplier?.address} />
               </div>
             </Section>
@@ -790,6 +792,7 @@ function GoodsReceivedDetailV2ReadOnly() {
                 emptyLabel="No line items"
               />
             </Section>
+            <FlowDocFilesCard kind="grn" docId={String(grn.id)} status={grn.status} />
           </DetailMain>
 
           <DetailAside>

@@ -41,14 +41,25 @@ import { fireEvent } from "@testing-library/dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authedFetch } = vi.hoisted(() => ({ authedFetch: vi.fn() }));
+const { authedFetch, listFieldPhotos } = vi.hoisted(() => ({ authedFetch: vi.fn(), listFieldPhotos: vi.fn() }));
 vi.mock("../vendor/scm/lib/authed-fetch", () => ({ authedFetch }));
 vi.mock("../vendor/scm/lib/dialog-service", () => ({ serviceNotify: vi.fn() }));
 /* Every delivery closes with a photo (2026-10-07), so each case attaches one;
-   the upload itself is stubbed and its key is what the payload must carry. */
+   the upload itself is stubbed and its key is what the payload must carry.
+   Photos upload the moment they are picked (FieldPhotos -> uploadFieldPhoto). */
 vi.mock("../vendor/scm/lib/slip", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../vendor/scm/lib/slip")>()),
-  uploadSlipFull: vi.fn(async () => ({ r2Key: "slips/2026/10/pod-test.jpg" })),
+  uploadFieldPhoto: vi.fn(async () => ({ r2Key: "slips/2026/10/pod-test.jpg" })),
+}));
+// The crew's photos already uploaded for this stop (the re-list after a reload).
+vi.mock("../vendor/scm/lib/crew-stop-photos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../vendor/scm/lib/crew-stop-photos")>()),
+  listCrewStopPhotos: (context: string) => listFieldPhotos(context),
+}));
+/* No network for the stamp's server clock in a unit test. */
+vi.mock("../lib/photoStamp", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/photoStamp")>()),
+  stampNow: vi.fn(async () => ({ at: new Date("2026-11-08T06:00:00Z"), source: "server" as const })),
 }));
 
 /* The confirm dialog names what is being lost and then lets the delivery close
@@ -125,6 +136,8 @@ const ctx2d = {
 
 beforeEach(() => {
   authedFetch.mockReset();
+  listFieldPhotos.mockReset();
+  listFieldPhotos.mockResolvedValue([]);
   authedFetch.mockResolvedValue({ deliveryOrder: { id: "do-uuid-1", status: "DELIVERED" } });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
     ctx2d as unknown as CanvasRenderingContext2D,
@@ -153,11 +166,13 @@ function sentBody(): Record<string, unknown> {
   return JSON.parse(String(init.body));
 }
 
-/** What the camera hands the screen: one JPEG on the photo input. */
-const attachPhoto = (container: HTMLElement) => {
+/** What the camera hands the screen: one JPEG on the photo input, then wait
+ *  until it shows as uploaded (it uploads on pick, before Confirm). */
+const attachPhoto = async (container: HTMLElement) => {
   const input = container.querySelector('input[type="file"]');
   if (!input) throw new Error("the photo input did not render");
   fireEvent.change(input, { target: { files: [new File(["jpeg"], "pod.jpg", { type: "image/jpeg" })] } });
+  await screen.findByText("Uploaded");
 };
 
 const pad = (container: HTMLElement): HTMLCanvasElement => {
@@ -180,7 +195,7 @@ describe("MobilePOD — the customer's signature reaches the payload", () => {
        and the payload are driven by the same flag, and a driver reads it. */
     expect(screen.getByText("Signed")).toBeTruthy();
 
-    attachPhoto(container);
+    await attachPhoto(container);
     fireEvent.click(screen.getByText("Confirm delivered →"));
 
     await waitFor(() => expect(authedFetch).toHaveBeenCalled());
@@ -208,7 +223,7 @@ describe("MobilePOD — the customer's signature reaches the payload", () => {
     expect(pad(container)).toBeTruthy();
     expect(screen.getByText("Ask the customer to sign above")).toBeTruthy();
 
-    attachPhoto(container);
+    await attachPhoto(container);
     fireEvent.click(screen.getByText("Confirm delivered →"));
 
     await waitFor(() => expect(authedFetch).toHaveBeenCalled());
@@ -229,7 +244,7 @@ describe("MobilePOD — the customer's signature reaches the payload", () => {
     fireEvent.click(screen.getByText("Clear & re-sign"));
     expect(screen.getByText("Ask the customer to sign above")).toBeTruthy();
 
-    attachPhoto(container);
+    await attachPhoto(container);
     fireEvent.click(screen.getByText("Confirm delivered →"));
 
     await waitFor(() => expect(authedFetch).toHaveBeenCalled());
@@ -240,8 +255,25 @@ describe("MobilePOD — the customer's signature reaches the payload", () => {
     /* The paper delivery note is signed by hand for now; its photo is the POD.
        A delivery confirmed with no photo would leave the DO with no evidence. */
     wrap();
+    // The re-list of photos uploaded before a reload finds none.
+    await waitFor(() => expect(screen.queryByText(/Checking for photos you already uploaded/)).toBeNull());
     fireEvent.click(screen.getByText("Confirm delivered →"));
     expect(await screen.findByText(/Take a POD photo first/)).toBeTruthy();
-    expect(authedFetch).not.toHaveBeenCalled();
+    // Nothing WRITTEN (the screen's reads, e.g. the DO's reported issues, may run).
+    const writes = (authedFetch.mock.calls as Array<[string, RequestInit | undefined]>).filter(([, init]) => init?.method && init.method !== "GET");
+    expect(writes).toEqual([]);
+  });
+
+  it("after a page reload, the photo uploaded before it comes back and goes with the delivery", async () => {
+    /* iOS often reloads the page when the camera opens. The photo had already
+       uploaded, so the server lists it for this DO and the driver does not
+       have to take it again. */
+    listFieldPhotos.mockResolvedValue([{ uploadSessionId: "s-old", r2Key: "slips/2026/11/before-reload.jpg", contentType: "image/jpeg", createdAt: "2026-11-10T01:00:00Z", uploadedBy: { id: 7, name: "Faslie" }, mine: true, canRemove: true }]);
+    wrap();
+    expect(await screen.findByText("Uploaded")).toBeTruthy();
+    expect(listFieldPhotos).toHaveBeenCalledWith("do:do-uuid-1");
+    fireEvent.click(screen.getByText("Confirm delivered →"));
+    await waitFor(() => expect(authedFetch).toHaveBeenCalled());
+    expect(sentBody().podKey).toBe("slips/2026/11/before-reload.jpg");
   });
 });

@@ -37,7 +37,7 @@ export type LorryCapacityRow = {
   delivery_revenue_sen: number;
   revenue_per_order_sen: number | null;
   revenue_per_trip_sen: number | null;
-  km: number;                          // GPS km in range (Velocity fixes)
+  km: number | null;                   // GPS km in range (Velocity fixes); null when km_incomplete
   running_cost_sen: number | null;     // km x RM/km; null when no rate set
 };
 
@@ -57,6 +57,8 @@ export type LorryCapacityResponse = {
   totals: LorryCapacityTotals;
   workingDays: number;
   range: { from: string; to: string; fleet: FleetFilter };
+  /** Why km and running cost are not given (range too long, or too many GPS fixes), else null. */
+  km_incomplete: string | null;
 };
 
 /* The dashboard. from/to are YYYY-MM-DD; fleet = all | internal | outsourced. */
@@ -84,7 +86,8 @@ export function useToggleLorryInHouse() {
         `/lorry-capacity/lorries/${id}/in-house`,
         { method: 'PATCH', body: JSON.stringify({ isInternal }) },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lorry-capacity'] }),
+    /* The flag is the lorry master's: the lorry lists and the overview read it too. */
+    onSuccess: () => Promise.all([['lorry-capacity'], ['lorries'], ['logistic-overview']].map((queryKey) => qc.invalidateQueries({ queryKey }))),
     onError: writeFailed,
   });
 }
@@ -98,6 +101,7 @@ export function useSetRepairDays() {
         `/lorry-capacity/lorries/${id}/repair-days`,
         { method: 'PUT', body: JSON.stringify({ from, to, days }) },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lorry-capacity'] }),
+    /* Repair days are workshop windows the overview's available days read as well. */
+    onSuccess: () => Promise.all([['lorry-capacity'], ['logistic-overview']].map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
 }

@@ -44,7 +44,7 @@ import { recordAi, requestAiTag, type AiUsageTag } from '../../services/aiUsage'
 // factored insert+audit core the interactive POST /:docNo/payments route uses.
 import { createDraftSalesOrder, recordSoPaymentRow } from './mfg-sales-orders';
 import { todayMyt } from '../lib/my-time';
-import { activeCompanyId, scopeToCompanyIdOrOpen } from '../lib/companyScope';
+import { activeCompanyId, scopeToCompany, scopeToCompanyIdOrOpen } from '../lib/companyScope';
 import { type ScanDocumentType, DEFAULT_SCAN_DOCUMENT_TYPE, coerceScanDocumentType } from '../lib/scan-document-type';
 import { jobToJson } from './scan-so-serialize';
 import { normalizePhone, fmtSen } from '../shared';
@@ -3130,11 +3130,14 @@ export async function findRecentSoForSlipSha(
   // HC-0117: "Discard draft" hard-deletes the SO but scan_jobs.so_doc_no keeps
   // pointing at it, so a re-scan of the same photo was refused as "already
   // created HC-SO-2610-210" for an order nobody could open. Only an SO that
-  // still exists counts as the original.
+  // still exists counts as the original. A CANCELLED one does not either: the
+  // content rule below already skips it, and staff re-scan a cancelled order's
+  // slip precisely to raise it again.
   const { data: soRows, error: soErr } = await svc
     .from('mfg_sales_orders')
     .select('doc_no')
-    .in('doc_no', [...new Set(jobDocs)]);
+    .in('doc_no', [...new Set(jobDocs)])
+    .neq('status', 'CANCELLED');
   if (soErr) throw new Error(soErr.message);
   const alive = new Set(((soRows as Array<Record<string, unknown>> | null) ?? [])
     .map((r) => (r.docNo ?? r.doc_no) as unknown));
@@ -4425,6 +4428,9 @@ export async function processScanQueueMessage(env: Env, jobId: string): Promise<
   const houzsUserId = huRaw != null && Number.isFinite(Number(huRaw)) ? Number(huRaw) : null;
   const coRaw = r.companyId ?? r.company_id;
   const companyId = coRaw != null && Number.isFinite(Number(coRaw)) ? Number(coRaw) : null;
+  // An AI read (ai-read-jobs.ts) rides { aiRead }, never { jobId }; coercing
+  // its type would mis-run it as an SO scan.
+  if (String(r.documentType ?? r.document_type ?? '').startsWith('AI_')) return;
   // Legacy rows predating the column read back null -> coerce to 'SO'.
   const documentType = coerceScanDocumentType(r.documentType ?? r.document_type);
 
@@ -4599,6 +4605,7 @@ scanSo.get('/jobs', async (c) => {
     .from('scan_jobs')
     .select('id, status, salesperson, so_doc_no, linked_doc_no, document_type, error, sample_id, duplicate_of, image_keys, created_at, updated_at')
     .eq('company_id', activeCompanyId(c))
+    .not('document_type', 'like', 'AI_%') // AI reads share the table; they are not scans
     .order('created_at', { ascending: false })
     .limit(20);
   if (rep) q = q.ilike('salesperson', ilikeExact(rep));
@@ -4625,10 +4632,11 @@ scanSo.get('/jobs/:id', async (c) => {
       /* non-Workers runtime (tests) — let the floating promise run */
     }
   });
-  const { data, error } = await svc
+  // Same company as the /jobs list: another company's job id answers 404.
+  const { data, error } = await scopeToCompany(svc
     .from('scan_jobs')
     .select('id, status, salesperson, so_doc_no, linked_doc_no, document_type, error, sample_id, duplicate_of, image_keys, created_at, updated_at')
-    .eq('id', id)
+    .eq('id', id), c)
     .limit(1)
     .maybeSingle();
   if (error) {
@@ -4753,40 +4761,22 @@ scanSo.post('/samples/:id/confirm', async (c) => {
   // directly (read live at extract time), so it still takes effect at once.
   if (acceptedAsIs) return c.json({ success: true });
 
-  // Fire-and-forget rule distillation — REGENERATES so_scan_rules for this
-  // rep (latest ≤50 of their corrected samples) AND the '__GLOBAL__' shared
-  // alias dictionary (latest ≤80 corrected samples across ALL reps). Both
-  // cheap-skip (<2 samples) without an API call, so firing on every confirm
-  // is safe. Sequential to keep it to one Anthropic call at a time. Never
-  // blocks/fails the confirm.
+  // Rule distillation from this correction — see runConfirmDistills. It goes
+  // on SCAN_QUEUE: three sequential Claude calls over up to 50-80 sample
+  // pairs outlive waitUntil's 30 s after the response, so the later ones were
+  // cut off (gap review G19). waitUntil stays only as the fallback when the
+  // queue is unbound or the send fails. Never blocks/fails the confirm.
   const rep = repGiven || normalizeRepKey((updated[0] as { salesperson?: string | null }).salesperson);
-  const distillCompanyName = (await getBranding(c.env)).companyName;
-  const distillUsage = { ...requestAiTag(c, 'scan_so_distill', CLAUDE_MODEL), waitUntil: null };
-  const distillPromise = (async () => {
-    if (rep && !isGlobalKey(rep)) {
-      try {
-        const r = await distillSalespersonRules(svc, c.env.ANTHROPIC_API_KEY, rep, distillCompanyName, distillUsage);
-        if (r.status === 'error') console.warn(`[scan-so distill] ${rep}: ${r.reason}`);
-      } catch (e) {
-        console.warn(`[scan-so distill] ${rep} threw:`, (e as Error).message);
-      }
-    }
+  const tag = requestAiTag(c, 'scan_so_distill', CLAUDE_MODEL);
+  if (c.env.SCAN_QUEUE) {
     try {
-      const g = await distillGlobalAliases(svc, c.env.ANTHROPIC_API_KEY, distillCompanyName, distillUsage);
-      if (g.status === 'error') console.warn(`[scan-so distill] __GLOBAL__ aliases: ${g.reason}`);
+      await c.env.SCAN_QUEUE.send({ distill: { rep: rep || null, companyId: tag.companyId, userId: tag.userId } });
+      return c.json({ success: true });
     } catch (e) {
-      console.warn('[scan-so distill] __GLOBAL__ aliases threw:', (e as Error).message);
+      console.warn('[scan-so distill] queue send failed, distilling in waitUntil:', (e as Error).message);
     }
-    // Cross-rep shared RULES — regenerated on every confirm too (cheap-skips
-    // <3 samples without an API call) so each rep's correction lifts the
-    // shared baseline for everyone. Sequential; never blocks the confirm.
-    try {
-      const gr = await distillGlobalRules(svc, c.env.ANTHROPIC_API_KEY, distillCompanyName, distillUsage);
-      if (gr.status === 'error') console.warn(`[scan-so distill] __GLOBAL_RULES__: ${gr.reason}`);
-    } catch (e) {
-      console.warn('[scan-so distill] __GLOBAL_RULES__ threw:', (e as Error).message);
-    }
-  })();
+  }
+  const distillPromise = runConfirmDistills(c.env, svc, rep || null, { ...tag, waitUntil: null });
   try {
     c.executionCtx.waitUntil(distillPromise);
   } catch {
@@ -4795,3 +4785,50 @@ scanSo.post('/samples/:id/confirm', async (c) => {
 
   return c.json({ success: true });
 });
+
+/* Learn from one confirmed correction: REGENERATE so_scan_rules for this rep
+   (latest ≤50 of their corrected samples), the '__GLOBAL__' shared alias
+   dictionary (latest ≤80 across ALL reps) and the cross-rep shared RULES. Each
+   cheap-skips without an API call when the pool is too small, so running on
+   every confirm is safe. Sequential, one Anthropic call at a time; every step
+   is non-fatal. Runs in the SCAN_QUEUE consumer (index.ts queue()), which has
+   minutes, not waitUntil's 30 s. */
+export async function runConfirmDistills(
+  env: Env,
+  svc: SupabaseClient,
+  rep: string | null,
+  usage: AiUsageTag,
+): Promise<void> {
+  const companyName = (await getBranding(env)).companyName;
+  if (rep && !isGlobalKey(rep)) {
+    try {
+      const r = await distillSalespersonRules(svc, env.ANTHROPIC_API_KEY, rep, companyName, usage);
+      if (r.status === 'error') console.warn(`[scan-so distill] ${rep}: ${r.reason}`);
+    } catch (e) {
+      console.warn(`[scan-so distill] ${rep} threw:`, (e as Error).message);
+    }
+  }
+  try {
+    const g = await distillGlobalAliases(svc, env.ANTHROPIC_API_KEY, companyName, usage);
+    if (g.status === 'error') console.warn(`[scan-so distill] __GLOBAL__ aliases: ${g.reason}`);
+  } catch (e) {
+    console.warn('[scan-so distill] __GLOBAL__ aliases threw:', (e as Error).message);
+  }
+  try {
+    const gr = await distillGlobalRules(svc, env.ANTHROPIC_API_KEY, companyName, usage);
+    if (gr.status === 'error') console.warn(`[scan-so distill] __GLOBAL_RULES__: ${gr.reason}`);
+  } catch (e) {
+    console.warn('[scan-so distill] __GLOBAL_RULES__ threw:', (e as Error).message);
+  }
+}
+
+/** The SCAN_QUEUE consumer's half of a { distill } message. */
+export async function processDistillQueueMessage(
+  env: Env,
+  msg: { rep: string | null; companyId: number | null; userId: number | null },
+): Promise<void> {
+  await runConfirmDistills(env, serviceClient(env), msg.rep, {
+    env, feature: 'scan_so_distill', model: CLAUDE_MODEL,
+    companyId: msg.companyId, userId: msg.userId, waitUntil: null,
+  });
+}

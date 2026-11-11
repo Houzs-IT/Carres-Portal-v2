@@ -2,7 +2,8 @@
 // (accounting phase 2B; brief §3.5 layer 3). Every rule lives on the server;
 // these are transport only, so the page cannot drift from what actually posts.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authedFetch } from '../../vendor/scm/lib/authed-fetch';
 import { writeFailedAs } from '../../vendor/scm/lib/mutation-error';
 import { retryUnlessClientError } from '../../lib/retryPolicy';
@@ -107,6 +108,10 @@ export type SettlementRow = {
       Empty unless there is exactly ONE way to make this line amount. */
   suggested?: SettlementCandidate[];
   clue: string | null;
+  /** 'QR' for a DuitNow QR line (owner 2026-11-09: 0000PP 是 qr direct 去 bank
+      的，不算卡机的): its sale is keyed Online and already in the bank, so it is
+      linked, never posted. Null or absent: a card line. */
+  channel?: 'QR' | null;
 };
 
 /** One credit of a payout, as the BANK shows it. */
@@ -157,6 +162,10 @@ export type SettlementBatch = {
   /** Only on the batch DETAIL: which bank account this payout will be booked
       to for THIS company, and whether that was configured or fallen back to. */
   receiving_bank?: { code: string; name: string | null; configured: boolean };
+  /** The DuitNow QR lines the report carries and their money — in the bank by
+      their sales, so no part of gross / fee / net above (owner 2026-11-09). */
+  qr_count?: number;
+  qr_gross_sen?: number;
   status: string;
   uploaded_by: string | null;
   created_at: string;
@@ -320,9 +329,17 @@ export const useSettlementBatches = () => useQuery({
   retryDelay: 800,
 });
 
-export const useSettlementBatch = (batchId: number | null) => useQuery({
+/* HOW LONG A READ REPORT STAYS FRESH. It was 0, and the work list mounts one
+   detail per report: every return from a report to the list re-read every
+   report on it (one heavy request each), which is how two people made ~1,300
+   detail requests a day. A posting still refreshes the report it touched at
+   once (invalidateAfterPosting), and the report a person OPENS is always read
+   fresh (useSettlementBatch) — the "opening it refreshes it" of docs/bugs/0833.
+   What may be up to this old is another report's row on a list. */
+export const BATCH_DETAIL_STALE_MS = 5 * 60_000;
+
+const settlementBatchQuery = (batchId: number | null) => ({
   queryKey: ['settlement-batch', batchId],
-  enabled: batchId != null,
   queryFn: () => authedFetch<{
     batch: SettlementBatch;
     acquirer: { code: string; hasUniqueRef: boolean | null; dateToleranceDays: number };
@@ -331,10 +348,47 @@ export const useSettlementBatch = (batchId: number | null) => useQuery({
     /** Unconfirmed links re-read their payment as the report opens (docs/bugs/0833): what moved. */
     refreshedLinks?: RefreshedLink[];
   }>(`/accounting/settlement/batches/${batchId}`),
-  staleTime: 0,
+  staleTime: BATCH_DETAIL_STALE_MS,
   retry: retryUnlessClientError,
   retryDelay: 800,
 });
+
+/** The report a person has OPENED: read fresh every time it is opened. */
+export const useSettlementBatch = (batchId: number | null) => useQuery({
+  ...settlementBatchQuery(batchId),
+  enabled: batchId != null,
+  refetchOnMount: 'always' as const,
+});
+
+/** One report's lines as a ROW of a list: the cached read while it is fresh, so
+    coming back to the list does not re-read every report on it. */
+export const useSettlementBatchRow = (batchId: number) => useQuery(settlementBatchQuery(batchId));
+
+/** Several reports' lines on one screen (Payments not matched yet's merchant report
+    lines): each report read exactly as Merchant Recon reads it, so the two say the
+    same thing about a line. */
+type BatchDetail = Awaited<ReturnType<ReturnType<typeof settlementBatchQuery>['queryFn']>>;
+/* One stable function: React Query re-runs a combine only when its results or
+   the function change, so the screen's rows keep their identity between renders. */
+const combineDetails = (results: ReadonlyArray<{ data?: BatchDetail; isLoading: boolean; isError: boolean }>) => ({
+  details: results.map((r) => r.data),
+  loading: results.some((r) => r.isLoading),
+  failed: results.some((r) => r.isError),
+});
+export const useSettlementBatchDetails = (batchIds: readonly number[]) => useQueries({
+  queries: batchIds.map((id) => settlementBatchQuery(id)),
+  combine: combineDetails,
+});
+
+/** Several reports' lines at once, for an export: as the list already read them, so the
+    file says what the screen says; one not read yet is read now. */
+export const useReadSettlementBatches = () => {
+  const qc = useQueryClient();
+  return useCallback(
+    (ids: readonly number[]) => Promise.all(ids.map((id) => qc.ensureQueryData(settlementBatchQuery(id)))),
+    [qc],
+  );
+};
 
 export type UploadResult = {
   batchId: number;
@@ -349,6 +403,8 @@ export type UploadResult = {
   statedNetSen: number | null;
   adjustmentSen: number;
   grossSen: number; feeSen: number; netSen: number;
+  /** The file's DuitNow QR lines — matched to Online sales, not owed through the clearing account. */
+  qrLines?: number; qrSen?: number;
   periodFrom: string; periodTo: string;
   buckets: Record<string, number>;
 };
@@ -369,8 +425,13 @@ export const useUploadStatement = () => {
   });
 };
 
-const invalidateAfterPosting = (qc: ReturnType<typeof useQueryClient>) => {
-  void qc.invalidateQueries({ queryKey: ['settlement-batch'] });
+/** `postedTo`: the reports the write posted to by id, on screen or not. */
+const invalidateAfterPosting = (qc: ReturnType<typeof useQueryClient>, postedTo: readonly number[]) => {
+  /* The reports ON SCREEN, and the ones posted to. Any other report is left as
+     read: re-read when it is opened, or once its read is older than
+     BATCH_DETAIL_STALE_MS, instead of all of them on the next visit to a list. */
+  void qc.invalidateQueries({ queryKey: ['settlement-batch'], type: 'active' });
+  for (const id of postedTo) void qc.invalidateQueries({ queryKey: ['settlement-batch', id] });
   /* The LIST too, not just the open report. Its rows carry the counts every
      screen reads — how many are ready to confirm, how many are still open —
      and leaving them stale is what left "Confirm all 4 matched" on screen
@@ -394,7 +455,7 @@ export const useConfirmSettlementRow = () => {
     }) => authedFetch<{ ok: boolean; status: string; jeNo?: string }>(
       `/accounting/settlement/rows/${rowId}/confirm`, { method: 'POST', body: JSON.stringify(body) },
     ),
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: () => invalidateAfterPosting(qc, []),
   });
 };
 
@@ -410,20 +471,22 @@ export const useConfirmSettlementGroup = () => {
     }) => authedFetch<{ ok: boolean; status: string; jeNo?: string }>(
       '/accounting/settlement/rows/confirm-together', { method: 'POST', body: JSON.stringify(body) },
     ),
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: () => invalidateAfterPosting(qc, []),
   });
 };
 
 /* "Not this" (owner 2026-11-03, batch 3 d2): release an unconfirmed line's
    match; the line goes back to be chosen and is not offered that payment again.
    Posts nothing. */
+/** `payments`: the system's GUESS the line shows ("SOPAY:<id>" keys), for a line
+    that holds no link (owner 2026-11-10). A linked line releases its link. */
 export const useReleaseSettlementRow = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (rowId: number) => authedFetch<{ ok: boolean; released: string[] }>(
-      `/accounting/settlement/rows/${rowId}/release`, { method: 'POST', body: '{}' },
+    mutationFn: ({ rowId, payments }: { rowId: number; payments: string[] }) => authedFetch<{ ok: boolean; released: string[] }>(
+      `/accounting/settlement/rows/${rowId}/release`, { method: 'POST', body: JSON.stringify({ payments }) },
     ),
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: () => invalidateAfterPosting(qc, []),
   });
 };
 
@@ -436,7 +499,7 @@ export const useUnconfirmSettlementRow = () => {
     mutationFn: (rowId: number) => authedFetch<{ ok: boolean; reversalJeNo?: string }>(
       `/accounting/settlement/rows/${rowId}/unconfirm`, { method: 'POST', body: '{}' },
     ),
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: () => invalidateAfterPosting(qc, []),
   });
 };
 
@@ -457,14 +520,14 @@ export const confirmMatchedBatch = (batchId: number) => authedFetch<ConfirmMatch
 /** Refresh everything a posting moves, once. */
 export const useInvalidateAfterPosting = () => {
   const qc = useQueryClient();
-  return () => invalidateAfterPosting(qc);
+  return (postedTo: readonly number[]) => invalidateAfterPosting(qc, postedTo);
 };
 
 export const useConfirmMatched = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: confirmMatchedBatch,
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: (_r, batchId) => invalidateAfterPosting(qc, [batchId]),
     onError: writeFailedAs('Settlements not confirmed'),
   });
 };
@@ -475,12 +538,12 @@ export const useConfirmMatched = () => {
 export const useMarkBatchReceived = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ batchId, receivedOn, amountSen }: { batchId: number; receivedOn: string; amountSen?: number | null }) =>
+    mutationFn: ({ batchId, receivedOn, amountSen }: { batchId: number; receivedOn: string; amountSen?: number }) =>
       authedFetch<{ ok: boolean; status: string; jeNo?: string; amountSen: number; receivedSen: number; outstandingSen: number }>(
         `/accounting/settlement/batches/${batchId}/received`,
         { method: 'POST', body: JSON.stringify({ receivedOn, amountSen }) },
       ),
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: (_r, v) => invalidateAfterPosting(qc, [v.batchId]),
   });
 };
 
@@ -493,7 +556,7 @@ export const useUndoReceipt = () => {
       authedFetch<{ ok: boolean; status: string; jeNo?: string }>(
         `/accounting/settlement/receipts/${receiptId}/undo`, { method: 'POST', body: '{}' },
       ),
-    onSuccess: () => invalidateAfterPosting(qc),
+    onSuccess: () => invalidateAfterPosting(qc, []),
     onError: writeFailedAs('Credit not removed'),
   });
 };
@@ -632,7 +695,7 @@ export const useIgnoreSettlementRow = () => {
       authedFetch<{ ok: boolean }>(`/accounting/settlement/rows/${rowId}/ignore`, {
         method: 'POST', body: JSON.stringify({ restore: restore === true, notes: notes ?? null }),
       }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['settlement-batch'] }); },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['settlement-batch'], type: 'active' }); },
     onError: writeFailedAs('Line not updated'),
   });
 };
@@ -644,7 +707,8 @@ export type Watchlist = {
   /** salespersonName: who sold it, off the order (owner 2026-09-10: 我想要看到
       salesman 的名字); null when the order names nobody or the payment is an
       invoice's. */
-  recordedNotArrived: Array<SettlementCandidate & { ageDays: number; acquirerCode: string | null; salespersonName?: string | null }>;
+  /** ref / customer_so_no: the order's Ref No. (HC13025, ZNT6656), raw, for customerRefOf. */
+  recordedNotArrived: Array<SettlementCandidate & { ageDays: number; acquirerCode: string | null; salespersonName?: string | null; ref?: string | null; customer_so_no?: string | null }>;
   arrivedNotRecorded: Array<{ id: number; acquirer_code: string; txn_date: string; ref: string | null; gross_sen: number; notes: string | null }>;
 };
 

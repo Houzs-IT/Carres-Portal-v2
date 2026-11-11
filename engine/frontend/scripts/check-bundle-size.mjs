@@ -282,7 +282,24 @@ const CEILINGS = {
   // entry: initial-app 89.05 -> 89.88 KB gzip (main 176.5 -> 177.3). The
   // list's icons and one-line descriptions stayed lazy (reports/
   // reportListLook.ts) — moving them too measured +1.9 KB.
-  INITIAL_JS_GZIP: 178 * KB,
+  // 178 -> 179 on 2026-11-08: main sat AT 178.0 again; the Last Mile pin-number
+  // change (PR #5395) adds no eager module (LorryCard / FleetDay are lazy) and
+  // crossed it by bytes, the renamed lazy-chunk hashes in the entry's map. Same
+  // mechanism as the 176 -> 177 bump: one more KB of headroom.
+  // 179 -> 180 on 2026-11-09: main sat AT 179.0 again; the GRN-picker per-line
+  // PO fix (PR #5496) adds no eager module (PurchaseInvoiceFromGrn and its
+  // search helper are lazy) and crossed it by bytes in the merge queue, the
+  // renamed lazy-chunk hashes in the entry's map. Same mechanism as above.
+  // 180 -> 181 on 2026-11-10: main sat AT 180.0 again; the mouse-wheel guard
+  // for number inputs (PR #5553) is loaded by a dynamic import from main.tsx,
+  // so its code is not in the entry, but the import stub and the renamed
+  // lazy-chunk hashes crossed it by bytes in the merge queue (180.0 -> 180.1).
+  // 181 -> 180 on 2026-11-10 (back down, the first decrease): the version of
+  // #5553 that merged measured 180.0 -> 176.8 in its own merge-group run
+  // (42753729808), and main at 2ced1a5da measures 177.0 in CI (run
+  // 42757811936) and in a local build. The extra KB is no longer needed; 3 KB
+  // of headroom stays under 180.
+  INITIAL_JS_GZIP: 180 * KB,
   // Everything the app can lazy-load (users only fetch the routes they visit).
   // A soft guard against unbounded total growth, not a first-paint cost. Left
   // at 1800 deliberately — main is at ~99% of it and RAISING IT AGAIN IS NOT

@@ -19,9 +19,11 @@ import { SearchScopeHint } from "../components/SearchScopeHint";
 import { SourcePosRowMobile } from "./source-chips";
 import { poCellChips } from "../lib/soPoChips";
 import { useEnrichedSoListRows } from "../vendor/scm/lib/sales-order-queries";
+import { MrpAsOf } from "../components/MrpAsOf";
 import { identityStorageKey } from "../lib/storageIdentity";
 import { useDebouncedSearchTerm, useSearchResultTransition } from "../hooks/useServerSearch";
 import { appendSoListFilterParams, useSoListFilters } from "../vendor/scm/lib/so-list-filter-state";
+import { soDatePresetRange, soTodayYmd } from "../vendor/shared/so-list-filter-model";
 import { MobileSoFilterSheet } from "./MobileSoFilterSheet";
 import "./mobile.css";
 
@@ -136,16 +138,13 @@ const RANGES: [Range, string][] = [
   ["next-month", "Next month"], ["this-year", "This year"],
 ];
 const PAGE_SIZE = 30;
-/* Local yyyy-mm-dd (never UTC-shifted — the so_date column is a plain date). */
-const ymd = (d: Date) =>
-  `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, "0")}-${`${d.getDate()}`.padStart(2, "0")}`;
+/* The same windows the desktop SO filter uses, counted from today in Malaysia —
+   not the phone's own clock and zone (owner 2026-11-09). */
 function rangeToDates(range: Range): { from?: string; to?: string } {
   if (range === "all") return {};
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth();
-  if (range === "this-year") return { from: ymd(new Date(y, 0, 1)), to: ymd(new Date(y, 11, 31)) };
-  const base = range === "this-month" ? m : range === "last-month" ? m - 1 : m + 1; // next-month
-  // Day 0 of the following month = last day of `base` (year-wrap safe).
-  return { from: ymd(new Date(y, base, 1)), to: ymd(new Date(y, base + 1, 0)) };
+  const today = soTodayYmd(new Date());
+  if (range === "this-year") return { from: `${today.slice(0, 4)}-01-01`, to: `${today.slice(0, 4)}-12-31` };
+  return soDatePresetRange(range === "this-month" ? "this_month" : range === "last-month" ? "last_month" : "next_month", today);
 }
 
 /* Status filter → the endpoint's exact `status` value. One entry per backend
@@ -270,7 +269,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
   // Deferred MRP enrichment for every loaded card (READY chips + readiness /
   // planning badges), healed a beat later. Shared with desktop; the hook chunks
   // the doc set at 100 so infinite scroll stays bounded (soListEnrichment.ts).
-  const enrichedRows = useEnrichedSoListRows(rows, !listLoading);
+  const { rows: enrichedRows, mrp: mrpStatus } = useEnrichedSoListRows(rows, !listLoading);
   const totalCount = data?.pages[0]?.total ?? 0;
 
   /* Summary bar totals — full-set rev/out from the server `aggregates` (page-0
@@ -503,7 +502,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
             {/* Item 3 — Select toggle: enters/exits DRAFT multiselect. In select
                 mode it reads "Done" and clears the picks. */}
             {selectMode ? (
-              <button onClick={exitSelect} className="iconbtn" aria-label="Exit selection" style={{ width: "auto", padding: "0 12px", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, color: "#1B1B39" }}>
+              <button onClick={exitSelect} className="iconbtn" aria-label="Exit selection" style={{ width: "auto", padding: "0 12px", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, color: "var(--hz-c-primary)" }}>
                 Done
               </button>
             ) : (
@@ -526,7 +525,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
           <SearchProgress active={searchTransition.isSearching} label="Searching…" />
           <button onClick={() => setFilterOpen(true)} className="iconbtn" style={{ position: "relative" }} aria-label="Filter by status">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
-            {filterActive && <span style={{ position: "absolute", top: -3, right: -3, width: 9, height: 9, borderRadius: "50%", background: "var(--gold)", border: "1.5px solid #fff" }} />}
+            {filterActive && <span style={{ position: "absolute", top: -3, right: -3, width: 9, height: 9, borderRadius: "50%", background: "var(--gold)", border: "1.5px solid var(--hz-c-surface)" }} />}
           </button>
         </div>
         <SearchScopeHint
@@ -560,6 +559,7 @@ export function MobileSalesOrders({ onScan, onOpen, onNew, onNewCase }: { onScan
             </>}
           </div>
         )}
+        <MrpAsOf status={mrpStatus} className="mx-0.5 mb-2.5" />
 
         {/* Period filter chips (h-scroll). */}
         <div className="chips" style={{ marginBottom: 11 }}>

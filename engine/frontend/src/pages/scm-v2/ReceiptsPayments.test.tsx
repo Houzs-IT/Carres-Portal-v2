@@ -11,7 +11,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { RpReport } from '../../vendor/scm/lib/rp-report-queries';
 import type { LaidNode } from '../../vendor/scm/lib/report-layout';
 
@@ -67,18 +67,20 @@ const report: RpReport = {
   },
 };
 const lastRead = { value: '' };
+/* A test that needs another report puts it here, and puts it back. */
+const shownReport = { value: null as RpReport | null };
 
 vi.mock('../../vendor/scm/lib/rp-report-queries', async (importOriginal) => ({
   ...(await importOriginal() as object),
   useRpReport: (from: string, to: string, accounts: string[], byParty: boolean) => {
     lastRead.value = `${from}|${to}|${accounts.join(',')}|${byParty}`;
-    return from ? { data: report, isLoading: false, isError: false } : { data: undefined, isLoading: false, isError: false };
+    return from ? { data: shownReport.value ?? report, isLoading: false, isError: false } : { data: undefined, isLoading: false, isError: false };
   },
 }));
 /* By month: each column one read of the same endpoint. */
 const columnPaths = vi.hoisted(() => [] as string[]);
 vi.mock('../../vendor/scm/lib/authed-fetch', () => ({
-  authedFetch: async (path: string) => { columnPaths.push(path); return report; },
+  authedFetch: async (path: string) => { columnPaths.push(path); return shownReport.value ?? report; },
 }));
 vi.mock('../../vendor/scm/lib/dashboard-queries', async (importOriginal) => ({
   ...(await importOriginal() as object),
@@ -238,5 +240,161 @@ describe('the Cash Flow tab', () => {
     expect(screen.getByText('PURCHASE OF SOFA')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Layout' }));
     expect(screen.getByRole('dialog', { name: 'Layout · Receipts & Payments' })).toBeTruthy();
+  });
+});
+
+/* Owner 2026-11-09 (his Receipt & Payment workbook: 「就是一行settlement一行deposit」): each month as
+   Settlement | Deposit, as the server split each line; a line not split runs one figure across the
+   month; a split running subtotal gets its two figures added up under it. */
+describe('Settlement / Deposit on the Cash Flow', () => {
+  const sd = (settlementSen: number, depositSen: number) => ({ settlementSen, depositSen });
+  const withSd = (n: LaidNode, pair: ReturnType<typeof sd> | null, kids?: LaidNode[]): LaidNode =>
+    ({ ...n, ...(pair ? { sd: pair } : {}), children: kids ?? n.children });
+  const [rin, rout, unassigned] = report.layout.tree as [LaidNode, LaidNode, LaidNode];
+  const [ca] = rin.children as [LaidNode];
+  const [ar, xfer] = ca.children as [LaidNode, LaidNode];
+  const [purchases, utilities] = rout.children as [LaidNode, LaidNode];
+  const split: RpReport = {
+    ...report,
+    layout: {
+      ...report.layout,
+      tree: [
+        withSd(rin, sd(20_000, 50_000), [withSd(ca, sd(20_000, 50_000), [withSd(ar, sd(0, 50_000)), withSd(xfer, sd(20_000, 0))])]),
+        withSd(rout, sd(42_000, 4_000), [withSd(purchases, sd(40_000, 0), [withSd(purchases.children[0]!, sd(40_000, 0))]), withSd(utilities, sd(2_000, 4_000))]),
+        { kind: 'subtotal', id: 'sub:ops', label: 'NET OPERATION SURPLUS / (DEFICIT)', amountSen: 24_000, pct: null, sd: sd(-22_000, 46_000), children: [] },
+        unassigned,
+      ],
+    },
+  };
+  beforeEach(() => { shownReport.value = split; });
+  afterEach(() => { shownReport.value = null; });
+  const openSplit = async () => {
+    at();
+    fireEvent.click(within(screen.getByRole('group', { name: 'Columns' })).getByRole('button', { name: 'Settlement / Deposit' }));
+    fireEvent.click(within(screen.getByRole('group', { name: 'Months' })).getByRole('button', { name: '3' }));
+    await waitFor(() => expect(heads()).toEqual(['Account', 'Total3 months%', 'Jul 2026', 'Jun 2026', 'May 2026', 'Settlement', 'Deposit', 'Settlement', 'Deposit', 'Settlement', 'Deposit']));
+  };
+  const cells = (name: string) => [...screen.getByText(name).closest('tr')!.querySelectorAll('td')].map((td) => [td.textContent, td.getAttribute('colspan')]);
+
+  test('each month as Settlement | Deposit under the month; Total whole with its %; one read per month', async () => {
+    await openSplit();
+    expect(columnPaths.some((p) => p.includes('from=2026-06-01&to=2026-06-30'))).toBe(true);
+    /* The customer's deposit: nothing under Settlement (an empty cell, owner 2026-11-10), the money
+       under Deposit. (Total is its own read of the three months; this mock answers every read with
+       the one report.) */
+    expect(cells('ACCOUNT RECEIVEABLE')).toEqual([['500.0071.4%', null], ...Array(3).fill(['', null]).flatMap((empty) => [empty, ['500.00', null]])]);
+    expect(cells('UTILITIES').slice(1, 3)).toEqual([['20.00', null], ['40.00', null]]);
+    /* Not split: one figure across each month, centred. */
+    expect(cells('Supplier advances (预付)')).toEqual([['300.0039.5%', null], ['300.00', '2'], ['300.00', '2'], ['300.00', '2']]);
+  });
+
+  test('a split running subtotal shows its two figures, then Settlement + Deposit under it', async () => {
+    await openSplit();
+    expect(cells('NET OPERATION SURPLUS / (DEFICIT)').slice(1, 3)).toEqual([['(220.00)', null], ['460.00', null]]);
+    const sum = screen.getByText('Settlement + Deposit').closest('tr')!;
+    expect(sum.getAttribute('data-kind')).toBe('memo');
+    expect(cells('Settlement + Deposit').slice(1)).toEqual([['240.00', '2'], ['240.00', '2'], ['240.00', '2']]);
+  });
+
+  test('a figure across a month opens that month’s entries; a Settlement or Deposit share does not open', async () => {
+    await openSplit();
+    expect(screen.queryByRole('button', { name: 'UTILITIES · Jul 2026 Settlement' })).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Supplier advances (预付) · Jul 2026' })[0]!);
+    expect(screen.getByRole('region', { name: 'Entries of Supplier advances (预付)' }).textContent).toContain('Jul 2026 · 1 entry');
+  });
+
+  test('Excel carries the months over their two columns and the figures run across as on the screen', async () => {
+    await openSplit();
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
+    await waitFor(() => expect(xlsx).toHaveBeenCalledTimes(1));
+    const [xs, name] = xlsx.mock.calls[0]! as [{ tables: Array<{ columns: Array<{ label: string; group?: string }>; rows: Array<{ label: string; cells: unknown[]; spans?: Record<number, number> }> }> }, string];
+    expect(name).toBe('cash-flow-settlement-deposit-2026-05-2026-07.xlsx');
+    expect(xs.tables[0]!.columns.map((c) => `${c.group ?? ''}|${c.label}`)).toEqual([
+      '|Total', '|%', 'Jul 2026|Settlement', 'Jul 2026|Deposit', 'Jun 2026|Settlement', 'Jun 2026|Deposit', 'May 2026|Settlement', 'May 2026|Deposit',
+    ]);
+    expect(xs.tables[0]!.rows.find((r) => r.label === 'Supplier advances (预付)')!.spans).toEqual({ 2: 2, 4: 2, 6: 2 });
+  });
+});
+
+/* Owner 2026-11-08: 可以帮我注明是从auto count带过来的吗？ Customers' money AutoCount recorded after the
+   books started posts no journal; the Cash Flow names it below the customer receipts, grey, in no total,
+   and its figure opens the payments behind it. */
+describe('AutoCount money on the Cash Flow', () => {
+  const customer = (key: string, label: string, sen: number) => line(key, '300-0000', label, { '310-0010': sen }, 0, 'in');
+  const withAutoCount: RpReport = {
+    ...report,
+    autoCount: {
+      sen: 54608600, count: 2,
+      entries: [
+        { jeNo: '', entryDate: '2026-07-01', sourceType: 'AUTOCOUNT', sourceDocNo: 'HC-SO-013406', narration: 'DATE NOT OBSERVED', party: 'TAN AH KOW', side: 'R', rowKey: 'AUTOCOUNT', column: 'AUTOCOUNT', sen: 204000 },
+        { jeNo: '', entryDate: '2026-07-02', sourceType: 'AUTOCOUNT', sourceDocNo: 'HC-SO-013410', narration: null, party: 'LIM AH BENG', side: 'R', rowKey: 'AUTOCOUNT', column: 'AUTOCOUNT', sen: 54404600 },
+      ],
+    },
+    layout: {
+      ...report.layout,
+      tree: [
+        { ...report.layout.tree[0]!, children: [
+          { kind: 'category', id: 'in:cat:deposit', label: 'DEPOSIT RECEIVED', amountSen: 50000, pct: 71.4, cells: { '310-0010': 50000 }, children: [
+            customer('300-0000:DEP:CASH', 'Deposit · Transfer / cash', 30000),
+            customer('300-0000:BAL:CASH', 'Balance · Transfer / cash', 20000),
+          ] },
+          line('XFER:310-0010', '310-0010', 'Transfer from 310-0010 · CASH AT BANK - MAYBANK', { '320-0000': 20000 }, 28.6, 'in'),
+        ] },
+        ...report.layout.tree.slice(1),
+      ],
+    },
+  };
+  const memoText = 'From AutoCount, not in the books';
+  afterEach(() => { shownReport.value = null; });
+
+  test('it prints right below the customer receipts’ own total, grey, and Total receipts does not count it', () => {
+    shownReport.value = withAutoCount;
+    at();
+    const memo = screen.getByText(memoText).closest('tr')!;
+    expect(memo.getAttribute('data-kind')).toBe('memo');
+    expect(memo.textContent).toContain('546,086.00');
+    const rows = screen.getAllByRole('row').map((r) => String(r.textContent));
+    expect(rows.findIndex((t) => t.includes(memoText))).toBe(rows.findIndex((t) => t.startsWith('Total DEPOSIT RECEIVED')) + 1);
+    expect(screen.getByText('Total receipts').closest('tr')!.textContent).toContain('700.00');
+    shownReport.value = null;
+  });
+
+  test('its figure opens the payments AutoCount recorded', () => {
+    shownReport.value = withAutoCount;
+    at();
+    fireEvent.click(screen.getByRole('button', { name: `${memoText} · Total` }));
+    const region = screen.getByRole('region', { name: `Entries of ${memoText}` });
+    expect(region.textContent).toContain('Total · 2 entries');
+    expect(within(region).getByText(/AutoCount HC-SO-013406/)).toBeTruthy();
+    expect(within(region).getByText('TAN AH KOW')).toBeTruthy();
+    shownReport.value = null;
+  });
+
+  test('PDF carries it as the screen shows it', async () => {
+    shownReport.value = withAutoCount;
+    at();
+    fireEvent.click(screen.getByRole('button', { name: 'PDF' }));
+    await waitFor(() => expect(pdf).toHaveBeenCalledTimes(1));
+    const [sheet] = pdf.mock.calls[0]! as [Sheet];
+    const rows = sheet.tables[0]!.rows as Array<{ label: string; depth: number; kind: string }>;
+    const idx = rows.findIndex((x) => x.label === memoText);
+    /* Right after the customer receipts, at their category's depth: paper prints that category's Total above it. */
+    expect(rows[idx - 1]!.label).toBe('Balance · Transfer / cash');
+    expect(rows[idx]).toMatchObject({ kind: 'memo', depth: rows.find((x) => x.label === 'DEPOSIT RECEIVED')!.depth });
+    shownReport.value = null;
+  });
+
+  test('By month: each month’s own figure, the line where the Total view has it', async () => {
+    shownReport.value = withAutoCount;
+    at();
+    fireEvent.click(within(screen.getByRole('group', { name: 'Columns' })).getByRole('button', { name: 'By month' }));
+    await waitFor(() => expect(screen.getAllByText(memoText).length).toBeGreaterThan(0));
+    expect(screen.getByText(memoText).closest('tr')!.textContent).toContain('546,086.00');
+    shownReport.value = null;
+  });
+
+  test('no AutoCount money, no line', () => {
+    at();
+    expect(screen.queryByText(memoText)).toBeNull();
   });
 });

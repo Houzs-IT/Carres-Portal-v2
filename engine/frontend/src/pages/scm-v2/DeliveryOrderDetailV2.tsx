@@ -72,6 +72,8 @@ import { useWarehouses } from "../../vendor/scm/lib/inventory-queries";
 import { warehouseLabel } from "../../vendor/scm/lib/warehouse-label";
 import { useSetBreadcrumbs } from "../../hooks/useBreadcrumbs";
 import { DoProofOfDeliveryCard, doIsDelivered } from "./DoProofOfDeliveryCard";
+import { DoEarlierPodAttempts } from "../../components/scm-v2/DoEarlierPodAttempts";
+import { DoDeliveryIssuesCard } from "../../components/scm-v2/DeliveryIssuesCard";
 import { useStaffLookup } from "../../hooks/useStaffLookup";
 import { useNotify } from "../../vendor/scm/components/NotifyDialog";
 import { usePrompt } from "../../vendor/scm/components/PromptDialog";
@@ -94,13 +96,14 @@ import { buildVariantSummary, fmtDate, orderLineIdentity, fmtQty } from "@2990s/
 import { formatPhone } from "@2990s/shared/phone";
 import { useAuth } from "../../auth/AuthContext";
 import { canOperateDeliveryOrders, canRevertDelivery } from "../../auth/salesAccess";
-import { DO_SHIPPED_STATES } from '../../vendor/shared/do-shipped-states';
+import { DO_SHIPPED_STATES, doHasArrived } from '../../vendor/shared/do-shipped-states';
 import { HoldChip, type HoldFields } from "../../vendor/scm/components/HoldChip";
 import { customerRefOf } from '../../lib/customer-ref';
 
 import { DocumentHistoryDrawer } from "./DocumentHistoryDrawer";
 import { isFocLine } from '../../vendor/scm/lib/foc-line';
 import { CollectedOnOrderCard } from "../../vendor/scm/components/CollectedOnOrderCard";
+import { shortRackLabels } from "../../vendor/scm/lib/rack-label";
 // ─── Header + item shapes (subset — full 40-field row lives in the list V2) ─
 
 type DoLifecycle = "shipped" | "invoiced" | "returned";
@@ -199,6 +202,8 @@ type DoItem = {
      rack_id = the operator's explicit pick). */
   rack_id?: string | null;
   racks?: string[];
+  /* 'locked' = PO / rack stamped when the line shipped; 'worked_out' = re-derived. */
+  source_state?: 'locked' | 'worked_out' | null;
   warehouse_id?: string | null;
   /* Mig 0230 — the incoming PO batch this line committed to at DO creation
      (ship-before-arrival). The hard-from-DO anchor (Decision, docs/modules/
@@ -430,7 +435,9 @@ function SourceRackCard({
                 {l.description || l.item_code}
               </div>
               <div className="mb-1.5 text-[11px] text-ink-muted">
-                {(l.racks?.length ?? 0) > 0 ? `On rack: ${l.racks!.join(", ")}` : "Not yet placed on a rack"}
+                {(l.racks?.length ?? 0) > 0 ? `On rack: ${shortRackLabels(l.racks).join(", ")}` : "Not yet placed on a rack"}
+                {(l.racks?.length ?? 0) > 0 && l.source_state === "locked" && " · locked at dispatch"}
+                {(l.racks?.length ?? 0) > 0 && l.source_state === "worked_out" && " · worked out"}
               </div>
               <select
                 className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12.5px] text-ink disabled:opacity-60"
@@ -541,9 +548,12 @@ function ActivityRow({
 function DeliveryStatusCard({
   header,
   totalQty,
+  shipFrom,
 }: {
   header: DoHeader;
   totalQty: number;
+  /** The ship-from warehouse label, else the sales-location text (shipFromLabel below). */
+  shipFrom: string | null;
 }) {
   const eff = effectiveOf(header);
   const t = EFFECTIVE_TONE[eff];
@@ -587,7 +597,7 @@ function DeliveryStatusCard({
         <div className="flex items-center justify-between">
           <span className="text-[12.5px] text-sidebar-ink-muted">Warehouse</span>
           <span className="text-[13px] font-semibold text-sidebar-ink">
-            {header.sales_location || "—"}
+            {shipFrom || "—"}
           </span>
         </div>
       </div>
@@ -685,6 +695,14 @@ export function DeliveryOrderDetailV2() {
     () => items.reduce((sum, l) => sum + Number(l.qty ?? 0), 0),
     [items]
   );
+  /* ONE answer for "which warehouse", used by the status card, the header chip
+     and the Ship-from field: the DO's own warehouse (stored at create), else the
+     SO's sales-location text for an older DO that never recorded one. */
+  const shipFromLabel: string | null = deliveryOrder
+    ? warehouseLabel((warehousesQ.data ?? []).find((w) => w.id === deliveryOrder.warehouse_id) ?? null)
+      || deliveryOrder.sales_location
+      || null
+    : null;
 
   useSetBreadcrumbs([
     { label: "Delivery Orders", to: "/scm/delivery-orders" },
@@ -764,8 +782,10 @@ export function DeliveryOrderDetailV2() {
      The server owns the legal transitions, the downstream lock and the stock
      reversal; a reason is mandatory (it lands in the audit trail). */
   const doStatusUpper = (deliveryOrder?.status || "").toUpperCase();
-  const revertPlan: { to: "LOADED" | "DRAFT"; label: string; body: string } | null =
-    doStatusUpper === "LOADED"
+  const revertPlan: { to: "DISPATCHED" | "LOADED" | "DRAFT"; label: string; body: string } | null =
+    doHasArrived(doStatusUpper)
+      ? { to: "DISPATCHED", label: "Undo delivered", body: "Moves the delivery order back to Loaded (on the lorry). No stock moves. The proof-of-delivery photos and signature stay on the order. Refused if an invoice, a delivery return or a delivery issue is on it." }
+      : doStatusUpper === "LOADED"
       ? { to: "DRAFT", label: "Undo load", body: "Returns the goods to warehouse stock and moves the delivery order back to Draft." }
       : doStatusUpper === "DISPATCHED"
         ? { to: "LOADED", label: "Undo dispatch", body: "Moves the delivery order back to Loaded. The goods stay out of stock — undo the load next to return them." }
@@ -1291,8 +1311,8 @@ export function DeliveryOrderDetailV2() {
                   : "Not scheduled"}
             </span>
             <span>· {totalQty} items</span>
-            {deliveryOrder.sales_location && (
-              <span>· {deliveryOrder.sales_location}</span>
+            {shipFromLabel && (
+              <span>· {shipFromLabel}</span>
             )}
           </div>
         </div>
@@ -1441,15 +1461,7 @@ export function DeliveryOrderDetailV2() {
                     answer says so rather than borrowing a default. */}
                 <Field
                   label="Ship-from warehouse"
-                  value={
-                    warehouseLabel(
-                      (warehousesQ.data ?? []).find(
-                        (w) => w.id === deliveryOrder.warehouse_id
-                      ) ?? null
-                    ) ||
-                    deliveryOrder.sales_location ||
-                    "Not recorded"
-                  }
+                  value={shipFromLabel || "Not recorded"}
                   muted={
                     !deliveryOrder.warehouse_id && !deliveryOrder.sales_location
                   }
@@ -1494,7 +1506,7 @@ export function DeliveryOrderDetailV2() {
 
           <DetailAside>
             <div className="hidden lg:sticky lg:top-[124px] space-y-3 md:block">
-              <DeliveryStatusCard header={deliveryOrder} totalQty={totalQty} />
+              <DeliveryStatusCard header={deliveryOrder} totalQty={totalQty} shipFrom={shipFromLabel} />
 
               {/* Owner 2026-07-17: Totals·Margin (Revenue/Cost/Margin) card
                   removed from the DO document view for EVERYONE — costing moves
@@ -1532,7 +1544,9 @@ export function DeliveryOrderDetailV2() {
                 />
               </AsideCard>
 
+              <DoDeliveryIssuesCard doId={deliveryOrder.id} />
               <DoProofOfDeliveryCard h={deliveryOrder} />
+              <DoEarlierPodAttempts doId={deliveryOrder.id} docNo={deliveryOrder.do_number || `DO ${deliveryOrder.id.slice(0, 8)}`} />
 
               <AsideCard title="People">
                 <PersonRow

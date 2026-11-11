@@ -1,3 +1,10 @@
+/** A SCAN_QUEUE message: a scan job to run, an AI read to run (scm/lib/ai-read-jobs.ts),
+ *  or a confirmed correction to learn from. */
+export type ScanQueueMessage =
+  | { jobId: string }
+  | { aiRead: string }
+  | { distill: { rep: string | null; companyId: number | null; userId: number | null } };
+
 export type Env = {
   // During the D1 -> Supabase cutover, `DB` is injected per request/cron with
   // a D1-compatible shim over Postgres (see middleware/db.ts). The legacy D1
@@ -21,6 +28,15 @@ export type Env = {
   // returns 503 anthropic_key_missing — the worker still boots and tsc passes.
   // Set via `wrangler secret put ANTHROPIC_API_KEY` (and in .dev.vars locally).
   ANTHROPIC_API_KEY?: string;
+  /** AES-GCM key (base64 of 32 random bytes) sealing each user's two-step
+   *  sign-in secret at rest, so a copy of the database alone cannot produce
+   *  anyone's codes (services/totpSecret.ts). Set with `wrangler secret put
+   *  TOTP_ENCRYPTION_KEY`. Unset = secrets stay as they are today (plain), and
+   *  sign-in works exactly as before; set = new secrets are sealed and an old
+   *  plain one is sealed the next time its owner signs in with a code. Never
+   *  rotate or remove it while sealed rows exist: they cannot be opened without
+   *  it, and those users must be reset by an admin. */
+  TOTP_ENCRYPTION_KEY?: string;
   // Shared secret for the Google Form → ERP intake webhook
   // (/api/assr-form-intake). GitHub secret, injected at deploy; the
   // endpoint 401s on every request while unset.
@@ -76,7 +92,10 @@ export type Env = {
   // sends ONLY the job id; the consumer (index.ts `queue()` handler) rebuilds
   // everything from the scan_jobs row + R2 photos. Optional so tests / older
   // deploys without the binding compile and fall back to the waitUntil path.
-  SCAN_QUEUE?: Queue<{ jobId: string }>;
+  // A confirmed scan-so correction also rides it ({ distill }): the rule
+  // re-distill is three Claude calls, too long for waitUntil's 30 s after the
+  // response (scan-so.ts runConfirmDistills).
+  SCAN_QUEUE?: Queue<ScanQueueMessage>;
   // R2 S3-API credentials for presigned SO-item-photo GET URLs ONLY (the slip
   // flow no longer uses them). Optional — those endpoints fail at runtime
   // until set.
@@ -104,6 +123,16 @@ export type Env = {
   AUTOCOUNT_API_KEY: string;
   // Inbound-sync kill switch. "true" = skip every AutoCount pull (cron + manual).
   AUTOCOUNT_SYNC_DISABLED?: string;
+  // Stock posts: atomic (default) | two-step (the old non-atomic path, rollback only). scm/lib/stock-post-tx.ts. Set in wrangler.toml [vars].
+  GRN_POST_MODE?: string;
+  DO_SHIP_MODE?: string;
+  // Delivery Planning board reads: rest | shadow | sql (scm/lib/delivery-board-source.ts). Set in wrangler.toml [vars].
+  DP_BOARD_SOURCE?: string;
+  // Receipt bank move: atomic (default) | two-step (the old non-atomic path, rollback only). acc/rebank-transaction.ts. Set in wrangler.toml [vars].
+  RECEIPT_REBANK_MODE?: string;
+  // Returns, atomic (default) | two-step (rollback only), scm/lib/stock-post-tx.ts: customer returns and supplier returns. Set in wrangler.toml [vars].
+  DELIVERY_RETURN_MODE?: string;
+  PURCHASE_RETURN_MODE?: string;
   // ── ERP -> AutoCount WRITE-BACK (outbound; separate from the two above,
   // which are the legacy inbound pull) ───────────────────────────────────────
   // Base URL of AcSyncService, the write-back service that runs ON the AutoCount

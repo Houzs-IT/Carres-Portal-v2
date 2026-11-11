@@ -70,7 +70,7 @@ export const DebtorBillForm = ({
   accounts: Account[];
   accountName: (code: string) => string | null;
   /** The registry's active debtors (and the bill's own on an edit). */
-  debtors: Array<{ id: string; name: string }>;
+  debtors: Array<{ id: string; name: string; code?: string | null }>;
   debtorId?: string;
   /** The other debtors control the bill debits (the AR_OTHER role). */
   controlCode?: string;
@@ -136,7 +136,7 @@ export const DebtorBillForm = ({
               {/* A bill keeps its debtor: the edit re-posts the same party. */}
               <select aria-label="Bill debtor" value={debtorId} className={ui.formInput} disabled={mode === 'edit'} onChange={(e) => setDebtorId(e.target.value)}>
                 <option value="">— Pick the debtor —</option>
-                {debtors.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {debtors.map((d) => <option key={d.id} value={d.id}>{d.name}{d.code ? ` · ${d.code}` : ''}</option>)}
               </select>
               {mode === 'edit' && (
                 <span className={ui.formHint}>{receivedSen > 0 ? 'This bill has money received on it, so the debtor can’t change.' : 'A bill belongs to its debtor — copy it to bill someone else.'}</span>
@@ -148,7 +148,7 @@ export const DebtorBillForm = ({
             </div>
             <label className={`${ui.formField} ${ui.formFull}`}>
               <span className={ui.formLabel}>Description</span>
-              <input className={ui.formInput} value={v.notes} onChange={(e) => { const t = e.target.value; setV((p) => ({ ...p, notes: t })); }} aria-label="Bill description"
+              <input data-upper className={ui.formInput} value={v.notes} onChange={(e) => { const t = e.target.value; setV((p) => ({ ...p, notes: t })); }} aria-label="Bill description"
                 placeholder="What the bill is for · prints on the invoice" />
             </label>
             {/* The event this bill is for — optional: sets every line, and a line
@@ -168,7 +168,7 @@ export const DebtorBillForm = ({
                 <div key={l.rid} data-line={l.rid} className={`${ui.lineRow} ${ui.lineRowEvent}`}>
                   <AccountSelect accounts={accounts} value={l.creditAccountCode} className={ui.formInput}
                     onChange={(code) => patchLine(l.rid, { creditAccountCode: code })} placeholder="— Pick an account —" />
-                  <input className={ui.formInput} placeholder="What it is for" value={l.description} aria-label={`line ${l.rid} description`}
+                  <input data-upper className={ui.formInput} placeholder="What it is for" value={l.description} aria-label={`line ${l.rid} description`}
                     onChange={(e) => patchLine(l.rid, { description: e.target.value })} />
                   <MoneyInput bare valueSen={l.amountSen} inputClassName={ui.formInput} selectOnFocus aria-label={`line ${l.rid} amount`}
                     placeholder="0.00" onCommit={(sen) => patchLine(l.rid, { amountSen: sen ?? 0 })}

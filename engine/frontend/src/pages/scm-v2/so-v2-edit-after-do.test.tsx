@@ -20,6 +20,7 @@ vi.mock("../../vendor/scm/lib/sales-order-queries", () => ({
   useSalesOrderRelatedAuditLog: () => ({ data: [], isLoading: false, isError: false, error: null }),
   useSalesOrderPayments: () => ({ data: [], isLoading: false, isError: false, error: null }),
   useUpdateMfgSalesOrderStatus: () => ({ mutate: vi.fn(), isPending: false }),
+  useOverrideSoLock: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteMfgSalesOrder: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSoLineCoverage: () => ({ data: undefined }),
 }));
@@ -34,6 +35,7 @@ vi.mock("../../vendor/scm/lib/document-cancel-queries", async (orig) => ({
   useCancelRequest: () => ({ data: undefined }),
   useRaiseCancelRequest: () => ({ mutateAsync: vi.fn() }),
 }));
+vi.mock("../../components/scm-v2/DeliveryIssuesCard", () => ({ SoDeliveryIssuesCard: () => null }));
 vi.mock("../../vendor/scm/components/CancelRequestPanel", () => ({ CancelRequestPanel: () => null }));
 vi.mock("./so-relationship-map", () => ({ useSoRelationshipMap: () => ({ nodes: [], edges: [] }) }));
 vi.mock("../../components/scm-v2/PrintPreviewModal", () => ({

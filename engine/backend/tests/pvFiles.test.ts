@@ -2,8 +2,9 @@
    文件一起, which first needs the file to LIVE with the voucher): upload puts
    the bytes in R2 and an index row beside the PV; list walks sort order;
    stream hands the bytes back with the stored mime; delete works until the
-   voucher is CHECKED — evidence locks with the document. Fake R2 binding,
-   bare-Hono harness (pvApControlGuard family). */
+   voucher is APPROVED (owner 2026-11-09: 可以 — a wrong file put on a checked
+   voucher may still go), and every removal is on the voucher's history. Fake
+   R2 binding, bare-Hono harness (pvApControlGuard family). */
 
 import { Hono } from 'hono';
 import { describe, expect, test } from 'vitest';
@@ -11,6 +12,7 @@ import { PDFDocument } from 'pdf-lib';
 import { sha256Hex } from '../src/scm/lib/scan-ocr';
 import {
   uploadPvFileHandler, listPvFilesHandler, streamPvFileHandler, deletePvFileHandler, printPvBundleHandler,
+  BUNDLE_FILE_CONCURRENCY,
 } from '../src/scm/routes/pv-files';
 
 type Row = Record<string, any>;
@@ -72,12 +74,16 @@ const fakeR2 = () => {
   };
 };
 
-function harness(tables: Record<string, Row[]>, r2 = fakeR2()) {
+function harness(tables: Record<string, Row[]>, r2 = fakeR2(), opts: { auditWritable?: boolean } = {}) {
   const app = new Hono<{ Bindings: { SLIPS: ReturnType<typeof fakeR2> } }>();
   app.use('*', async (c, next) => {
     c.set('supabase' as never, {
       from: (t: string) => new FakeQuery((tables[t] ||= []), t),
       schema(_s: string) { return this; },
+      /* The trail's pre-flight probe (entity-audit.ts assertAuditWritable). */
+      rpc: async (fn: string) => (fn === 'entity_audit_writable'
+        ? { data: opts.auditWritable ?? true, error: null }
+        : { data: null, error: { message: `unexpected rpc ${fn}` } }),
     } as never);
     c.set('companyId' as never, CO as never);
     c.set('user' as never, { id: 'u1' } as never);
@@ -93,7 +99,7 @@ function harness(tables: Record<string, Row[]>, r2 = fakeR2()) {
 }
 
 const PV = (over: Row = {}): Row => ({
-  id: 'pv-9', pv_number: 'HC-PV-2609-009', status: 'DRAFT', checked_at: null, company_id: CO, ...over,
+  id: 'pv-9', pv_number: 'HC-PV-2609-009', status: 'DRAFT', checked_at: null, approved_at: null, company_id: CO, ...over,
 });
 
 const b64 = (s: string) => btoa(s);
@@ -193,7 +199,81 @@ describe('PV attachments — the bill lives with its voucher', () => {
     expect((await missing.json() as { message: string }).message).toContain('nothing was printed');
   });
 
-  test('delete works while DRAFT-unchecked, removes the R2 object too, and locks once CHECKED', async () => {
+  test('print-bundle loads in parallel but prints in the sequential order: voucher, its files, the files of the AP invoices it pays, next voucher; every file fetched once, in-flight capped', async () => {
+    /* Each stored file is a one-page PDF whose WIDTH names it, so the merged
+       page widths spell the print order. The fake R2 answers out of order
+       (later keys faster) to prove order does not come from completion. */
+    const onePage = async (w: number) => {
+      const d = await PDFDocument.create(); d.addPage([w, 800]);
+      const b = await d.save();
+      return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+    };
+    const tables: Record<string, Row[]> = {
+      payment_vouchers: [PV({ id: 'pv-a', pv_number: 'PV-A' }), PV({ id: 'pv-b', pv_number: 'PV-B' })],
+      acc_pv_files: [], acc_ap_invoice_files: [], ap_invoices: [], pv_allocations: [],
+    };
+    const r2 = fakeR2();
+    const fetchedKeys: string[] = [];
+    let inFlight = 0; let maxInFlight = 0;
+    const baseGet = r2.get;
+    let calls = 0;
+    r2.get = async (k: string) => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      const delay = 20 - (calls++ % 5) * 4;
+      await new Promise((r) => setTimeout(r, delay));
+      fetchedKeys.push(k);
+      inFlight--;
+      return baseGet(k);
+    };
+    const put = async (key: string, w: number) => r2.store.set(key, { bytes: await onePage(w), contentType: 'application/pdf' });
+    const pvFile = async (pv: string, n: number, w: number) => {
+      const key = `pv-files/1/${pv}/${n}.pdf`;
+      tables.acc_pv_files.push({ id: `${pv}-${n}`, company_id: CO, pv_id: pv, file_key: key, file_name: `${n}.pdf`, mime: 'application/pdf', sort_no: n });
+      await put(key, w);
+    };
+    const apFile = async (ap: string, n: number, w: number) => {
+      const key = `ap-invoice-files/1/${ap}/${n}.pdf`;
+      tables.acc_ap_invoice_files.push({ id: `${ap}-${n}`, company_id: CO, ap_invoice_id: ap, file_key: key, file_name: `${n}.pdf`, mime: 'application/pdf', sort_no: n });
+      await put(key, w);
+    };
+    /* The fake's order() is a no-op: rows go in sort order. */
+    await pvFile('pv-a', 1, 301); await pvFile('pv-a', 2, 302);
+    await apFile('ap-1', 1, 311); await apFile('ap-1', 2, 312);
+    await apFile('ap-2', 1, 321);
+    await pvFile('pv-b', 1, 401);
+    await apFile('ap-3', 1, 411);
+    tables.ap_invoices.push(
+      { id: 'ap-1', company_id: CO, invoice_number: 'AP-1' }, { id: 'ap-2', company_id: CO, invoice_number: 'AP-2' },
+      { id: 'ap-3', company_id: CO, invoice_number: 'AP-3' },
+    );
+    tables.pv_allocations.push(
+      { company_id: CO, pv_id: 'pv-a', ap_invoice_id: 'ap-1', created_at: '1' },
+      { company_id: CO, pv_id: 'pv-a', ap_invoice_id: 'ap-2', created_at: '2' },
+      { company_id: CO, pv_id: 'pv-b', ap_invoice_id: 'ap-3', created_at: '1' },
+    );
+    const { app } = harness(tables, r2);
+    const voucherB64 = async (w: number) => {
+      const d = await PDFDocument.create(); d.addPage([w, 800]);
+      return btoa(String.fromCharCode(...(await d.save())));
+    };
+
+    const res = await app.request('/print-bundle', {
+      method: 'POST',
+      body: JSON.stringify({ parts: [{ pvId: 'pv-a', voucherBase64: await voucherB64(100) }, { pvId: 'pv-b', voucherBase64: await voucherB64(200) }] }),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-disposition')).toContain('payment-vouchers.pdf');
+    const merged = await PDFDocument.load(await res.arrayBuffer());
+    expect(merged.getPages().map((p) => Math.round(p.getWidth()))).toEqual([100, 301, 302, 311, 312, 321, 200, 401, 411]);
+
+    expect([...fetchedKeys].sort()).toEqual([...r2.store.keys()].sort());
+    expect(fetchedKeys).toHaveLength(7);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(maxInFlight).toBeLessThanOrEqual(BUNDLE_FILE_CONCURRENCY);
+  });
+
+  test('delete works while DRAFT-unchecked and removes the R2 object too', async () => {
     const tables: Record<string, Row[]> = { payment_vouchers: [PV()], acc_pv_files: [] };
     const { app, r2 } = harness(tables);
     await upload(app);
@@ -202,11 +282,55 @@ describe('PV attachments — the bill lives with its voucher', () => {
     expect((await app.request(`/pv/pv-9/files/${fileId}`, { method: 'DELETE' })).status).toBe(200);
     expect(tables.acc_pv_files).toHaveLength(0);
     expect(r2.store.size).toBe(0);
+  });
 
+  /* Owner 2026-11-09: 「payment 的attachment 不能delete? 如果我不小心放错」 → 可以. */
+  test('a CHECKED voucher still lets a wrong file go, until it is approved', async () => {
+    const tables: Record<string, Row[]> = { payment_vouchers: [PV({ checked_at: '2026-11-06T03:22:41Z' })], acc_pv_files: [] };
+    const { app, r2 } = harness(tables);
+    await upload(app, 'wrong-bill.jpg');
+    expect((await app.request(`/pv/pv-9/files/${tables.acc_pv_files[0]!.id}`, { method: 'DELETE' })).status).toBe(200);
+    expect(tables.acc_pv_files).toHaveLength(0);
+    expect(r2.store.size).toBe(0);
+    /* The voucher itself does not move: still checked. */
+    expect(tables.payment_vouchers[0]!.checked_at).toBe('2026-11-06T03:22:41Z');
+  });
+
+  test.each([
+    ['approved, its post unfinished', { checked_at: '2026-11-06T03:22:41Z', approved_at: '2026-11-06T04:00:00Z' }],
+    ['posted', { status: 'POSTED', checked_at: '2026-11-06T03:22:41Z', approved_at: '2026-11-06T04:00:00Z' }],
+  ])('%s: its files stay', async (_name, over) => {
+    const tables: Record<string, Row[]> = { payment_vouchers: [PV()], acc_pv_files: [] };
+    const { app, r2 } = harness(tables);
     await upload(app);
-    tables.payment_vouchers[0]!.checked_at = '2026-09-03T12:00:00Z';
+    Object.assign(tables.payment_vouchers[0]!, over);
     const locked = await app.request(`/pv/pv-9/files/${tables.acc_pv_files[0]!.id}`, { method: 'DELETE' });
     expect(locked.status).toBe(409);
     expect((await locked.json() as { error: string }).error).toBe('evidence_locked');
+    expect(tables.acc_pv_files).toHaveLength(1);
+    expect(r2.store.size).toBe(1);
+    expect(tables.entity_audit_log ?? []).toHaveLength(0);
+  });
+
+  test('every removal is on the voucher\'s history: who removed which file', async () => {
+    const tables: Record<string, Row[]> = { payment_vouchers: [PV({ checked_at: '2026-11-06T03:22:41Z' })], acc_pv_files: [] };
+    const { app } = harness(tables);
+    await upload(app, 'wrong-bill.jpg');
+    await app.request(`/pv/pv-9/files/${tables.acc_pv_files[0]!.id}`, { method: 'DELETE' });
+    const trail = tables.entity_audit_log ?? [];
+    expect(trail).toHaveLength(1);
+    expect(trail[0]).toMatchObject({ entity_type: 'PAYMENT_VOUCHER', entity_id: 'pv-9', entity_doc_no: 'HC-PV-2609-009', action: 'UPDATE' });
+    expect(trail[0]!.actor_name_snapshot).toBe('Tester');
+    expect(trail[0]!.field_changes).toEqual([{ field: 'fileRemoved', from: 'wrong-bill.jpg', to: null }]);
+  });
+
+  test('when the history cannot be written, nothing is removed', async () => {
+    const tables: Record<string, Row[]> = { payment_vouchers: [PV({ checked_at: '2026-11-06T03:22:41Z' })], acc_pv_files: [] };
+    const { app, r2 } = harness(tables, fakeR2(), { auditWritable: false });
+    await upload(app);
+    const r = await app.request(`/pv/pv-9/files/${tables.acc_pv_files[0]!.id}`, { method: 'DELETE' });
+    expect(r.status).toBe(409);
+    expect(tables.acc_pv_files).toHaveLength(1);
+    expect(r2.store.size).toBe(1);
   });
 });

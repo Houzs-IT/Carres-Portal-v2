@@ -27,6 +27,7 @@
 //
 // Route: /scm/delivery-orders/new (App.tsx flips ScmDeliveryOrderNewV2 here).
 
+import { DO_SPEC_LOCKED_MESSAGE, doSpecLocked } from '../../vendor/shared/do-spec-lock';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -90,11 +91,15 @@ import { fmtDate } from "../../vendor/shared/format";
 import { warehouseLabel } from "../../vendor/scm/lib/warehouse-label";
 import { buildDoHeaderBody, seedDoHeaderForm, DO_HEADER_LOCKED_NOTICE } from "../../vendor/scm/lib/do-header-form";
 import { doHeaderLocked, isDoHeaderKeyLocked } from "../../vendor/shared/do-header-lock";
+import { lineDiscountShare } from "../../vendor/shared/line-discount-share";
 import { afterCreatePath, sourceDocPath } from "../../lib/returnToSource";
 import {
   seedFollowerVariants,
   seedableMasterVariants,
 } from "../../vendor/scm/lib/so-variant-cascade";
+import { todayMyt } from "../../vendor/scm/lib/dates";
+import { FormTouchScope } from "../../components/FormTouchScope";
+import { useFormTouched, useLeaveGuard } from "../../hooks/useLeaveGuard";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -104,14 +109,6 @@ import {
 type DoDraftLine = SoLineDraft & { rid: string; itemId?: string; soItemId?: string | null };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-const todayIso = (): string => {
-  const d = new Date();
-  const yy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-};
 
 const isoToDmy = fmtDate;
 
@@ -516,6 +513,8 @@ function FromSoPickerModal({
 
 export function DeliveryOrderNewV2() {
   const navigate = useNavigate();
+  const { touched: formTouched, markTouched } = useFormTouched();
+  const { allowLeave } = useLeaveGuard(formTouched, null);
   const [params] = useSearchParams();
   /* This page carried seven window.alert/confirm calls, two of which
      concatenated a raw error message into an OS-chrome box. The house dialog
@@ -560,6 +559,11 @@ export function DeliveryOrderNewV2() {
      server's own; `lk(bodyKey)` disables exactly what the PATCH would refuse. */
   const headerLocked = !!editId && doHeaderLocked((doDetail.data as { deliveryOrder?: { has_children?: unknown } } | undefined)?.deliveryOrder);
   const lk = (bodyKey: string) => isDoHeaderKeyLocked(bodyKey, headerLocked);
+  /* Owner 2026-11-10 (shared/do-spec-lock.ts): once shipped, a saved line keeps
+     its product and spec. The card disables those fields and says why; the save
+     never sends them, so a qty edit cannot re-bucket the line. */
+  const specLockedReason = editId && doSpecLocked((doDetail.data as { deliveryOrder?: { status?: string | null } } | undefined)?.deliveryOrder?.status ?? null)
+    ? DO_SPEC_LOCKED_MESSAGE : null;
   const createDo = useCreateMfgDeliveryOrder();
   /* One key for the one DO this page is open to raise (lib/idempotency.ts).
      This is the ROUTED desktop DO create (App.tsx:543 → /scm/delivery-orders/
@@ -598,7 +602,7 @@ export function DeliveryOrderNewV2() {
   const [ecName, setEcName] = useState("");
   const [ecRelationship, setEcRelationship] = useState("");
   const [ecPhone, setEcPhone] = useState("");
-  const [doDate, setDoDate] = useState(todayIso());
+  const [doDate, setDoDate] = useState(todayMyt());
   const [driver, setDriver] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [buildingType, setBuildingType] = useState("");
@@ -826,7 +830,8 @@ export function DeliveryOrderNewV2() {
     uom: it.uom ?? "UNIT",
     qty: it.remaining,
     unitPriceSen: it.unitPriceSen,
-    discountSen: it.discountSen,
+    // The remainder's share of the SO line discount, not all of it.
+    discountSen: lineDiscountShare(it.discountSen, it.qty, it.qty - it.remaining, it.remaining),
     unitCostSen: it.unitCostSen,
     variants:
       it.variants && typeof it.variants === "object"
@@ -875,7 +880,7 @@ export function DeliveryOrderNewV2() {
     if (!doo) return;
     setEditSeeded(true);
     /* The seed is the shared layer's (do-header-form.ts), the one the phone's edit sheet uses. */
-    const f = seedDoHeaderForm(doo, todayIso());
+    const f = seedDoHeaderForm(doo, todayMyt());
     setCustomerName(f.customerName); setDebtorCode(f.debtorCode); setCustomerSoRef(f.customerSoRef);
     setPhone(f.phone); setEmail(f.email); setCustomerType(f.customerType); setSalespersonId(f.salespersonId);
     setAddr1(f.address1); setAddr2(f.address2); setState(f.state); setCity(f.city); setPostcode(f.postcode);
@@ -1005,6 +1010,7 @@ export function DeliveryOrderNewV2() {
       confirmLabel: "Discard",
       danger: true,
     })) {
+      allowLeave();
       navigate("/scm/delivery-orders");
     }
   };
@@ -1040,6 +1046,7 @@ export function DeliveryOrderNewV2() {
              PurchaseOrderNew records: a route change tears the dialog down.
              Never blocks; the DO exists and the goods have gone. */
           await notifyAcNotSent(notify, res, "Delivery order");
+          allowLeave();
           if (res?.id) {
             navigate(afterCreatePath(`/scm/delivery-orders/${res.id}`, sourceDocPath.salesOrder(fromSoParam)));
           } else {
@@ -1095,7 +1102,9 @@ export function DeliveryOrderNewV2() {
         if (l.itemId) {
           const orig = originalLinesRef.current.get(l.itemId);
           if (orig !== JSON.stringify(body)) {
-            ops.push(updateItem.mutateAsync({ id: editId, itemId: l.itemId, ...body }));
+            const send: Record<string, unknown> = { ...body };
+            if (specLockedReason) { delete send.itemCode; delete send.itemGroup; delete send.variants; }
+            ops.push(updateItem.mutateAsync({ id: editId, itemId: l.itemId, ...send }));
           }
         } else {
           added.push(body);
@@ -1108,6 +1117,7 @@ export function DeliveryOrderNewV2() {
       await Promise.all(ops);
       await updateHeader.mutateAsync({ id: editId, ...buildHeaderBody() });
       setFlash("Delivery order updated");
+      allowLeave();
       navigate(`/scm/delivery-orders/${editId}`);
     } catch (err) {
       /* NOT the same message as the create path. This save is a batch of line
@@ -1131,6 +1141,7 @@ export function DeliveryOrderNewV2() {
   const submitting = createDo.isPending || savingEdit;
 
   return (
+    <FormTouchScope onTouch={markTouched}>
     <div className="pb-20">
       {/* Sticky form header + document flow.
           Owner 2026-08-03: the flow strip is frozen WITH the action bar, so the
@@ -1139,7 +1150,7 @@ export function DeliveryOrderNewV2() {
           stacked sticky boxes would each pin at top:0 and overlap. */}
       {/* top-12 / lg:top-[52px] z-20 is the house offset for a page-level sticky
           (Layout.tsx, DetailLayout, AmendmentDetailV2, PoAmendmentDetailV2): the
-          workspace tab strip in TopNavbar is itself `sticky top-0 z-30 h-[52px]`
+          workspace tab strip in TopNavbar is itself `sticky top-0 z-40 h-[52px]`
           inside this same scroll container. This box was `top-0 z-10`, so it
           parked UNDER that strip and the strip painted over its first 52px —
           exactly the title row and the Cancel / Save as Draft / Create buttons.
@@ -1554,6 +1565,7 @@ export function DeliveryOrderNewV2() {
                    category-mandatory variants are NOT re-required here (they
                    ride in from the SO stash / DO detail). */
                 variantsRequired={false}
+                specLockedReason={line.itemId ? specLockedReason : null}
                 lineDateLocked={false}
                 seedSofaLegDefault={false}
                 attachOptions={null}
@@ -1620,6 +1632,7 @@ export function DeliveryOrderNewV2() {
         </div>
       )}
     </div>
+    </FormTouchScope>
   );
 }
 

@@ -83,7 +83,8 @@ export const API_URL =
    30 s on a long bill (owner 2026-10-05: the pile's "That took too long").
    They get the scan wait, and since they WRITE NOTHING a timeout says so
    instead of warning of a duplicate save. */
-export const BILL_READER_PATH = /\/payment-vouchers\/extract$|\/credit-notes\/scan$|\/payment-requests\/read-bill$|\/stock-takes\/[^/]+\/read-sheet$/;
+/* The …/enqueue doors (ai-read-job.ts) carry the same upload, so they keep the long wait. */
+export const BILL_READER_PATH = /\/payment-vouchers\/extract(\/enqueue)?$|\/credit-notes\/scan(\/enqueue)?$|\/payment-requests\/read-bill(\/enqueue)?$|\/stock-takes\/[^/]+\/read-sheet$/;
 /* A document's file upload (POST …/files, …/official-doc) carries the whole
    file as base64 in one body — up to 27 MB for the 20 MB cap — which a slow
    office uplink does not finish in 30 s (owner 2026-10-15: attach 不到 pdf). */
@@ -700,6 +701,10 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
     'Someone else updated this order while you were editing. Your changes are still on this screen. Copy anything you need, then refresh to review the latest order.',
   so_version_required:
     'This order was opened with an older screen. Your changes are still here. Copy anything you need, then refresh the order before saving again.',
+  po_version_conflict:
+    'Someone else saved this purchase order while you were editing. Your changes are still on this screen. Copy anything you need, then refresh to review the latest order.',
+  po_version_required:
+    'This purchase order was opened with an older screen. Your changes are still here. Copy anything you need, then refresh the order before saving again.',
   so_version_invalid:
     'The order version is invalid. Your changes are still here. Refresh the order before saving again.',
   so_edit_lease_conflict:

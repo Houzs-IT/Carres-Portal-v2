@@ -27,7 +27,7 @@ import { AlertTriangle, ArrowLeft, CheckCheck, Landmark, Link2, Plus, Undo2, Upl
 import {
   useBankStatements, useBankStatement,
   useBookBankReceipt, useMatchBankLine, useMatchBankGroup, useIgnoreBankLine, useUndoBankLine, useSetStatementPeriod, useAutoMatchStatement,
-  type BankLine, type BankStatement, type Reconciliation, type LedgerEntry } from './bank-queries';
+  type BankLine, type BankQrSales, type BankStatement, type Reconciliation, type LedgerEntry } from './bank-queries';
 import { useChargeChoices } from './settlement-queries';
 import { ICON, fmt, btn, softText, danger, good, panel, refusalText } from './settlement-ui';
 import styles from './Suppliers.module.css';
@@ -36,6 +36,8 @@ import { BankAccountTabs, currentAccount } from './BankAccountTabs';
 import { fmtDateOrDash } from '../../vendor/shared/format';
 import { DataTable } from '../../components/DataTable';
 import { ReconcilePickProvider, byDateThenLine, useReconcilePick } from './bank-reconcile-pick';
+import { EntryDocument, entryDocText } from './bank-entry-doc';
+import { useReturnScroll } from '../../lib/returnScroll';
 
 export const BankStatementTab = ({ onUpload }: { onUpload?: () => void }) => {
   const [statementId, setStatementId] = useState<number | null>(null);
@@ -63,7 +65,10 @@ const UploadAndList = ({ onOpen, onUpload }: { onOpen: (id: number) => void; onU
           <span style={{ flex: 1 }} />
           {onUpload && <button type="button" style={btn(true)} onClick={onUpload}><Upload {...ICON} /> Upload statement</button>}
         </div>
-        {rows.length === 0 && !statements.isLoading && (
+        {statements.isError && (
+          <div role="alert" style={{ color: danger }}><AlertTriangle {...ICON} /> {refusalText(statements.error, 'The bank statements did not load.')}</div>
+        )}
+        {rows.length === 0 && !statements.isLoading && !statements.isError && (
           <div style={softText}>None yet. Upload one and it will be matched against the books.</div>
         )}
         <BankAccountTabs codes={codes} value={current} onChange={setAccount} ariaLabel="Bank account of the files listed" />
@@ -122,13 +127,14 @@ const AutoMatchNow = ({ id }: { id: number }) => {
         <Link2 {...ICON} /> {run.isPending ? 'Matching…' : 'Match the obvious ones now'}
       </button>
       <span style={softText}>
-        A movement with exactly one entry of the same amount in the books, whose name the bank's line carries, is
-        matched without asking. A transfer the bank itself reversed under the same reference leaves with its
-        reversal, as a pair. The rest stay below for you.
+        A payment whose words carry a voucher's number (or the Draft number it went out under) is matched to that
+        voucher when the amounts agree, however many days apart. Otherwise a movement with exactly one entry of the
+        same amount in the books, whose name the bank's line carries, is matched without asking. A transfer the bank
+        itself reversed under the same reference leaves with its reversal, as a pair. The rest stay below for you.
       </span>
       {run.data && (
         <span style={{ fontSize: 'var(--fs-13)', color: run.data.matched > 0 ? good : undefined }}>
-          {run.data.matched} matched by amount and name{run.data.matched > 0 ? ` — ${run.data.jeNos.join(', ')}` : ''}.
+          {run.data.matched} matched{run.data.matched > 0 ? ` — ${run.data.jeNos.join(', ')}` : ''}.
         </span>
       )}
       {run.data && run.data.contraPairs > 0 && (
@@ -166,6 +172,8 @@ const RefileAsMonth = ({ statement }: { statement: { id: number; period_from: st
 const StatementView = ({ id, onBack }: { id: number; onBack: () => void }) => {
   const q = useBankStatement(id);
   const [showDone, setShowDone] = useState(false);
+  /* Back from an order opened here lands on the same spot (bank-entry-doc). */
+  useReturnScroll(q.data != null);
 
   const statement = q.data?.statement ?? null;
   const lines = q.data?.lines ?? [];
@@ -177,7 +185,7 @@ const StatementView = ({ id, onBack }: { id: number; onBack: () => void }) => {
   const entries = q.data?.unmatchedEntries ?? [];
 
   return (
-    <ReconcilePickProvider lines={ordered} entries={entries}>
+    <ReconcilePickProvider lines={ordered} entries={entries} ready={q.data != null}>
     <section className="space-y-3">
       <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline', flexWrap: 'wrap' }}>
         <button type="button" style={btn()} onClick={onBack}><ArrowLeft {...ICON} /> All statements</button>
@@ -275,7 +283,7 @@ export const BooksNotOnBank = ({ entries }: { entries: LedgerEntry[] }) => {
               </td>
               <td>{e.jeNo}{e.carried ? <span className={grid.sub}> · earlier month</span> : null}</td>
               <td>{fmtDateOrDash(e.entryDate)}</td>
-              <td>{e.reference ?? ([e.sourceType, e.sourceDocNo].filter(Boolean).join(' · ') || '—')}</td>
+              <td><EntryDocument text={entryDocText(e)} /></td>
               <td>{e.who ?? e.partyName ?? e.notes ?? '—'}</td>
               <DrCr debitSen={e.debitSen} creditSen={e.creditSen} />
             </tr>
@@ -439,6 +447,7 @@ const KIND_LABEL: Record<BankLine['kind'], string> = {
   PAYOUT_NO_BATCH: 'a card payout with no report waiting',
   DUPLICATE: 'already recorded from an earlier upload',
   OTHER: 'not card money',
+  QR: 'DuitNow QR money',
 };
 
 /* ── The movements still to decide, and choosing one entry for several ───────
@@ -563,6 +572,37 @@ export const OpenLines = ({ lines }: { lines: BankLine[] }) => {
 export const decisionKey = (l: BankLine): string =>
   `${l.id}|${l.kind}|${l.matched_batch_id ?? ''}|${(l.split ?? []).map((s) => `${s.batchId}:${s.amountSen}`).join('+')}`;
 
+/* ── The day's DuitNow QR money (owner 2026-11-09) ─────────────────────────────
+   「这个hlbb merchant 的0000PP 是qr direct 去bank 的，不算卡机的」: the credit is
+   the QR sales already in the books, so the row names them and matches the
+   credit to their entries in one press — nothing is booked again. Until every
+   QR line of the report is linked to its sale on Merchant Recon, it says what
+   is missing and offers no press. */
+const QrSalesBlock = ({ line, qr }: { line: BankLine; qr: BankQrSales }) => {
+  const group = useMatchBankGroup();
+  return (
+    <div style={{ display: 'grid', gap: 4 }}>
+      {qr.sales.map((s, i) => (
+        <div key={`${s.docNo ?? 'sale'}-${i}`} style={{ fontSize: 'var(--fs-12)' }}>
+          <b>{s.docNo ?? 'a sale'}</b> · {fmt(s.amountSen)}
+          {s.jeNo && <span className={grid.sub}> · {s.jeNo}</span>}
+        </div>
+      ))}
+      {qr.waiting.map((w) => (
+        <div key={`waiting-${w.lineNo}`} className={grid.sub}>line {w.lineNo} · {fmt(w.grossSen)} — no sale linked yet</div>
+      ))}
+      {/* Not ready: the row's own note (the server's clue) already says what is missing — said once. */}
+      {qr.ready && (
+        <button type="button" style={{ ...btn(true, group.isPending), justifySelf: 'start' }} disabled={group.isPending}
+          onClick={() => group.mutate({ lineIds: [line.id], jeNos: qr.jeNos })}>
+          <Link2 {...ICON} /> {group.isPending ? 'Matching…' : 'These are the QR sales'}
+        </button>
+      )}
+      {group.isError && <span style={{ color: danger, fontSize: 'var(--fs-12)' }}>{refusalText(group.error, 'Not matched.')}</span>}
+    </div>
+  );
+};
+
 export const OpenLine = ({ line, isPicked = false, onPick, onRecordJournal }: {
   line: BankLine; isPicked?: boolean; onPick?: () => void;
   /** No entry found: record the movement as a manual journal (BankRecordJournal). Offered only where the month allows it. */
@@ -658,6 +698,7 @@ export const OpenLine = ({ line, isPicked = false, onPick, onRecordJournal }: {
         {line.note && <div className={grid.sub}>{line.note}</div>}
       </td>
       <td>
+        {line.qr_sales && <QrSalesBlock line={line} qr={line.qr_sales} />}
         {line.amount_sen > 0 && line.candidates.length > 0 && (
           <div style={{ display: 'grid', gap: 4 }}>
             {/* ONLY THE ANSWER, when there is one. The owner, on a month with
@@ -761,7 +802,7 @@ export const OpenLine = ({ line, isPicked = false, onPick, onRecordJournal }: {
                   {e.daysApart > 0 && <span className={grid.sub}> ({e.daysApart}d apart)</span>}
                   {(e.reference ?? e.who ?? e.sourceType ?? e.sourceDocNo ?? e.partyName) && (
                     <div className={grid.sub}>
-                      {e.reference ?? [e.sourceType, e.sourceDocNo].filter(Boolean).join(' · ')}
+                      <EntryDocument text={e.reference ?? [e.sourceType, e.sourceDocNo].filter(Boolean).join(' · ')} />
                       {(e.who ?? e.partyName) ? ` · ${e.who ?? e.partyName}` : ''}
                     </div>
                   )}
@@ -832,6 +873,7 @@ export const DoneLine = ({ line }: { line: BankLine }) => {
               {line.matches.length > 0 ? ` · ${line.matches.map((m) => m.je_no).join(', ')}` : ''}
               {/* Said, because nobody pressed it (docs/bugs/0814). */}
               {line.matches.some((m) => m.match_reason === 'amount+name') ? ' · matched by amount and name' : ''}
+              {line.matches.some((m) => m.match_reason === 'amount+document') ? " · matched by the voucher number on the bank's line" : ''}
             </span>}
       </td>
       <td>

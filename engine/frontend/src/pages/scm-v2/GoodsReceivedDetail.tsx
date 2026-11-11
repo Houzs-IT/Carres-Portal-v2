@@ -78,12 +78,14 @@ import { SkeletonDetailPage } from '../../vendor/scm/components/Skeleton';
 import { RelationshipMapButton } from '../../vendor/scm/components/RelationshipMapButton';
 import { StatusPill } from '../../vendor/scm/components/StatusPill';
 import styles from './SalesOrderDetail.module.css';
+import { DetailLoadFailure } from './DetailLoadFailure';
 import { computeTotalHeight, isTotalHeightCategory, isTotalHeightPart } from '../../vendor/shared/total-height';
 import { DateField } from "../../vendor/scm/components/DateField";
 
 import { ADD_LINE_LABEL } from '../../vendor/scm/lib/add-line-handoff';
 import { goodsReceiptLinesLocked } from '../../vendor/scm/lib/line-add-lock';
 import { useAddLineHandoff } from '../../vendor/scm/lib/useAddLineHandoff';
+import { supplierEmailList } from '../../vendor/shared/supplier-emails';
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
 const fmtRm = (centi: number | null | undefined, currency = 'MYR'): string => {
@@ -374,10 +376,7 @@ export const GoodsReceivedDetail = () => {
           <ArrowLeft {...ICON} />
           <span>Back</span>
         </Link>
-        <div className={styles.bannerWarn}>
-          <strong>Goods received note not found.</strong>
-          {detail.error instanceof Error ? ` ${detail.error.message}` : null}
-        </div>
+        <DetailLoadFailure noun="Goods received note" error={detail.isError ? detail.error : null} onRetry={() => void detail.refetch()} retrying={detail.isFetching} />
       </div>
     );
   }
@@ -514,10 +513,17 @@ export const GoodsReceivedDetail = () => {
 
   /* Single Save — commit header (only if touched) + every changed line's field
      edits, then drop back to View. Back discards the field-edit draft.
-     (Line delete already committed server-side — see the trash handler.) */
-  const handleSave = async () => {
-    if (savingDraft) return;
+     (Line delete already committed server-side — see the trash handler.)
+     Resolves true when everything saved. A rack is placement only and has its own
+     endpoint, so it is saved FIRST and on its own: a line whose field edit the
+     server refuses (a lock, the zero-cost gate) no longer takes its rack, or the
+     racks of every line after it, down with it. A line that failed keeps its
+     draft and the page stays in Edit, naming what was not saved. */
+  const handleSave = async (): Promise<boolean> => {
+    if (savingDraft) return false;
     setSavingDraft(true);
+    const failed: string[] = [];
+    const kept: Record<string, LineDraft> = {};
     try {
       if (headerDraft) {
         await updateHeader.mutateAsync({ id: grn.id, ...(headerDraft as Record<string, unknown>) });
@@ -526,6 +532,14 @@ export const GoodsReceivedDetail = () => {
         const d = lineDrafts[it.id];
         if (!d) continue;
         const snap = lineSnapshot(it);
+        if (d.rackId !== snap.rackId) {
+          try {
+            await setLineRack.mutateAsync({ grnId: grn.id, itemId: it.id, rackId: d.rackId || null });
+          } catch (e) {
+            failed.push(`${it.item_code} rack: ${e instanceof Error ? e.message : 'not saved'}`);
+            kept[it.id] = d;
+          }
+        }
         const changed =
           d.qty !== it.qty_received ||
           d.unitPriceSen !== it.unit_price_sen ||
@@ -541,32 +555,42 @@ export const GoodsReceivedDetail = () => {
           d.zeroCostAck !== snap.zeroCostAck ||
           d.zeroCostReason.trim() !== snap.zeroCostReason.trim();
         if (changed) {
-          await updateItem.mutateAsync({
-            grnId: grn.id, itemId: it.id,
-            qty: d.qty, unitPriceSen: d.unitPriceSen,
-            discountSen: d.discountSen, deliveryDate: d.deliveryDate,
-            /* T12 — send the line's identity + variants; useUpdateGrnItem
-               forwards them and the server re-buckets inventory + recomputes
-               description2. materialName maps to both description + name. */
-            materialName: d.materialName,
-            description:  d.materialName,
-            itemGroup:    d.itemGroup ?? undefined,
-            variants:     d.variants ?? {},
-            /* migration 0280 — the server stamps who and when from the session;
-               the client only ever sends the decision and the reason. */
-            zeroCostAck:    d.zeroCostAck,
-            zeroCostReason: d.zeroCostReason.trim() || null,
-          });
-        }
-        if (d.rackId !== snap.rackId) {
-          await setLineRack.mutateAsync({ grnId: grn.id, itemId: it.id, rackId: d.rackId || null });
+          try {
+            await updateItem.mutateAsync({
+              grnId: grn.id, itemId: it.id,
+              qty: d.qty, unitPriceSen: d.unitPriceSen,
+              discountSen: d.discountSen, deliveryDate: d.deliveryDate,
+              /* T12 — send the line's identity + variants; useUpdateGrnItem
+                 forwards them and the server re-buckets inventory + recomputes
+                 description2. materialName maps to both description + name. */
+              materialName: d.materialName,
+              description:  d.materialName,
+              itemGroup:    d.itemGroup ?? undefined,
+              variants:     d.variants ?? {},
+              /* migration 0280 — the server stamps who and when from the session;
+                 the client only ever sends the decision and the reason. */
+              zeroCostAck:    d.zeroCostAck,
+              zeroCostReason: d.zeroCostReason.trim() || null,
+            });
+          } catch (e) {
+            failed.push(`${it.item_code}: ${e instanceof Error ? e.message : 'not saved'}`);
+            kept[it.id] = d;
+          }
         }
       }
-      setIsEditing(false);
       setHeaderDraft(null);
+      if (failed.length > 0) {
+        // Only the lines that failed keep their draft; a rack that saved reads back as the line's own.
+        setLineDrafts(kept);
+        void notify({ title: 'Some changes were not saved', body: failed.join(' · '), tone: 'error' });
+        return false;
+      }
+      setIsEditing(false);
       setLineDrafts({});
+      return true;
     } catch (e) {
       notify({ title: 'Save failed', body: e instanceof Error ? e.message : 'Something went wrong.', tone: 'error' });
+      return false;
     } finally {
       setSavingDraft(false);
     }
@@ -606,7 +630,9 @@ export const GoodsReceivedDetail = () => {
           {isEditing && !isLocked && (
             <Button
               variant="ghost" size="md"
-              onClick={() => navigate(`/scm/grns/from-po?appendToGrn=${grn.id}`)}
+              /* Leaving for the picker would drop every unsaved line edit, the
+                 racks keyed on this page among them: save them first. */
+              onClick={async () => { if (await handleSave()) navigate(`/scm/grns/from-po?appendToGrn=${grn.id}`); }}
               title="Add the supplier's outstanding PO lines for this warehouse into this GRN"
             >
               <ArrowRightLeft {...ICON} />
@@ -662,7 +688,7 @@ export const GoodsReceivedDetail = () => {
               <span>Edit</span>
             </Button>
           ) : (
-            <Button variant="primary" size="md" onClick={handleSave} disabled={savingDraft}>
+            <Button variant="primary" size="md" onClick={() => void handleSave()} disabled={savingDraft}>
               <Save {...ICON} />
               <span>{savingDraft ? 'Saving…' : 'Save'}</span>
             </Button>
@@ -812,7 +838,7 @@ export const GoodsReceivedDetail = () => {
                             background: 'transparent',
                             border: 'none',
                             cursor: 'pointer',
-                            color: 'var(--c-festive-b, #B8331F)',
+                            color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
                             padding: 4,
                             display: 'inline-flex',
                           }}
@@ -1246,7 +1272,7 @@ export const GoodsReceivedDetail = () => {
                 </div>
 
                 {addError && (
-                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, #B8331F)' }}>{addError}</div>
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>{addError}</div>
                 )}
 
                 <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
@@ -1482,7 +1508,7 @@ const SupplierCard = ({
             <InfoCell label="Contact"       value={supplier.contact_person ?? supplier.attention} />
             <InfoCell label="Phone"         value={formatPhone(supplier.phone ?? supplier.mobile)} />
             <InfoCell label="Payment terms" value={supplier.payment_terms} />
-            <InfoCell label="Email"         value={supplier.email} />
+            <InfoCell label="Email"         value={supplierEmailList(supplier).join(", ") || null} />
             <InfoCell label="TIN"           value={supplier.tin_number} />
             <InfoCell label="Country / state" value={[supplier.country, supplier.state].filter(Boolean).join(' / ') || null} />
             <InfoCell label="Bindings count" value={String(supplierDetail.data?.bindings?.length ?? 0)} />

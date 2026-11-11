@@ -39,6 +39,7 @@ import { NumberInput } from '../../vendor/scm/components/NumberInput';
 import { ActionResultDialog } from '../../vendor/scm/components/ActionResultDialog';
 import { FreshMount } from '../../lib/freshMount';
 import { DateField } from "../../vendor/scm/components/DateField";
+import { todayMyt } from '../../vendor/scm/lib/dates';
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -53,12 +54,6 @@ const blankLine = (): LineDraft => ({
   qty: 1,
   notes: '',
 });
-
-const todayISO = () => {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
 
 /* Humanise a variant_key ("fabriccode=bf-16|gap=16|legheight=2") into a compact
    bucket label for the picker. '' = the unclassified / plain-SKU bucket, which
@@ -176,7 +171,7 @@ function TransferLineRow({
           style={{
             textAlign: 'right',
             fontFamily: 'var(--font-mono)',
-            color: isOverdrawn ? 'var(--c-festive-b, #B8331F)' : 'var(--c-ink)',
+            color: isOverdrawn ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : 'var(--c-ink)',
           }}
         />
       </td>
@@ -228,7 +223,7 @@ const StockTransferForm = ({ onStartNew }: { onStartNew: () => void }) => {
   // ── Header state ─────────────────────────────────────────────────────
   const [fromWarehouseId, setFromWarehouseId] = useState<string>('');
   const [toWarehouseId,   setToWarehouseId]   = useState<string>('');
-  const [transferDate,    setTransferDate]    = useState<string>(todayISO());
+  const [transferDate,    setTransferDate]    = useState<string>(todayMyt());
   const [notes,           setNotes]           = useState<string>('');
 
   // ── Lines ────────────────────────────────────────────────────────────
@@ -416,7 +411,7 @@ const StockTransferForm = ({ onStartNew }: { onStartNew: () => void }) => {
               border: '1px solid var(--c-festive-b, #B8331F)',
               borderRadius: 'var(--radius-md)',
               fontSize: 'var(--fs-13)',
-              color: 'var(--c-festive-b, #B8331F)',
+              color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
               display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
             }}>
               <AlertTriangle size={16} strokeWidth={1.75} />
@@ -472,7 +467,7 @@ const StockTransferForm = ({ onStartNew }: { onStartNew: () => void }) => {
               border: '1px solid var(--c-festive-b, #B8331F)',
               borderRadius: 'var(--radius-md)',
               fontSize: 'var(--fs-13)',
-              color: 'var(--c-festive-b, #B8331F)',
+              color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
               display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)',
             }}>
               <AlertTriangle size={16} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: 2 }} />

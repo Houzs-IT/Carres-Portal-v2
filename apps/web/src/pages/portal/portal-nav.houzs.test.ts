@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
-import { PORTAL_NAV, menuGroups, navItemHref, rowMatchesTab } from "./portal-nav";
+import { PORTAL_NAV, engineFor, menuGroups, navItemHref, retiredRedirect, rowMatchesTab, type PortalNavGroup } from "./portal-nav";
 
 /**
  * The Operations rail follows the Houzs tree (Houzs-ERP
@@ -27,26 +27,22 @@ describe("the Houzs tree", () => {
       { head: "Workspace", blocks: ["Overview", "Sales Orders", "Workspace", "Leave"] },
       {
         head: "Operations",
-        blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases · Guarantees", "Projects: Project List · Project Maintenance"],
+        blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases", "Projects: Project Overview · Project List · Calendar · Project Maintenance"],
       },
       {
         head: "row:Supply Chain",
         blocks: [
-          "Sales Order: Sales Orders · Subscription · Sales Order Amendment · Delivery Orders · Sales Invoices · Delivery Returns",
-          "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Receive · Purchase Consignment Return · Display Requests",
-          "Procurement: Procurement Overview · Products & Maintenance · Suppliers · Supplier items · MRP · Stock Status · SO Batch Purchase · Forecast Purchase · Manual Purchase Request · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns · Supplier Claims · Repair Orders",
-          "Transportation: Logistic Overview · Monitor · Delivery Planning · DP Orders · Last Mile Delivery · Lorry Live Map · Lorry Capacity · Crew Leave · Load Scan · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
-          "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take · Arrival Schedule · Pickup Schedule · Inbound · Outbound",
+          "Product Request",
+          "Sales Order: Sales Orders · Fair Links to Settle · Sales Order Amendment · Payment Backdate Requests · Delivery Orders · Sales Invoices · Delivery Returns · Subscription",
+          "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Order · Product Request · Purchase Consignment Receive · Purchase Consignment Return",
+          "Procurement: Procurement Overview · Products & Maintenance · Suppliers · MRP · Stock Status · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns",
+          "Transportation: Logistic Overview · Delivery Planning · Last Mile Delivery (Driver) · DP Orders · Last Mile Delivery · Crew Leave · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
+          "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take",
         ],
       },
       {
-        head: null,
-        blocks: [
-          "Payments: Monitor · Payment Records",
-          "Showroom: Carres · Dealer",
-          "Issue Tracker",
-          "Reports: Purchasing report · Receiving report · Delivery report · Delivery return lines · Sales order lines · Delivery order lines · Sales invoice lines",
-        ],
+        head: "Carres",
+        blocks: ["Payments: Monitor · Payment Records", "Issue Tracker", "Sales invoice lines"],
       },
     ]);
   });
@@ -57,39 +53,57 @@ describe("the Houzs tree", () => {
     const routes = readFileSync(join(here, "..", "operation", "OperationApp.tsx"), "utf8");
     for (const item of OPERATIONS.items) {
       if (item.path || item.soon) continue;
-      expect(routes.includes(`tab === "${item.tab ?? item.key}"`), item.key).toBe(true);
+      expect(routes.includes(`case "${item.tab ?? item.key}":`), item.key).toBe(true);
     }
   });
 
-  it("the moved and renamed rows keep their old addresses", () => {
+  it("every engine row links to its own address, and its old address opens it", () => {
     const href = (key: string) => navItemHref(OPERATIONS, OPERATIONS.items.find((i) => i.key === key)!);
-    expect(href("orders")).toBe("/operation/orders");
-    expect(href("delivery-orders")).toBe("/operation/delivery-orders");
-    expect(href("delivery-returns")).toBe("/operation?tab=delivery-returns");
-    expect(href("receiving")).toBe("/operation?tab=receiving");
-    expect(href("suppliers")).toBe("/operation?tab=suppliers");
-    expect(href("op-catalog")).toBe("/operation?tab=op-catalog");
-    expect(href("fleet-day")).toBe("/operation?tab=fleet-day");
-    expect(href("rate-cards")).toBe("/operation?tab=rate-cards");
+    const old: Array<[string, string, string]> = [
+      ["orders", "/operation/orders", ""],
+      ["delivery-orders", "/operation/delivery-orders", ""],
+      ["delivery-returns", "/operation", "?tab=delivery-returns"],
+      ["receiving", "/operation", "?tab=receiving"],
+      ["suppliers", "/operation", "?tab=suppliers"],
+      ["op-catalog", "/operation", "?tab=op-catalog"],
+      ["fleet-day", "/operation", "?tab=fleet-day"],
+      ["rate-cards", "/operation", "?tab=rate-cards"],
+    ];
+    for (const [key, path, search] of old) {
+      expect(href(key), key).toBe(`/operation/sc/${key}`);
+      expect(retiredRedirect(path, search), key).toBe(`/operation/sc/${key}`);
+    }
   });
 });
 
 describe("rows that open one view of a page", () => {
   const row = (key: string) => OPERATIONS.items.find((i) => i.key === key)!;
-  const lit = (tab: string, search: string) =>
-    OPERATIONS.items.filter((i) => !i.path && rowMatchesTab(OPERATIONS, i, tab, search)).map((i) => i.key);
 
-  it("link to their view", () => {
-    expect(navItemHref(OPERATIONS, row("wh-loading-list"))).toBe("/operation?tab=warehouses&view=loading");
-    expect(navItemHref(OPERATIONS, row("service-mine"))).toBe("/operation?tab=service-notes&mine=1");
+  it("link to their own address, which opens their view of the engine page", () => {
+    expect(navItemHref(OPERATIONS, row("wh-loading-list"))).toBe("/operation/sc/wh-loading-list");
+    expect(engineFor(navItemHref(OPERATIONS, row("wh-loading-list")))).toBe("/scm/loading-list");
+    expect(navItemHref(OPERATIONS, row("service-mine"))).toBe("/operation/sc/service-mine");
+    expect(engineFor(navItemHref(OPERATIONS, row("service-mine")))).toBe("/my-cases");
   });
 
+  /* No Operations row carries a `query` now, so the rule is held on a small
+     area of its own: tab-driven rows that open one view of a page. */
   it("light one row, and the plain row keeps every other view", () => {
-    expect(lit("warehouses", "?tab=warehouses&view=loading")).toEqual(["wh-loading-list"]);
-    expect(lit("warehouses", "?tab=warehouses&view=bins")).toEqual(["wh-racks"]);
-    expect(lit("warehouses", "?tab=warehouses")).toEqual(["wh-warehouses"]);
-    expect(lit("warehouses", "?tab=warehouses&view=inventory")).toEqual(["wh-warehouses"]);
-    expect(lit("service-notes", "?tab=service-notes&view=quality")).toEqual(["service-quality"]);
-    expect(lit("service-notes", "?tab=service-notes")).toEqual(["service-notes"]);
+    const icon = row("wh-warehouses").icon;
+    const AREA: PortalNavGroup = {
+      ...OPERATIONS,
+      items: [
+        { key: "warehouses", label: "Warehouses", icon },
+        { key: "wh-loading", label: "Loading List", icon, tab: "warehouses", query: "view=loading" },
+        { key: "wh-bins", label: "Racks & Bins", icon, tab: "warehouses", query: "view=bins" },
+      ],
+    };
+    const lit = (tab: string, search: string) =>
+      AREA.items.filter((i) => rowMatchesTab(AREA, i, tab, search)).map((i) => i.key);
+    expect(navItemHref(AREA, AREA.items[1])).toBe("/operation?tab=warehouses&view=loading");
+    expect(lit("warehouses", "?tab=warehouses&view=loading")).toEqual(["wh-loading"]);
+    expect(lit("warehouses", "?tab=warehouses&view=bins")).toEqual(["wh-bins"]);
+    expect(lit("warehouses", "?tab=warehouses")).toEqual(["warehouses"]);
+    expect(lit("warehouses", "?tab=warehouses&view=inventory")).toEqual(["warehouses"]);
   });
 });

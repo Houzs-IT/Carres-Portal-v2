@@ -38,7 +38,7 @@ export function MobileAssrCategoryChips({
   const chips = categoryChipList(options, value);
   if (chips.length === 0) {
     return (
-      <div style={{ fontSize: 11, color: "#9aa093" }}>
+      <div style={{ fontSize: 11, color: "var(--hz-c-ink-soft)" }}>
         No product categories are configured yet.
       </div>
     );
@@ -64,7 +64,7 @@ export function MobileAssrCategoryChips({
               opacity: disabled ? 0.5 : 1,
               border: `1px solid ${on ? "#1B1B39" : "#EEF0F3"}`,
               background: on ? "rgba(27, 27, 57,0.10)" : "#fff",
-              color: on ? "#1B1B39" : "#6B7280",
+              color: on ? "var(--hz-c-primary)" : "var(--hz-c-ink-muted)",
             }}
           >
             {name}

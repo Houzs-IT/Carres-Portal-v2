@@ -11,7 +11,7 @@ import { api, tokenStore, passStore, onUnauthorized } from "../api/client";
 import { clearAll as clearApiCache } from "../api/cache";
 import { queryClient } from "../lib/queryClient";
 import { clearQuerySnapshots } from "../lib/query-persist";
-import { subscribeAuthTokenChange } from "../lib/authToken";
+import { authTokenIsPersistent, subscribeAuthTokenChange } from "../lib/authToken";
 import {
   bindBrowserStorageIdentity,
   clearBrowserStorageIdentity,
@@ -19,6 +19,7 @@ import {
 import { clearAllScmHandoffs } from "../lib/scmHandoffStorage";
 import { writeRememberedEmail } from "../lib/rememberedEmail";
 import { hydrateTableLayouts } from "../lib/tableLayouts";
+import { headStartFailed } from "../lib/lazyPage";
 import { forgetNativeSession, rememberNativeSession } from "../lib/nativeSession";
 
 /** Stage 2: store the signed staff pass beside the token when a login response
@@ -80,6 +81,10 @@ export type LoginResult = { kind: "ok" } | { kind: "totp"; challenge: string };
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string, remember?: boolean) => Promise<LoginResult>;
+  /** Crew sign-in: staff code (the digits after EMP-) + 6-digit PIN. The
+   *  server stamps the session as a field session and holds it to the crew
+   *  screens; the device keeps it like a remembered login. */
+  pinLogin: (login: string, pin: string) => Promise<LoginResult>;
   /** Second step of a 2FA login — exchange the challenge + code for a session. */
   verifyTotpLogin: (challenge: string, code: string, remember?: boolean) => Promise<void>;
   logout: () => Promise<void>;
@@ -99,9 +104,34 @@ interface AuthContextValue extends AuthState {
   pageAccess: (page: string) => AccessLevel;
   /** Reload /me — useful after role/permission changes. */
   reload: () => Promise<void>;
+  /** The required-change screen: swap the restricted session for an ordinary
+   *  one by choosing a new password. Throws the server's refusal (wrong current
+   *  password, too weak, same as before) for the screen to show. */
+  completePasswordChange: (current: string, next: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/* /api/auth/me started by main.tsx before React mounts, so the session check
+   overlaps the render instead of waiting for AuthProvider's first effect. Taken
+   at most once, and only while the token it was sent with is still the stored
+   one, so it can never answer for a different session. */
+let primedMe: { token: string; request: Promise<{ user: AuthUser }> } | null = null;
+
+export function primeAuthMe(): void {
+  const token = tokenStore.get();
+  if (!token || primedMe) return;
+  const request = api.get<{ user: AuthUser }>("/api/auth/me");
+  // fetchMe owns the outcome; this only stops an unconsumed rejection surfacing.
+  request.catch(headStartFailed);
+  primedMe = { token, request };
+}
+
+function takePrimedMe(): Promise<{ user: AuthUser }> | null {
+  const primed = primedMe;
+  primedMe = null;
+  return primed && primed.token === tokenStore.get() ? primed.request : null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -118,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // it still fails, keep the token so a later reload re-validates in place.
     for (let attempt = 0; ; attempt++) {
       try {
-        const res = await api.get<{ user: AuthUser }>("/api/auth/me");
+        const res = await ((attempt === 0 ? takePrimedMe() : null) ?? api.get<{ user: AuthUser }>("/api/auth/me"));
         bindBrowserStorageIdentity(res.user.id);
         setState((prev) => ({ ...prev, user: res.user, loading: false }));
         return;
@@ -223,7 +253,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string, remember = true): Promise<LoginResult> => {
-      const res = await api.post<{ token?: string; totp_required?: boolean; challenge?: string }>(
+      const res = await api.post<{
+        token?: string;
+        totp_required?: boolean;
+        challenge?: string;
+        password_change_required?: boolean;
+      }>(
         "/api/auth/login",
         // `remember` now reaches the SERVER too (owner 2026-09-02: "cant keep
         // permanently?"). Ticked mints a rolling session that renews on use, so
@@ -249,10 +284,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* Mirror into the Keychain so the next launch can unlock with Face ID
          instead of a password. Flag-gated and fire-and-forget inside — a vault
          write that fails costs one password entry, never the login. */
-      rememberNativeSession(res.token!);
+      // A change-password-only session is not one Face ID should unlock later.
+      if (!res.password_change_required) rememberNativeSession(res.token!);
       /* Register this device for APNs (native app only; permission prompt on
          first call). After the token store is set so the POST rides the new
          session; fire-and-forget inside — push must never gate a login. */
+      void registerNativePush();
+      await fetchMe();
+      await fetchStatus();
+      return { kind: "ok" };
+    },
+    [fetchMe, fetchStatus]
+  );
+
+  const pinLogin = useCallback(
+    async (login: string, pin: string): Promise<LoginResult> => {
+      const res = await api.post<{ token?: string; totp_required?: boolean; challenge?: string }>(
+        "/api/auth/pin-login",
+        { login, pin },
+      );
+      if (res.totp_required && res.challenge) return { kind: "totp", challenge: res.challenge };
+      resetSessionCaches();
+      tokenStore.set(res.token!, true);
+      storeSessionPass(res, true);
       void registerNativePush();
       await fetchMe();
       await fetchStatus();
@@ -402,12 +456,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchMe();
   }, [fetchMe]);
 
+  const completePasswordChange = useCallback(
+    async (current: string, next: string) => {
+      const persistent = authTokenIsPersistent();
+      const res = await api.post<{ ok: boolean; token?: string; session_pass?: string }>(
+        "/api/auth/me/password",
+        { current, next, remember: persistent },
+      );
+      // The server ended the restricted session; without the new token every
+      // request from here on would be signed out.
+      if (res.token) {
+        resetSessionCaches();
+        tokenStore.set(res.token, persistent);
+        storeSessionPass(res, persistent);
+        rememberNativeSession(res.token);
+      }
+      await fetchMe();
+    },
+    [fetchMe],
+  );
+
   // Memoize the context value so consumers don't re-render whenever
   // AuthProvider rerenders for unrelated reasons (status poll, etc.).
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
       login,
+      pinLogin,
       verifyTotpLogin,
       logout,
       bootstrap,
@@ -417,10 +492,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canAll,
       pageAccess,
       reload,
+      completePasswordChange,
     }),
     [
       state,
       login,
+      pinLogin,
       verifyTotpLogin,
       logout,
       bootstrap,
@@ -430,6 +507,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canAll,
       pageAccess,
       reload,
+      completePasswordChange,
     ],
   );
 
