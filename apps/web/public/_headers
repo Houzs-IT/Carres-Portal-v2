@@ -76,3 +76,14 @@
   # about why. This is exactly the failure mode the Report-Only note above
   # describes, caught one step earlier.
   Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://kfprgpjpaffedghytstl.supabase.co https://images.unsplash.com; connect-src 'self' https://kfprgpjpaffedghytstl.supabase.co https://api.carresofficial.com https://carres-portal-v2-api.wwch.workers.dev https://cdn.jsdelivr.net; frame-src 'self' blob:; form-action 'self' https://checkout.stripe.com https://pay.stripe.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+
+# Vite's content-hashed bundles (build.assetsDir default `assets`). Without a rule they were served with
+# Pages' default `max-age=0, must-revalidate`, so every portal load re-asked for every chunk.
+# The filename changes whenever the contents change, so a long cache never serves a stale file.
+#
+# ⚠️ NO `immutable` — see engine/frontend/public/_headers (the 2026-07-31 edge-poison outage). `/*` in
+# _redirects answers an unknown path with index.html at 200, so a request that lands mid-deploy can get
+# HTML under an asset URL; `immutable` would pin that copy even across a reload. Pages MERGES this rule
+# with `/*` above, which sets no Cache-Control, so only the cache header is added here.
+/assets/*
+  Cache-Control: public, max-age=31536000
