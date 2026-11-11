@@ -147,12 +147,11 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      # The browser only, no apt: the runner image already carries Chrome's system libraries, and the Ubuntu
+      # mirror failing to resolve cost 24 minutes on PR #2268 before the job hit its time limit.
       - name: Install chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Install chromium's system libraries
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+        run: pnpm exec playwright install chromium
       - name: Kit check on the moved screens (1025, 1164 and 1440 wide)
         run: pnpm kit:check
 

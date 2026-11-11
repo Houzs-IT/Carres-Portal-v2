@@ -31,6 +31,11 @@ describe("POST /api/operation/scm-engine/session", () => {
     expect((await post(engineEnv, "finance")).status).toBe(403);
   });
 
+  it("lets hr ask too: its menu holds Houzs's Team, Mail Center and IT Support", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ token: "tok" }), { status: 200 }));
+    expect((await post(engineEnv, "hr")).status).toBe(200);
+  });
+
   it("asks the engine with a signed assertion and hands back its session and site", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ token: "tok", session_pass: "sp" }), { status: 200 }));
     const res = await post(engineEnv);

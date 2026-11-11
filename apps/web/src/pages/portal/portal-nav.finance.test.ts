@@ -143,7 +143,8 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
     const opsReports = PORTAL_NAV.filter((g) => g.area !== "finance").flatMap((g) =>
       g.items.filter((it) => it.section === "Reports").map((it) => `${g.area}:${it.key}`),
     );
-    expect(opsReports).toEqual(["operation:sales-invoice-lines"]);
+    // The Operations report (Sales invoice lines) left the menu on 11 Nov 2026 (owner).
+    expect(opsReports).toEqual([]);
     const financeKeys = new Set(FINANCE.items.map((it) => it.key));
     for (const key of opsReports) expect(financeKeys.has(key.split(":")[1]!), key).toBe(false);
   });
@@ -179,24 +180,27 @@ describe("Payment Requests in the Operations rail", () => {
 
 /**
  * 0687 (Chew 2026-10-12, Finance MASTER §3.3, 「hr & BD 也到能申请」): the HR
- * staff Finance or the boss allows see Payment Requests on their own rail.
+ * staff Finance or the boss allows see Payment Requests. The Carres HR area is
+ * removed (owner, 11 Nov 2026), so HR finds it in Operations' Workspace, the
+ * one other Operations place it stands in beside the System rows.
  */
-describe("Payment Requests on the HR rail", () => {
-  const HR = PORTAL_NAV.find((g) => g.area === "hr")!;
+describe("Payment Requests for HR staff", () => {
+  const OPS = PORTAL_NAV.find((g) => g.area === "operation")!;
   const GRANT = new Set(["payment-requester"] as const);
-  const keys = (role: "hr" | "principal", caps?: ReadonlySet<"payment-requester">) => visibleItems(HR, role, caps).map((i) => i.key);
+  const keys = (role: "hr" | "principal", caps?: ReadonlySet<"payment-requester">) => visibleItems(OPS, role, caps).map((i) => i.key);
 
-  it("shows to HR staff with the grant, and to no one else on this rail", () => {
+  it("shows to HR staff with the grant, and not without it", () => {
     expect(keys("hr")).not.toContain("payment-requests");
     expect(keys("hr", GRANT)).toContain("payment-requests");
-    // The boss already has it under Operations; one row is enough.
-    expect(keys("principal", GRANT)).not.toContain("payment-requests");
   });
 
-  it("opens the Finance page, last on the rail", () => {
-    const item = HR.items.find((i) => i.key === "payment-requests")!;
-    expect(navItemHref(HR, item)).toBe("/finance/payment-requests");
-    expect(keys("hr", GRANT).at(-1)).toBe("payment-requests");
+  it("opens the Finance page", () => {
+    const item = OPS.items.find((i) => i.key === "payment-requests")!;
+    expect(navItemHref(OPS, item)).toBe("/finance/payment-requests");
+  });
+
+  it("is the only row HR sees outside the System rows", () => {
     expect(keys("hr", GRANT).filter((k) => k !== "payment-requests")).toEqual(keys("hr"));
+    expect(keys("hr")).toEqual(["team-directory", "team-org-chart", "team-departments", "team-mailboxes", "team-roles", "mail-center", "it-support"]);
   });
 });

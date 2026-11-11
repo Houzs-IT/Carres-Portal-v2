@@ -66,12 +66,20 @@ Rule: the engine's screens match Houzs except the theme; Carres edits live only 
 the files the commits below name, and the Carres config files.
 
 **The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
-the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription, Issue Tracker,
-Sales invoice lines, Settings); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
+the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
 values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still
 in the tree because Finance imports its shared components; no menu row or address opens it. Old Carres tables
 and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
 orders in the old order book (`OLD_ORDER_FLOWS`).
+
+**System rows, Settings and IT (owner, 11 Nov 2026).** The menu's SYSTEM group is Houzs's Team (Directory · Org
+Chart · Departments · Mailboxes · Roles & Permissions; its row opens `/team?tab=hub`), Mail Center and IT Support,
+each an engine row. The Settings gear opens Houzs's `/settings` (`/operation/sc/settings`) and `Report a problem
+to IT` opens Houzs's IT Support row. Removed: the Carres HR area (`/hr*` → Team hub), the Carres Settings
+workspace (`/operation/settings/*` → Houzs Settings), the Issue Tracker and Sales invoice lines (→ Sales Orders)
+and the Operations Payments rows (Finance keeps Monitor and Payment Records). `hr` logins enter `/operation` for
+the System rows only; the engine opens for them only once its `ENGINE_ROLES` (engine/backend/src/carres/sso.ts)
+admits `hr`.
 
 **Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
