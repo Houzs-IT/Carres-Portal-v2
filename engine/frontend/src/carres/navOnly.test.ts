@@ -5,7 +5,7 @@ describe("carresNavOnly", () => {
   it("keeps only the Carres areas and drops switched-off children", () => {
     const tabs = [
       { label: "Overview", to: "/" },
-      { label: "Supply Chain", to: "/scm", children: [{ label: "Consignment", to: "/scm/consignment" }, { label: "Forecast", to: "/scm/forecast" }] },
+      { label: "Supply Chain", to: "/scm", children: [{ label: "Consignment", to: "/scm/consignment" }, { label: "Payroll", to: "/scm/hr/payroll" }] },
       { label: "HR", to: "/scm/hr" },
       { label: "Service Cases", to: "/service-cases" },
       { label: "Projects", to: "/projects?view=hub" },
