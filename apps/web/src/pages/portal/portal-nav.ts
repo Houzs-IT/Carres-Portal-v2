@@ -101,6 +101,8 @@ export type PortalSection =
   | "Customer Care"
   /* Fairs, exhibitions and solo roadshows (0750, Houzs Projects). */
   | "Projects"
+  /* Rows that hang directly under Supply Chain, outside its modules (Houzs: Product Request). */
+  | "Supply Chain"
   /* One page, so it draws as a plain row under SERVICE (Layout Standard §2,
    * owner-confirmed 2026-10-08). */
   | "Issue Tracker"
@@ -123,6 +125,7 @@ export const SECTION_ORDER: ReadonlyArray<PortalSection> = [
   "Workspace",
   "Customer Care",
   "Projects",
+  "Supply Chain",
   "Sales",
   "Consignment",
   "Purchasing",
@@ -317,7 +320,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
        * Carres pages these areas used to have are removed (owner, 11 Nov 2026); their old addresses open the
        * nearest engine page (RETIRED_ADDRESSES). The other rows are Carres modules outside those areas. */
 
-      /* WORKSPACE */
+      /* WORKSPACE — Houzs's Overview first, as in Houzs. */
+      { key: "overview", label: "Overview", icon: LayoutDashboard, mIcon: "dashboard", path: "/operation/sc/overview", section: "Workspace" },
       { key: "orders-shortcut", label: "Sales Orders", icon: ShoppingCart, mIcon: "shopping_cart", path: "/operation/sc/orders", shortcut: true, section: "Workspace" },
       /* The one Workspace row shown by a grant, not a role (0645; Chew 2026-10-03,
        * Finance MASTER §3.3). The page lives in Finance. */
@@ -346,14 +350,16 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "project-calendar", label: "Calendar", icon: CalendarDays, path: "/operation/sc/project-calendar", section: "Projects" },
       { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, path: "/operation/sc/project-maintenance", section: "Projects" },
 
+      /* SUPPLY CHAIN — Houzs's Product Request row directly under Supply Chain (it is also in Consignment). */
+      { key: "product-request", label: "Product Request", icon: Sofa, path: "/operation/sc/product-request", section: "Supply Chain" },
+
       /* SUPPLY CHAIN · SALES ORDER */
       { key: "orders", label: "Sales Orders", crumb: "Sales Order", icon: ClipboardList, path: "/operation/sc/orders", section: "Sales" },
       { key: "fair-pending", label: "Fair Links to Settle", icon: MapPin, path: "/operation/sc/fair-pending", section: "Sales" },
       { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/sc/amendments", section: "Sales" },
       { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", section: "Sales" },
       { key: "delivery-orders", label: "Delivery Orders", icon: FileText, path: "/operation/sc/delivery-orders", section: "Sales" },
-      // Carres Finance's own page: it feeds the Carres books.
-      { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/finance/sales-invoices", activeFor: ["path:/finance/sales-invoices"], section: "Sales" },
+      { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/operation/sc/sales-invoices", section: "Sales" },
       { key: "delivery-returns", label: "Delivery Returns", icon: Undo2, path: "/operation/sc/delivery-returns", section: "Sales" },
       // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order. Last, so the Houzs rows keep Houzs's order.
       { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
@@ -614,6 +620,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
  *  frame at the row's `/operation/sc/<row>` address. Keyed by row, valued by the engine address. */
 export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "service-quality": "/assr?view=metrics", "service-notes": "/assr?view=cases",
+  overview: "/", "product-request": "/scm/product-requests", "sales-invoices": "/scm/sales-invoices",
   "service-maintenance": "/assr?view=settings", "service-mine": "/my-cases",
   "project-overview": "/projects?view=finances", projects: "/projects?view=list",
   "project-calendar": "/projects?view=calendar", "project-maintenance": "/projects?view=maintenance",
@@ -816,9 +823,11 @@ export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
   {
     label: null,
     row: { key: "supply-chain", label: "Supply Chain", icon: Boxes, mIcon: "inventory_2" },
-    sections: ["Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"],
+    sections: ["Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"],
   },
-  { label: null, sections: ["Payments", "Showroom", "Issue Tracker", "Reports"] },
+  /* Carres's own rows, apart from the Houzs part above (owner, 11 Nov 2026): Payments, then the Issue
+   * Tracker and the report at the very bottom. */
+  { label: "Carres", sections: ["Payments", "Issue Tracker", "Reports"] },
 ];
 
 /** The blocks of one area, cut into its menu groups. Only the Operations
