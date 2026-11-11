@@ -9,7 +9,7 @@ import type { Env } from "../types";
 import { createSession, mintSessionPass } from "../services/auth";
 
 type CarresEnv = Env & { CARRES_SSO_SECRET?: string };
-interface Assertion { email: string; role: string; exp: number }
+interface Assertion { email: string; role: string; exp: number; settingsEditor?: boolean }
 
 const MAX_AGE_MS = 60_000;
 /** Carres portal roles that open Supply Chain and Service Cases. Kept in step with the portal's own gate
@@ -32,9 +32,7 @@ export async function verifyAssertion(secret: string, token: string, now = Date.
   } catch { return null; }
 }
 
-/** The full-access role, made the first time on a new instance (it starts with no roles).
- *  shortcut: every admitted Carres role gets full access in the engine; split by role once Carres staff need
- *  narrower supply chain access. */
+/** The full-access role, made the first time on a new instance (it starts with no roles). */
 async function fullRoleId(env: Env): Promise<number | null> {
   const find = () => env.DB.prepare(`SELECT id FROM roles WHERE permissions LIKE '%"*"%' ORDER BY id LIMIT 1`).first<{ id: number }>();
   let r = await find();
@@ -44,6 +42,25 @@ async function fullRoleId(env: Env): Promise<number | null> {
     r = await find();
   }
   return r?.id ?? null;
+}
+
+export const NEW_MEMBER_ROLE = "New member";
+
+/** The role a new person starts on: no pages and no actions until the owner picks their role on Access & Roles. */
+async function newMemberRoleId(env: Env): Promise<number | null> {
+  const find = () => env.DB.prepare(`SELECT id FROM roles WHERE name = ? ORDER BY id LIMIT 1`).bind(NEW_MEMBER_ROLE).first<{ id: number }>();
+  let r = await find();
+  if (!r) {
+    await env.DB.prepare(`INSERT INTO roles (name, description, permissions, is_system, scope_to_pic) VALUES (?, ?, ?, 0, 0)`)
+      .bind(NEW_MEMBER_ROLE, "Starting role for a new Carres account: no access until the owner picks a role", JSON.stringify([])).run();
+    r = await find();
+  }
+  return r?.id ?? null;
+}
+
+/** The owner starts with full access; everyone else starts with none, and the owner gives them a role. */
+export function startsWithFullAccess(role: string): boolean {
+  return role === "principal";
 }
 
 const app = new Hono<{ Bindings: CarresEnv }>();
@@ -57,16 +74,22 @@ app.post("/", async (c) => {
   if (!a) return c.json({ error: "Sign-in could not be verified." }, 401);
   if (!ENGINE_ROLES.has(a.role)) return c.json({ error: "This account does not have access to supply chain." }, 403);
 
-  const roleId = await fullRoleId(c.env);
-  if (!roleId) return c.json({ error: "The account could not be prepared." }, 500);
   const email = a.email.toLowerCase().trim();
   let user = await c.env.DB.prepare(`SELECT id, status, role_id FROM users WHERE email = ?`).bind(email).first<{ id: number; status: string; role_id: number }>();
   if (!user) {
+    // An existing account keeps the role the owner gave it; only a new one gets a starting role.
+    const roleId = startsWithFullAccess(a.role) ? await fullRoleId(c.env) : await newMemberRoleId(c.env);
+    if (!roleId) return c.json({ error: "The account could not be prepared." }, 500);
     await c.env.DB.prepare(`INSERT INTO users (email, name, role_id, status) VALUES (?, ?, ?, 'active')`).bind(email, email, roleId).run();
     user = await c.env.DB.prepare(`SELECT id, status, role_id FROM users WHERE email = ?`).bind(email).first<{ id: number; status: string; role_id: number }>();
   }
   if (!user) return c.json({ error: "The account could not be prepared." }, 500);
   if (user.status !== "active") return c.json({ error: "Account is disabled" }, 403);
+
+  // Settings editors -> Supply Chain on the portal: kept in step on every sign-in.
+  await c.env.DB.prepare(a.settingsEditor === true
+    ? `INSERT INTO carres_settings_editors (user_id) VALUES (?) ON CONFLICT (user_id) DO NOTHING`
+    : `DELETE FROM carres_settings_editors WHERE user_id = ?`).bind(user.id).run();
 
   await c.env.DB.prepare(`UPDATE users SET last_login_at = datetime('now') WHERE id = ?`).bind(user.id).run();
   const token = await createSession(c.env, user.id);

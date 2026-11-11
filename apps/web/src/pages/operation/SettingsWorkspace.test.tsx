@@ -273,3 +273,17 @@ describe("SettingsWorkspace — Supply Chain Settings", () => {
     expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/settings?tab=branding");
   });
 });
+
+describe("SettingsWorkspace — Access & Roles", () => {
+  it("sits under Team and access and opens the engine's Roles & Permissions", () => {
+    render(
+      <MemoryRouter initialEntries={["/operation/settings/access"]}>
+        <Routes>
+          <Route path="/operation/settings/*" element={<SettingsWorkspace />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Access & Roles" })).toHaveAttribute("href", "/operation/settings/access");
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/team?tab=roles");
+  });
+});

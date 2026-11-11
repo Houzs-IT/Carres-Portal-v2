@@ -569,6 +569,13 @@ async function hydrateAuthUser(env: Env, row: any): Promise<AuthUser> {
     permissions.push("*");
     permissionsSet.add("*");
   }
+  // Carres only: a person the Carres owner named under Settings editors -> Supply Chain may change Settings
+  // whatever their role (carres/sso.ts keeps carres_settings_editors in step on every sign-in).
+  if (!permissionsSet.has("*") && !permissionsSet.has("settings.manage")
+    && await env.DB.prepare(`SELECT 1 AS ok FROM carres_settings_editors WHERE user_id = ?`).bind(row.id).first().catch(() => null)) { // no table yet (or a test database): nobody is named
+    permissions.push("settings.manage");
+    permissionsSet.add("settings.manage");
+  }
   // brand_scope was the per-user brand allow-list for the project row-level ACL.
   // That ACL was removed (owner decision 2026-08-19), so nothing reads it any
   // more; it is left on the envelope as a vestigial null rather than reshaping
