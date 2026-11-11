@@ -40,11 +40,49 @@ describe("the Houzs tree", () => {
           "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take",
         ],
       },
+      /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026); the Carres bottom group is gone. */
       {
-        head: "Carres",
-        blocks: ["Payments: Monitor · Payment Records", "Issue Tracker", "Sales invoice lines"],
+        head: "System",
+        blocks: ["Team: Directory · Org Chart · Departments · Mailboxes · Roles & Permissions", "Mail Center", "IT Support"],
       },
     ]);
+  });
+
+  it("hr sees only the System group (and Payment Requests by grant)", () => {
+    expect(menuGroups(OPERATIONS, "hr").map((g) => g.label)).toEqual(["System"]);
+    expect(menuGroups(OPERATIONS, "hr", new Set(["payment-requester"] as const)).map((g) => g.label)).toEqual(["Workspace", "System"]);
+  });
+
+  it("the System rows open Houzs's own pages at their own addresses", () => {
+    const rows: Array<[string, string]> = [
+      ["team-directory", "/team?tab=directory"],
+      ["team-org-chart", "/team?tab=orgchart2"],
+      ["team-departments", "/team?tab=departments2"],
+      ["team-mailboxes", "/team?tab=mail2"],
+      ["team-roles", "/team?tab=permissions"],
+      ["mail-center", "/mail-center"],
+      ["it-support", "/it-support"],
+    ];
+    for (const [key, page] of rows) {
+      const item = OPERATIONS.items.find((i) => i.key === key)!;
+      expect(navItemHref(OPERATIONS, item), key).toBe(`/operation/sc/${key}`);
+      expect(engineFor(`/operation/sc/${key}`), key).toBe(page);
+    }
+    // The Team module row opens Houzs's Team hub; the Settings gear opens Houzs's Settings.
+    expect(engineFor("/operation/sc/hub-team")).toBe("/team?tab=hub");
+    expect(engineFor("/operation/sc/settings")).toBe("/settings");
+  });
+
+  it("old HR, Issue Tracker, report and Settings addresses open their new rows", () => {
+    expect(retiredRedirect("/hr", "")).toBe("/operation/sc/hub-team");
+    expect(retiredRedirect("/hr", "?tab=commission")).toBe("/operation/sc/hub-team");
+    expect(retiredRedirect("/hr/people/1", "")).toBe("/operation/sc/hub-team");
+    expect(retiredRedirect("/hrx", "")).toBeNull();
+    expect(retiredRedirect("/operation/issues", "")).toBe("/operation/sc/orders");
+    expect(retiredRedirect("/operation/issues/reports", "?month=2026-10")).toBe("/operation/sc/orders");
+    expect(retiredRedirect("/operation", "?tab=sales-invoice-lines")).toBe("/operation/sc/orders");
+    expect(retiredRedirect("/operation/settings/purchasing", "")).toBe("/operation/sc/settings");
+    expect(retiredRedirect("/operation/settings", "")).toBe("/operation/sc/settings");
   });
 
   /* A row whose tab no branch answers would land on a blank page without a word. */

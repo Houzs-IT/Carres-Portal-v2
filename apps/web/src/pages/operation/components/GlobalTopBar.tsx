@@ -66,43 +66,10 @@ export default function GlobalTopBar() {
 /** Which module's settings the launcher offers first. A module appears only
  *  when it actually OWNS settings — an entry that opens an empty page is a
  *  promise about the product, which is the thing the old placeholder did. */
-/** The Warehouse map is four `?tab=` destinations, not four pathnames
- *  (`portal-nav.ts`: Monitor · Inbound · Inventory · Outbound). The launcher
- *  reads the tab, because reading only the pathname would offer Warehouse
- *  Settings on every Operations page or on none. */
-const WAREHOUSE_TABS = new Set([
-  "warehouse-arrival-schedule",
-  "warehouse-pickup-schedule",
-  "warehouse-inbound",
-  "warehouse-outbound",
-  // The two retired Calendar addresses still resolve to Arrival Schedule, so
-  // a bookmark that lands there must still be offered Warehouse Settings.
-  "warehouse-monitor",
-  "warehouse-dashboard",
-  "stock-onhand",
-  // Weisiang's decision 2026-10-22: the Houzs-way Warehouses page.
-  "warehouses",
-  "stock-adjustments",
-  "stock-transfers",
-  "stock-takes",
-]);
-
-function moduleSettingsFor(
-  pathname: string,
-  search = "",
-): { label: string; href: string } | null {
+function moduleSettingsFor(pathname: string): { label: string; href: string } | null {
   if (pathname.startsWith("/finance")) return { label: "Finance Settings", href: "/finance/settings" };
-  if (pathname.startsWith("/operation/issues")) return { label: "Issue Tracker Settings", href: "/operation/settings/issue-tracker" };
-  if (pathname.startsWith("/operation/orders")) {
-    return { label: "Sales Order Settings", href: "/operation/settings/sales-orders" };
-  }
-  if (pathname.startsWith("/operation/purchasing") || pathname.startsWith("/operation/to-order")) {
-    return { label: "Purchasing Settings", href: "/operation/settings/purchasing" };
-  }
-  const tab = new URLSearchParams(search).get("tab") ?? "";
-  if (WAREHOUSE_TABS.has(tab)) {
-    return { label: "Warehouse Settings", href: "/operation/settings/warehouse/details" };
-  }
+  // Every Operations module's settings are in Houzs's own Settings now (the Carres Settings workspace is
+  // removed, owner 11 Nov 2026): "All System Settings" below opens it.
   return null;
 }
 
@@ -125,7 +92,7 @@ export function TopBarIcons({ inShell = false }: {
 function TopBarIconsBody({ inShell }: { inShell: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const moduleSettings = moduleSettingsFor(location.pathname, location.search);
+  const moduleSettings = moduleSettingsFor(location.pathname);
   const { data } = useOperationOrders({});
   const orders = useMemo(() => data?.orders ?? [], [data]);
   const tasksQ = useQuery<OpsTasksListResponse>({
@@ -401,7 +368,7 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
               className="block w-full text-left px-3 py-1.5 text-body text-base-700 hover:bg-hovertint hover:text-base-900"
               onClick={() => {
                 setOpen(null);
-                navigate("/operation/settings");
+                navigate("/operation/sc/settings");
               }}
               data-testid="settings-launcher-all"
             >
