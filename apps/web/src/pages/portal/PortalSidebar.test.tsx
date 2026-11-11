@@ -617,13 +617,20 @@ describe("the accordion", () => {
     expect(screen.queryByTestId("nav-children-sales")).not.toBeInTheDocument();
   });
 
-  it("clicking a module opens its first live page", () => {
+  it("clicking a Houzs module opens its hub page, as Houzs's row does, with the module open", () => {
     renderAt("/operation");
     openSupply();
     fireEvent.click(module_("warehouse"));
-    // The click goes to the module's first live page, Loading List.
-    expect(child("wh-loading-list").className).toContain("bg-c-select-pill");
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation/sc/wh-loading-list");
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation/sc/hub-warehouse");
+    expect(screen.getByTestId("nav-children-warehouse")).toBeInTheDocument();
+    expect(module_("warehouse").getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("Supply Chain opens Houzs's /scm hub and stays open there", () => {
+    renderAt("/operation?tab=work");
+    fireEvent.click(screen.getByTestId("nav-fold-supply-chain"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation/sc/hub-scm");
+    expect(screen.getByTestId("nav-fold-children-supply-chain")).toBeInTheDocument();
   });
 
   it("clicking the open module closes it again", () => {
@@ -651,7 +658,7 @@ describe("the accordion", () => {
     fireEvent.click(module_("warehouse"));
     expect(screen.getByTestId("nav-children-warehouse")).toBeInTheDocument();
     expect(screen.queryByTestId("nav-children-purchasing")).not.toBeInTheDocument();
-    expect(child("wh-loading-list").className).toContain("bg-c-select-pill");
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation/sc/hub-warehouse");
   });
 
   it("a module shut by hand stays shut while you stand on its page", () => {
@@ -1295,12 +1302,11 @@ describe("PortalSidebar — the Procurement map", () => {
  * more often than to travel.
  */
 describe("PortalSidebar — the Procurement parent toggles without navigating", () => {
-  it("a click changes the tree and does NOT change the URL", () => {
+  it("a click opens Houzs's Procurement hub and the tree", () => {
     renderAt("/operation");
     openSupply();
-    const before = screen.getByTestId("location-probe").textContent;
     fireEvent.click(module_("purchasing"));
-    expect(screen.getByTestId("location-probe")).toHaveTextContent(before ?? "");
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/operation/sc/hub-procurement");
     expect(screen.getByTestId("nav-children-purchasing")).toBeInTheDocument();
     expect(module_("purchasing").getAttribute("aria-expanded")).toBe("true");
   });

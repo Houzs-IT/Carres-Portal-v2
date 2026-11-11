@@ -18,8 +18,13 @@ describe("the menu follows a move inside the engine frame", () => {
     expect(engineRowFor(path)).toBe(key);
   });
 
-  it("covers nothing outside the menu", () => {
-    expect(engineRowFor("/scm/hr/payroll")).toBeNull();
+  it("a Supply Chain page with no row of its own lights Supply Chain (the /scm hub)", () => {
+    expect(engineRowFor("/scm/hr/payroll")).toBe("hub-scm");
+    expect(engineRowFor("/scm/procurement")).toBe("hub-procurement");
+  });
+
+  it("covers nothing outside the engine areas", () => {
+    expect(engineRowFor("/team")).toBeNull();
   });
 
   it("a row's own page needs no ?at=; a deeper page keeps it, and reopens there", () => {

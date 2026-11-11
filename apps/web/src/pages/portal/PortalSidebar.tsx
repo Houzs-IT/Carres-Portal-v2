@@ -23,6 +23,8 @@ import {
   type PortalNavItem,
   type PortalSection,
   HOUZS_ICON_SECTIONS,
+  ENGINE_HUBS,
+  hubSectionFor,
 } from "./portal-nav";
 import { useEngineBadges } from "./engine-badges";
 import {
@@ -311,10 +313,13 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
    * it was made at, so it expires the moment the operator navigates. Without
    * that stamp, opening Purchasing and then jumping to a Warehouse page would
    * leave Purchasing open and hide the row you had just moved to. */
+  // On a Houzs hub page its module is the open one (portal-nav ENGINE_HUBS).
+  const hubAt = hubSectionFor(location.pathname);
+  const hubModuleSection: PortalSection | null = hubAt && hubAt !== "supply-chain" ? hubAt : null;
   const activeModuleSection: PortalSection | null = activeGroup
     ? (navBlocks(activeGroup, role, caps).find(
         (b) => b.kind === "module" && b.pages.some((p) => isItemActive(activeGroup, p)),
-      ) as Extract<NavBlock, { kind: "module" }> | undefined)?.module.section ?? null
+      ) as Extract<NavBlock, { kind: "module" }> | undefined)?.module.section ?? hubModuleSection
     : null;
 
   const here = `${location.pathname}${location.search}`;
@@ -363,6 +368,12 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     }
     // Opening one module shuts the others: there is one open module.
     setOverride({ at: here, section: block.module.section });
+    /* A Houzs module opens its hub page, as Houzs's row does (portal-nav ENGINE_HUBS). */
+    const hubKey = group.area === "operation" ? ENGINE_HUBS[block.module.section] : undefined;
+    if (hubKey) {
+      navigate(`/operation/sc/${hubKey}`);
+      return;
+    }
     /* A module whose row only opens its pages stays where you are (the data
      * says which: `handleOnly`). Every other module also GOES to its first
      * live page, because clicking it is how you get there. An all-unbuilt
@@ -596,9 +607,11 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     row: NonNullable<ReturnType<typeof menuGroups>[number]["row"]>,
     blocks: NavBlock[],
   ) {
+    const sections = new Set(blocks.map((b) => (b.kind === "plain" ? b.item.section : b.module.section)));
+    const hubHere = hubSectionFor(location.pathname);
     const holds = blocks.some((b) =>
       b.kind === "plain" ? isItemActive(group, b.item) : b.pages.some((p) => isItemActive(group, p)),
-    );
+    ) || (hubHere !== null && (hubHere === row.key || sections.has(hubHere as PortalSection)));
     const open = foldByHand?.at === here ? foldByHand.open : holds;
     return (
       <div key={row.key} className="flex flex-col gap-[3px]">
@@ -606,7 +619,12 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           type="button"
           data-testid={`nav-fold-${row.key}`}
           aria-expanded={open}
-          onClick={() => setFoldByHand({ at: here, open: !open })}
+          onClick={() => {
+            /* Supply Chain opens Houzs's /scm hub, as Houzs's row does; a second click folds it. */
+            const hubKey = !open ? ENGINE_HUBS[row.key as "supply-chain"] : undefined;
+            if (hubKey) navigate(`/operation/sc/${hubKey}`);
+            else setFoldByHand({ at: here, open: !open });
+          }}
           className={`${ROW} ${holds && !open ? ROW_ON : ROW_REST}`}
         >
           {rowIcon(row.mIcon, row.icon, holds && !open)}

@@ -629,6 +629,10 @@ export const PORTAL_NAV: PortalNavGroup[] = [
 /** Service Cases, Projects and Supply Chain: each row's engine page (engine/, Houzs's own screens), shown in a
  *  frame at the row's `/operation/sc/<row>` address. Keyed by row, valued by the engine address. */
 export const ENGINE_PAGES: Readonly<Record<string, string>> = {
+  // The hub pages Houzs opens when a module's own row is clicked (ENGINE_HUBS).
+  "hub-scm": "/scm", "hub-service": "/assr?view=hub", "hub-projects": "/projects?view=hub",
+  "hub-sales": "/scm/sales-order", "hub-consignment": "/scm/consignment", "hub-procurement": "/scm/procurement",
+  "hub-transportation": "/scm/transportation", "hub-warehouse": "/scm/warehouse",
   "service-quality": "/assr?view=metrics", "service-notes": "/assr?view=cases",
   overview: "/", "product-request": "/scm/product-requests", "sales-invoices": "/scm/sales-invoices",
   "service-maintenance": "/assr?view=settings", "service-mine": "/my-cases",
@@ -695,6 +699,22 @@ const RETIRED_TABS: Readonly<Record<string, string>> = {
   "warehouse-pickup-schedule": "wh-loading-list", "warehouse-inbound": "receiving",
   "warehouse-outbound": "delivery-orders", "arrival-source": "receiving",
 };
+
+/** Houzs's module rows open a hub page (Houzs Sidebar.tsx `to`): Service Cases, Projects, each Supply Chain
+ *  module, and Supply Chain itself ("supply-chain", the Operations fold row). Keyed by section, valued by
+ *  the ENGINE_PAGES key. */
+export const ENGINE_HUBS: Readonly<Partial<Record<PortalSection | "supply-chain", string>>> = {
+  "supply-chain": "hub-scm", "Customer Care": "hub-service", Projects: "hub-projects", Sales: "hub-sales",
+  Consignment: "hub-consignment", Purchasing: "hub-procurement", Delivery: "hub-transportation", Warehouse: "hub-warehouse",
+};
+
+/** The section whose hub this address shows, or null. */
+export function hubSectionFor(pathname: string): PortalSection | "supply-chain" | null {
+  const m = /^\/operation\/sc\/(hub-[a-z-]+)\/?$/.exec(pathname);
+  if (!m) return null;
+  const hit = Object.entries(ENGINE_HUBS).find(([, key]) => key === m[1]);
+  return (hit?.[0] as PortalSection | "supply-chain" | undefined) ?? null;
+}
 
 /** The engine row a retired address opens, by key; null for every other address. */
 export function retiredTarget(pathname: string, search: string): string | null {
@@ -959,6 +979,9 @@ export function activeNavTitle(
 ): { crumb: string | null; title: string } | null {
   const group = PORTAL_NAV.find((g) => g.area === "operation");
   if (!group) return null;
+  // A Houzs hub page is named by its module (Supply Chain for the /scm hub).
+  const hub = hubSectionFor(pathname);
+  if (hub) return { crumb: null, title: hub === "supply-chain" ? "Supply Chain" : PORTAL_MODULES.find((m) => m.section === hub)?.label ?? hub };
   const item = activeItem(group, pathname, search);
   if (!item) return null;
   const moduleRow = PORTAL_MODULES.find((m) => m.section === item.section);
