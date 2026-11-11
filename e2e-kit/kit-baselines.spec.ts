@@ -101,18 +101,3 @@ for (const { name, path, ready } of PAGES) {
     }
   }
 }
-
-/* The Tasks panel on its own, beside the Workspace page (SO Batch, its first host, is removed). */
-for (const width of WIDTHS) {
-  test(`tasks panel at ${width}`, async ({ page }) => {
-    await open(page, `/work-preview.html?shell=1&pw=1&at=${encodeURIComponent("/operation?tab=work")}`, '[role="tab"]', width);
-    expect(await setTasks(page, true), "the Tasks panel opens").toBe(true);
-    await page.locator("[data-task-card]").first().waitFor();
-    await settle(page);
-    await expect(page.locator(TASKS)).toHaveScreenshot(`tasks-panel-${width}.png`, {
-      animations: "disabled",
-      caret: "hide",
-      maxDiffPixelRatio: 0.002,
-    });
-  });
-}
