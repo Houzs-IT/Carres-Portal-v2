@@ -1,6 +1,8 @@
-/** A SCAN_QUEUE message: a scan job to run, or a confirmed correction to learn from. */
+/** A SCAN_QUEUE message: a scan job to run, an AI read to run (scm/lib/ai-read-jobs.ts),
+ *  or a confirmed correction to learn from. */
 export type ScanQueueMessage =
   | { jobId: string }
+  | { aiRead: string }
   | { distill: { rep: string | null; companyId: number | null; userId: number | null } };
 
 export type Env = {
@@ -128,6 +130,9 @@ export type Env = {
   DP_BOARD_SOURCE?: string;
   // Receipt bank move: atomic (default) | two-step (the old non-atomic path, rollback only). acc/rebank-transaction.ts. Set in wrangler.toml [vars].
   RECEIPT_REBANK_MODE?: string;
+  // Returns, atomic (default) | two-step (rollback only), scm/lib/stock-post-tx.ts: customer returns and supplier returns. Set in wrangler.toml [vars].
+  DELIVERY_RETURN_MODE?: string;
+  PURCHASE_RETURN_MODE?: string;
   // ── ERP -> AutoCount WRITE-BACK (outbound; separate from the two above,
   // which are the legacy inbound pull) ───────────────────────────────────────
   // Base URL of AcSyncService, the write-back service that runs ON the AutoCount

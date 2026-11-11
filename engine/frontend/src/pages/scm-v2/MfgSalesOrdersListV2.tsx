@@ -54,6 +54,7 @@ import { salesOrderPrintChain } from "../../lib/printChain";
 import { fetchPrintBundle } from "../../lib/printDocumentPdf";
 import type { PdfAction } from "../../vendor/scm/lib/pdf-common";
 import { PageHeader } from "../../components/Layout";
+import { MrpAsOf } from "../../components/MrpAsOf";
 import { SoListPoCell, SoSourceChips, SoStockPill } from "../../components/SoSourceChips";
 import { coverageStateOf } from "../../components/coverage-state";
 import { overlaySoLineCoverage } from "../../vendor/scm/lib/so-coverage-overlay";
@@ -720,7 +721,7 @@ function DetailDrawer({
                         variant="ghost"
                         icon={<Trash2 size={14} />}
                         onClick={onDiscard}
-                        style={{ color: "var(--c-festive-b, #B8331F)" }}
+                        style={{ color: "var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))" }}
                       >
                         {DISCARD_DRAFT_LABEL}
                       </Button>
@@ -1163,7 +1164,7 @@ export function MfgSalesOrdersListV2() {
   // The server already filtered (status + search) and sorted this page; the
   // rows are rendered verbatim — NO client re-filter / re-sort (that would be
   // wrong on a partial page).
-  const rows = useEnrichedSoListRows((data?.salesOrders ?? []) as SoRow[], !listLoading); // SHIPPED chips + stored placeholders; deferred MRP heals 4 fields a beat later
+  const { rows, mrp: mrpStatus } = useEnrichedSoListRows((data?.salesOrders ?? []) as SoRow[], !listLoading); // SHIPPED chips + stored placeholders; deferred MRP heals 4 fields a beat later
   const total = data?.total ?? 0;
   /* A deep-linked or stale ?page= past the filtered set's last page (page 70 of
      a 3-page filter) falls back to the last page once the real total is in. */
@@ -1954,7 +1955,7 @@ export function MfgSalesOrdersListV2() {
          admin saved from the Columns panel still takes this seed's place. */
       {
         id: "so-houzs",
-        label: "Sales Layout",
+        label: "Carres Layout",
         hint: "AutoCount: SALES ORDER DETAILS-SALES",
         companyCode: "HOUZS",
         isDefault: !is2990,
@@ -2050,6 +2051,8 @@ export function MfgSalesOrdersListV2() {
                 : []),
             ]}
           />
+
+          <MrpAsOf status={mrpStatus} className="mb-2" />
 
           {/* No data-freeze-anchor here: the owner revised the SO ruling to
               match Service Cases — cards + status pills scroll away, and the

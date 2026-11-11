@@ -163,7 +163,7 @@ function DataTableInner<T, L>({
   exportLabel = "Export",
   onExport,
   exportLines,
-  exportXlsx,
+  exportXlsx, exportSheet,
   onExportPdf, onShownColumnsChange,
   toolbarExtra,
   onColFiltersChange,
@@ -1628,7 +1628,8 @@ function DataTableInner<T, L>({
     if (exportXlsx) {
       // No lines: one sheet row per list row, keeping each column's exportFormat.
       const matrix = buildLineExportMatrix(outRows, () => [], exportableColumns(visibleColumns as Column<T, L>[]));
-      void writeLineExportFile(matrix, "Sheet1", `${exportName || tableId || "export"}-${date}.xlsx`);
+      const sheet = exportSheet?.(outRows);
+      void writeLineExportFile(matrix, sheet?.name ?? "Sheet1", `${exportName || tableId || "export"}-${date}.xlsx`, sheet?.heading);
       return;
     }
     downloadCSV(`${exportName || tableId || "export"}-${date}.csv`, toCSV(outRows, csvCols));
@@ -2739,7 +2740,7 @@ function DataTableInner<T, L>({
                   // Odd-row value = `surface-dim` (#ecebe2) at 35% over the
                   // white surface, pre-blended so there's no visible seam.
                   const stickyBg =
-                    rowIdx % 2 === 0 ? "#ffffff" : "#f8f8f5";
+                    rowIdx % 2 === 0 ? "var(--hz-c-surface)" : "var(--hz-dk-row-alt, #f8f8f5)";
                   // A falsy key means this row has nothing to drill into: no chevron.
                   const expId = expandable ? expansionId(row) || null : null;
                   const isExpanded = expId != null && expandedRowsEffective.has(expId);

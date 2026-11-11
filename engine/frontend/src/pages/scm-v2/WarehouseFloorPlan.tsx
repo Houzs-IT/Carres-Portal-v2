@@ -46,8 +46,8 @@ type StatePal = {
 };
 const PAL: Record<SlotStatus, StatePal> = {
   occupied: { bg: '#DCE6FD', border: '#b9d4ce', fg: '#2F55E0', levelBg: '#1B1B39', levelFg: '#ffffff', tick: '#1B1B39', tickBd: '#2F55E0', label: 'Occupied', badgeBg: '#DCE6FD', badgeFg: '#2F55E0', swatch: '#1B1B39', swatchBd: '#2F55E0' },
-  empty: { bg: '#ffffff', border: '#EEF0F3', fg: '#4B5563', levelBg: '#F8F9FA', levelFg: '#4B5563', tick: '#ffffff', tickBd: '#d3d8cf', label: 'Empty', badgeBg: '#F8F9FA', badgeFg: '#4B5563', swatch: '#ffffff', swatchBd: '#d3d8cf' },
-  reserved: { bg: '#f6efd9', border: '#E5E7EB', fg: '#6e4d12', levelBg: '#6e4d12', levelFg: '#ffffff', tick: '#b76b00', tickBd: '#6e4d12', label: 'Reserved', badgeBg: '#f6efd9', badgeFg: '#6e4d12', swatch: '#b76b00', swatchBd: '#6e4d12' },
+  empty: { bg: '#ffffff', border: 'var(--hz-c-border-subtle)', fg: '#4B5563', levelBg: '#F8F9FA', levelFg: '#4B5563', tick: '#ffffff', tickBd: '#d3d8cf', label: 'Empty', badgeBg: '#F8F9FA', badgeFg: '#4B5563', swatch: '#ffffff', swatchBd: '#d3d8cf' },
+  reserved: { bg: '#f6efd9', border: 'var(--hz-c-border)', fg: '#6e4d12', levelBg: '#6e4d12', levelFg: '#ffffff', tick: '#b76b00', tickBd: '#6e4d12', label: 'Reserved', badgeBg: '#f6efd9', badgeFg: '#6e4d12', swatch: '#b76b00', swatchBd: '#6e4d12' },
 };
 /* Legend / chip order, derived from PAL's key order so the status vocabulary
    lives in ONE place (occupied, empty, reserved). */
@@ -286,7 +286,7 @@ function Toolbar({
               type="button"
               onClick={() => setFilter({ status: on ? '' : k })}
               className="flex items-center gap-[7px] rounded-full border py-1 pl-2 pr-2.5"
-              style={{ background: on ? p.badgeBg : 'transparent', borderColor: on ? p.swatchBd : '#EEF0F3', color: on ? p.badgeFg : '#4B5563' }}
+              style={{ background: on ? p.badgeBg : 'transparent', borderColor: on ? p.swatchBd : '#EEF0F3', color: on ? p.badgeFg : 'var(--hz-c-ink-secondary)' }}
             >
               <span className="h-2.5 w-2.5 rounded-[3px] border" style={{ background: p.swatch, borderColor: p.swatchBd }} />
               <span className="text-[12px] font-semibold">{p.label}</span>
@@ -316,7 +316,7 @@ function BatchBar({
   busy: boolean;
   onClear: () => void;
 }) {
-  const primary = 'h-8 rounded-md px-3.5 text-[12.5px] font-semibold bg-white text-[#2F55E0] disabled:opacity-60';
+  const primary = 'h-8 rounded-md px-3.5 text-[12.5px] font-semibold bg-surface text-primary-ink disabled:opacity-60';
   const ghost = 'h-8 rounded-md px-3.5 text-[12.5px] font-semibold text-white border border-white/25 bg-white/10 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45';
   return (
     <div className="flex flex-wrap items-center gap-2.5 rounded-xl bg-primary-ink p-3">
@@ -362,7 +362,7 @@ function FloorPlan({
     <div className="flex flex-col overflow-x-auto rounded-xl border border-border-subtle bg-surface px-5 pb-5 pt-[18px]">
       <div className="mb-3.5 flex min-w-max items-center gap-2.5 border-b border-dashed border-border-subtle pb-3">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-accent">Floor plan · top view</span>
-        <span className="h-px w-20 bg-[#f0f2ee]" />
+        <span className="h-px w-20 bg-[color:var(--hz-dk-surface-2,#f0f2ee)]" />
         <span className="text-[11.5px] text-ink-secondary">click a slot for details · cmd/ctrl-click to multi-select</span>
       </div>
 
@@ -387,7 +387,7 @@ function FloorPlan({
                     <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink-secondary">{zone.aisle.name}</span>
                     <span className="text-[11px] text-ink-muted">{zone.aisle.flow}</span>
                     <span className="flex-1" />
-                    <ArrowLeftRight size={13} className="text-[#9aa093]" strokeWidth={2} />
+                    <ArrowLeftRight size={13} className="text-[color:var(--hz-c-ink-soft)]" strokeWidth={2} />
                   </div>
                 )}
                 <div className="flex items-baseline gap-2.5">
@@ -415,7 +415,7 @@ function FloorPlan({
                         />
                       ))}
                       <div className="mt-0.5 h-[3px] overflow-hidden rounded-[2px] bg-border-subtle">
-                        <div className="h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#2F55E0' : '#1B1B39' }} />
+                        <div className="h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#2F55E0' : 'var(--hz-c-primary)' }} />
                       </div>
                       <div className="flex items-center justify-between gap-0.5 px-0.5 pt-px">
                         <span className="text-[11.5px] font-bold text-ink">{rack.name}</span>
@@ -510,7 +510,7 @@ function ListView({
             <span className="font-mono text-[10.5px] text-ink-secondary">{rack.occupied}/{rack.total}</span>
             <span className="flex-1" />
             <span className="h-[3px] w-16 overflow-hidden rounded-[2px] bg-border-subtle">
-              <span className="block h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#2F55E0' : '#1B1B39' }} />
+              <span className="block h-[3px]" style={{ width: `${rack.utilPct}%`, background: rack.utilPct >= 100 ? '#2F55E0' : 'var(--hz-c-primary)' }} />
             </span>
           </div>
           {rack.slots.map((s) => {
@@ -558,7 +558,7 @@ function HoverCard({ hover }: { hover: { slot: Slot; x: number; y: number } }) {
       </div>
       {rows.map(([k, v]) => (
         <div key={k} className="flex items-center justify-between gap-4">
-          <span className="text-[10.5px] text-[#9aa093]">{k}</span>
+          <span className="text-[10.5px] text-[color:var(--hz-c-ink-soft)]">{k}</span>
           <span className="truncate text-[11.5px] font-semibold tabular-nums">{v}</span>
         </div>
       ))}

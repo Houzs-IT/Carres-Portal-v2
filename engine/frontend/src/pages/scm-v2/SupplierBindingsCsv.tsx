@@ -663,7 +663,7 @@ export const ImportBindingsDialog = ({
           </button>
         </header>
         <div className={styles.modalBody}>
-          <p style={{ fontSize: 'var(--fs-12)', color: '#6B7280', marginBottom: 'var(--space-3)' }}>
+          <p style={{ fontSize: 'var(--fs-12)', color: 'var(--hz-c-ink-muted)', marginBottom: 'var(--space-3)' }}>
             Upload a CSV or Excel file (exported via <strong>Export Bindings</strong>, or the
             worklist columns <code>internal_code / supplier_sku / price_rm</code>). Both the
             <strong> long</strong> and legacy <strong>wide</strong> layouts are detected
@@ -680,15 +680,15 @@ export const ImportBindingsDialog = ({
           />
           {preview && (
             <div style={{
-              fontSize: 'var(--fs-13)', color: '#111827', padding: 'var(--space-2) var(--space-3)',
-              background: '#fff', border: '1px solid #E5E7EB', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-2)',
+              fontSize: 'var(--fs-13)', color: 'var(--hz-c-ink)', padding: 'var(--space-2) var(--space-3)',
+              background: 'var(--hz-c-surface)', border: '1px solid var(--hz-c-border)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-2)',
             }}>
               <div style={{ fontWeight: 700, marginBottom: 4 }}>
                 {preview.format} format · {preview.creates.length} to create · {preview.updates.length} to update
               </div>
               {preview.creates.length > 0 && (
                 <div style={{ maxHeight: 180, overflowY: 'auto', marginTop: 4 }}>
-                  <div style={{ fontSize: 'var(--fs-11)', color: '#6B7280', marginBottom: 2 }}>New bindings:</div>
+                  <div style={{ fontSize: 'var(--fs-11)', color: 'var(--hz-c-ink-muted)', marginBottom: 2 }}>New bindings:</div>
                   {preview.creates.map((c) => (
                     <div key={c.itemCode} style={{ fontSize: 'var(--fs-12)', fontFamily: 'var(--font-mono, monospace)' }}>
                       {c.itemCode} → {c.supplierSku} · {fmtRm(c.unitPriceSen)}{c.priceMatrix ? ' · matrix' : ''}
@@ -699,17 +699,17 @@ export const ImportBindingsDialog = ({
             </div>
           )}
           {progress.total > 0 && running && (
-            <p style={{ fontSize: 'var(--fs-12)', color: '#6B7280' }}>
+            <p style={{ fontSize: 'var(--fs-12)', color: 'var(--hz-c-ink-muted)' }}>
               Updating {progress.done} / {progress.total}…
             </p>
           )}
           {summary && (
             <p style={{
               fontSize: 'var(--fs-13)',
-              color: '#111827',
+              color: 'var(--hz-c-ink)',
               padding: 'var(--space-2) var(--space-3)',
-              background: '#fff',
-              border: '1px solid #E5E7EB',
+              background: 'var(--hz-c-surface)',
+              border: '1px solid var(--hz-c-border)',
               borderRadius: 'var(--radius-md)',
               marginTop: 'var(--space-2)',
             }}>

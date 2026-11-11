@@ -17,6 +17,9 @@ AUTOCOUNT_SYNC_DISABLED = "true"
 GRN_POST_MODE = "atomic"
 # DO ship / confirm (scm/lib/do-ship-atomic.ts): "atomic" (default) or "two-step" (rollback switch).
 DO_SHIP_MODE = "atomic"
+# Returns in one database transaction (scm/lib/stock-post-tx.ts): "atomic" (default) or "two-step" (rollback switch).
+DELIVERY_RETURN_MODE = "atomic"
+PURCHASE_RETURN_MODE = "atomic"
 # Delivery Planning board reads (scm/lib/delivery-board-source.ts): "rest" (default), "shadow" or "sql".
 DP_BOARD_SOURCE = "rest"
 # Receipt bank move (acc/rebank-transaction.ts): "atomic" (default) or "two-step" (rollback switch).

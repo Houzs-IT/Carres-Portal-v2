@@ -56,7 +56,7 @@ response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must
 
 ### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
 
-`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`83f24d437`**, run as its
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`a1e33867c`**, run as its
 own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
 frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu: every Service Cases, Projects
 and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, in Houzs's order and words.
@@ -74,6 +74,8 @@ orders in the old order book (`OLD_ORDER_FLOWS`).
 **Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
+   Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:
+   keep the Carres light, print and dark values there (the recolour script does not touch channel triplets).
 3. Re-apply the Carres edits: `git diff <recoloured old import> origin/main -- engine/` with `git apply --3way`.
    The first import (`f6e9ca924`) itself changed 16 files (Carres wrangler settings, dev fallbacks to
    localhost); check they survived. **Check both `wrangler.toml` files name the Carres account, buckets and

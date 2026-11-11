@@ -4,48 +4,48 @@
    inside it reads var(--fin-…). Values are the design's own, on Theme C. */
 
 .root {
-  --fin-ink: #111827;
-  --fin-text: #4B5563;
+  --fin-ink: var(--hz-c-ink);
+  --fin-text: var(--hz-c-ink-secondary);
   --fin-detail: #5f6459;
-  --fin-muted: #6B7280;
-  --fin-line: #E5E7EB;
-  --fin-rule: #EEF0F3;
-  --fin-rule-soft: #F6F7F9;
-  --fin-input: #c2c6bd;
-  --fin-paper: #F8F9FA;
-  --fin-row: #f9faf8;
+  --fin-muted: var(--hz-c-ink-muted);
+  --fin-line: var(--hz-c-border);
+  --fin-rule: var(--hz-c-border-subtle);
+  --fin-rule-soft: var(--hz-c-bg);
+  --fin-input: var(--hz-c-border-strong);
+  --fin-paper: var(--hz-c-surface-2);
+  --fin-row: var(--hz-dk-surface-2, #f9faf8);
   /* A wash, not a fill: every other month of a statement whose months share a heading
      (the Cash Flow's Settlement / Deposit, owner 2026-11-10), over whatever a row wears. */
   --fin-band: rgba(17, 20, 15, 0.03);
-  --fin-surface: #ffffff;
-  --fin-petrol: #1B1B39;
-  --fin-petrol-ink: #2F55E0;
-  --fin-petrol-pale: #DCE6FD;
+  --fin-surface: var(--hz-c-surface);
+  --fin-petrol: var(--hz-c-primary);
+  --fin-petrol-ink: var(--hz-c-primary-ink);
+  --fin-petrol-pale: var(--hz-c-primary-soft);
   --fin-petrol-line: #b9d6d1;
-  --fin-petrol-hover: #d3e7e3;
-  --fin-brass: #D64F20;
+  --fin-petrol-hover: var(--hz-dk-primary-soft, #d3e7e3);
+  --fin-brass: var(--hz-c-accent);
   --fin-gold: #D64F20;
 
   /* Status tones: late (with a dot), warn, info, calm. */
-  --fin-late-bg: #fbeeee;
+  --fin-late-bg: var(--hz-dk-err-bg, #fbeeee);
   --fin-late-fg: #a83434;
-  --fin-warn-bg: #f7f1e3;
+  --fin-warn-bg: var(--hz-dk-warning-bg, #f7f1e3);
   --fin-warn-fg: #7a5a1e;
-  --fin-info-bg: #eaf3f1;
+  --fin-info-bg: var(--hz-dk-surface-2, #eaf3f1);
   --fin-info-fg: #1d5c54;
-  --fin-calm-bg: #f0f2ee;
+  --fin-calm-bg: var(--hz-dk-surface-2, #f0f2ee);
   --fin-calm-fg: #5b6055;
 
   /* The five closing stocks (Books › Stock close): the design's three, then showroom and others. */
-  --fin-bucket-customer: #1B1B39;
-  --fin-bucket-display: #D64F20;
+  --fin-bucket-customer: var(--hz-c-primary);
+  --fin-bucket-display: var(--hz-c-accent);
   --fin-bucket-service: #dcb36a;
   --fin-bucket-showroom: #6fa79e;
   --fin-bucket-others: #a3a99b;
 
   /* The dark toast with its brass check. */
   --fin-toast: #1B1B39;
-  --fin-toast-ink: #e7eae4;
+  --fin-toast-ink: var(--hz-dk-surface-2, #e7eae4);
 
   --fin-card-shadow: 0 1px 0 rgba(17, 24, 16, 0.04), 0 4px 18px -8px rgba(17, 24, 16, 0.12);
   --fin-pop-shadow: 0 1px 0 rgba(17, 24, 16, 0.06), 0 12px 32px -12px rgba(17, 24, 16, 0.3);
