@@ -1,5 +1,7 @@
 # PURCHASING — MASTER
 
+> **Replaced by Houzs engine page 11 Nov 2026.** The Carres Purchasing, Receiving, Supplier Claims, Purchase Returns and Repair Orders pages (`/operation?tab=purchase…`, `receiving`, `claims`…) were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+
 ## Current shared UI intake ·30Oct2026
 
 The owner commissioned kit/rule publication first, then separate frontend page work. Follow [UI MASTER current template](../ui/MASTER.md#current-shared-template--owner-adoption-30-oct-2026) and its30Oct reconciliation for Shell, table, surfaces, document-card composition and Send task presentation. These replace conflicting older visual measurements and blanket50:50 document-bearing record presentation below; historical build evidence is not current visual law. Lists stay lists; document-free objects do not acquire a PDF. Module business facts, saved document versions, permissions, writers, approvals and downstream ownership remain unchanged. No frontend migration, backend change or production verification is claimed by this intake. All modules consume the same Shell and shared components; no local kit or task engine.

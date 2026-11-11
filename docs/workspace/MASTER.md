@@ -1,5 +1,7 @@
 # WORKSPACE — MASTER
 
+> **Replaced by Houzs engine page 11 Nov 2026.** The Carres Settings workspace, and with it the Staff & Duties page (`/operation/settings/staff-duties`), was removed from the portal; the Settings gear opens Houzs's own Settings, which has no Staff & Duties page. The Workspace task page, Leave and Subscription stay Carres pages. Business law below is unchanged; where a section describes the Staff & Duties page as current UI, read it as history.
+
 > **APPROVED / LOCKED business architecture — Jess, 2026-09-03.** This is the one
 > Workspace authority for Staff & Duties,
 > action/approval ownership, Work and their relationship to the one global Dashboard.
