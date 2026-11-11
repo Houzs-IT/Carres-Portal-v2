@@ -218,8 +218,6 @@ export function PageHeader({
   actions,
   primaryAction,
   secondaryActions,
-  eyebrow,
-  eyebrowMeta,
   dense,
   titleSize = "default",
   back,
@@ -330,35 +328,20 @@ export function PageHeader({
             <ArrowLeft size={14} strokeWidth={2.2} />
           </button>
         )}
-        {eyebrow && (
-          <div className="mb-1.5 flex items-center gap-2 sm:mb-2">
-            <span className="h-px w-5 bg-accent sm:w-6" />
-            <span className="font-mono text-[10.5px] font-semibold uppercase tracking-brand text-accent sm:text-[10px]">
-              {eyebrow}
-            </span>
-            {eyebrowMeta != null && (
-              <>
-                <span aria-hidden className="text-[11px] leading-none text-ink-muted">
-                  ·
-                </span>
-                <span className="font-mono text-[11px] text-ink-muted">{eyebrowMeta}</span>
-              </>
-            )}
-          </div>
-        )}
+        {/* Carres: no eyebrow line over the title (Carres pages have none); `eyebrow` is accepted and not drawn. */}
         {/* Two literal class strings, not an interpolated one — Tailwind only
             emits classes it can see whole in the source. */}
         <h1
           className={
             titleSize === "sm"
-              ? "font-display text-[15px] font-extrabold leading-tight tracking-tight text-ink max-[359px]:text-[14px] sm:text-[16px] lg:text-[17px]"
-              : "font-display text-[19px] font-extrabold leading-tight tracking-tight text-ink max-[359px]:text-[17px] sm:text-[26px] lg:text-[28px]"
+              ? "font-display text-[15px] font-semibold leading-tight text-ink"
+              : "font-display text-[20px] font-semibold leading-tight text-ink"
           }
         >
           {title}
         </h1>
         {description && (
-          <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-ink-secondary sm:mt-1.5 sm:text-sm">
+          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-ink-secondary">
             {description}
           </p>
         )}

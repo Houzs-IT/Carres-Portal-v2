@@ -6,3 +6,21 @@ html.carres-embedded .sticky.top-14,
 html.carres-embedded .sticky.lg\:top-\[52px\] {
   top: 0;
 }
+
+/* Carres look: section labels are grey like the Carres menu's group labels, not brand orange, and the short
+   orange rule that sits before them is dropped. */
+html.carres-embedded .tracking-brand.text-accent {
+  color: #4B5563;
+}
+html.carres-embedded .h-px.bg-accent {
+  display: none;
+}
+
+/* Carres look: button words in normal capitals at the Carres text size, not small spaced capitals. */
+html.carres-embedded button.uppercase,
+html.carres-embedded a.uppercase {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  font-weight: 500;
+}
