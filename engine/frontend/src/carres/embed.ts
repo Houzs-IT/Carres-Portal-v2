@@ -70,3 +70,12 @@ export function reportCarresLocation(): void {
   window.addEventListener("popstate", send);
   send();
 }
+
+/** The portal that framed this app (the referrer, if it is an allowed portal address); null otherwise. */
+export function carresPortalOrigin(): string | null {
+  if (!CARRES_EMBEDDED) return null;
+  try {
+    const origin = document.referrer ? new URL(document.referrer).origin : null;
+    return origin && PORTAL.test(origin) ? origin : null;
+  } catch { return null; }
+}
