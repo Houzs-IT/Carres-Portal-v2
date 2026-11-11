@@ -174,8 +174,14 @@ Draft  →  review business impact  →  commit the exact file  →  merge-ready
 
 ## 6 · Deployment
 
-**Authoritative automation (2026-08-13):** `.github/workflows/ci.yml` owns PR checks and
-The same workflow has a manual `diagnose_schedule` mode for read-only verification: it reads the
+**Authoritative automation (2026-08-13):** `.github/workflows/ci.yml` owns PR checks. Since 11 Nov 2026
+its checks run side by side on separate machines (it took 25 minutes in one job): `checks` (migration law,
+guards, types, build, bundle-secret grep), `web-tests` in 4 Vitest shards, `server-tests` (api in 2
+shards, plus shared), `kit` (Playwright browser cached). **`verify` is the one check to wait for**: it
+passes only when every check the PR needs passed. `scope` decides what a PR needs (engine-only,
+api-only, or all); it must never pipe into `grep -q` — under the runner's `pipefail` that SIGPIPEd on
+large PRs and skipped their web tests while CI stayed green.
+The deploy workflow has a manual `diagnose_schedule` mode for read-only verification: it reads the
 registered schedules and observes scheduled outcomes/exceptions for 95 seconds, without deploying.
 It uses its own concurrency group so diagnostics do not block production delivery. HTTP request
 payloads and credentials are not printed or uploaded. No observed event means execution remains
