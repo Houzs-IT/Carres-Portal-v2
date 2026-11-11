@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  CalendarDays,
   ClipboardList,
   Boxes,
   Repeat,
@@ -8,7 +7,6 @@ import {
   Wallet,
   BookOpen,
   Truck,
-  LifeBuoy,
   ArrowDownLeft,
   ArrowUpRight,
   FileText,
@@ -43,14 +41,25 @@ import {
   Home,
   ShoppingCart,
   Warehouse,
-  Headset,
   ClipboardX,
   Handshake,
-  MapPin,
   ClipboardCheck,
   Sofa,
   FolderKanban,
   type LucideIcon,
+  Package,
+  Zap,
+  Wrench,
+  DollarSign,
+  Calendar,
+  MapPinned,
+  Send,
+  RotateCcw,
+  CornerUpLeft,
+  PackageOpen,
+  Reply,
+  Calculator,
+  Map as MapIcon,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
@@ -196,14 +205,14 @@ export const PAYMENTS_LANDING_KEY = "payments";
 
 export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   /* The Supply Chain modules carry the Houzs words (Sidebar.tsx:526-669). */
-  { section: "Sales", label: "Sales Order", icon: ReceiptText, mIcon: "receipt_long" },
+  { section: "Sales", label: "Sales Order", icon: ShoppingCart, mIcon: "receipt_long" },
   { section: "Consignment", label: "Consignment", icon: Handshake, mIcon: "handshake" },
-  { section: "Purchasing", label: "Procurement", icon: ShoppingCart, mIcon: "shopping_cart", landingKey: PURCHASING_LANDING_KEY, handleOnly: true },
+  { section: "Purchasing", label: "Procurement", icon: Package, landingKey: PURCHASING_LANDING_KEY, handleOnly: true },
   { section: "Showroom", label: "Showroom", icon: Store, mIcon: "storefront" },
   { section: "Delivery", label: "Transportation", icon: Truck, mIcon: "local_shipping" },
-  { section: "Warehouse", label: "Warehouse", icon: Warehouse, mIcon: "warehouse", landingKey: WAREHOUSE_LANDING_KEY },
+  { section: "Warehouse", label: "Warehouse", icon: Warehouse, landingKey: WAREHOUSE_LANDING_KEY },
   { section: "Payments", label: "Payments", icon: Banknote, mIcon: "payments", landingKey: PAYMENTS_LANDING_KEY },
-  { section: "Customer Care", label: "Service Cases", icon: Headset, mIcon: "support_agent" },
+  { section: "Customer Care", label: "Service Cases", icon: Zap, mIcon: "support_agent" },
   { section: "Projects", label: "Projects", icon: FolderKanban, mIcon: "event" },
   /* Finance, Houzs words (Sidebar.tsx:740-853). */
   { section: "Receivables", label: "Money in", icon: ArrowDownLeft },
@@ -321,7 +330,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
        * nearest engine page (RETIRED_ADDRESSES). The other rows are Carres modules outside those areas. */
 
       /* WORKSPACE — Houzs's Overview first, as in Houzs. */
-      { key: "overview", label: "Overview", icon: LayoutDashboard, mIcon: "dashboard", path: "/operation/sc/overview", section: "Workspace" },
+      { key: "overview", label: "Overview", icon: LayoutDashboard, path: "/operation/sc/overview", section: "Workspace" },
       { key: "orders-shortcut", label: "Sales Orders", icon: ShoppingCart, mIcon: "shopping_cart", path: "/operation/sc/orders", shortcut: true, section: "Workspace" },
       /* The one Workspace row shown by a grant, not a role (0645; Chew 2026-10-03,
        * Finance MASTER §3.3). The page lives in Finance. */
@@ -339,72 +348,72 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
 
       /* SERVICE CASES */
-      { key: "service-quality", label: "Quality Overview", icon: BarChart3, path: "/operation/sc/service-quality", section: "Customer Care" },
-      { key: "service-notes", label: "Service Cases", icon: LifeBuoy, path: "/operation/sc/service-notes", section: "Customer Care" },
-      { key: "service-maintenance", label: "Service Maintenance", icon: SlidersHorizontal, path: "/operation/sc/service-maintenance", section: "Customer Care" },
-      { key: "service-mine", label: "My Cases", icon: UserCheck, path: "/operation/sc/service-mine", section: "Customer Care" },
+      { key: "service-quality", label: "Quality Overview", icon: ShieldCheck, path: "/operation/sc/service-quality", section: "Customer Care" },
+      { key: "service-notes", label: "Service Cases", icon: ClipboardList, path: "/operation/sc/service-notes", section: "Customer Care" },
+      { key: "service-maintenance", label: "Service Maintenance", icon: Wrench, path: "/operation/sc/service-maintenance", section: "Customer Care" },
+      { key: "service-mine", label: "My Cases", icon: ClipboardCheck, path: "/operation/sc/service-mine", section: "Customer Care" },
 
       /* PROJECTS */
-      { key: "project-overview", label: "Project Overview", icon: BarChart3, path: "/operation/sc/project-overview", section: "Projects" },
+      { key: "project-overview", label: "Project Overview", icon: DollarSign, path: "/operation/sc/project-overview", section: "Projects" },
       { key: "projects", label: "Project List", icon: ClipboardList, path: "/operation/sc/projects", section: "Projects" },
-      { key: "project-calendar", label: "Calendar", icon: CalendarDays, path: "/operation/sc/project-calendar", section: "Projects" },
-      { key: "project-maintenance", label: "Project Maintenance", icon: SlidersHorizontal, path: "/operation/sc/project-maintenance", section: "Projects" },
+      { key: "project-calendar", label: "Calendar", icon: Calendar, path: "/operation/sc/project-calendar", section: "Projects" },
+      { key: "project-maintenance", label: "Project Maintenance", icon: Wrench, path: "/operation/sc/project-maintenance", section: "Projects" },
 
       /* SUPPLY CHAIN — Houzs's Product Request row directly under Supply Chain (it is also in Consignment). */
       { key: "product-request", label: "Product Request", icon: Sofa, path: "/operation/sc/product-request", section: "Supply Chain" },
 
       /* SUPPLY CHAIN · SALES ORDER */
-      { key: "orders", label: "Sales Orders", crumb: "Sales Order", icon: ClipboardList, path: "/operation/sc/orders", section: "Sales" },
-      { key: "fair-pending", label: "Fair Links to Settle", icon: MapPin, path: "/operation/sc/fair-pending", section: "Sales" },
-      { key: "amendments", label: "Sales Order Amendment", icon: BadgeCheck, path: "/operation/sc/amendments", section: "Sales" },
+      { key: "orders", label: "Sales Orders", crumb: "Sales Order", icon: ShoppingCart, path: "/operation/sc/orders", section: "Sales" },
+      { key: "fair-pending", label: "Fair Links to Settle", icon: MapPinned, path: "/operation/sc/fair-pending", section: "Sales" },
+      { key: "amendments", label: "Sales Order Amendment", icon: History, path: "/operation/sc/amendments", section: "Sales" },
       { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", section: "Sales" },
-      { key: "delivery-orders", label: "Delivery Orders", icon: FileText, path: "/operation/sc/delivery-orders", section: "Sales" },
+      { key: "delivery-orders", label: "Delivery Orders", icon: Send, path: "/operation/sc/delivery-orders", section: "Sales" },
       { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/operation/sc/sales-invoices", section: "Sales" },
-      { key: "delivery-returns", label: "Delivery Returns", icon: Undo2, path: "/operation/sc/delivery-returns", section: "Sales" },
+      { key: "delivery-returns", label: "Delivery Returns", icon: RotateCcw, path: "/operation/sc/delivery-returns", section: "Sales" },
       // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order. Last, so the Houzs rows keep Houzs's order.
       { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
 
       /* SUPPLY CHAIN · CONSIGNMENT */
-      { key: "customer-consignment-orders", label: "Consignment Order", icon: FileText, path: "/operation/sc/customer-consignment-orders", section: "Consignment" },
+      { key: "customer-consignment-orders", label: "Consignment Order", icon: Handshake, path: "/operation/sc/customer-consignment-orders", section: "Consignment" },
       { key: "consignment-notes", label: "Consignment Note", icon: FileText, path: "/operation/sc/consignment-notes", section: "Consignment" },
-      { key: "customer-consignment-returns", label: "Consignment Return", icon: Undo2, path: "/operation/sc/customer-consignment-returns", section: "Consignment" },
+      { key: "customer-consignment-returns", label: "Consignment Return", icon: CornerUpLeft, path: "/operation/sc/customer-consignment-returns", section: "Consignment" },
       { key: "purchase-consignment-orders", label: "Purchase Consignment Order", icon: HandCoins, path: "/operation/sc/purchase-consignment-orders", section: "Consignment" },
       { key: "product-requests", label: "Product Request", icon: Sofa, path: "/operation/sc/product-requests", section: "Consignment" },
-      { key: "consignment-receives", label: "Purchase Consignment Receive", icon: PackageCheck, path: "/operation/sc/consignment-receives", section: "Consignment" },
-      { key: "consignment-returns", label: "Purchase Consignment Return", icon: Undo2, path: "/operation/sc/consignment-returns", section: "Consignment" },
+      { key: "consignment-receives", label: "Purchase Consignment Receive", icon: PackageOpen, path: "/operation/sc/consignment-receives", section: "Consignment" },
+      { key: "consignment-returns", label: "Purchase Consignment Return", icon: Reply, path: "/operation/sc/consignment-returns", section: "Consignment" },
 
       /* SUPPLY CHAIN · PROCUREMENT */
       { key: "procurement-overview", label: "Procurement Overview", icon: LayoutDashboard, path: "/operation/sc/procurement-overview", section: "Purchasing" },
-      { key: "op-catalog", label: "Products & Maintenance", icon: BookOpen, path: "/operation/sc/op-catalog", section: "Purchasing" },
+      { key: "op-catalog", label: "Products & Maintenance", icon: Sofa, path: "/operation/sc/op-catalog", section: "Purchasing" },
       { key: "suppliers", label: "Suppliers", icon: Truck, path: "/operation/sc/suppliers", section: "Purchasing" },
-      { key: "mrp", label: "MRP · Stock Status", icon: BarChart3, path: "/operation/sc/mrp", section: "Purchasing" },
-      { key: "purchase-orders", label: "Purchase Orders", icon: FileText, path: "/operation/sc/purchase-orders", section: "Purchasing" },
-      { key: "po-amendments", label: "PO Amendments", icon: BadgeCheck, path: "/operation/sc/po-amendments", section: "Purchasing" },
-      { key: "po-cancellation-requests", label: "Cancellation Requests", icon: ClipboardX, path: "/operation/sc/po-cancellation-requests", section: "Purchasing" },
+      { key: "mrp", label: "MRP · Stock Status", icon: Calculator, path: "/operation/sc/mrp", section: "Purchasing" },
+      { key: "purchase-orders", label: "Purchase Orders", icon: ClipboardList, path: "/operation/sc/purchase-orders", section: "Purchasing" },
+      { key: "po-amendments", label: "PO Amendments", icon: History, path: "/operation/sc/po-amendments", section: "Purchasing" },
+      { key: "po-cancellation-requests", label: "Cancellation Requests", icon: ClipboardCheck, path: "/operation/sc/po-cancellation-requests", section: "Purchasing" },
       { key: "receiving", label: "Goods Receipt", icon: PackageCheck, path: "/operation/sc/receiving", section: "Purchasing" },
-      { key: "purchase-invoices", label: "Purchase Invoices", icon: Receipt, path: "/operation/sc/purchase-invoices", section: "Purchasing" },
+      { key: "purchase-invoices", label: "Purchase Invoices", icon: ReceiptText, path: "/operation/sc/purchase-invoices", section: "Purchasing" },
       { key: "purchase-returns", label: "Purchase Returns", icon: Undo2, path: "/operation/sc/purchase-returns", section: "Purchasing" },
 
       /* SUPPLY CHAIN · TRANSPORTATION */
       { key: "logistic-overview", label: "Logistic Overview", icon: LayoutDashboard, path: "/operation/sc/logistic-overview", section: "Delivery" },
-      { key: "delivery-planning", label: "Delivery Planning", icon: CalendarDays, path: "/operation/sc/delivery-planning", section: "Delivery" },
+      { key: "delivery-planning", label: "Delivery Planning", icon: Send, path: "/operation/sc/delivery-planning", section: "Delivery" },
       { key: "delivery-planning-driver", label: "Last Mile Delivery (Driver)", icon: ClipboardList, path: "/operation/sc/delivery-planning-driver", section: "Delivery" },
       { key: "dp-orders", label: "DP Orders", icon: ClipboardList, path: "/operation/sc/dp-orders", section: "Delivery" },
-      { key: "fleet-day", label: "Last Mile Delivery", icon: Users, path: "/operation/sc/fleet-day", section: "Delivery" },
+      { key: "fleet-day", label: "Last Mile Delivery", icon: MapPinned, path: "/operation/sc/fleet-day", section: "Delivery" },
       { key: "crew-leave", label: "Crew Leave", icon: CalendarOff, path: "/operation/sc/crew-leave", section: "Delivery" },
-      { key: "coverage-fleet", label: "Coverage & Fleet", icon: Truck, path: "/operation/sc/coverage-fleet", section: "Delivery", pageGroup: "transportation-maintenance" },
-      { key: "delivery-zones", label: "Delivery Zones", icon: MapPin, path: "/operation/sc/delivery-zones", section: "Delivery", pageGroup: "transportation-maintenance" },
-      { key: "rate-cards", label: "Carriers & Rates", icon: Receipt, path: "/operation/sc/rate-cards", section: "Delivery", pageGroup: "transportation-maintenance" },
-      { key: "fleet-health", label: "Fleet Health", icon: ShieldCheck, path: "/operation/sc/fleet-health", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "coverage-fleet", label: "Coverage & Fleet", icon: MapIcon, path: "/operation/sc/coverage-fleet", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "delivery-zones", label: "Delivery Zones", icon: MapPinned, path: "/operation/sc/delivery-zones", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "rate-cards", label: "Carriers & Rates", icon: Handshake, path: "/operation/sc/rate-cards", section: "Delivery", pageGroup: "transportation-maintenance" },
+      { key: "fleet-health", label: "Fleet Health", icon: Wrench, path: "/operation/sc/fleet-health", section: "Delivery", pageGroup: "transportation-maintenance" },
 
       /* SUPPLY CHAIN · WAREHOUSE */
       { key: "wh-loading-list", label: "Loading List", icon: ClipboardList, path: "/operation/sc/wh-loading-list", section: "Warehouse" },
       { key: "wh-warehouses", label: "Warehouses", icon: Warehouse, path: "/operation/sc/wh-warehouses", section: "Warehouse" },
       { key: "wh-racks", label: "Racks & Bins", icon: Boxes, path: "/operation/sc/wh-racks", section: "Warehouse" },
-      { key: "stock", label: "Inventory", icon: Boxes, path: "/operation/sc/stock", section: "Warehouse" },
+      { key: "stock", label: "Inventory", icon: Package, path: "/operation/sc/stock", section: "Warehouse" },
       { key: "stock-adjustments", label: "Adjustments", icon: SlidersHorizontal, path: "/operation/sc/stock-adjustments", section: "Warehouse" },
       { key: "stock-transfers", label: "Transfers", icon: ArrowLeftRight, path: "/operation/sc/stock-transfers", section: "Warehouse" },
-      { key: "stock-takes", label: "Stock Take", icon: ClipboardList, path: "/operation/sc/stock-takes", section: "Warehouse" },
+      { key: "stock-takes", label: "Stock Take", icon: ClipboardCheck, path: "/operation/sc/stock-takes", section: "Warehouse" },
 
       /* Carres-only: PAYMENTS (owner ruling 2026-09-12). Operation staff have no
        * Finance area, and `/finance/*` admits them to these two (§12). `path`, not
@@ -583,7 +592,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // two rows for one register is the duplicate the ruling names; the
       // word for that register is the Houzs `Sales Orders`. The address is
       // unchanged, so the principal's bookmark still lands.
-      { key: "orders", label: "Sales Orders", icon: ClipboardList, path: "/operation/orders" },
+      { key: "orders", label: "Sales Orders", icon: ShoppingCart, path: "/operation/orders" },
       // YH, 2026-08-24 — the lead-time floor (earliest a store may sell) is a
       // principal-level decision, but its only editor lived under Operations
       // Settings. `role === "principal"` already grants edit there (checkDuty
@@ -851,12 +860,15 @@ export interface MenuGroup {
   sections: ReadonlyArray<PortalSection>;
 }
 
+/** The Houzs areas of the Operations menu: their pages wear Houzs's own icon, as in Houzs's menu. */
+export const HOUZS_ICON_SECTIONS: ReadonlySet<PortalSection> = new Set<PortalSection>(["Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"]);
+
 export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
   { label: "Workspace", sections: ["Workspace"] },
   { label: "Operations", sections: ["Customer Care", "Projects"] },
   {
     label: null,
-    row: { key: "supply-chain", label: "Supply Chain", icon: Boxes, mIcon: "inventory_2" },
+    row: { key: "supply-chain", label: "Supply Chain", icon: Boxes },
     sections: ["Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"],
   },
   /* Carres's own rows, apart from the Houzs part above (owner, 11 Nov 2026): Payments, then the Issue

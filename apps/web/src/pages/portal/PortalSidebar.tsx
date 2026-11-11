@@ -22,6 +22,7 @@ import {
   type PortalNavGroup,
   type PortalNavItem,
   type PortalSection,
+  HOUZS_ICON_SECTIONS,
 } from "./portal-nav";
 import {
   moduleChildBlocks,
@@ -468,6 +469,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
             ref={active ? (activeRowRef as Ref<HTMLAnchorElement>) : undefined}
             className={`${PAGE} ${active ? PAGE_ON : PAGE_REST}`}
           >
+            {/* The Houzs areas: each page wears Houzs's own icon, as in Houzs's menu. */}
+            {group.area === "operation" && child.section && HOUZS_ICON_SECTIONS.has(child.section) && (
+              <child.icon size={16} strokeWidth={1.5} aria-hidden data-testid={`houzs-icon-${child.key}`} className={`shrink-0 ${active ? "" : "text-c-tab"}`} />
+            )}
             <span className={WRAP}>{child.label}</span>
             {child.badge && <NavBadge count={badgeCount[child.badge] ?? 0} label={child.label} />}
           </Link>

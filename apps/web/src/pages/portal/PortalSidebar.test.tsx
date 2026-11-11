@@ -334,8 +334,8 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       const row = module_(slug);
       expect(row.tagName).toBe("BUTTON");
       expect(within(row).getByText(name)).toBeInTheDocument();
-      // icon + caret: two Material Symbols, and the caret states open/shut.
-      expect(row.querySelectorAll(MICON).length).toBe(2);
+      // icon + caret. The Houzs modules wear Houzs's own (lucide) icon; Payments keeps its Material Symbol.
+      expect(row.querySelectorAll(`${MICON}, svg`).length).toBe(2);
       expect(row.getAttribute("aria-expanded")).toBe("false");
     }
   });
@@ -711,8 +711,16 @@ describe("the tree line", () => {
 
   it("the line is decoration beside the link, so a screen reader hears only the name", () => {
     renderAt("/operation/sc/orders");
-    expect(child("rental").children).toHaveLength(1);
+    // The Houzs icon beside a page is aria-hidden decoration; the only text is the name.
+    expect([...child("rental").children].filter((el) => el.getAttribute("aria-hidden") !== "true")).toHaveLength(1);
     expect(child("rental")).toHaveTextContent(/^Subscription$/);
+  });
+
+  it("the Houzs pages wear Houzs's icon; Carres's own rows below do not change", () => {
+    renderAt("/operation/sc/stock-adjustments");
+    expect(screen.getByTestId("houzs-icon-stock-adjustments")).toBeInTheDocument();
+    expect(screen.getByTestId("houzs-icon-stock")).toBeInTheDocument();
+    expect(screen.queryByTestId("houzs-icon-payment-records")).toBeNull();
   });
 
   it("a long name wraps to a second line and is never cut", () => {
