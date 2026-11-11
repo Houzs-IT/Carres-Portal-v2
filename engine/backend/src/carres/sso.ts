@@ -12,10 +12,10 @@ type CarresEnv = Env & { CARRES_SSO_SECRET?: string };
 interface Assertion { email: string; role: string; exp: number; settingsEditor?: boolean }
 
 const MAX_AGE_MS = 60_000;
-/** Carres portal roles that open the engine: operation and principal (Supply Chain, Service Cases), and hr,
- *  whose portal menu holds Houzs's Team, Mail Center and IT Support (owner, 11 Nov 2026). Kept in step with the portal's own gate
- *  (apps/api/src/routes/operation/scm-engine.ts). */
-export const ENGINE_ROLES = new Set(["operation", "principal", "hr"]);
+/** Carres portal roles that open the engine: operation and principal (Supply Chain, Service Cases), hr, whose
+ *  portal menu holds Houzs's Team, Mail Center and IT Support, and finance (Finance; owner, 11 Nov 2026). Kept in
+ *  step with the portal's own gate (apps/api/src/routes/operation/scm-engine.ts). */
+export const ENGINE_ROLES = new Set(["operation", "principal", "hr", "finance"]);
 
 const fromB64url = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 

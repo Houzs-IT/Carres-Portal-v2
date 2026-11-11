@@ -379,6 +379,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "module-customer-care",
       "module-projects",
       "fold-supply-chain",
+      "fold-finance",
       "group-head-system",
       "module-team",
       "child-mail-center",
@@ -402,6 +403,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "module-purchasing",
       "module-delivery",
       "module-warehouse",
+      "fold-finance",
       "group-head-system",
       "module-team",
       "child-mail-center",
@@ -2071,5 +2073,41 @@ describe("one lit row on engine addresses that share a prefix", () => {
     renderAt(path);
     expect(child(on).className).toContain(SELECTED);
     expect(child(off).className).not.toContain(SELECTED);
+  });
+});
+
+/* ⭐ HOUZS FINANCE (owner, 11 Nov 2026; Houzs Sidebar.tsx:736-873): one Finance row after Supply Chain, the old
+   Carres Finance at the very bottom as "Finance (old)". */
+describe("PortalSidebar — Houzs Finance", () => {
+  it("the Finance row opens Finance's To do, as Houzs's row does", () => {
+    renderAt("/operation");
+    fireEvent.click(screen.getByTestId("nav-fold-finance"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent(/^\/operation\/sc\/fin-todo$/);
+  });
+
+  it("on a Finance page its group is open and the page wears Houzs's icon", () => {
+    renderAt("/operation/sc/fin-receipts");
+    expect(screen.getByTestId("nav-fold-finance")).toHaveAttribute("aria-expanded", "true");
+    expect(module_("finance-money-in")).toHaveAttribute("aria-expanded", "true");
+    expect(child("fin-receipts")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("houzs-icon-fin-receipts")).toBeInTheDocument();
+    const rows = within(screen.getByTestId("nav-children-finance-money-in")).getAllByRole("link");
+    expect(rows.map((r) => r.textContent?.trim())).toEqual(["Receipts", "Invoices", "Debtor maintenance", "Credit / debit notes", "Outstanding", "Not yet billed"]);
+  });
+
+  it("the principal sees the old Carres Finance last, as Finance (old)", () => {
+    mockRole = "principal";
+    renderAt("/operation");
+    const areas = Array.from(document.querySelectorAll<HTMLElement>("[data-testid^='nav-area-']")).map((el) => el.dataset.testid);
+    expect(areas).toEqual(["nav-area-principal", "nav-area-finance"]);
+    expect(screen.getByTestId("nav-area-finance")).toHaveTextContent("Finance (old)");
+  });
+
+  it("finance sees the Houzs Finance row and its own old Finance, and its home is still its Finance area", () => {
+    mockRole = "finance";
+    renderAt("/finance/dashboard");
+    expect(screen.getByTestId("nav-fold-finance")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-fold-supply-chain")).toBeNull();
+    expect(screen.getByTitle("Carres home")).toHaveAttribute("href", "/finance/dashboard");
   });
 });

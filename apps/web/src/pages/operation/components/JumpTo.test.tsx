@@ -64,7 +64,7 @@ describe("permission filtering — before display, never after", () => {
 
   it("the principal is offered every area the sidebar gives them", () => {
     const areas = new Set(permittedDestinations("principal").map((d) => d.area));
-    expect(areas).toEqual(new Set(["Operations", "Finance", "Admin"]));
+    expect(areas).toEqual(new Set(["Operations", "Admin", "Finance (old)"]));
   });
 
   /* ⭐ THE TWO-ROLE PROOF, at the surface. `Approvals` is an Admin door; an

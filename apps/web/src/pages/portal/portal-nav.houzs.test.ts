@@ -40,6 +40,20 @@ describe("the Houzs tree", () => {
           "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take",
         ],
       },
+      /* Houzs's Finance group after Supply Chain (owner, 11 Nov 2026). */
+      {
+        head: "row:Finance",
+        blocks: [
+          "To do",
+          "Money today",
+          "Money in: Receipts · Invoices · Debtor maintenance · Credit / debit notes · Outstanding · Not yet billed",
+          "Money out: Payment vouchers · Payment listing · Payment requests · Supplier bills · Supplier maintenance · Official invoices owed · Supplier & other creditor CN / DN",
+          "Bank & cards: Merchant reports · Bank statements · Daily Bank · Unmatched Payments",
+          "Books: Journal entries · General ledger · Trial balance · Self-check · Stock close",
+          "Reports",
+          "Setup: Chart of accounts · Opening balance · Item groups · Recon setup · Currencies · Deposit invoices · To do rules",
+        ],
+      },
       /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026); the Carres bottom group is gone. */
       {
         head: "System",

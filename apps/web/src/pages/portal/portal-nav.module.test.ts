@@ -9,7 +9,7 @@ describe("activeNavModule: the module an IT request is about", () => {
   });
 
   it("carries the area's name outside Operations", () => {
-    expect(activeNavModule("/finance/other-receipts", "")).toBe("Finance · Money in");
+    expect(activeNavModule("/finance/other-receipts", "")).toBe("Finance (old) · Money in");
   });
 
   it("is empty on a page no row covers", () => {

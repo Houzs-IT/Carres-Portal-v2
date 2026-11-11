@@ -144,6 +144,12 @@ describe("POST /api/carres-sso", () => {
   it("refuses a role that does not open Supply Chain", async () => {
     expect((await signIn(fakeDb(), { email: "d@x.com", role: "dealer" })).status).toBe(403);
   });
+
+  it("lets a finance account in, on the no-access role until the owner picks one (Finance, 11 Nov 2026)", async () => {
+    const db = fakeDb();
+    expect((await signIn(db, { email: "fin@carres.com", role: "finance" })).status).toBe(200);
+    expect(roleOf(db, "fin@carres.com")).toBe(NEW_MEMBER_ROLE);
+  });
 });
 
 describe("lastLoginStale", () => {
