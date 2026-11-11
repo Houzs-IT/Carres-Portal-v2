@@ -25,12 +25,12 @@ describe('companyDocPrefix', () => {
     // The exact reconstructed-context leak: get('companyCode') returns the
     // synthetic houzsUser object instead of a code string.
     const p = companyDocPrefix(ctx({ id: 42 }) as never);
-    expect(p).toBe('HC-');
+    expect(p).toBe('CR-');
     expect(p).not.toContain('[object Object]');
   });
 
   test('undefined (headless / single-company) mints under the base company', () => {
-    expect(companyDocPrefix(ctx(undefined) as never)).toBe('HC-');
+    expect(companyDocPrefix(ctx(undefined) as never)).toBe('CR-');
   });
 
   test('a broken context NEVER mints an unprefixed number', () => {
@@ -41,9 +41,9 @@ describe('companyDocPrefix', () => {
     }
   });
 
-  test('HOUZS mints "HC-", not its bare code', () => {
-    expect(companyDocPrefix(ctx('HOUZS') as never)).toBe('HC-');
-    expect(companyDocPrefix(ctx('houzs') as never)).toBe('HC-');
+  test('HOUZS mints "CR-" in Carres, not its bare code', () => {
+    expect(companyDocPrefix(ctx('HOUZS') as never)).toBe('CR-');
+    expect(companyDocPrefix(ctx('houzs') as never)).toBe('CR-');
     expect(companyDocPrefix(ctx('HOUZS') as never)).not.toBe('HOUZS-');
   });
 

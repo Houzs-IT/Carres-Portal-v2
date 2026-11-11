@@ -518,8 +518,11 @@ export function withCompanyCode<T extends Record<string, unknown>>(
  *  `HC-` is the house code the owner chose. Every other company keeps `<CODE>-`.
  */
 export const BASE_COMPANY_CODE = "HOUZS";
+/** Carres (owner, 11 Nov 2026): the one company keeps the internal code HOUZS, but its documents are
+ *  numbered CR- (CR-SO-2611-001), never Houzs's HC-. As The Conts did with TC-. */
+export const BASE_DOC_PREFIX = "CR-";
 const DOC_PREFIX_BY_COMPANY: Record<string, string> = {
-  [BASE_COMPANY_CODE]: "HC-",
+  [BASE_COMPANY_CODE]: BASE_DOC_PREFIX,
 };
 
 /**
