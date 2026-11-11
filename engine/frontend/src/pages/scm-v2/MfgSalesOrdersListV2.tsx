@@ -1954,7 +1954,7 @@ export function MfgSalesOrdersListV2() {
          admin saved from the Columns panel still takes this seed's place. */
       {
         id: "so-houzs",
-        label: "Sales Layout",
+        label: "Carres Layout",
         hint: "AutoCount: SALES ORDER DETAILS-SALES",
         companyCode: "HOUZS",
         isDefault: !is2990,

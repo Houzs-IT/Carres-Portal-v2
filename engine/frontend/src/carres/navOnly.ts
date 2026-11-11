@@ -45,7 +45,7 @@ export function carresNavOnly<T extends NavNode>(tabs: T[]): T[] {
 }
 
 /** No AutoCount in the Carres engine: Settings drops its Sync tab and never asks for that status. */
-export const CARRES_AUTOCOUNT: boolean = false;
+export const CARRES_AUTOCOUNT: boolean = true; // Settings shows its Sync tab as in Houzs (owner, 11 Nov 2026: same as Houzs except colour)
 
 /** Where the app opens: the old landing page is an overview of areas switched off here. */
 export const CARRES_HOME = "/scm/sales-orders";

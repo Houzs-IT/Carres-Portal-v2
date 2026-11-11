@@ -311,7 +311,7 @@ export function MobileProfile({ onLogout, orgItems, onOpenOrg }: {
     browserNotificationsEnabled && browserNotificationPermission === "granted";
 
   const doLogout = async () => {
-    if (await confirm({ title: "Log out?", confirmLabel: "Log out", danger: true })) {
+    if (await confirm({ title: "Log out of Carres?", confirmLabel: "Log out", danger: true })) {
       onLogout();
     }
   };
