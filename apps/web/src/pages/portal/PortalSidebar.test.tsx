@@ -14,8 +14,9 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
  * one tree line with a rounded elbow to each page (owner 12 Oct 2026; 01 §4
  * "Side menu": one rule for every module, drawn from data). The Operations
  * area follows the Houzs tree (Weisiang, WhatsApp 2026-11-01): two small caps
- * headings, Workspace and Operations, then the Supply Chain row holding five
- * modules, then Payments, Issue Tracker and the Sales invoice lines report.
+ * headings, Workspace (Overview first) and Operations, then the Supply Chain row
+ * holding the Product Request row and five modules, then a small caps CARRES
+ * heading over Payments, Issue Tracker and the Sales invoice lines report.
  * Service Cases, Projects and Supply Chain rows each open an engine page at
  * their own `/operation/sc/<row>` address (owner, 11 Nov 2026).
  */
@@ -339,12 +340,12 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
     }
   });
 
-  it("the Operations menu has two small uppercase headings, Workspace and Operations, in that order", () => {
+  it("the Operations menu has three small uppercase headings, Workspace, Operations and Carres, in that order", () => {
     renderAt("/operation/sc/purchase-orders");
     const heads = Array.from(
       document.querySelectorAll<HTMLElement>("[data-testid^='nav-group-head-']"),
     );
-    expect(heads.map((h) => h.textContent)).toEqual(["Workspace", "Operations"]);
+    expect(heads.map((h) => h.textContent)).toEqual(["Workspace", "Operations", "Carres"]);
     for (const head of heads) {
       // A label rank: 11px semibold caps, never a link or a button.
       expect(head.tagName).toBe("SPAN");
@@ -370,6 +371,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
     // Supply Chain is shut where nothing in it is the current page.
     expect(walk()).toEqual([
       "group-head-workspace",
+      "child-overview",
       "child-orders-shortcut",
       "child-work",
       "child-leave",
@@ -377,6 +379,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "module-customer-care",
       "module-projects",
       "fold-supply-chain",
+      "group-head-carres",
       "module-payments",
       "child-issue-tracker",
       "child-sales-invoice-lines",
@@ -384,6 +387,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
     openSupply();
     expect(walk()).toEqual([
       "group-head-workspace",
+      "child-overview",
       "child-orders-shortcut",
       "child-work",
       "child-leave",
@@ -392,11 +396,13 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "module-projects",
       "fold-supply-chain",
       "fold-children-supply-chain",
+      "child-product-request",
       "module-sales",
       "module-consignment",
       "module-purchasing",
       "module-delivery",
       "module-warehouse",
+      "group-head-carres",
       "module-payments",
       "child-issue-tracker",
       "child-sales-invoice-lines",
@@ -969,18 +975,56 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(child("amendments").className).not.toContain("bg-c-select-pill");
   });
 
-  it("the Workspace shortcut is the first plain row in Workspace, before Workspace and Leave", () => {
+  it("Workspace starts with Houzs's Overview, then the Sales Orders shortcut, Workspace and Leave", () => {
     renderAt("/operation");
+    // Houzs's Overview opens the engine's landing page at its own address (owner, 11 Nov 2026).
+    expect(child("overview")).toHaveTextContent(/^Overview$/);
+    expect(child("overview")).toHaveAttribute("href", "/operation/sc/overview");
     const shortcut = child("orders-shortcut");
     expect(shortcut).toHaveTextContent(/^Sales Orders$/);
     expect(shortcut.closest("[data-testid='nav-fold-children-supply-chain']")).toBeNull();
     expect(
       Array.from(screen.getByTestId("portal-sidebar-list").querySelectorAll("[data-testid^='nav-child-']"))
-        .slice(0, 3)
+        .slice(0, 4)
         .map((el) => el.getAttribute("data-testid")),
-    ).toEqual(["nav-child-orders-shortcut", "nav-child-work", "nav-child-leave"]);
+    ).toEqual(["nav-child-overview", "nav-child-orders-shortcut", "nav-child-work", "nav-child-leave"]);
     // The old Carres Overview dashboard row is removed (owner, 11 Nov 2026).
     expect(screen.queryByTestId("nav-child-dashboard")).toBeNull();
+  });
+
+  it("Product Request is a plain row first under Supply Chain, above the Sales Order module", () => {
+    renderAt("/operation/sc/product-request");
+    const fold = screen.getByTestId("nav-fold-children-supply-chain");
+    const first = fold.firstElementChild as HTMLElement;
+    const row = within(fold).getAllByTestId("nav-child-product-request")[0];
+    expect(row.tagName).toBe("A");
+    expect(row.getAttribute("aria-expanded")).toBeNull();
+    expect(row).toHaveAttribute("href", "/operation/sc/product-request");
+    expect(row.closest("[data-testid^='nav-children-']")).toBeNull();
+    expect(first.contains(row)).toBe(true);
+  });
+
+  it("Sales Invoices opens the engine's Sales Invoices page at its own address", () => {
+    renderAt("/operation/sc/sales-invoices");
+    expect(child("sales-invoices")).toHaveAttribute("href", "/operation/sc/sales-invoices");
+    expect(child("sales-invoices").className).toContain("bg-c-select-pill");
+  });
+
+  it("the bottom group sits under the caps CARRES heading: Payments, Issue Tracker, Sales invoice lines", () => {
+    renderAt("/operation");
+    const head = screen.getByTestId("nav-group-head-carres");
+    expect(head).toHaveTextContent(/^Carres$/);
+    expect(head.className).toMatch(/uppercase/);
+    const nav = screen.getByRole("navigation", { name: "Modules" });
+    const order = Array.from(
+      nav.querySelectorAll<HTMLElement>("[data-testid^='nav-group-head-'], [data-testid^='nav-module-'], [data-testid^='nav-child-']"),
+    ).map((el) => el.dataset.testid!);
+    expect(order.slice(order.indexOf("nav-group-head-carres"))).toEqual([
+      "nav-group-head-carres",
+      "nav-module-payments",
+      "nav-child-issue-tracker",
+      "nav-child-sales-invoice-lines",
+    ]);
   });
 
   it("on ?tab=rental only Subscription is lit, and it opens the Sales Order module", () => {

@@ -5,6 +5,9 @@ describe("engineFor: an engine row's own address opens its engine page", () => {
   it("maps a row's own `/operation/sc/<row>` address to its engine page", () => {
     expect(engineFor("/operation/sc/orders", "")).toBe("/scm/sales-orders");
     expect(engineFor("/operation/sc/orders-shortcut", "")).toBe("/scm/sales-orders");
+    expect(engineFor("/operation/sc/overview", "")).toBe("/");
+    expect(engineFor("/operation/sc/product-request", "")).toBe("/scm/product-requests");
+    expect(engineFor("/operation/sc/sales-invoices", "")).toBe("/scm/sales-invoices");
     expect(engineFor("/operation/sc/suppliers", "")).toBe("/scm/suppliers");
     expect(engineFor("/operation/sc/service-notes", "")).toBe("/assr?view=cases");
     expect(engineFor("/operation/sc/service-mine", "")).toBe("/my-cases");

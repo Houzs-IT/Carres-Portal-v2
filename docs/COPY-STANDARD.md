@@ -5171,8 +5171,8 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 
 | Place | Exact words |
 |---|---|
-| Top | `Workspace` · `Operations` · `Supply Chain` (row, inside Operations) |
-| Supply Chain modules | `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
+| Top | `Workspace` (its first row is `Overview`) · `Operations` · `Supply Chain` (row, inside Operations) |
+| Supply Chain | row `Product Request` first, then the modules `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
 | Sales Order | `Sales Orders` · `Fair Links to Settle` · `Sales Order Amendment` · `Payment Backdate Requests` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
 | Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Order` · `Product Request` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
 | Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
@@ -5180,6 +5180,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
 | Projects | `Project Overview` · `Project List` · `Calendar` · `Project Maintenance` |
+| Bottom group (Carres rows, apart from the Houzs part) | caps `Carres` · `Payments` · `Issue Tracker` · `Sales invoice lines` |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 

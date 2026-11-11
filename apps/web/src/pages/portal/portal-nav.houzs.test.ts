@@ -24,7 +24,7 @@ const tree = () =>
 describe("the Houzs tree", () => {
   it("draws Workspace, then Operations with Supply Chain inside it", () => {
     expect(tree()).toEqual([
-      { head: "Workspace", blocks: ["Sales Orders", "Workspace", "Leave"] },
+      { head: "Workspace", blocks: ["Overview", "Sales Orders", "Workspace", "Leave"] },
       {
         head: "Operations",
         blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases", "Projects: Project Overview · Project List · Calendar · Project Maintenance"],
@@ -32,6 +32,7 @@ describe("the Houzs tree", () => {
       {
         head: "row:Supply Chain",
         blocks: [
+          "Product Request",
           "Sales Order: Sales Orders · Fair Links to Settle · Sales Order Amendment · Payment Backdate Requests · Delivery Orders · Sales Invoices · Delivery Returns · Subscription",
           "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Order · Product Request · Purchase Consignment Receive · Purchase Consignment Return",
           "Procurement: Procurement Overview · Products & Maintenance · Suppliers · MRP · Stock Status · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns",
@@ -40,7 +41,7 @@ describe("the Houzs tree", () => {
         ],
       },
       {
-        head: null,
+        head: "Carres",
         blocks: ["Payments: Monitor · Payment Records", "Issue Tracker", "Sales invoice lines"],
       },
     ]);
