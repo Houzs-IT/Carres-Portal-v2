@@ -8,6 +8,7 @@ import ListPageShell from "@/components/ListPageShell";
 import BarCalendar from "@/components/kit/BarCalendar";
 import { DataGrid, type DataGridColumn } from "@/components/register/DataGrid";
 import Button from "@/components/kit/Button";
+import EmptyState from "@/components/kit/EmptyState";
 import DatePicker from "@/components/kit/DatePicker";
 import Drawer from "@/components/kit/Drawer";
 import Input from "@/components/kit/Input";
@@ -115,12 +116,16 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
             <OperationKpiTile label={PJ.upcoming30} value={summary.upcoming.length} hint={PJ.upcomingHint} accent={summary.upcoming.length ? "primary" : "muted"} />
             <OperationKpiTile label={PJ.overdueTasks} value={overdue} hint={PJ.overdueHint} accent={overdue ? "danger" : "muted"} />
           </div>
+          {/* Nothing to list: one empty card across the width, no side column repeating the zeros above. */}
+          {q.isSuccess && !rows.length ? (
+            <EmptyState title={PJ.noProjects} action={<Button size="sm" variant="primary" onClick={() => setCreating(true)}>{PJ.newProject}</Button>} />
+          ) : (
           <div className="grid min-w-0 grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
-            {!q.isSuccess ? <Loading variant="skeleton" /> : rows.length ? (
+            {!q.isSuccess ? <Loading variant="skeleton" /> : (
               <ul className="flex min-w-0 flex-col gap-2" data-testid="projects-card-list">
                 {rows.map((p) => <li key={p.id}><ProjectCard p={p} onOpen={onOpen} /></li>)}
               </ul>
-            ) : <p className="text-body text-c-secondary">{PJ.noProjects}</p>}
+            )}
             <div className="flex min-w-0 flex-col gap-3">
               <Panel title={PJ.total}>
                 <p className="text-body text-c-secondary">{PJ.shown(rows.length)}</p>
@@ -139,6 +144,7 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
               </Panel>
             </div>
           </div>
+          )}
         </div>
         {form}
       </ListPageShell>
