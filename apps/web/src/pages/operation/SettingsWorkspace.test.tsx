@@ -11,6 +11,7 @@ vi.mock("./OperationPurchasingSettings", () => ({ default: () => <div>Purchasing
 vi.mock("./IssueTrackerSettings", () => ({ default: () => <div>Issue settings</div> }));
 vi.mock("./PaymentSettings", () => ({ default: () => <div>Payment settings</div> }));
 vi.mock("./DeliverySettings", () => ({ default: () => <div>Delivery settings</div> }));
+vi.mock("./SupplyChainEngine", () => ({ default: ({ path }: { path: string }) => <div data-testid="engine-stub" data-path={path}>engine</div> }));
 vi.mock("./WarehouseSettings", async () => {
   const actual = await vi.importActual<typeof import("./WarehouseSettings")>("./WarehouseSettings");
   return { ...actual, default: () => <div>Warehouse settings</div> };
@@ -256,5 +257,19 @@ describe("Staff & Duties Settings entry", () => {
     fireEvent.click(screen.getByRole("link", { name: "Staff & Duties" }));
     expect(screen.queryByRole("navigation", { name: "Settings sections" })).toBeNull();
     expect(screen.getByRole("button", { name: "Show settings" })).toBeVisible();
+  });
+});
+
+describe("SettingsWorkspace — Supply Chain Settings", () => {
+  it("lists the section and opens the engine's own Settings, company details first", () => {
+    render(
+      <MemoryRouter initialEntries={["/operation/settings/supply-chain"]}>
+        <Routes>
+          <Route path="/operation/settings/*" element={<SettingsWorkspace />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Supply Chain Settings" })).toHaveAttribute("href", "/operation/settings/supply-chain");
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/settings?tab=branding");
   });
 });

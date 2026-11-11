@@ -10,6 +10,10 @@
 // role the Worker connects as through Hyperdrive); leave it empty to keep the current one.
 // RE-RUN: safe. Applied files are checksummed and skipped; a changed file stops the run. Each file is one
 // transaction, so a failure leaves the database at the last file that worked.
+//
+//   node scripts/carres-db/apply.mjs --ci          the engine deploy (.github/workflows/deploy-engine.yml): reads
+//                                                  ENGINE_DATABASE_URL, applies only to the engine's own project,
+//                                                  asks nothing and never changes a password
 import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -17,6 +21,8 @@ import postgres from "postgres";
 
 const DIR = fileURLToPath(new URL("./migrations/", import.meta.url));
 const DRY = process.argv.includes("--dry-run");
+const CI = process.argv.includes("--ci");
+const ENGINE_REF = "pxdnkoduwwsmzrgbfsqq"; // the engine's own Supabase project (Carres-SCM-Engine, ww)
 const REFUSED_REFS = ["kfprgpjpaffedghytstl"]; // Carres-Portal-v2, the portal's own database
 
 let piped = null;
@@ -52,14 +58,19 @@ async function askLine(question) {
 }
 
 let url;
-try { url = (await askHidden("Paste the engine database connection string (nothing will show), then press Enter: ")).trim(); }
-catch (e) { console.error(e.message); process.exit(1); }
+if (CI) url = (process.env.ENGINE_DATABASE_URL ?? "").trim();
+else {
+  try { url = (await askHidden("Paste the engine database connection string (nothing will show), then press Enter: ")).trim(); }
+  catch (e) { console.error(e.message); process.exit(1); }
+}
 if (!url) { console.error("Nothing was entered. Nothing was applied."); process.exit(1); }
 const ref = url.match(/postgres\.([a-z0-9]{20})\b/)?.[1] ?? url.match(/db\.([a-z0-9]{20})\.supabase\.co/)?.[1] ?? null;
+// Unattended, only ever the engine's own project: a wrong secret must not reach any other database.
+if (CI && ref !== ENGINE_REF) { console.error("ENGINE_DATABASE_URL is not the engine's project. Nothing was applied."); process.exit(1); }
 if (ref && REFUSED_REFS.includes(ref)) { console.error("That is the Carres portal's own database. Use the engine's project. Nothing was applied."); process.exit(1); }
 const target = ref ?? url.replace(/\/\/[^@]*@/, "//***@");
 console.log(`Target database: ${target}${DRY ? "  (dry run)" : ""}`);
-if (!DRY) {
+if (!DRY && !CI) {
   const typed = await askLine(`Type the project ref (${ref ?? "the host name shown above"}) to apply to it, or anything else to stop: `);
   if (typed !== (ref ?? target)) { console.error("That does not match. Nothing was applied."); process.exit(1); }
 }
@@ -103,7 +114,8 @@ try {
     // Tables a step created as the admin go to the engine role too, or the engine cannot read them.
     await sql.unsafe(readFileSync(new URL("./engine-owns-all.sql", import.meta.url), "utf8"));
     console.log("scm_engine owns every engine table; the data API serves scm.");
-    const pw = (await askHidden("Password to give scm_engine (nothing will show; empty keeps the current one): ")).trim();
+    // Unattended runs never touch the password: the engine's database link (Hyperdrive) holds the current one.
+    const pw = CI ? "" : (await askHidden("Password to give scm_engine (nothing will show; empty keeps the current one): ")).trim();
     if (pw) { await sql.unsafe(`alter role scm_engine password '${pw.replace(/'/g, "''")}'`); console.log("scm_engine password set."); }
   }
   if (!process.exitCode) console.log(pending === 0 ? "Nothing to apply; the database is up to date." : DRY ? `${pending} pending.` : `Applied ${pending}.`);

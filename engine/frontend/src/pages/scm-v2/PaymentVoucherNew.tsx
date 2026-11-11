@@ -1076,7 +1076,7 @@ export const PaymentVoucherNew = () => {
                   onChange={(e) => setRefundDocInput(e.target.value)}
                   onBlur={() => setRefundDocNo(refundDocInput.trim())}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setRefundDocNo(refundDocInput.trim()); } }}
-                  placeholder={refundType === 'SO' ? 'e.g. 2990-SO-2607-001' : 'e.g. HC-SI-2607-001'} className={styles.fieldInput} />
+                  placeholder={refundType === 'SO' ? 'e.g. CR-SO-2611-001' : 'e.g. CR-SI-2611-001'} className={styles.fieldInput} />
               </label>
             </div>
             {refundQ.isLoading && refundDocNo && <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--fs-13)' }}>Reading {refundDocNo}…</p>}
