@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { engineAddressFor } from "@/pages/portal/portal-nav";
+import { engineAddressFor, engineFor } from "@/pages/portal/portal-nav";
 import { useEngineBadges } from "@/pages/portal/engine-badges";
 import { apiFetch } from "@/lib/api";
 import Button from "@/components/kit/Button";
@@ -63,7 +63,7 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
   }, [attempt]);
 
   // The frame tells where it moved (engine carres/embed.ts reportCarresLocation): the address follows, so the
-  // menu lights that page's row and a refresh reopens the same page. The frame is not sent back there.
+  // menu lights that page's row and a refresh reopens the same page, unless the address already shows that page. The frame is not sent back there.
   useEffect(() => {
     if (!session) return;
     const onMessage = (e: MessageEvent) => {
@@ -74,6 +74,9 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
       if (d?.type !== "carres:location") return;
       if (typeof d.path !== "string" || !d.path.startsWith("/") || d.path.startsWith("//")) return;
       shown.current = d.path;
+      // Already the page this address shows: keep the address. Two rows can open one engine page (Product
+      // Request under Supply Chain and under Consignment); the row the person clicked stays lit.
+      if (engineFor(window.location.pathname, window.location.search) === d.path) return;
       const address = engineAddressFor(d.path);
       if (address && address !== window.location.pathname + window.location.search) navigate(address, { replace: true });
     };
