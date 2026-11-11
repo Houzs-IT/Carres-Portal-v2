@@ -215,7 +215,6 @@ const BLANK_ANSWER_DOORS = [
   ["arrival_source_create", 2],
   ["arrival_source_handover", 2],
   ["arrival_source_plan", 1],
-  ["commission_reopen_run", 1],
   ["create_rental_agreement", 2],
   ["dealer_invite", 3],
   ["delivery_handover_record", 3],
@@ -284,11 +283,8 @@ const BLANK_ANSWER_DOORS = [
   ["supplier_advance_money_back_cancel", 1],
   ["supplier_bill_cancel", 1],
   ["supplier_mark_delivered", 2],
-  ["warehouse_import_holiday_calendar", 2],
   ["warehouse_receipt_return", 1],
   ["warehouse_resubmit_receipt", 2],
-  ["warehouse_save_special_date", 1],
-  ["warehouse_set_site_details", 1],
   ["warehouse_submit_receipt", 2],
 ];
 
