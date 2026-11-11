@@ -127,7 +127,9 @@ export default function OperationApp() {
               <PhoneTasksDoor />
             </div>
           </div>
-        ) : (
+        ) : enginePage ? null : (
+          /* On an engine page the one top row is Houzs's own top bar, drawn inside the frame (tabs, search,
+             Refresh, presence, bell; owner 11 Nov 2026), so the Carres header and Tasks card stand down. */
           <ShellHeader
             slotRef={shellHost.slotRef}
             claimed={shellHost.claimed}
@@ -135,8 +137,8 @@ export default function OperationApp() {
             title={navTitle?.title ?? "Carres"}
           />
         )}
-        <div className={`flex min-h-0 min-w-0 flex-1 ${phone ? "" : "gap-3 p-3"}`}>
-        <main className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-auto ${phone ? "" : "rounded-lg"}`}>
+        <div className={`flex min-h-0 min-w-0 flex-1 ${phone || enginePage ? "" : "gap-3 p-3"}`}>
+        <main className={`flex min-h-0 min-w-0 flex-1 flex-col ${enginePage ? "overflow-hidden" : "overflow-auto"} ${phone || enginePage ? "" : "rounded-lg"}`}>
           {enginePage ? (
             <SupplyChainEngine path={enginePage} />
           ) : isSettingsUrl || isIssuesUrl ? (
@@ -150,7 +152,7 @@ export default function OperationApp() {
             tabPage()
           )}
         </main>
-        {phone ? null : <ShellTasks />}
+        {phone || enginePage ? null : <ShellTasks />}
         </div>
       </div>
       </ShellHeaderContext.Provider>

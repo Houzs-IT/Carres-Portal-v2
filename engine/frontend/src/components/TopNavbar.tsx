@@ -47,7 +47,7 @@ import { allowNextUnload, confirmLeaving, leaveGuardActive } from "../lib/leaveG
  * Every lg sticky below parks at top-[52px]: Layout PageHeader, DetailLayout,
  * the two SCM V2 doc bars — change this bar's height, change them all.
  */
-export function TopNavbar() {
+export function TopNavbar({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
 
   /* z-40, one above the DataTable's sticky thead / tfoot (z-30). The bar is a
@@ -62,7 +62,7 @@ export function TopNavbar() {
       {/* Utility cluster (right): company / search / bell / profile — the
           company pill leads, as it always has (owner screenshot 2026-07-23). */}
       <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-4">
-        <CompanySwitcher />
+        {!embedded && <CompanySwitcher />}
         <div className="w-[220px]">
           <GlobalSearchTrigger tone="inset" />
         </div>
@@ -78,8 +78,12 @@ export function TopNavbar() {
                 much is waiting — which is the whole point of routing
                 amendment approvals here. */}
             <NotificationBell collapsed direction="down" align="end" tone="navbar" />
-            <span aria-hidden className="mx-0.5 h-6 w-px bg-border-subtle" />
-            <ProfileMenu />
+            {!embedded && (
+              <>
+                <span aria-hidden className="mx-0.5 h-6 w-px bg-border-subtle" />
+                <ProfileMenu />
+              </>
+            )}
           </>
         )}
       </div>

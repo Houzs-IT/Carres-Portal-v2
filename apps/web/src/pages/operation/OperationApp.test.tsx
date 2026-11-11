@@ -64,7 +64,9 @@ describe("OperationApp — the engine rows", () => {
   ])("%s opens the engine page %s", (path, page) => {
     renderApp(path);
     expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", page);
-    expect(screen.getAllByTestId("shell-header")).toHaveLength(1);
+    // Houzs's own top bar is the one top row there: the Carres header and Tasks card stand down.
+    expect(screen.queryByTestId("shell-header")).toBeNull();
+    expect(screen.queryByTestId("shell-tasks-stub")).toBeNull();
   });
 });
 
@@ -100,6 +102,8 @@ describe("OperationApp — Carres's own pages stay", () => {
     renderApp(path);
     expect(screen.getByTestId(id)).toBeInTheDocument();
     expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("shell-header")).toHaveLength(1);
+    expect(screen.getByTestId("shell-tasks-stub")).toBeInTheDocument();
   });
 
   it("the retired Payments desk forwards to the Finance monitor with its order", () => {

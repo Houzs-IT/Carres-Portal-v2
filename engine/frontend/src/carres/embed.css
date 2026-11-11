@@ -1,8 +1,9 @@
-/* Carres only: inside the Carres portal this app draws neither of its top bars (Layout.tsx), so the page headers and
-   document bars that pin themselves just under those bars (top-12 / top-14 on a phone or tablet, 52px on a
-   computer) pin to the very top instead of leaving a gap. */
-html.carres-embedded .sticky.top-12,
-html.carres-embedded .sticky.top-14,
-html.carres-embedded .sticky.lg\:top-\[52px\] {
-  top: 0;
+/* Carres only: inside the Carres portal this app draws no menu and no phone top bar (Layout.tsx). On a computer
+   it draws Houzs's own top bar, so nothing changes there: page headers pin under it exactly as in Houzs. On a
+   phone or tablet, where no bar is drawn, the headers that pin under it (top-12 / top-14) pin to the top. */
+@media (max-width: 1023.98px) {
+  html.carres-embedded .sticky.top-12,
+  html.carres-embedded .sticky.top-14 {
+    top: 0;
+  }
 }

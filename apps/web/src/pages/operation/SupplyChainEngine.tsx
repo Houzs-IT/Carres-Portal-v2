@@ -94,5 +94,5 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
     return <EmptyState title={SC.failed} detail={error === SC.failed ? undefined : error} action={<Button onClick={() => setAttempt((n) => n + 1)}>{SC.retry}</Button>} />;
   }
   if (!session) return <Loading variant="skeleton" lines={6} label={SC.opening} />;
-  return <iframe ref={frame} src={session.src} title={SC.title} className="block h-[calc(100dvh-7rem)] min-h-[560px] w-full border-0" />;
+  return <iframe ref={frame} src={session.src} title={SC.title} className="block min-h-0 w-full flex-1 border-0" />;
 }
