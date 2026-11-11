@@ -482,13 +482,13 @@ export default function SoBatchIssueWorkspace({
                   <Fact idPrefix="po-review-fact" own={false} framed label="Supplier" value={
                     <span className="flex flex-col">
                       <span>{current.supplierName ?? "Not recorded"}</span>
-                      <span className="whitespace-pre-wrap break-words text-meta text-kit-slate-11">{current.supplierAddress || <a className="text-kit-blue-11 underline" href="/operation/settings/purchasing">Address not recorded. Check Purchasing Settings.</a>}</span>
+                      <span className="whitespace-pre-wrap break-words text-meta text-kit-slate-11">{current.supplierAddress || <a className="text-kit-blue-11 underline" href="/operation/sc/settings">Address not recorded. Check Purchasing Settings.</a>}</span>
                     </span>
                   } />
                   <Fact idPrefix="po-review-fact" own={false} framed label="Supplier Deliver To" value={
                     <span className="flex flex-col">
                       <span>{current.destinationName || destinationName(current.destinationId) || "Not recorded"}</span>
-                      <span className="whitespace-pre-wrap break-words text-meta text-kit-slate-11">{current.destinationAddress || <a className="text-kit-blue-11 underline" href="/operation/settings/purchasing">Address not recorded. Check Purchasing Settings.</a>}</span>
+                      <span className="whitespace-pre-wrap break-words text-meta text-kit-slate-11">{current.destinationAddress || <a className="text-kit-blue-11 underline" href="/operation/sc/settings">Address not recorded. Check Purchasing Settings.</a>}</span>
                     </span>
                   } />
                   <Fact idPrefix="po-review-fact" own={false} framed label="Delivery Method" value={
@@ -498,7 +498,7 @@ export default function SoBatchIssueWorkspace({
                     current.poDate ? fmtDate(current.poDate) : "Not available. Go back and reload."
                   } />
                   <Fact idPrefix="po-review-fact" own={false} framed testId="po-review-fact-po-delivery-date" label={current.poDeliveryWorkingDays != null ? `PO ${current.poDeliveryWorkingDays}-Day Delivery Date` : "PO Delivery Date"} value={
-                    current.poDeliveryDate ? fmtDate(current.poDeliveryDate) : <a className="text-kit-blue-11 underline" href="/operation/settings/purchasing">Not available. Check production days in Purchasing Settings.</a>
+                    current.poDeliveryDate ? fmtDate(current.poDeliveryDate) : <a className="text-kit-blue-11 underline" href="/operation/sc/settings">Not available. Check production days in Purchasing Settings.</a>
                   } />
                 </div>
               </Block>

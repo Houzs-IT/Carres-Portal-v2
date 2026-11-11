@@ -85,13 +85,8 @@ export default function PrincipalApp() {
         {tab === "new-order" && <PrincipalNewOrder />}
         {/* MAINTAIN → Sales analysis — overview / customer data / products. */}
         {tab === "sales-analysis" && <PrincipalSalesAnalysis />}
-        {/* MAINTAIN → Order Entry MOVED AGAIN (orders/MASTER.md §11): the
-            Sales Order module owns its Order Entry fields and payment
-            methods, and they are edited in the one Settings Workspace at
-            `Sales Order Settings`. Keeping a second address for the same
-            editor is how two screens come to disagree, so the old tab
-            forwards instead of rendering a duplicate. */}
-        {tab === "order-entry" && <Navigate to="/operation/settings/sales-orders" replace />}
+        {/* The old Order Entry tab opens Houzs's own Settings: the Carres Settings workspace is removed (owner, 11 Nov 2026). */}
+        {tab === "order-entry" && <Navigate to="/operation/sc/settings" replace />}
         {tab === "approvals" && <PrincipalApprovals />}
         {/* Two doors onto the same store roster, split by `dealers.channel`
             (Loo 2026-07-19): external resellers vs Carres' own showrooms. */}

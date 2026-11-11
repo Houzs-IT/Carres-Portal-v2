@@ -177,13 +177,10 @@ export default function PosSidebar({
             <Package size={16} strokeWidth={1.75} />
             <span>Products</span>
           </Link>
-          {/* Order Entry moved INTO `Sales Order Settings` (orders/MASTER.md
-              §11): the Sales Order module owns its Order Entry fields and
-              payment methods, and the one Settings Workspace is where a
-              business value is changed. This link follows it rather than
-              keeping a second address for the same editor. */}
+          {/* Order Entry opens Houzs's own Settings: the Carres Settings
+              workspace is removed (owner, 11 Nov 2026). */}
           <Link
-            to="/operation/settings/sales-orders"
+            to="/operation/sc/settings"
             className="cat-side__item"
             data-testid="pos-maintain-order-entry"
           >

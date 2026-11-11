@@ -16,8 +16,6 @@ import {
   BarChart3,
   BadgeCheck,
   LayoutGrid,
-  IdCard,
-  Target,
   Users,
   Store,
   Network,
@@ -41,7 +39,6 @@ import {
   Home,
   ShoppingCart,
   Warehouse,
-  ClipboardX,
   Handshake,
   ClipboardCheck,
   Sofa,
@@ -60,6 +57,9 @@ import {
   Reply,
   Calculator,
   Map as MapIcon,
+  Building2,
+  Mail,
+  LifeBuoy,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
@@ -94,7 +94,7 @@ import { NO_CAPS, type NavCapability } from "./nav-capabilities";
  * page there (stale-link fallback).
  */
 
-export type PortalArea = "operation" | "finance" | "hr" | "principal";
+export type PortalArea = "operation" | "finance" | "principal";
 
 /** Operation badge keys surfaced as nav counters (reuses the 0083 unread set). */
 export type PortalBadge = "orders" | "procurement" | "service-notes" | EngineBadge;
@@ -107,15 +107,15 @@ export type PortalSection =
   | "Showroom"
   | "Delivery"
   | "Warehouse"
-  | "Payments"
   | "Customer Care"
   /* Fairs, exhibitions and solo roadshows (0750, Houzs Projects). */
   | "Projects"
   /* Rows that hang directly under Supply Chain, outside its modules (Houzs: Product Request). */
   | "Supply Chain"
-  /* One page, so it draws as a plain row under SERVICE (Layout Standard §2,
-   * owner-confirmed 2026-10-08). */
-  | "Issue Tracker"
+  /* SYSTEM (Houzs Sidebar.tsx section "system"; owner 11 Nov 2026): the Team module, and Mail Center and
+   * IT Support as plain rows ("System" has no module row). */
+  | "Team"
+  | "System"
   | "Admin"
   /* The Finance modules (Chew, 2026-10-03; docs/finance/MASTER.md §4). Used
    * only by Finance's own pages; no other area has a page in them. */
@@ -141,9 +141,9 @@ export const SECTION_ORDER: ReadonlyArray<PortalSection> = [
   "Purchasing",
   "Delivery",
   "Warehouse",
-  "Payments",
   "Showroom",
-  "Issue Tracker",
+  "Team",
+  "System",
   "Admin",
   /* Finance, Houzs order: Money in, Money out, Bank & cards, Books, Reports,
    * Forecasting, Setup. The section keys stay; the words are in PORTAL_MODULES. */
@@ -200,10 +200,6 @@ export interface PortalModule {
  *  removed with the old Carres pages (11 Nov 2026). */
 export const WAREHOUSE_LANDING_KEY = "wh-loading-list";
 
-/** The collapsed Payments icon lands on `Monitor` — the daily collection
- *  desk — by name, never by row order (owner ruling 2026-09-12). */
-export const PAYMENTS_LANDING_KEY = "payments";
-
 export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   /* The Supply Chain modules carry the Houzs words (Sidebar.tsx:526-669). */
   { section: "Sales", label: "Sales Order", icon: ShoppingCart, mIcon: "receipt_long" },
@@ -212,9 +208,10 @@ export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   { section: "Showroom", label: "Showroom", icon: Store, mIcon: "storefront" },
   { section: "Delivery", label: "Transportation", icon: Truck, mIcon: "local_shipping" },
   { section: "Warehouse", label: "Warehouse", icon: Warehouse, landingKey: WAREHOUSE_LANDING_KEY },
-  { section: "Payments", label: "Payments", icon: Banknote, mIcon: "payments", landingKey: PAYMENTS_LANDING_KEY },
   { section: "Customer Care", label: "Service Cases", icon: Zap, mIcon: "support_agent" },
   { section: "Projects", label: "Projects", icon: FolderKanban, mIcon: "event" },
+  /* System, Houzs words (Sidebar.tsx:963-1000). */
+  { section: "Team", label: "Team", icon: Users },
   /* Finance, Houzs words (Sidebar.tsx:740-853). */
   { section: "Receivables", label: "Money in", icon: ArrowDownLeft },
   { section: "Payables", label: "Money out", icon: ArrowUpRight },
@@ -308,17 +305,26 @@ export interface PortalNavGroup {
   base: string;
   /** roles permitted to see this whole area group. */
   roles: ReadonlyArray<Role>;
+  /** The roles an item WITHOUT its own `roles` shows to, when that is narrower than the group's: the
+   *  Operations group admits `hr` for its System rows only (owner 11 Nov 2026). */
+  itemRoles?: ReadonlyArray<Role>;
   /** the tab key the area lands on by default (operation/principal). */
   defaultTab: string;
   items: PortalNavItem[];
 }
+
+/** Who sees the System rows: everyone who sees Operations, and `hr` (owner 11 Nov 2026). */
+const SYSTEM_ROLES: ReadonlyArray<Role> = ["operation", "principal", "hr"];
 
 export const PORTAL_NAV: PortalNavGroup[] = [
   {
     area: "operation",
     label: "Operations",
     base: "/operation",
-    roles: ["operation", "principal"],
+    /* `hr` sees only the rows that name it (Payment Requests by grant, and the System rows): the Carres
+     * HR area is removed (owner, 11 Nov 2026) and Houzs's Team is where people are kept now. */
+    roles: ["operation", "principal", "hr"],
+    itemRoles: ["operation", "principal"],
     // The Operations landing is the Houzs Sales Orders page (the old Carres Overview is removed).
     defaultTab: "orders",
     items: [
@@ -342,6 +348,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
         path: "/finance/payment-requests",
         activeFor: ["path:/finance/payment-requests"],
         section: "Workspace",
+        roles: ["operation", "principal", "hr"],
         needs: "payment-requester",
       },
       // Carres-only: My Work / Team Work and a person's own leave (0670).
@@ -416,30 +423,15 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "stock-transfers", label: "Transfers", icon: ArrowLeftRight, path: "/operation/sc/stock-transfers", section: "Warehouse" },
       { key: "stock-takes", label: "Stock Take", icon: ClipboardCheck, path: "/operation/sc/stock-takes", section: "Warehouse" },
 
-      /* Carres-only: PAYMENTS (owner ruling 2026-09-12). Operation staff have no
-       * Finance area, and `/finance/*` admits them to these two (§12). `path`, not
-       * `financePath`, because `navItemHref` reads `path` outside Finance. */
-      {
-        key: "payments",
-        label: "Monitor",
-        icon: Wallet,
-        path: "/finance/monitor",
-        // The retired `/finance/invoices` address forwards here and lights this row.
-        activeFor: ["path:/finance/monitor", "path:/finance/invoices"],
-        section: "Payments",
-      },
-      {
-        key: "payment-records",
-        label: "Payment Records",
-        icon: Receipt,
-        path: "/finance/payments",
-        activeFor: ["path:/finance/payments"],
-        section: "Payments",
-      },
-
-      /* Carres-only: ISSUE TRACKER and the Sales Invoices report (Carres Finance's invoices). */
-      { key: "issue-tracker", label: "Issue Tracker", icon: ClipboardX, mIcon: "assignment_late", path: "/operation/issues", section: "Issue Tracker" },
-      { key: "sales-invoice-lines", label: "Sales invoice lines", icon: BarChart3, section: "Reports" },
+      /* SYSTEM — Houzs's Team, Mail Center and IT Support (Sidebar.tsx:922-1085; owner 11 Nov 2026). Also
+       * shown to `hr`. */
+      { key: "team-directory", label: "Directory", icon: Users, path: "/operation/sc/team-directory", section: "Team", roles: SYSTEM_ROLES },
+      { key: "team-org-chart", label: "Org Chart", icon: Network, path: "/operation/sc/team-org-chart", section: "Team", roles: SYSTEM_ROLES },
+      { key: "team-departments", label: "Departments", icon: Building2, path: "/operation/sc/team-departments", section: "Team", roles: SYSTEM_ROLES },
+      { key: "team-mailboxes", label: "Mailboxes", icon: Mail, path: "/operation/sc/team-mailboxes", section: "Team", roles: SYSTEM_ROLES },
+      { key: "team-roles", label: "Roles & Permissions", icon: ShieldCheck, path: "/operation/sc/team-roles", section: "Team", roles: SYSTEM_ROLES },
+      { key: "mail-center", label: "Mail Center", icon: Mail, path: "/operation/sc/mail-center", section: "System", roles: SYSTEM_ROLES },
+      { key: "it-support", label: "IT Support", icon: LifeBuoy, path: "/operation/sc/it-support", section: "System", roles: SYSTEM_ROLES },
     ],
   },
   {
@@ -519,60 +511,6 @@ export const PORTAL_NAV: PortalNavGroup[] = [
     ],
   },
   {
-    // 0244/0245 (Loo 2026-07-25) — HR area: commission calculation for Carres'
-    // OWN sales executives (showroom-channel staff; dealers excluded by the
-    // gated hr_commission_source RPC). No base payroll — commission only.
-    area: "hr",
-    label: "HR",
-    base: "/hr",
-    roles: ["hr", "principal"],
-    // O1 (2026-07-26): HR lands on Overview — "what needs me today" — rather
-    // than opening straight into the commission table.
-    defaultTab: "overview",
-    items: [
-      { key: "overview", label: "Overview", icon: LayoutDashboard },
-      // HR-P4 (2026-07-26) — the employee master. Sits next to Team because
-      // that is where a person is created; People is where their file lives.
-      { key: "people", label: "People", icon: IdCard },
-      // Commission is ONE entry (Loo 2026-07-27) — the month report and the
-      // rates that compute it are one subject, so "Commission Setup" stopped
-      // being a second rail item and became a sub-tab (`HrCommissionTabs`),
-      // the same merge Stock (K0) and Purchasing made. `activeFor` keeps the
-      // item lit on both `?tab=` values.
-      {
-        key: "commission",
-        label: "Commission",
-        icon: HandCoins,
-        activeFor: ["tab:commission", "tab:setup"],
-      },
-      // Attribution retired (Loo 2026-07-27, "no more use for me") — the
-      // unassigned-order worklist is empty on a healthy month, so it cost a
-      // permanent rail item to say "nothing to do". It renders inside
-      // Commission → Earnings now, only while an order is unassigned.
-      // Team hierarchy (Loo 2026-07-25) — the org registry + THE account door:
-      // every new user except dealers is minted here.
-      { key: "team", label: "Team", icon: Users },
-      // HR-P6 (0276, 2026-07-26) — targets + the scoreboard. Sits after People
-      // because a target is set ON a person: you need the file to exist first.
-      { key: "performance", label: "Performance", icon: Target },
-      // HR-P7 (0278) — the Chairman's cost question. Last in the HR group: it is
-      // the only screen carrying salary, and it reads the other tabs' figures.
-      { key: "people-cost", label: "People cost", icon: Wallet },
-      /* 0687 — Chew 2026-10-12 (Finance MASTER §3.3, 「hr & BD 也到能申请」): the HR
-       * staff Finance or the boss allows ask Finance to pay a bill. Shown only to
-       * them (`needs`), and to HR only: the principal finds it under Operations. */
-      {
-        key: "payment-requests",
-        label: "Payment Requests",
-        icon: HandCoins,
-        path: "/finance/payment-requests",
-        activeFor: ["path:/finance/payment-requests"],
-        roles: ["hr"],
-        needs: "payment-requester",
-      },
-    ],
-  },
-  {
     area: "principal",
     label: "Admin",
     base: "/principal",
@@ -594,18 +532,6 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       // word for that register is the Houzs `Sales Orders`. The address is
       // unchanged, so the principal's bookmark still lands.
       { key: "orders", label: "Sales Orders", icon: ShoppingCart, path: "/operation/orders" },
-      // YH, 2026-08-24 — the lead-time floor (earliest a store may sell) is a
-      // principal-level decision, but its only editor lived under Operations
-      // Settings. `role === "principal"` already grants edit there (checkDuty
-      // short-circuits on role, never a duty — 0260), so this needs no new
-      // page, no new API: same pattern as "Sales Orders" above, a path-driven
-      // jump straight into the operations-owned surface it actually edits.
-      {
-        key: "purchasing-settings",
-        label: "Purchasing settings",
-        icon: SlidersHorizontal,
-        path: "/operation/settings/purchasing",
-      },
       // Loo 2026-07-19 — two separate doors: "Dealers" = external resellers,
       // "Showrooms" = the stores Carres owns. Same page, filtered by
       // `dealers.channel`.
@@ -657,7 +583,17 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "wh-loading-list": "/scm/loading-list", "wh-warehouses": "/scm/warehouses", "wh-racks": "/scm/warehouses/racks",
   stock: "/scm/inventory", "stock-adjustments": "/scm/stock-adjustments", "stock-transfers": "/scm/stock-transfers",
   "stock-takes": "/scm/stock-takes",
+  "hub-team": "/team?tab=hub", "team-directory": "/team?tab=directory", "team-org-chart": "/team?tab=orgchart2",
+  "team-departments": "/team?tab=departments2", "team-mailboxes": "/team?tab=mail2", "team-roles": "/team?tab=permissions",
+  "mail-center": "/mail-center", "it-support": "/it-support",
+  // Houzs's own Settings: the menu's Settings gear opens it (owner, 11 Nov 2026). No menu row of its own.
+  settings: "/settings",
 };
+
+/** The Settings gear's address outside Finance: Houzs's own Settings (ENGINE_PAGES `settings`). */
+export const ENGINE_SETTINGS_HREF = "/operation/sc/settings";
+/** Report a problem to IT opens Houzs's IT Support row. */
+export const IT_SUPPORT_HREF = "/operation/sc/it-support";
 
 /** The Carres pages these three areas had before the engine, removed 11 Nov 2026 (owner). Their addresses
  *  (bookmarks, links in old messages) open the row of the nearest engine page. Paths match on whole segments,
@@ -668,8 +604,12 @@ const RETIRED_PATHS: ReadonlyArray<readonly [string, string]> = [
   ["/operation/purchasing", "purchase-orders"], ["/operation/old-orders", "orders"],
   ["/operation/amendments", "amendments"], ["/operation/stock/unit", "stock"],
   ["/operation/to-order", "purchase-orders"], ["/operation/orders", "orders"],
-  ["/operation/settings/service", "service-maintenance"], ["/operation/settings/purchasing", "procurement-overview"],
-  ["/operation/settings/delivery", "coverage-fleet"],
+  /* The Carres Settings workspace, removed 11 Nov 2026 (owner): every old Settings address opens Houzs's own. */
+  ["/operation/settings", "settings"],
+  /* The Carres Issue Tracker and its monthly report, removed from the menu 11 Nov 2026 (owner). */
+  ["/operation/issues", "orders"],
+  /* The Carres HR area, removed 11 Nov 2026 (owner): Houzs's Team keeps the people now. */
+  ["/hr", "hub-team"],
 ];
 const RETIRED_TABS: Readonly<Record<string, string>> = {
   dashboard: "orders", "service-notes": "service-notes", guarantees: "service-notes", projects: "projects",
@@ -698,6 +638,8 @@ const RETIRED_TABS: Readonly<Record<string, string>> = {
   "warehouse-arrival-schedule": "receiving", "warehouse-monitor": "receiving", "warehouse-dashboard": "receiving",
   "warehouse-pickup-schedule": "wh-loading-list", "warehouse-inbound": "receiving",
   "warehouse-outbound": "delivery-orders", "arrival-source": "receiving",
+  // The Carres Sales invoice lines report, removed from the menu 11 Nov 2026 (owner).
+  "sales-invoice-lines": "orders",
 };
 
 /** Houzs's module rows open a hub page (Houzs Sidebar.tsx `to`): Service Cases, Projects, each Supply Chain
@@ -706,6 +648,7 @@ const RETIRED_TABS: Readonly<Record<string, string>> = {
 export const ENGINE_HUBS: Readonly<Partial<Record<PortalSection | "supply-chain", string>>> = {
   "supply-chain": "hub-scm", "Customer Care": "hub-service", Projects: "hub-projects", Sales: "hub-sales",
   Consignment: "hub-consignment", Purchasing: "hub-procurement", Delivery: "hub-transportation", Warehouse: "hub-warehouse",
+  Team: "hub-team",
 };
 
 /** The section whose hub this address shows, or null. */
@@ -785,8 +728,25 @@ export function visibleItems(
   role: Role | null,
   caps: ReadonlySet<NavCapability> = NO_CAPS,
 ): PortalNavItem[] {
-  return group.items.filter((it) =>
-    (!it.roles || (role != null && it.roles.includes(role))) && (!it.needs || caps.has(it.needs)));
+  return group.items.filter((it) => {
+    const roles = it.roles ?? group.itemRoles;
+    return (!roles || (role != null && roles.includes(role))) && (!it.needs || caps.has(it.needs));
+  });
+}
+
+/** May this role open the engine row `key` (an ENGINE_PAGES key)? Operations staff and the principal open
+ *  every row; a role the Operations group admits only for some rows (`hr`) opens those rows and the hub of
+ *  their module. A grant (`needs`) is not asked here: the page it opens checks it. */
+export function roleMayOpenEngineRow(role: Role | null, key: string): boolean {
+  const group = PORTAL_NAV.find((g) => g.area === "operation");
+  if (!group || role == null || !group.roles.includes(role) || !(key in ENGINE_PAGES)) return false;
+  if (role === "operation" || role === "principal") return true;
+  const allowed = (it: PortalNavItem) => (it.roles ?? group.itemRoles ?? group.roles).includes(role);
+  const item = group.items.find((it) => it.key === key && it.path === `/operation/sc/${key}`);
+  if (item) return allowed(item);
+  const hub = Object.entries(ENGINE_HUBS).find(([, k]) => k === key)?.[0];
+  if (!hub) return false;
+  return hub !== "supply-chain" && group.items.some((it) => it.section === hub && allowed(it));
 }
 
 /** The href a nav item points at. */
@@ -870,10 +830,9 @@ export function navBlocks(
   return out;
 }
 
-/* ── THE MENU GROUPS — the Houzs tree (Sidebar.tsx:1118-1123, 237-700). Two caps
- * words, Workspace and Operations; Supply Chain is an expandable row inside
- * Operations holding its five modules. Payments, Showroom, Issue Tracker and
- * the Operations reports have no Houzs row, so they follow Supply Chain. */
+/* ── THE MENU GROUPS — the Houzs tree (Sidebar.tsx:1118-1123, 237-1085). Three caps
+ * words, Workspace, Operations and System; Supply Chain is an expandable row inside
+ * Operations holding its five modules. */
 export interface MenuGroup {
   label: string | null;
   /** The group draws under one expandable row instead of a caps word. */
@@ -882,7 +841,7 @@ export interface MenuGroup {
 }
 
 /** The Houzs areas of the Operations menu: their pages wear Houzs's own icon, as in Houzs's menu. */
-export const HOUZS_ICON_SECTIONS: ReadonlySet<PortalSection> = new Set<PortalSection>(["Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"]);
+export const HOUZS_ICON_SECTIONS: ReadonlySet<PortalSection> = new Set<PortalSection>(["Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse", "Team"]);
 
 export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
   { label: "Workspace", sections: ["Workspace"] },
@@ -892,9 +851,9 @@ export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
     row: { key: "supply-chain", label: "Supply Chain", icon: Boxes },
     sections: ["Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"],
   },
-  /* Carres's own rows, apart from the Houzs part above (owner, 11 Nov 2026): Payments, then the Issue
-   * Tracker and the report at the very bottom. */
-  { label: "Carres", sections: ["Payments", "Issue Tracker", "Reports"] },
+  /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026): the Team module, then Mail Center and
+   * IT Support. The Carres bottom group (Payments, Issue Tracker, Sales invoice lines) is removed. */
+  { label: "System", sections: ["Team", "System"] },
 ];
 
 /** The blocks of one area, cut into its menu groups. Only the Operations
