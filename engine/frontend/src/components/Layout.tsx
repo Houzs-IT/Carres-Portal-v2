@@ -218,6 +218,8 @@ export function PageHeader({
   actions,
   primaryAction,
   secondaryActions,
+  eyebrow,
+  eyebrowMeta,
   dense,
   titleSize = "default",
   back,
@@ -328,7 +330,13 @@ export function PageHeader({
             <ArrowLeft size={14} strokeWidth={2.2} />
           </button>
         )}
-        {/* Carres: no eyebrow line over the title (Carres pages have none); `eyebrow` is accepted and not drawn. */}
+        {/* Carres: no eyebrow line on screen (Carres pages have none); it stays for screen readers. */}
+        {eyebrow && (
+          <div className="sr-only">
+            {eyebrow}
+            {eyebrowMeta != null && <> · {eyebrowMeta}</>}
+          </div>
+        )}
         {/* Two literal class strings, not an interpolated one — Tailwind only
             emits classes it can see whole in the source. */}
         <h1
