@@ -75,7 +75,7 @@ const SECTIONS = [
      section. */
   { group: "Company", items: [{ slug: "company", label: "Company" }] },
   { group: "Office", items: [{ slug: "office", label: "Office" }] },
-  { group: "Team and access", items: [{ slug: "settings-editors", label: "Settings editors" }] },
+  { group: "Team and access", items: [{ slug: "settings-editors", label: "Settings editors" }, { slug: "access", label: "Access & Roles" }] },
   { group: "Staff & Duties", items: [{ slug: "staff-duties", label: "Staff & Duties" }] },
   /* Address lists (0722): Weisiang's decision (Mr Lim, WhatsApp 2026-10-22;
      Jess was not part of it) — office staff edit the State, City and
@@ -254,6 +254,7 @@ export default function SettingsWorkspace() {
           <Route path="issue-tracker" element={<IssueTrackerSettings />} />
           <Route path="service" element={<ServiceSettings />} />
           <Route path="supply-chain" element={<SupplyChainEngine path="/settings?tab=branding" />} />
+          <Route path="access" element={<SupplyChainEngine path="/team?tab=roles" />} />
           <Route path="warehouse" element={<Navigate to="details" replace />} />
           <Route path="warehouse/:section" element={<WarehouseSettings />} />
           <Route path="delivery" element={<Navigate to="partners" replace />} />
