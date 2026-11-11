@@ -33,6 +33,11 @@ jobs:
           npm ci --prefix engine/backend --ignore-scripts --no-audit --no-fund
           npm ci --prefix engine/frontend --ignore-scripts --no-audit --no-fund
       - name: Type-check the server, build the screens
+        env:
+          # The delivery maps (Delivery Planning, Trips, lorry routes). Vite puts it in the public JS, so it is a
+          # repository VARIABLE, not a secret (Houzs: vars.VITE_GOOGLE_MAPS_API_KEY). Unset: the pages say the map
+          # is not set up and the lists still work.
+          VITE_GOOGLE_MAPS_API_KEY: ${{ vars.ENGINE_GOOGLE_MAPS_API_KEY }}
         run: |
           npm run typecheck --prefix engine/backend
           npm run build --prefix engine/frontend

@@ -56,7 +56,7 @@ response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must
 
 ### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
 
-`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`68c04607b`**, run as its
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`efa70b116`**, run as its
 own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
 frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu (the only menu). On those pages the
 one top row is Houzs's own top bar inside the frame (workspace tabs, search, Refresh, presence, bell; no company
@@ -94,7 +94,21 @@ Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bo
 **Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
 migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
-**Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
+**What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
+after normalising the recolour): the only non-colour differences are the Carres integration (`src/carres/*`, the
+frame/top-bar branches in `Layout.tsx`/`TopNavbar.tsx`/`App.tsx`/`main.tsx`, `backend/src/carres/sso.ts`), the brand
+name and blank Branding defaults, `CR-` document numbers, the Carres hosts and dev fallbacks, showroom venues in
+`fair-binding.ts`, and the supplier-code check in `ProductModels.tsx`. Every loading feature is Houzs's unchanged
+(lazy routes, boot preload, react-query, service worker, `_headers`, vite build). Left out on purpose: HR, AutoCount
+Sync, POS Admin and Venture Portal Feed (`navOnly.ts`). Not wired yet: the scan queue (`SCAN_QUEUE`, Houzs
+`houzs-scan-ocr`; without it scans run in `waitUntil`), the metrics dataset (`ERP_METRICS`, optional). Features that
+wait for a secret answer that they are not set up and the rest of the page works: `ANTHROPIC_API_KEY` (GRN/SO/PI/
+payment/credit-note/stock-take/lorry-invoice scans, bill and PV reading, 3PL bills, assistant, floorplans,
+announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worker `GOOGLE_MAPS_API_KEY` (maps,
+geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
+`TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
+
+**Resync from a newer Houzs main** (done 12 Nov 2026 from `efa70b116`):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
    Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:

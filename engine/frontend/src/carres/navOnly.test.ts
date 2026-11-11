@@ -18,6 +18,7 @@ describe("carresNavOnly", () => {
       { label: "Service Cases", to: "/service-cases" },
       { label: "Projects", to: "/projects?view=hub" },
       { label: "Finance", to: "/scm/finance", children: [{ label: "To do", to: "/scm/finance" }, { label: "Dashboard", to: "/scm/finance-dashboard" }] },
+      { label: "Mail Center", to: "/mail-center" },
     ]);
   });
   it("matches whole path segments only", () => {
