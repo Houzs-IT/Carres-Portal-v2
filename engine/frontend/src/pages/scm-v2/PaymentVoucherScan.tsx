@@ -67,6 +67,7 @@ import type { EventSuggestion } from '../../vendor/scm/lib/event-queries';
 import { stashPvFiles } from '../../vendor/scm/lib/pv-file-handoff';
 import { splitPdfPages } from '../../vendor/scm/lib/pdf-split-request';
 import { NOT_A_BILL_LABEL, isNotABill, repeatsOf, voucherLinesOf } from '../../vendor/scm/lib/bill-pile-sort';
+import type { AiReadStage } from '../../vendor/scm/lib/ai-read-job';
 import { clearPile, getPile, pileKey, updatePile, usePile, type PileState } from '../../vendor/scm/lib/bill-pile-store';
 import { getActiveCompanySnapshot, subscribeActiveCompany } from '../../lib/activeCompany';
 import { fmtDate } from '../../vendor/shared/format';
@@ -102,7 +103,7 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
   const companyId = useSyncExternalStore(subscribeActiveCompany, getActiveCompanySnapshot, getActiveCompanySnapshot);
   const key = pileKey(companyId, target);
   const pile = usePile(key);
-  const { picked, billGroups, results, billFiles, opened, progress, rereading } = pile;
+  const { picked, billGroups, results, billFiles, opened, progress, rereading, stages } = pile;
   const set = (change: (p: PileState) => PileState) => updatePile(key, change);
   /* A changed pile is a new pile: the old answers go, and any read still out is ended. */
   const pileChanged = (change: (p: PileState) => Partial<PileState>) =>
@@ -212,9 +213,14 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
   const forRun = (runId: number, change: (p: PileState) => PileState) =>
     updatePile(key, (p) => (p.run === runId ? change(p) : p));
   /* A bill's answer, put in its place in the pile (a read-again replaces the old one). */
-  const land = (runId: number, b: ExtractedBill) => forRun(runId, (p) => ({
-    ...p, results: [...(p.results ?? []).filter((r) => r.index !== b.index), b].sort((x, y) => x.index - y.index),
-  }));
+  const land = (runId: number, b: ExtractedBill) => forRun(runId, (p) => {
+    const stillReading = { ...p.stages };
+    delete stillReading[b.index];
+    return { ...p, stages: stillReading, results: [...(p.results ?? []).filter((r) => r.index !== b.index), b].sort((x, y) => x.index - y.index) };
+  });
+  /* Where a sent bill is on the scan queue: waiting for the reader, or read now. */
+  const stageOf = (runId: number, index: number, stage: AiReadStage) =>
+    forRun(runId, (p) => (p.results?.some((r) => r.index === index) && !p.rereading.includes(index) ? p : { ...p, stages: { ...p.stages, [index]: stage } }));
 
   /* ONE bill to the reader — its own request, its own wait. A bill that cannot
      be read (or a reader that took too long) is that bill's answer, never the
@@ -232,7 +238,7 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
     }
     forRun(runId, (p) => { const n = [...p.billFiles]; n[index] = files; return { ...p, billFiles: n }; });
     try {
-      const got = (await extract.mutateAsync([{ files }])).bills.at(0);
+      const got = (await extract.mutateAsync({ bills: [{ files }], onStage: (_i, stage) => { stageOf(runId, index, stage); } })).bills.at(0);
       land(runId, got ? { ...got, index } : { index, ok: false, reason: 'The reader sent nothing back — read it again.' });
     } catch (e) {
       land(runId, { index, ok: false, reason: e instanceof Error ? e.message : 'The bill could not be read.' });
@@ -244,7 +250,7 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
     const bills = billGroups;
     const byRid = new Map(picked.map((p) => [p.rid, p.file]));
     const runId = getPile(key).run + 1;
-    set((p) => ({ ...p, run: runId, results: [], billFiles: [], opened: [], progress: { done: 0, total: bills.length } }));
+    set((p) => ({ ...p, run: runId, results: [], billFiles: [], opened: [], stages: {}, progress: { done: 0, total: bills.length } }));
     setTickedForOne(new Set());
     setTreatAsBill(new Set());
     setNote(null);
@@ -447,6 +453,17 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
               {READ_AT_ONCE} bills with the reader at a time — each shows below as it is read. Opening waits until every bill is read.
             </div>
           )}
+          {progress && (
+            <ul aria-label="Each bill's read" style={{ margin: 0, paddingLeft: 18, fontSize: 'var(--fs-12)', color: 'var(--fg-muted)' }}>
+              {billGroups.map((_g, i) => {
+                const r = results?.find((b) => b.index === i);
+                const stage = stages[i] as AiReadStage | undefined;
+                const where = r ? (r.ok ? 'read' : `could not be read — ${r.reason}`)
+                  : stage === 'queued' ? 'queued, waiting for the reader' : stage === 'reading' ? 'reading…' : 'waiting to be sent';
+                return <li key={i} style={r && !r.ok ? { color: 'var(--c-orange)' } : undefined}>Bill {i + 1} ({namesOf(i)}): {where}</li>;
+              })}
+            </ul>
+          )}
 
           {picked.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -495,7 +512,7 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
                   Open ticked as ONE voucher ({tickedLines.length} lines{tickedLines.length > 0 ? `, ${fmtRm(tickedTotalSen)}` : ''})
                 </Button>
                 {tickedCurrencies.size > 1
-                  ? <span style={{ color: 'var(--c-festive-b, #B8331F)' }}>the ticked receipts are in different currencies</span>
+                  ? <span style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>the ticked receipts are in different currencies</span>
                   : <span style={{ color: 'var(--fg-muted)' }}>· one line per receipt, the payee left for you, every page attached</span>}
               </div>
             </section>
@@ -552,7 +569,7 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
                         <div style={{ display: 'flex', gap: 'var(--space-3)', fontSize: 'var(--fs-12)', color: 'var(--fg-muted)', flexWrap: 'wrap' }}>
                           {b.extraction.vendorRegNo && <span>Reg. no {b.extraction.vendorRegNo}</span>}
                           {b.extraction.sstSen != null && <span>SST {fmtRm(b.extraction.sstSen)}</span>}
-                          {b.extraction.totalSen == null && <span style={{ color: 'var(--c-festive-b, #B8331F)' }}>total unreadable — will need typing</span>}
+                          {b.extraction.totalSen == null && <span style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>total unreadable — will need typing</span>}
                         </div>
                       )}
                       {b.extraction.lines.length > 0 && (
@@ -637,7 +654,7 @@ export const PaymentVoucherScan = ({ target = 'pv' }: { target?: 'pv' | 'ap' } =
           {results.filter((b) => !b.ok).map((b) => (
             <section key={`fail-${b.index}`} className={styles.card}>
               <div className={styles.cardBody} style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center', flexWrap: 'wrap', fontSize: 'var(--fs-13)' }}>
-                <span style={{ color: 'var(--c-festive-b, #B8331F)', flex: 1, minWidth: 0 }}>
+                <span style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))', flex: 1, minWidth: 0 }}>
                   Bill {b.index + 1}{namesOf(b.index) ? ` (${namesOf(b.index)})` : ''} could not be read: {(b as { reason: string }).reason}
                 </span>
                 <Button variant="secondary" size="sm" onClick={() => void readAgain(b.index)} disabled={busy}>

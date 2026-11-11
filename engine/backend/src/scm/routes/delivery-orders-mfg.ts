@@ -135,7 +135,8 @@ import { resolveDoLineRacks, racksForDoLine, loadShippedFromRacks } from '../lib
 import { queueDoShippedFromStamp, markDoShippedFromReturned, withShippedFromStamp, DO_RACK_OUT_REASON } from '../lib/do-shipped-from-stamp';
 import { withSoRefDocNos } from '../lib/so-ref-search';
 import { stockTxFor, type StockTx } from '../lib/stock-post-tx'; import { doShipCoreFailure, doShipFailureResponse, keepCreatedDoAsDraft, type DoShipFlip, type DoShipTail } from '../lib/do-ship-atomic';
-import { hasUnreadableLines, unreadableMovementError } from '../lib/failed-read-refusal'; import { noteResyncReadFailure, revertShipOnUnreadLines } from '../lib/do-read-guards';
+import { hasUnreadableLines, unreadableMovementError } from '../lib/failed-read-refusal'; import { readFailure, readFailureError } from '../lib/read-failure'; import { noteResyncReadFailure, revertShipOnUnreadLines } from '../lib/do-read-guards';
+import { stepClock, timed } from '../../lib/step-timing';
 
 export const deliveryOrdersMfg = new Hono<{ Bindings: Env; Variables: Variables }>();
 deliveryOrdersMfg.use('*', supabaseAuth);
@@ -850,7 +851,10 @@ async function resolveDoCostBatchMap(
   return { batchBySoItem, notes: hb.notes };
 }
 
-export async function restampDoActualCost(sb: any, deliveryOrderId: string) {
+export async function restampDoActualCost(sb: any, deliveryOrderId: string): Promise<void> {
+  return timed('restamp-do', () => restampDoActualCostInner(sb, deliveryOrderId));
+}
+async function restampDoActualCostInner(sb: Parameters<typeof restampDoActualCost>[0], deliveryOrderId: string) {
   try {
     /* Forward-compat (mig 0057): is_dropship column may not exist yet — retry without it. */
     let hdrRes = await sb.from('delivery_orders')
@@ -1994,27 +1998,32 @@ export async function reverseInventoryForDo(sb: any, deliveryOrderId: string, pe
    floor below which the line's qty can't shrink (and below which the line
    can't be deleted). Mirrors the do-line-remaining "invoiced / returned"
    formula but for a single line. Cancel-released → 0 (rows on cancelled
-   SI/DR are excluded). */
-async function doLineConsumedQty(sb: any, doItemId: string): Promise<number> {
+   SI/DR are excluded). A failed read throws: a floor of 0 would let the line
+   shrink or be deleted under an invoice that still points at it. */
+export async function doLineConsumedQty(sb: any, doItemId: string): Promise<number> {
   let invoiced = 0, returned = 0;
   // Σ invoiced via non-cancelled Sales Invoice.
-  const { data: siLines } = await sb.from('sales_invoice_items')
+  const { data: siLines, error: siLinesErr } = await sb.from('sales_invoice_items')
     .select('qty, sales_invoice_id').eq('do_item_id', doItemId);
+  if (siLinesErr) throw readFailureError('do_line_consumed', siLinesErr);
   const siRows = (siLines ?? []) as Array<{ qty: number; sales_invoice_id: string }>;
   const siIds = [...new Set(siRows.map((l) => l.sales_invoice_id).filter(Boolean))];
   if (siIds.length > 0) {
-    const { data: sis } = await sb.from('sales_invoices').select('id, status').in('id', siIds);
+    const { data: sis, error: sisErr } = await sb.from('sales_invoices').select('id, status').in('id', siIds);
+    if (sisErr) throw readFailureError('do_line_consumed', sisErr);
     const active = new Set(((sis ?? []) as Array<{ id: string; status: string | null }>)
       .filter((s) => (s.status ?? '').toUpperCase() !== 'CANCELLED').map((s) => s.id));
     for (const l of siRows) if (active.has(l.sales_invoice_id)) invoiced += Number(l.qty ?? 0);
   }
   // Σ returned via non-cancelled Delivery Return.
-  const { data: drLines } = await sb.from('delivery_return_items')
+  const { data: drLines, error: drLinesErr } = await sb.from('delivery_return_items')
     .select('qty_returned, delivery_return_id').eq('do_item_id', doItemId);
+  if (drLinesErr) throw readFailureError('do_line_consumed', drLinesErr);
   const drRows = (drLines ?? []) as Array<{ qty_returned: number; delivery_return_id: string }>;
   const drIds = [...new Set(drRows.map((l) => l.delivery_return_id).filter(Boolean))];
   if (drIds.length > 0) {
-    const { data: drs } = await sb.from('delivery_returns').select('id, status').in('id', drIds);
+    const { data: drs, error: drsErr } = await sb.from('delivery_returns').select('id, status').in('id', drIds);
+    if (drsErr) throw readFailureError('do_line_consumed', drsErr);
     const active = new Set(((drs ?? []) as Array<{ id: string; status: string | null }>)
       .filter((d) => (d.status ?? '').toUpperCase() !== 'CANCELLED').map((d) => d.id));
     for (const l of drRows) if (active.has(l.delivery_return_id)) returned += Number(l.qty_returned ?? 0);
@@ -2039,14 +2048,17 @@ export async function soLineDeliveries(
 ): Promise<Map<string, SoLineDelivery[]>> {
   const out = new Map<string, SoLineDelivery[]>();
   if (soItemIds.length === 0) return out;
-  const { data: doLines } = await sb
+  /* A failed read throws: an empty map would show every line as undelivered. */
+  const { data: doLines, error: doLinesErr } = await sb
     .from('delivery_order_items')
     .select('so_item_id, qty, delivery_order_id')
     .in('so_item_id', soItemIds);
+  if (doLinesErr) throw readFailureError('so_line_deliveries', doLinesErr);
   const rows = (doLines ?? []) as Array<{ so_item_id: string | null; qty: number; delivery_order_id: string }>;
   const doIds = [...new Set(rows.map((r) => r.delivery_order_id).filter(Boolean))];
   if (doIds.length === 0) return out;
-  const { data: dos } = await sb.from('delivery_orders').select('id, do_number, status').in('id', doIds);
+  const { data: dos, error: dosErr } = await sb.from('delivery_orders').select('id, do_number, status').in('id', doIds);
+  if (dosErr) throw readFailureError('so_line_deliveries', dosErr);
   const doMeta = new Map<string, { doNumber: string; status: string }>();
   for (const d of (dos ?? []) as Array<{ id: string; do_number: string | null; status: string | null }>) {
     const st = (d.status ?? '').toUpperCase();
@@ -2204,6 +2216,8 @@ export async function computeSoLifecycle(
       .in('so_doc_no', ids)
       .neq('status', 'CANCELLED'),
   ]);
+  // A failed read would paint the badge 'none' on an order that has shipped.
+  if (doRes.error || siRes.error) throw readFailureError('so_lifecycle', doRes.error ?? siRes.error);
 
   // DO id → so_doc_no, so a Delivery Return (which carries delivery_order_id but
   // no so_doc_no) can be attributed back to its Sales Order.
@@ -2218,10 +2232,11 @@ export async function computeSoLifecycle(
 
   const doIds = [...doToSo.keys()];
   if (doIds.length > 0) {
-    const { data: drRows } = await sb.from('delivery_returns')
+    const { data: drRows, error: drErr } = await sb.from('delivery_returns')
       .select('delivery_order_id, return_date, created_at, status')
       .in('delivery_order_id', doIds)
       .neq('status', 'CANCELLED');
+    if (drErr) throw readFailureError('so_lifecycle', drErr);
     for (const r of (drRows ?? []) as Array<{ delivery_order_id: string | null; return_date: string | null; created_at: string | null }>) {
       const so = r.delivery_order_id ? doToSo.get(r.delivery_order_id) : undefined;
       push(so, { date: r.return_date ?? r.created_at ?? '', createdAt: r.created_at ?? '', kind: 'returned' });
@@ -2314,6 +2329,7 @@ export async function soCurrentDocNo(
       .in('so_doc_no', ids)
       .neq('status', 'CANCELLED'),
   ]);
+  if (doRes.error || siRes.error) throw readFailureError('so_lifecycle', doRes.error ?? siRes.error);
 
   const doToSo = new Map<string, string>();
   for (const d of (doRes.data ?? []) as Array<{ id: string; so_doc_no: string | null; do_number: string | null; do_date: string | null; created_at: string | null }>) {
@@ -2326,10 +2342,11 @@ export async function soCurrentDocNo(
 
   const doIds = [...doToSo.keys()];
   if (doIds.length > 0) {
-    const { data: drRows } = await sb.from('delivery_returns')
+    const { data: drRows, error: drErr } = await sb.from('delivery_returns')
       .select('delivery_order_id, return_number, return_date, created_at, status')
       .in('delivery_order_id', doIds)
       .neq('status', 'CANCELLED');
+    if (drErr) throw readFailureError('so_lifecycle', drErr);
     for (const r of (drRows ?? []) as Array<{ delivery_order_id: string | null; return_number: string | null; return_date: string | null; created_at: string | null }>) {
       const so = r.delivery_order_id ? doToSo.get(r.delivery_order_id) : undefined;
       push(so, { date: r.return_date ?? r.created_at ?? '', createdAt: r.created_at ?? '', rank: 3, docNumber: r.return_number ?? '—' });
@@ -2589,6 +2606,8 @@ deliveryOrdersMfg.get('/:id', async (c) => {
   ]);
   if (h.error) return c.json({ error: 'load_failed', reason: h.error.message }, 500);
   if (!h.data) return c.json({ error: 'not_found' }, 404);
+  // A failed line read is not a DO with no lines.
+  if (i.error) return c.json(readFailure('do_lines', i.error), 500);
   /* Own/downline sales scope (lib/salesScope.ts) — mirror the list scope. A
      scoped seller must not read another salesperson's DO/finance by
      enumerating ids; out-of-scope → 404. Directors/view-all bypass.
@@ -2616,8 +2635,10 @@ deliveryOrdersMfg.get('/:id', async (c) => {
      (UNIQUE do_id); null when no crew has been assigned yet. Surfaced on the
      detail so the Delivery Crew block can render the FK ids + assign-time
      snapshots without a second round-trip. */
-  const { data: crew } = await sb.from('delivery_order_crew')
+  const { data: crew, error: crewErr } = await sb.from('delivery_order_crew')
     .select(crewSnapshotCols).eq('do_id', id).maybeSingle();
+  // A failed read would show "no crew assigned" on a DO that has one.
+  if (crewErr) return c.json(readFailure('do_crew', crewErr), 500);
   const deliveryOrder = {
     ...(h.data as unknown as Record<string, unknown>),
     has_children: (drCount ?? 0) > 0 || (siCount ?? 0) > 0,
@@ -2628,7 +2649,7 @@ deliveryOrdersMfg.get('/:id', async (c) => {
      warehouse the inventory OUT uses (SO line → DO header → default) and stamp
      warehouse_id + warehouse_code on each item so the operator can see which
      warehouse each line moves. Display-only — does not alter stock. */
-  const rawItems = (i.data ?? []) as unknown as Array<{ id: string; so_item_id?: string | null } & Record<string, unknown>>;
+  const rawItems = i.data as unknown as Array<{ id: string; so_item_id?: string | null } & Record<string, unknown>>;
   const headerWh = (h.data as { warehouse_id?: string | null }).warehouse_id ?? null;
   const [lineWh, downstreamMap, sourcePosByBucket] = await Promise.all([
     resolveDoLineWarehouses(sb, rawItems, headerWh, activeCompanyId(c)),
@@ -2769,6 +2790,7 @@ deliveryOrdersMfg.get('/:id', async (c) => {
 // payment-as-drafts / line items) so the Create-DO screen (prefilled from an
 // SO) can save in one shot. Line items + payments are optional.
 deliveryOrdersMfg.post('/', async (c) => {
+  const lap = stepClock(); // Server-Timing s-do-* laps
   let body: Record<string, unknown>;
   try { body = (await c.req.json()) as Record<string, unknown>; } catch { return c.json({ error: 'invalid_json' }, 400); }
   const debtorName = (body.debtorName ?? body.customerName) as string | undefined;
@@ -3038,6 +3060,7 @@ deliveryOrdersMfg.post('/', async (c) => {
   const phoneRaw = (body.phone as string | undefined) ?? null;
   const emPhoneRaw = (body.emergencyContactPhone as string | undefined) ?? null;
 
+  lap('do-checks');
   const { data: header, error: hErr } = await insertWithDocNoRetry<{ id: string; do_number: string }>(
     () => nextNum(sb, c),
     (doNumber) => sb.from('delivery_orders').insert({
@@ -3153,6 +3176,7 @@ deliveryOrdersMfg.post('/', async (c) => {
      their failures rather than undoing the DO, so from here the document exists
      on every remaining exit and this CREATE row is true. */
   await recordDoCreate(sb, c.get('houzsUser'), activeCompanyId(c), h.id, items.length);
+  lap('do-write');
 
   /* ERP -> AutoCount SO->DO. Only an SO-linked DO can be expressed: AutoCount
      builds a DO by transferring lines FROM a source document, so a DO with no
@@ -3191,6 +3215,7 @@ deliveryOrdersMfg.post('/', async (c) => {
      see deductInventoryForDo — mean this never double-deducts even if the
      status is later advanced). LEAK GUARD (DRAFT): a DRAFT DO has NOT shipped —
      skip the deduction AND the SO-delivered sync; both fire on Confirm. */
+  lap('do-ac-queue');
   let movementErrors: string[] = [];
   let emailNotice: string | null = null;
   if (body.asDraft !== true) {
@@ -3200,17 +3225,20 @@ deliveryOrdersMfg.post('/', async (c) => {
     if (!shipTx) movementErrors = await deductInventoryForDo(sb, h.id, user.id);
     // Lines unreadable = nothing moved: keep the DO as a DRAFT rather than let it read shipped.
     if (hasUnreadableLines(movementErrors)) return c.json({ id: h.id, doNumber: h.do_number, ...(await revertShipOnUnreadLines(sb, h.id, activeCompanyId(c) ?? 0, 'LOADED', 'DRAFT', {}, null, movementErrors, h.do_number)) }, 503);
+    lap('do-ship');
 
     /* Requirement #3 (Loo 2026-05-30) — if this DO now fully covers its SO,
        auto-advance the SO to DELIVERED (best-effort, never blocks the DO). The
        POS "My orders" board reflects the flip via Supabase realtime. */
     await syncSoDeliveredFromDo(sb, [(body.soDocNo as string) ?? null], user.id);
+    lap('do-so-sync');
 
     /* Customer DO email (owner trigger "A", 2026-07-17). A non-draft create IS
        the confirm — the DO is born DISPATCHED — so this is the same event the
        deduction above fires on. Gated OFF and fail-closed inside; best-effort,
        never blocks the DO. */
     emailNotice = await maybeSendDeliveryOrderEmail(sb, c.env, h.id);
+    lap('do-email');
   }
 
   /* SO↔DO amend mirror (Houzs port of 2990 fc7f0900, extended) — same rule as
@@ -3251,6 +3279,7 @@ deliveryOrdersMfg.post('/', async (c) => {
     }
   }
 
+  lap('do-amend-mirror');
   return c.json({
     id: h.id,
     doNumber: h.do_number,

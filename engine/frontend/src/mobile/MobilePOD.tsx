@@ -37,7 +37,7 @@ import "./mobile.css";
 
    The delivery PHOTOS are uploaded to R2 one by one THE MOMENT THEY ARE TAKEN
    (FieldPhotos -> uploadFieldPhoto, the shared slip Worker-proxy pipeline),
-   stamped with the DO number and server time; Confirm sends only the uploaded
+   with no time watermark (owner 2026-11-11); Confirm sends only the uploaded
    keys. The first key is persisted as
    PATCH /:id/status { podKey } → delivery_orders.pod_r2_key. The customer
    SIGNATURE (base64 PNG) is persisted as { signatureData } →
@@ -169,7 +169,7 @@ export function MobilePOD({ docNo, companyCode = null, onBack, onDone }: { docNo
   // After a page reload the photos already uploaded for this DO come back from the server.
   const photoContext = doId ? fieldPhotoContext({ kind: "do", doId }) : null;
   const photos = useFieldPhotos({
-    stampLabel: docNo,
+    stampLabel: null, // no time watermark on photos (owner 2026-11-11)
     max: 20,
     upload: (file) => uploadFieldPhoto({ file, context: photoContext }),
     restore: photoContext && h && canComplete && !isDelivered(h.status) && !isCancelled(h.status) ? serverFieldPhotoRestore(photoContext) : null,
@@ -623,7 +623,7 @@ function SignaturePad({ canvasRef, onChange, clearNonce }: {
   const end = () => { drawing.current = false; last.current = null; };
 
   return (
-    <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 13, padding: 14, position: "relative", height: 120 }}>
+    <div style={{ background: "var(--hz-c-surface)", border: "1px solid var(--line)", borderRadius: 13, padding: 14, position: "relative", height: 120 }}>
       <canvas
         ref={canvasRef}
         onPointerDown={start}

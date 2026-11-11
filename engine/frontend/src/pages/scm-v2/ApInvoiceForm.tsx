@@ -15,6 +15,7 @@ import { X } from 'lucide-react';
 import { Button } from '@2990s/design-system';
 import { AddLineButton } from '../../vendor/scm/components/AddLineButton';
 import type { Account } from '../../vendor/scm/lib/accounting-queries';
+import { aiReadStageNote } from '../../vendor/scm/lib/ai-read-job';
 import { useExtractBills, fileToBase64, PV_FILE_ACCEPT, type BillExtraction, type ExtractedBill, type VendorMemory, type PvFilePayload } from '../../vendor/scm/lib/payment-voucher-queries';
 import { docFileMime } from '../../vendor/scm/lib/doc-file-mime';
 import { AccountSelect } from '../../vendor/scm/components/AccountSelect';
@@ -270,7 +271,7 @@ export const ApInvoiceForm = ({
     setScanNote('Reading the bill…');
     try {
       const files = await Promise.all([...list].map(async (f) => ({ name: f.name, mime: docFileMime(f), dataBase64: await fileToBase64(f) })));
-      const res = await extract.mutateAsync([{ files }]);
+      const res = await extract.mutateAsync({ bills: [{ files }], onStage: (_i, stage) => { setScanNote(aiReadStageNote(stage, 'the bill')); } });
       const bill = res.bills.at(0);
       if (!bill) { setScanNote('The bill could not be read.'); return; }
       if (!bill.ok) { setScanNote(bill.reason); return; }
@@ -431,7 +432,7 @@ export const ApInvoiceForm = ({
               <AddLineButton variant="ghost" onClick={() => addLine(true)} />
               <span style={{ ...soft, marginLeft: 'var(--space-3)' }}>Insert adds a line · Enter on an amount moves down</span>
             </td>
-            <td style={{ ...td, ...right, fontWeight: 700, color: belowPaid ? 'var(--c-festive-b, #B8331F)' : undefined }}>Total {fmtSen(total)}</td>
+            <td style={{ ...td, ...right, fontWeight: 700, color: belowPaid ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : undefined }}>Total {fmtSen(total)}</td>
             <td />
             <td />
           </tr>
@@ -439,7 +440,7 @@ export const ApInvoiceForm = ({
       </table>
 
       <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', alignItems: 'center' }}>
-        {belowPaid && <span style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, #B8331F)' }}>The total cannot fall below the {fmtSen(paidSen)} already paid.</span>}
+        {belowPaid && <span style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>The total cannot fall below the {fmtSen(paidSen)} already paid.</span>}
         <span style={{ fontSize: 'var(--fs-12)', color: 'var(--fg-muted)' }}>{SAVE_HOTKEY_HINT}</span>
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
         <Button variant={canPost && mode !== 'edit' ? 'secondary' : 'primary'} size="sm" onClick={() => void onSubmit(toSubmit(v), pendingFiles)} disabled={saving || !ready}>

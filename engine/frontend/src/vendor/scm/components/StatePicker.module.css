@@ -19,11 +19,11 @@
 .select {
   font-family: var(--font-sans, inherit);
   font-size: var(--fs-12, 12px);
-  background-color: var(--c-paper, #fff);
-  border: 1px solid var(--line, #E5E7EB);
+  background-color: var(--c-paper, var(--hz-c-surface));
+  border: 1px solid var(--line, var(--hz-c-border));
   border-radius: var(--radius-sm, 8px);
   padding: 6px 10px;
-  color: #111827;
+  color: var(--hz-c-ink);
   outline: none;
   width: 100%;
   line-height: 1.3;
@@ -32,15 +32,15 @@
 
 .search:focus,
 .select:focus {
-  border-color: var(--c-burnt, #1B1B39);
+  border-color: var(--c-burnt, var(--hz-c-primary));
   box-shadow: 0 0 0 2px rgba(27, 27, 57, 0.16);
 }
 
 .search:disabled,
 .select:disabled {
-  background-color: #F8F9FA;
-  border-color: #E5E7EB;
-  color: #6B7280;
+  background-color: var(--hz-c-surface-2);
+  border-color: var(--hz-c-border);
+  color: var(--hz-c-ink-muted);
   cursor: not-allowed;
 }
 
@@ -79,8 +79,8 @@
   z-index: 1000;
   overflow-y: auto;
   font-family: var(--font-sans, inherit);
-  background: var(--c-paper, #fff);
-  border: 1px solid var(--line, #E5E7EB);
+  background: var(--c-paper, var(--hz-c-surface));
+  border: 1px solid var(--line, var(--hz-c-border));
   border-radius: var(--radius-sm, 8px);
   box-shadow: 0 8px 24px -12px rgba(17, 24, 16, 0.25);
   padding: 4px 0;
@@ -92,41 +92,41 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6B7280;
+  color: var(--hz-c-ink-muted);
 }
 
 .opt {
   padding: var(--pick-opt-pad, 6px 10px);
   font-size: var(--fs-12, 12px);
-  color: #111827;
+  color: var(--hz-c-ink);
   cursor: pointer;
   line-height: 1.3;
 }
 
 .optActive {
-  background: #DCE6FD;
+  background: var(--hz-c-primary-soft);
 }
 
 .optCurrent {
   font-weight: 600;
-  color: var(--c-burnt, #1B1B39);
+  color: var(--c-burnt, var(--hz-c-primary));
 }
 
 .optOrphan {
   padding: 6px 10px;
   font-size: var(--fs-12, 12px);
   cursor: pointer;
-  border-bottom: 1px solid var(--line, #E5E7EB);
+  border-bottom: 1px solid var(--line, var(--hz-c-border));
 }
 
 .orphanNote {
   display: block;
   font-size: 10px;
-  color: #6B7280;
+  color: var(--hz-c-ink-muted);
 }
 
 .emptyRow {
   padding: 8px 10px;
   font-size: var(--fs-12, 12px);
-  color: #6B7280;
+  color: var(--hz-c-ink-muted);
 }
