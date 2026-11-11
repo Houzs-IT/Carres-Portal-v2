@@ -58,7 +58,9 @@ response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must
 
 `engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`a1e33867c`**, run as its
 own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
-frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu: every Service Cases, Projects
+frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu (the only menu). On those pages the
+one top row is Houzs's own top bar inside the frame (workspace tabs, search, Refresh, presence, bell; no company
+switcher or profile menu), and the Carres header and Tasks card stand down (owner, 11 Nov 2026). The menu: every Service Cases, Projects
 and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, in Houzs's order and words.
 Rule: the engine's screens match Houzs except the theme; Carres edits live only in `engine/frontend/src/carres/`,
 the files the commits below name, and the Carres config files.

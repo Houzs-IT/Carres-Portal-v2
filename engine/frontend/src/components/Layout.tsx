@@ -79,7 +79,9 @@ export function Layout({ children }: Props) {
             search / company / bell / avatar. No breadcrumb, no second row.
             Every lg+ sticky below parks at top-[52px]: PageHeader here,
             DetailLayout, the two SCM V2 doc bars. Hidden below lg. */}
-        {!CARRES_EMBEDDED && <TopNavbar />}
+        {/* Carres: inside the portal Houzs's top bar is the one top row (tabs, search, Refresh, presence, bell);
+            the company switcher and profile menu stay out (one company; the account menu is the portal's). */}
+        <TopNavbar embedded={CARRES_EMBEDDED} />
 
         {writesDisabled && <ReadOnlyBanner />}
 
