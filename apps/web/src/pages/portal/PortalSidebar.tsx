@@ -24,6 +24,7 @@ import {
   type PortalSection,
   HOUZS_ICON_SECTIONS,
 } from "./portal-nav";
+import { useEngineBadges } from "./engine-badges";
 import {
   moduleChildBlocks,
   activePageGroup,
@@ -181,10 +182,13 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   const principalVisible = groups.some((g) => g.area === "principal");
   const badgesQ = useOperationBadges({ enabled: opVisible });
   const lpRejected = badgesQ.data?.lpRejected ?? 0;
+  // Houzs's own menu counts, from the engine frame (engine-badges.ts).
+  const engineCounts = useEngineBadges((s) => s.counts);
   const badgeCount: Record<string, number> = {
     orders: (badgesQ.data?.orders ?? 0) + lpRejected,
     procurement: badgesQ.data?.procurement ?? 0,
     "service-notes": badgesQ.data?.serviceNotes ?? 0,
+    ...engineCounts,
   };
   const markSeen = useMarkOperationBadgeSeen();
 

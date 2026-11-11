@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { engineAddressFor } from "@/pages/portal/portal-nav";
+import { useEngineBadges } from "@/pages/portal/engine-badges";
 import { apiFetch } from "@/lib/api";
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
@@ -66,8 +67,11 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
   useEffect(() => {
     if (!session) return;
     const onMessage = (e: MessageEvent) => {
-      const d = e.data as { type?: string; path?: unknown } | null;
-      if (e.origin !== session.site || d?.type !== "carres:location") return;
+      const d = e.data as { type?: string; path?: unknown; counts?: unknown } | null;
+      if (e.origin !== session.site) return;
+      // Houzs's menu counts for the portal's menu (engine carres/BadgeReporter.tsx).
+      if (d?.type === "carres:badges") { useEngineBadges.getState().set(d.counts); return; }
+      if (d?.type !== "carres:location") return;
       if (typeof d.path !== "string" || !d.path.startsWith("/") || d.path.startsWith("//")) return;
       shown.current = d.path;
       const address = engineAddressFor(d.path);

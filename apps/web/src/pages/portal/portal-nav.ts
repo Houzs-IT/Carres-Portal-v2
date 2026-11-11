@@ -63,6 +63,7 @@ import {
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
+import type { EngineBadge } from "./engine-badges";
 import { NO_CAPS, type NavCapability } from "./nav-capabilities";
 
 /**
@@ -96,7 +97,7 @@ import { NO_CAPS, type NavCapability } from "./nav-capabilities";
 export type PortalArea = "operation" | "finance" | "hr" | "principal";
 
 /** Operation badge keys surfaced as nav counters (reuses the 0083 unread set). */
-export type PortalBadge = "orders" | "procurement" | "service-notes";
+export type PortalBadge = "orders" | "procurement" | "service-notes" | EngineBadge;
 
 export type PortalSection =
   | "Workspace"
@@ -360,13 +361,13 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "project-maintenance", label: "Project Maintenance", icon: Wrench, path: "/operation/sc/project-maintenance", section: "Projects" },
 
       /* SUPPLY CHAIN — Houzs's Product Request row directly under Supply Chain (it is also in Consignment). */
-      { key: "product-request", label: "Product Request", icon: Sofa, path: "/operation/sc/product-request", section: "Supply Chain" },
+      { key: "product-request", label: "Product Request", icon: Sofa, path: "/operation/sc/product-request", badge: "product-request-approvals", section: "Supply Chain" },
 
       /* SUPPLY CHAIN · SALES ORDER */
       { key: "orders", label: "Sales Orders", crumb: "Sales Order", icon: ShoppingCart, path: "/operation/sc/orders", section: "Sales" },
-      { key: "fair-pending", label: "Fair Links to Settle", icon: MapPinned, path: "/operation/sc/fair-pending", section: "Sales" },
-      { key: "amendments", label: "Sales Order Amendment", icon: History, path: "/operation/sc/amendments", section: "Sales" },
-      { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", section: "Sales" },
+      { key: "fair-pending", label: "Fair Links to Settle", icon: MapPinned, path: "/operation/sc/fair-pending", badge: "fair-links-to-settle", section: "Sales" },
+      { key: "amendments", label: "Sales Order Amendment", icon: History, path: "/operation/sc/amendments", badge: "amendment-approvals", section: "Sales" },
+      { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", badge: "payment-backdate-approvals", section: "Sales" },
       { key: "delivery-orders", label: "Delivery Orders", icon: Send, path: "/operation/sc/delivery-orders", section: "Sales" },
       { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/operation/sc/sales-invoices", section: "Sales" },
       { key: "delivery-returns", label: "Delivery Returns", icon: RotateCcw, path: "/operation/sc/delivery-returns", section: "Sales" },
@@ -378,7 +379,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "consignment-notes", label: "Consignment Note", icon: FileText, path: "/operation/sc/consignment-notes", section: "Consignment" },
       { key: "customer-consignment-returns", label: "Consignment Return", icon: CornerUpLeft, path: "/operation/sc/customer-consignment-returns", section: "Consignment" },
       { key: "purchase-consignment-orders", label: "Purchase Consignment Order", icon: HandCoins, path: "/operation/sc/purchase-consignment-orders", section: "Consignment" },
-      { key: "product-requests", label: "Product Request", icon: Sofa, path: "/operation/sc/product-requests", section: "Consignment" },
+      { key: "product-requests", label: "Product Request", icon: Sofa, path: "/operation/sc/product-requests", badge: "product-request-approvals", section: "Consignment" },
       { key: "consignment-receives", label: "Purchase Consignment Receive", icon: PackageOpen, path: "/operation/sc/consignment-receives", section: "Consignment" },
       { key: "consignment-returns", label: "Purchase Consignment Return", icon: Reply, path: "/operation/sc/consignment-returns", section: "Consignment" },
 
@@ -388,7 +389,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "suppliers", label: "Suppliers", icon: Truck, path: "/operation/sc/suppliers", section: "Purchasing" },
       { key: "mrp", label: "MRP · Stock Status", icon: Calculator, path: "/operation/sc/mrp", section: "Purchasing" },
       { key: "purchase-orders", label: "Purchase Orders", icon: ClipboardList, path: "/operation/sc/purchase-orders", section: "Purchasing" },
-      { key: "po-amendments", label: "PO Amendments", icon: History, path: "/operation/sc/po-amendments", section: "Purchasing" },
+      { key: "po-amendments", label: "PO Amendments", icon: History, path: "/operation/sc/po-amendments", badge: "po-amendment-approvals", section: "Purchasing" },
       { key: "po-cancellation-requests", label: "Cancellation Requests", icon: ClipboardCheck, path: "/operation/sc/po-cancellation-requests", section: "Purchasing" },
       { key: "receiving", label: "Goods Receipt", icon: PackageCheck, path: "/operation/sc/receiving", section: "Purchasing" },
       { key: "purchase-invoices", label: "Purchase Invoices", icon: ReceiptText, path: "/operation/sc/purchase-invoices", section: "Purchasing" },
