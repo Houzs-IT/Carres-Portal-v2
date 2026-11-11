@@ -693,6 +693,9 @@ export const ENGINE_ROW_ALIASES: Readonly<Record<string, ReadonlyArray<string>>>
 export const ENGINE_SETTINGS_HREF = "/operation/sc/settings";
 /** Report a problem to IT opens Houzs's IT Support row. */
 export const IT_SUPPORT_HREF = "/operation/sc/it-support";
+/** A Sales Order's `Report a problem` opens Houzs's Service Cases row: new cases are made there, the old Carres
+ *  Service Cases refuse them (owner, 10 Nov 2026). */
+export const SERVICE_CASES_HREF = "/operation/sc/service-notes";
 
 /** The Carres pages these three areas had before the engine, removed 11 Nov 2026 (owner). Their addresses
  *  (bookmarks, links in old messages) open the row of the nearest engine page. Paths match on whole segments,
@@ -1028,20 +1031,6 @@ function activeItem(group: PortalNavGroup, pathname: string, search: string): Po
   );
 }
 
-/** The module a URL stands in, named as the rail names it, for an IT request:
- *  the IT Hub's Reports group requests by it. Operations modules go by their own
- *  word ("Sales Order", "Procurement"); another area carries its name
- *  ("Finance · Money in"). "" when no row covers the URL. */
-export function activeNavModule(pathname: string, search: string): string {
-  for (const group of PORTAL_NAV) {
-    const item = activeItem(group, pathname, search);
-    if (!item) continue;
-    const name = PORTAL_MODULES.find((m) => m.section === item.section)?.label ?? item.section ?? "";
-    if (group.area === "operation") return name;
-    return name ? `${group.label} · ${name}` : group.label;
-  }
-  return "";
-}
 
 /** The menu item a URL stands on, for the shell header's `crumb / title`
  *  when a page does not name itself (Layout Standard §1). Same matching as the

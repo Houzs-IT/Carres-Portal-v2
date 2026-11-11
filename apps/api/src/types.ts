@@ -25,11 +25,6 @@ export type Bindings = {
   // `wrangler secret put`; either unset => the 5-minute poll does nothing.
   VELOCITY_REFRESH_TOKEN?: string;
   VELOCITY_CUSTOMER_ID?: string;
-  // IT Support (routes/it-support.ts) — the Houzs IT Hub's origin and Carres'
-  // own key there. Worker secrets (`wrangler secret put`); either unset =>
-  // the route answers 501. Never reach the browser bundle.
-  IT_HUB_URL?: string;
-  IT_HUB_API_KEY?: string;
   // Supply Chain engine (routes/operation/scm-engine.ts): its API and site, and the sign-on secret it shares
   // with this Worker. Worker secrets; any unset => the route answers 501.
   SCM_ENGINE_API?: string;

@@ -23,7 +23,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bell, GraduationCap, HelpCircle, LifeBuoy, Settings } from "lucide-react";
-import ReportProblemModal from "./ReportProblemModal";
 import { useOperationOrders, type operationOrderListRow } from "@/lib/queries";
 import { apiFetch } from "@/lib/api";
 import { buildInfo, checkForUpdate, shortCommit, type UpdateCheck } from "@/lib/build-info";
@@ -32,6 +31,7 @@ import JumpTo from "./JumpTo";
 import TeamButton from "./TeamButton";
 import MIcon from "@/components/carres/MIcon";
 import { useShellHeader } from "./shell-header-context";
+import { IT_SUPPORT_HREF } from "@/pages/portal/portal-nav";
 import type { OpsTasksListResponse } from "@carres/shared";
 
 /** ops_order_control is sometimes an array (embed) — normalise to the row. */
@@ -129,7 +129,6 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
   const [open, setOpen] = useState<null | "alerts" | "help" | "settings">(null);
   /* 0430 — the Help menu's version check. null = not asked this open. */
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
-  const [reporting, setReporting] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -266,7 +265,7 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
               type="button"
               onClick={() => {
                 setOpen(null);
-                setReporting(true);
+                navigate(IT_SUPPORT_HREF);
               }}
               data-testid="help-report-problem"
               className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-hovertint"
@@ -378,7 +377,6 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
         )}
       </div>
       </>)}
-      <ReportProblemModal open={reporting} onClose={() => setReporting(false)} />
     </div>
   );
 }
