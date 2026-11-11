@@ -2,24 +2,23 @@ import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import PhoneTasksDoor from "./components/rail/PhoneTasksDoor";
 import PendingWorkReminder from "./tasks/PendingWorkReminder";
-import { Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
+import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 // Unified Internal Portal (2026-06-30) — the three private rails (Operation /
 // Principal / Finance) merged into ONE role-aware PortalSidebar.
 import PortalSidebar from "@/pages/portal/PortalSidebar";
 import { useAuth } from "@/lib/auth";
-import SettingsWorkspace, { settingsSectionLabel } from "./SettingsWorkspace";
 import WorkspaceTasks from "./tasks/WorkspaceTasks";
 import OperationLeave from "./OperationLeave";
 import OperationRental from "./OperationRental";
 import SupplyChainEngine from "./SupplyChainEngine";
-import { SalesInvoiceLinesReport } from "./DocumentLinesReport";
-import OperationIssueTracker from "./OperationIssueTracker";
-import IssueRelatedPartyReport from "./IssueRelatedPartyReport";
 import { CATALOG_TAB_PARAM } from "@/pages/catalog/catalog-tabs";
 import ShellHeader, { ShellHeaderContext, useShellHeaderHost } from "./components/ShellHeader";
 import ShellTasks, { useShellTasks } from "./components/ShellTasks";
 import { useTasksHost } from "./tasks/tasks-host";
-import { activeNavTitle, engineFor, retiredRedirect } from "@/pages/portal/portal-nav";
+import { ENGINE_SETTINGS_HREF, activeNavTitle, engineFor, retiredRedirect, roleMayOpenEngineRow } from "@/pages/portal/portal-nav";
+
+/** Where a person who may open only some rows (`hr`) lands: Houzs's Team hub. */
+const LIMITED_HOME = "/operation/sc/hub-team";
 
 /**
  * The Operations shell: the menu, one header over the page and the Tasks panel.
@@ -28,7 +27,12 @@ import { activeNavTitle, engineFor, retiredRedirect } from "@/pages/portal/porta
  * in a frame: every such menu row has its own `/operation/sc/<row>` address (portal-nav ENGINE_PAGES). The Carres
  * pages those areas used to have were removed on 11 Nov 2026 (owner: the Houzs pages are the system); their
  * old addresses move to the nearest engine row (portal-nav retiredRedirect). What stays here is Carres's own:
- * Workspace, Leave, Subscription, the Issue Tracker, the Sales invoice lines report and Settings.
+ * Workspace, Leave and Subscription. The Carres Settings workspace is removed too (owner, 11 Nov 2026): its
+ * old `/operation/settings/*` addresses open Houzs's own Settings. The Carres Issue Tracker, the Sales invoice lines report and
+ * the Payments rows left the Operations menu on 11 Nov 2026 (owner); their old addresses open Sales Orders.
+ *
+ * The `hr` role is let in for the System rows only (Team, Mail Center, IT Support; portal-nav SYSTEM_ROLES):
+ * any other address sends it to the Team hub.
  */
 export default function OperationApp() {
   const location = useLocation();
@@ -45,12 +49,13 @@ export default function OperationApp() {
 
   const enginePage = engineFor(location.pathname, location.search);
   const retired = enginePage ? null : retiredRedirect(location.pathname, location.search);
-  const isSettingsUrl = location.pathname.startsWith("/operation/settings");
-  const isIssuesUrl = location.pathname.startsWith("/operation/issues");
+  const engineRow = /^\/operation\/sc\/([a-z0-9-]+)\/?$/.exec(location.pathname)?.[1] ?? null;
+  const fullAccess = role === "operation" || role === "principal";
 
-  const navTitle = isSettingsUrl
-    ? { crumb: "Settings", title: settingsSectionLabel(location.pathname) ?? "Settings" }
-    : activeNavTitle(location.pathname, location.search);
+  const navTitle = activeNavTitle(location.pathname, location.search);
+  if (!fullAccess && !(enginePage && engineRow && roleMayOpenEngineRow(role, engineRow))) {
+    return location.pathname === LIMITED_HOME ? null : <Navigate to={LIMITED_HOME} replace />;
+  }
   if (retired) return <Navigate to={retired} replace />;
 
   /* The page for a tab-driven Carres row. The retired Payments desk and the staff-duties bookmark forward to
@@ -60,13 +65,12 @@ export default function OperationApp() {
       case "work": return <WorkspaceTasks />;
       case "leave": return <OperationLeave />;
       case "rental": return <OperationRental />;
-      case "sales-invoice-lines": return <SalesInvoiceLinesReport />;
       case "payments": {
         const so = searchParams.get("so");
         return <Navigate to={`/finance/monitor${so ? `?order=${encodeURIComponent(so)}` : ""}`} replace />;
       }
       case "staff-duties":
-        return <Navigate replace state={location.state} to={`/operation/settings/staff-duties?${new URLSearchParams([...searchParams].filter(([key]) => key !== "tab"))}`} />;
+        return <Navigate replace to={ENGINE_SETTINGS_HREF} />;
       case "catalog": {
         if (role !== "principal") return <Navigate to="/operation/sc/op-catalog" replace />;
         const section = searchParams.get(CATALOG_TAB_PARAM);
@@ -141,13 +145,6 @@ export default function OperationApp() {
         <main className={`flex min-h-0 min-w-0 flex-1 flex-col ${enginePage ? "overflow-hidden" : "overflow-auto"} ${phone || enginePage ? "" : "rounded-lg"}`}>
           {enginePage ? (
             <SupplyChainEngine path={enginePage} />
-          ) : isSettingsUrl || isIssuesUrl ? (
-            // Relative paths: this is a descendant <Routes> inside App.tsx's `/operation/*`.
-            <Routes>
-              <Route path="settings/*" element={<SettingsWorkspace />} />
-              <Route path="issues" element={<OperationIssueTracker />} />
-              <Route path="issues/reports" element={<IssueRelatedPartyReport />} />
-            </Routes>
           ) : (
             tabPage()
           )}
@@ -157,7 +154,7 @@ export default function OperationApp() {
       </div>
       </ShellHeaderContext.Provider>
       {/* The first-entry `Pending work` reminder (owner direction 2026-10-05). */}
-      <PendingWorkReminder />
+      {fullAccess ? <PendingWorkReminder /> : null}
     </div>
   );
 }

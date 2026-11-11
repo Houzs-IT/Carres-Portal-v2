@@ -87,7 +87,7 @@ export function PoSupplierResultContent({ open, onClose, pos, roundWindow, onCha
   return <>
     <div className="flex flex-col gap-3" data-testid="po-supplier-result-panel">
       <PoSupplierBundle taskScoped={taskScoped} pos={pos} roundWindow={roundWindow} onEvidenceChanged={onChanged} initialPreparation={initialPreparation} title={title} reviewed={reviewed}
-        onOpenSettings={() => { onClose(); navigate("/operation/settings/purchasing"); }}
+        onOpenSettings={() => { onClose(); navigate("/operation/sc/settings"); }}
         onOpenObject={showOpenObject ? (id, preparation, sourcePos) => { onClose(); navigate(`/operation/procurement?po=${encodeURIComponent(id)}`, { state: { soBatchReturn: { path: `${location.pathname}${location.search}`, pos: sourcePos, preparation } } }); } : undefined} onPreview={(_id, po) => { setCurrent(po); setPdfOpen(true); }} />
       {current && error && <div role="alert" className="text-meta text-kit-red-11">{error}</div>}
     </div>
