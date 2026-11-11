@@ -71,18 +71,18 @@ const paint = (td: Element) => {
 };
 
 describe('MRP shortage rows carry their colour on the shared DataTable', () => {
-  test('every cell of a shortage row is washed petrol; a covered row is not', () => {
+  test('every cell of a shortage row is washed in the shortage tint (Carres navy); a covered row is not', () => {
     render(<MemoryRouter><Mrp /></MemoryRouter>);
     const tab = screen.queryByRole('tab', { name: /mattress/i });
     if (tab) fireEvent.click(tab);
 
     const shortCells = [...dataRowOf('MT-SHORT').cells];
     expect(shortCells.length).toBeGreaterThan(3);
-    for (const td of shortCells) expect(paint(td)).toMatch(/rgba\(22,\s*105,\s*95,\s*0\.08\)/);
+    for (const td of shortCells) expect(paint(td)).toMatch(/rgba\(27,\s*27,\s*57,\s*0\.08\)/);
     // The deep-petrol bar stays on the leading cell.
     expect(getComputedStyle(shortCells[0]!).boxShadow).toMatch(/inset 3px 0 0 #08352e/);
 
-    for (const td of dataRowOf('MT-STOCK').cells) expect(paint(td)).not.toMatch(/rgba\(22,\s*105,\s*95/);
+    for (const td of dataRowOf('MT-STOCK').cells) expect(paint(td)).not.toMatch(/rgba\(27,\s*27,\s*57/);
   });
 
   test('the expanded drill-down under a shortage row is not washed', () => {
@@ -92,6 +92,6 @@ describe('MRP shortage rows carry their colour on the shared DataTable', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
     const detail = dataRowOf('MT-SHORT').nextElementSibling!;
     expect(detail.hasAttribute('data-vrow')).toBe(false);
-    for (const td of (detail as HTMLTableRowElement).cells) expect(paint(td)).not.toMatch(/rgba\(22,\s*105,\s*95,\s*0\.08\)/);
+    for (const td of (detail as HTMLTableRowElement).cells) expect(paint(td)).not.toMatch(/rgba\(27,\s*27,\s*57,\s*0\.08\)/);
   });
 });
