@@ -28,6 +28,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { tokenStore } from "./api/client";
 import { consumeCarresSignIn, followCarresMenu, reportCarresLocation } from "./carres/embed";
+import { reportCarresReady } from "./carres/ready";
 import { restoreNativeSession } from "./lib/nativeSession";
 import { registerNativePush } from "./lib/nativePush";
 import { readAuthToken } from "./lib/authToken";
@@ -62,10 +63,12 @@ void import("./lib/theme").then((m) => m.initTheme());
 const canonicalTarget = canonicalRedirectUrl(window.location.href);
 if (canonicalTarget) window.location.replace(canonicalTarget);
 
-// Carres: the portal's sign-in hand-over, then its menu picks the page (src/carres/embed.ts).
+// Carres: the portal's sign-in hand-over, then its menu picks the page (src/carres/embed.ts), and the portal
+// is told when the first page has drawn (src/carres/ready.ts).
 consumeCarresSignIn();
 followCarresMenu();
 reportCarresLocation();
+reportCarresReady();
 
 // The public surfaces (survey, customer/supplier portal, password reset)
 // are split out of the staff bundle — staff never download them, and the
