@@ -20,18 +20,15 @@ export const COLLECTION_OWNER_DUTY_WORD = "Delivery Duty";
  * individual the Sales Order was dealt to. The system deals every order to a
  * person, so an unassigned order is a system error that only a manager fixes:
  * line 1 `Nobody assigned to this order` over line 2 `Manager assigns in
- * Settings → Staff & Duties`, and line 2 opens that Settings page
- * (`/operation/settings/staff-duties`: App `/operation/*` → OperationApp
- * `settings/*` → SettingsWorkspace `staff-duties`). The line names the
- * manager's door, never a Duty to fill, so no `?duty=` is carried. The
- * 2026-09-16 `Nobody is assigned to this order.` / `Assign it in Sales Orders
- * → Team` words and their `/operation/orders` door are retired. The short word
- * on a fixed row is `Not assigned`.
+ * Settings`, and line 2 opens Houzs's own Settings (`/operation/sc/settings`).
+ * The Carres Settings workspace and its Staff & Duties page were removed on
+ * 11 Nov 2026 (owner: the Houzs pages are the system). The short word on a
+ * fixed row is `Not assigned`.
  */
 export const COLLECTION_NOT_ASSIGNED = "Not assigned";
 export const NOBODY_ASSIGNED_TO_ORDER = "Nobody assigned to this order";
-export const MANAGER_ASSIGNS_IN_STAFF_DUTIES = "Manager assigns in Settings → Staff & Duties";
-export const MANAGER_ASSIGNS_IN_STAFF_DUTIES_HREF = "/operation/settings/staff-duties";
+export const MANAGER_ASSIGNS_IN_SETTINGS = "Manager assigns in Settings";
+export const MANAGER_ASSIGNS_IN_SETTINGS_HREF = "/operation/sc/settings";
 
 export interface CollectionOwnerHistoryRow {
   id: string;
