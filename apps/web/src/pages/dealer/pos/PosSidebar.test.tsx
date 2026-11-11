@@ -54,14 +54,9 @@ describe("PosSidebar", () => {
     );
     // SO Maintenance tab deleted 2026-07-12 — no Maintain link to it anymore.
     expect(screen.queryByTestId("pos-maintain-so-maintenance")).toBeNull();
-    /* Order Entry MOVED into `Sales Order Settings` (orders/MASTER.md §11):
-       the Sales Order module owns its Order Entry fields and payment methods,
-       and a business value is changed in the one Settings Workspace. This
-       assertion used to name `/principal?tab=order-entry`; keeping the old
-       address alive would have left two doors onto one editor. */
-    expect(screen.getByTestId("pos-maintain-order-entry").getAttribute("href")).toContain(
-      "/operation/settings/sales-orders",
-    );
+    /* Order Entry opens Houzs's own Settings: the Carres Settings workspace is
+       removed (owner, 11 Nov 2026). */
+    expect(screen.getByTestId("pos-maintain-order-entry").getAttribute("href")).toBe("/operation/sc/settings");
     expect(screen.getByTestId("pos-maintain-sales-analysis")).toBeTruthy();
   });
 });
