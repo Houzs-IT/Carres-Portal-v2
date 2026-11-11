@@ -8,6 +8,8 @@ import { MemoryRouter } from "react-router-dom";
 vi.mock("../../hooks/useBranding", () => ({ useBranding: () => ({ companyCode: "HOUZS", companyName: "Houzs Century" }) }));
 vi.mock("../../components/AmbientSnow", () => ({ AmbientSnow: () => null }));
 vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null, login: vi.fn() }) }));
+// Carres: the portal footer names the company from Settings > Branding (public read), not Houzs.
+vi.mock("../portalApi", () => ({ portalApi: { get: vi.fn(() => new Promise(() => {})) } }));
 
 import { PortalFrame } from "./PortalFrame";
 import { ForgotPasswordScreen } from "../../auth/AuthScreens";
@@ -24,7 +26,7 @@ afterEach(() => {
 describe("copyright year is the Malaysian year", () => {
   it("customer portal footer", () => {
     const { container } = render(<MemoryRouter><PortalFrame><p>x</p></PortalFrame></MemoryRouter>);
-    expect(container.textContent).toContain("2027 Houzs Century Sdn. Bhd.");
+    expect(container.textContent).toContain("2027 Carres.");
   });
 
   it("sign-in screens", () => {

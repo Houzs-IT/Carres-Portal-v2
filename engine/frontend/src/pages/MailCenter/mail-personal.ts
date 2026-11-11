@@ -3,6 +3,8 @@
 // defaultPersonalLocalPart (backend/src/lib/mail-provision.ts); the server
 // still picks the final address and adds a number when it is taken.
 
+import { CARRES_MAIL_DOMAIN } from "../../lib/branding"; // Carres
+
 export function defaultPersonalLocalPart(name: string | null | undefined): string | null {
   const words = (name ?? "")
     .normalize("NFKD")
@@ -15,7 +17,8 @@ export function defaultPersonalLocalPart(name: string | null | undefined): strin
 }
 
 export function mailDomainOf(companyEmail: string): string {
-  return (companyEmail.split("@")[1] || "houzscentury.com").trim().toLowerCase();
+  // Carres: carresofficial.com when Branding has no email (never a Houzs domain).
+  return (companyEmail.split("@")[1] || CARRES_MAIL_DOMAIN).trim().toLowerCase();
 }
 
 export type MailReach = "own" | "granted" | "department" | "company";

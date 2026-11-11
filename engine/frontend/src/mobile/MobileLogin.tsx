@@ -113,7 +113,7 @@ export function MobileLogin() {
               <label style={{ display: "block" }}>
                 <span style={labelStyle}>Email or phone</span>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} name="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" inputMode="email"
-                  onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("hz-pw")?.focus(); }} style={inputStyle} placeholder="you@houzscentury.com" />
+                  onKeyDown={(e) => { if (e.key === "Enter") document.getElementById("hz-pw")?.focus(); }} style={inputStyle} placeholder="you@carresofficial.com" />
               </label>
               <label style={{ display: "block" }}>
                 <span style={labelStyle}>Password</span>

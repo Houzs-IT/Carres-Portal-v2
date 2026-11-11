@@ -11,7 +11,11 @@
  *
  * Content rule: whatever the app starts collecting must appear here AND in the
  * App Privacy answers in App Store Connect — the two must never disagree.
+ *
+ * Carres: the company name, registration, address and contact come from Settings > Branding (public read,
+ * carres/publicBranding.ts), never Houzs's; a blank one is not printed. The policy text itself is Houzs's.
  */
+import { publicAddressLines, usePublicCompany } from "../carres/publicBranding";
 
 const ROWS: Array<[string, string]> = [
   [
@@ -53,19 +57,24 @@ const cell: React.CSSProperties = {
 };
 
 export function PrivacyPolicy() {
+  const company = usePublicCompany(); // Carres
+  const site = typeof window !== "undefined" ? window.location.host : "";
+  const mail = company.email ? (
+    <a href={`mailto:${company.email}`} style={{ color: "#2f6f68" }}>{company.email}</a>
+  ) : null;
   return (
     <div style={{ background: "var(--hz-dk-surface-2, #fafaf7)", minHeight: "100vh", color: "#23281f" }}>
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 64px" }}>
         <h1 style={{ fontSize: 26, margin: "18px 0 4px" }}>Privacy Policy</h1>
         <p style={meta}>
-          Houzs ERP &middot; Houzs Century Sdn. Bhd. (202201031135 / 1476832-W) &middot; Last updated 6 August 2026
+          {company.companyName}{company.registrationNo ? ` (${company.registrationNo})` : ""} &middot; Last updated 6 August 2026
         </p>
 
         <p style={p}>
-          Houzs ERP is an internal business application for the staff of Houzs Century Sdn. Bhd. and its
+          This is an internal business application for the staff of {company.companyName} and its
           authorised partners (delivery carriers and dealers). It is not a consumer product. This page explains
           what personal data the application handles, why, and who can see it. It applies to the web application
-          at erp.houzscentury.com and to the Houzs ERP iOS application, which are the same system.
+          at {site || "this site"}.
         </p>
 
         <h2 style={h2}>What we collect and why</h2>
@@ -113,7 +122,7 @@ export function PrivacyPolicy() {
         <h2 style={h2}>Your rights</h2>
         <p style={p}>
           Under the Personal Data Protection Act 2010 (Malaysia) you may request access to, or correction of,
-          your personal data. Write to <a href="mailto:hello@houzscentury.com" style={{ color: "#2f6f68" }}>hello@houzscentury.com</a> or
+          your personal data. Write to {mail ?? "the company"}{mail ? " or" : ","}
           to the address below. Because this is a workplace system, some records (for example audit trails and
           business documents) are kept as required by law or by legitimate business need even after such a
           request.
@@ -121,13 +130,11 @@ export function PrivacyPolicy() {
 
         <h2 style={h2}>Contact</h2>
         <p style={p}>
-          Houzs Century Sdn. Bhd.
-          <br />
-          42-1, Jalan Prima 2, Pusat Niaga Metro Prima Kepong,
-          <br />
-          52100 Kuala Lumpur, Malaysia
-          <br />
-          <a href="mailto:hello@houzscentury.com" style={{ color: "#2f6f68" }}>hello@houzscentury.com</a>
+          {company.companyName}
+          {publicAddressLines(company).map((line, i) => (
+            <span key={i}><br />{line}</span>
+          ))}
+          {mail && <><br />{mail}</>}
         </p>
 
         <p style={meta}>

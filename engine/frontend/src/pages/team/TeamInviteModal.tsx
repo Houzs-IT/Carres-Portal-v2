@@ -523,7 +523,7 @@ export function TeamInviteModal({
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@houzscentury.com"
+                  placeholder="name@carresofficial.com"
                   type="email"
                   className={cn(inputCls, "mt-1 font-mono text-[12.5px]")}
                 />
@@ -563,7 +563,7 @@ export function TeamInviteModal({
                 value={bulkText}
                 onChange={(e) => setBulkText(e.target.value)}
                 rows={5}
-                placeholder={"Paste emails — one per line, or separated by commas.\nname@houzscentury.com\nother@houzscentury.com"}
+                placeholder={"Paste emails — one per line, or separated by commas.\nname@carresofficial.com\nother@carresofficial.com"}
                 className={cn(inputCls, "mt-1 resize-y font-mono text-[12.5px]")}
               />
               <div className="mt-1 text-[10.5px] text-ink-muted">

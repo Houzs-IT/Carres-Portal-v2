@@ -1,5 +1,6 @@
 import type { Env } from "../types";
 import { sendEmail, publicUrl } from "./email";
+import { getBranding } from "./branding";
 
 // ---------------------------------------------------------------------------
 // Daily client-error digest -- the "visible within a day" half of the
@@ -10,12 +11,23 @@ import { sendEmail, publicUrl } from "./email";
 // errors by occurrence count; zero errors sends nothing -- an empty digest
 // trains people to delete digests.
 //
-// Recipient is the shared IT/ops mailbox, deliberately hardcoded rather than
-// role-derived: this mail is infrastructure telemetry, not a business
-// notification, and must keep arriving even mid permission-model surgery.
+// Recipient is the shared IT/ops mailbox, deliberately not role-derived: this
+// mail is infrastructure telemetry, not a business notification, and must keep
+// arriving even mid permission-model surgery. Carres: configured, not a literal
+// (clientErrorDigestRecipient below).
 // ---------------------------------------------------------------------------
 
-const DIGEST_TO = "hello@houzscentury.com";
+/** Carres: the digest goes to CLIENT_ERROR_DIGEST_TO, else the Settings > Branding email. Never a
+ *  Houzs mailbox; with neither set there is no recipient and sendEmail skips it ("missing recipient"). */
+export async function clientErrorDigestRecipient(env: Env): Promise<string> {
+  const configured = (env.CLIENT_ERROR_DIGEST_TO ?? "").trim();
+  if (configured) return configured;
+  try {
+    return (await getBranding(env)).email.trim();
+  } catch {
+    return "";
+  }
+}
 
 // Rows older than this are purged by the same daily run. The dedup collapse
 // keeps the table small per day; this bounds it over time. 90 days comfortably
@@ -158,7 +170,7 @@ export async function runClientErrorDigest(
   });
 
   const result = await sendEmail(env, {
-    to: DIGEST_TO,
+    to: await clientErrorDigestRecipient(env), // Carres
     subject,
     html,
     purpose: "client_error_digest",

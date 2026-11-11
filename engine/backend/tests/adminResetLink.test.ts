@@ -112,7 +112,8 @@ describe("the token never leaves the mailbox", () => {
   test("the token is still minted and still goes into the email link", () => {
     const body = resetHandlerSource();
     expect(body).toMatch(/generateToken\(\)/);
-    expect(body).toMatch(/publicUrl\([^)]*\/reset\/\$\{token\}/);
+    // Carres: enginePublicUrl — the reset page lives on the engine site, not the Carres portal.
+    expect(body).toMatch(/[pP]ublicUrl\([^)]*\/reset\/\$\{token\}/);
   });
 
   test("the audit trail records the send without recording the token", () => {
