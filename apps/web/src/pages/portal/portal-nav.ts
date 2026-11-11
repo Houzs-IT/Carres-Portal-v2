@@ -702,9 +702,43 @@ export function retiredRedirect(pathname: string, search: string): string | null
 }
 
 /** The engine page for this address: an engine row's own `/operation/sc/<row>` address. */
-export function engineFor(pathname: string, _search = ""): string | null {
+export function engineFor(pathname: string, search = ""): string | null {
   const m = /^\/operation\/sc\/([a-z0-9-]+)\/?$/.exec(pathname);
-  return (m && ENGINE_PAGES[m[1]]) || null;
+  const page = (m && ENGINE_PAGES[m[1]]) || null;
+  if (!page) return null;
+  // `?at=` keeps the exact engine page the frame moved to (a record, a form), so a refresh reopens it.
+  const at = new URLSearchParams(search).get("at");
+  return at && at.startsWith("/") && !at.startsWith("//") ? at : page;
+}
+
+/** Rows that only repeat another row's page: never the row a frame move lights. */
+const ENGINE_SHORTCUT_ROWS = new Set(["orders-shortcut", "product-request"]);
+
+/** The menu row for a page the frame moved to: the row whose engine page it is, or sits under (a record or
+ *  form below a list), the most specific match winning. Null when no row covers it. */
+export function engineRowFor(enginePath: string): string | null {
+  let url: URL;
+  try { url = new URL(enginePath, "http://engine"); } catch { return null; }
+  let best: { key: string; score: number } | null = null;
+  for (const [key, page] of Object.entries(ENGINE_PAGES)) {
+    if (ENGINE_SHORTCUT_ROWS.has(key)) continue;
+    const p = new URL(page, "http://engine");
+    const onPath = p.pathname === "/" ? url.pathname === "/" : url.pathname === p.pathname || url.pathname.startsWith(`${p.pathname}/`);
+    if (!onPath) continue;
+    const params = [...p.searchParams];
+    if (!params.every(([k, v]) => url.searchParams.get(k) === v)) continue;
+    const score = p.pathname.length * 10 + params.length;
+    if (!best || score > best.score) best = { key, score };
+  }
+  return best?.key ?? null;
+}
+
+/** The portal address for a page the frame moved to: its row's own address, plus `?at=` when the page is not
+ *  the row's own page. Null when no row covers it. */
+export function engineAddressFor(enginePath: string): string | null {
+  const key = engineRowFor(enginePath);
+  if (!key) return null;
+  return ENGINE_PAGES[key] === enginePath ? `/operation/sc/${key}` : `/operation/sc/${key}?at=${encodeURIComponent(enginePath)}`;
 }
 
 

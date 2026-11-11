@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { engineAddressFor } from "@/pages/portal/portal-nav";
 import { apiFetch } from "@/lib/api";
 import Button from "@/components/kit/Button";
 import EmptyState from "@/components/kit/EmptyState";
@@ -43,6 +45,7 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
   const shown = useRef(path);
   const wanted = useRef(path);
   wanted.current = path;
+  const navigate = useNavigate();
 
   useEffect(() => {
     let live = true;
@@ -57,6 +60,22 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
       .catch((e: unknown) => { if (live) setError((e as { message?: string })?.message || SC.failed); });
     return () => { live = false; };
   }, [attempt]);
+
+  // The frame tells where it moved (engine carres/embed.ts reportCarresLocation): the address follows, so the
+  // menu lights that page's row and a refresh reopens the same page. The frame is not sent back there.
+  useEffect(() => {
+    if (!session) return;
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { type?: string; path?: unknown } | null;
+      if (e.origin !== session.site || d?.type !== "carres:location") return;
+      if (typeof d.path !== "string" || !d.path.startsWith("/") || d.path.startsWith("//")) return;
+      shown.current = d.path;
+      const address = engineAddressFor(d.path);
+      if (address && address !== window.location.pathname + window.location.search) navigate(address, { replace: true });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [session, navigate]);
 
   useEffect(() => {
     if (!session || path === shown.current) return;
