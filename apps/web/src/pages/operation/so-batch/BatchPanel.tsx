@@ -497,7 +497,7 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
       </>}
       {failures.length > 0 && <div role="alert" className="flex flex-col gap-1">
         {failures.map((fact) => <span key={fact.po.id} className="text-meta text-kit-red-11">{documentDisplayNumber(fact.po.id)} · {fact.failure!.message}</span>)}
-        {failures.some((fact) => fact.failure!.settings) && <span><Button size="sm" onClick={() => navigate("/operation/settings/purchasing")}>Open Settings</Button></span>}
+        {failures.some((fact) => fact.failure!.settings) && <span><Button size="sm" onClick={() => navigate("/operation/sc/settings")}>Open Settings</Button></span>}
       </div>}
       {unsent.length > 0 && <>
         <Tabs variant="segmented" label="Communication channel" value={activeChannel} onValueChange={(value) => { setChannel(value === "email" ? "email" : "whatsapp"); setError(null); }}
@@ -506,7 +506,7 @@ export function BatchPanel({ item, windowKey, host }: { item: BatchPanelItem; wi
           <span className="text-meta text-kit-slate-11">
             {contact?.whatsappGroupUrl ? T.toGroup(supplierName) : contact?.contact ? `To ${contact.contact}` : ""}
             {contact && !contact.poSendChannel ? ` · ${T.defaultNotSet} · ` : null}
-            {contact && !contact.poSendChannel ? <Button variant="ghost" size="sm" onClick={() => navigate("/operation/settings/purchasing")}>{T.set}</Button> : null}
+            {contact && !contact.poSendChannel ? <Button variant="ghost" size="sm" onClick={() => navigate("/operation/sc/settings")}>{T.set}</Button> : null}
           </span>
           <StepList aria-label={T.sendBy} data-testid="batch-whatsapp-steps">
             <Step n={1} state={allHeld ? "done" : "current"} sub={T.downloaded(heldCount, tickedReady.length)}

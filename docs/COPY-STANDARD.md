@@ -5171,7 +5171,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 
 | Place | Exact words |
 |---|---|
-| Top | `Workspace` (its first row is `Overview`) · `Operations` · `Supply Chain` (row, inside Operations) |
+| Top | `Workspace` (its first row is `Overview`) · `Operations` · `Supply Chain` (row, inside Operations) · `System` |
 | Supply Chain | row `Product Request` first, then the modules `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
 | Sales Order | `Sales Orders` · `Fair Links to Settle` · `Sales Order Amendment` · `Payment Backdate Requests` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
 | Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Order` · `Product Request` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
@@ -5180,7 +5180,8 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
 | Projects | `Project Overview` · `Project List` · `Calendar` · `Project Maintenance` |
-| Bottom group (Carres rows, apart from the Houzs part) | caps `Carres` · `Payments` · `Issue Tracker` · `Sales invoice lines` |
+| System (after Supply Chain; owner 11 Nov 2026) | caps `System` · module `Team`: `Directory` · `Org Chart` · `Departments` · `Mailboxes` · `Roles & Permissions` · rows `Mail Center` · `IT Support` |
+| Menu bottom | `Settings` (opens Houzs Settings) · `Report a problem to IT` (opens IT Support) |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
@@ -6325,8 +6326,6 @@ The supply chain and service case screens run as their own site (engine/), frame
 | Meaning | Use exactly |
 |---|---|
 | Frame | `Supply Chain` (read aloud) |
-| Settings rail (11 Nov 2026) | group `Supply Chain` · section `Supply Chain Settings` (opens the engine's own Settings in the frame) |
-| Settings rail (11 Nov 2026) | group `Team and access` · section `Access & Roles` (opens the engine's own Roles & Permissions in the frame) |
 | While it opens | `Opening Supply Chain` (read aloud) |
 | Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |
 

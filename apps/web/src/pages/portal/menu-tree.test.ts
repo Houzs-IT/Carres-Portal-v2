@@ -3,7 +3,6 @@ import {
   PORTAL_NAV,
   PORTAL_MODULES,
   WAREHOUSE_LANDING_KEY,
-  PAYMENTS_LANDING_KEY,
   navItemHref,
   type PortalNavItem,
 } from "./portal-nav";
@@ -242,7 +241,7 @@ describe("one rule for every module", () => {
     expect(byLabel("Procurement").landingKey).toBe(PURCHASING_LANDING_KEY);
     expect(byLabel("Procurement").handleOnly).toBe(true);
     expect(byLabel("Warehouse").landingKey).toBe(WAREHOUSE_LANDING_KEY);
-    expect(byLabel("Payments").landingKey).toBe(PAYMENTS_LANDING_KEY);
+    expect(byLabel("Team").landingKey).toBeUndefined();
     expect(byLabel("Sales Order").handleOnly).toBeUndefined();
   });
 });
