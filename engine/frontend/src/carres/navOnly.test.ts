@@ -11,6 +11,7 @@ describe("carresNavOnly", () => {
       { label: "Projects", to: "/projects?view=hub" },
     ];
     expect(carresNavOnly(tabs)).toEqual([
+      { label: "Overview", to: "/" },
       { label: "Supply Chain", to: "/scm", children: [{ label: "Consignment", to: "/scm/consignment" }] },
       { label: "Service Cases", to: "/service-cases" },
       { label: "Projects", to: "/projects?view=hub" },
