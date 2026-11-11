@@ -6,7 +6,7 @@
 
 /** Top-level menu entries kept, by their label in the registry. Sales Orders stay: the supply chain starts
  *  from them. Team and Settings stay so an administrator can set people and company details. */
-const KEEP = new Set(["Sales Orders", "Service Cases", "Projects", "Supply Chain", "Team", "Settings"]);
+const KEEP = new Set(["Overview", "Sales Orders", "Service Cases", "Projects", "Supply Chain", "Team", "Settings"]);
 
 /** Houzs modules switched off here: their menu entries are dropped and their addresses go to CARRES_HOME
  *  (App.tsx). Path prefixes, matched on whole segments. */
@@ -47,7 +47,7 @@ export function carresNavOnly<T extends NavNode>(tabs: T[]): T[] {
 /** No AutoCount in the Carres engine: Settings drops its Sync tab and never asks for that status. */
 export const CARRES_AUTOCOUNT: boolean = true; // Settings shows its Sync tab as in Houzs (owner, 11 Nov 2026: same as Houzs except colour)
 
-/** Where the app opens: the old landing page is an overview of areas switched off here. */
+/** Where a switched-off module's address goes. The landing page itself is Houzs's Overview, as in Houzs. */
 export const CARRES_HOME = "/scm/sales-orders";
 
 /** The floating quick-add button and the AI assistant: off (the assistant needs a key this copy does not have). */

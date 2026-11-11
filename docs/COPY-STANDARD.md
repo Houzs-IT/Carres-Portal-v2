@@ -6324,6 +6324,7 @@ The supply chain and service case screens run as their own site (engine/), frame
 | Meaning | Use exactly |
 |---|---|
 | Frame | `Supply Chain` (read aloud) |
+| Settings rail (11 Nov 2026) | group `Supply Chain` · section `Supply Chain Settings` (opens the engine's own Settings in the frame) |
 | While it opens | `Opening Supply Chain` (read aloud) |
 | Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |
 

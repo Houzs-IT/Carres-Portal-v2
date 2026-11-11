@@ -500,7 +500,7 @@ const BRANDING_FIELDS: {
   {
     key: "registrationNo",
     label: "SSM registration no",
-    placeholder: "202201031135 (1476832-W)",
+    placeholder: "202001012345 (1234567-X)",
   },
   {
     key: "address",
@@ -515,11 +515,11 @@ const BRANDING_FIELDS: {
     hint: "Woven into the printed letterhead address.",
   },
   { key: "phone", label: "Phone", placeholder: "011-1110 8883" },
-  { key: "email", label: "Email", placeholder: "hello@houzscentury.com" },
+  { key: "email", label: "Email", placeholder: "hello@carresofficial.com" },
   {
     key: "website",
     label: "Website",
-    placeholder: "houzscentury.com",
+    placeholder: "carresofficial.com",
     optional: true,
   },
   {
@@ -532,14 +532,14 @@ const BRANDING_FIELDS: {
   {
     key: "csEmail",
     label: "Customer service email",
-    placeholder: "operation@houzscentury.com",
+    placeholder: "operation@carresofficial.com",
     hint: "Printed beside the customer service phone. Leave blank to omit it.",
     optional: true,
   },
   {
     key: "customerPaymentDetails",
     label: "Customer payment details",
-    placeholder: "Maybank 5644 1875 9397\nHOUZS CENTURY SDN BHD",
+    placeholder: "Maybank 1234 5678 9012\nCARRES SDN BHD",
     hint: "Where a customer pays: bank, account name, account number — one item per line. Printed as PAYMENT DETAILS on the Deposit Invoice and the Sales Invoice. Leave blank to omit the block.",
     optional: true,
     rows: 3,
@@ -547,7 +547,7 @@ const BRANDING_FIELDS: {
   {
     key: "debtorPaymentDetails",
     label: "Other Debtor payment details",
-    placeholder: "CIMB 8000 1234 5678\nHOUZS CENTURY SDN BHD",
+    placeholder: "CIMB 8000 1234 5678\nCARRES SDN BHD",
     hint: "Where an Other Debtor pays — this may be a different account from the customers'. Printed on the Other Debtor invoice. Leave blank to omit the block.",
     optional: true,
     rows: 3,
@@ -555,7 +555,7 @@ const BRANDING_FIELDS: {
   {
     key: "debtorInvoiceTerms",
     label: "Other Debtor invoice terms & conditions",
-    placeholder: "Payment within 14 days of the invoice date.\nCheques payable to HOUZS CENTURY SDN BHD.",
+    placeholder: "Payment within 14 days of the invoice date.\nCheques payable to CARRES SDN BHD.",
     hint: "One term per line; printed numbered under the payment details on the Other Debtor invoice. Leave blank to omit the block.",
     optional: true,
     rows: 4,
@@ -840,11 +840,6 @@ function BrandingTab() {
     <section className="relative overflow-hidden rounded-md border border-border bg-surface p-6 shadow-stone">
       <h2 className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-brand text-accent">
         <Building2 size={12} /> Company Identity
-        {/* Which company's row this tab edits — switch companies in the top
-            bar to edit the other one. */}
-        <span className="rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold text-ink-muted">
-          {companyCode}
-        </span>
       </h2>
 
       {q.loading && !form && <ListSkeleton rows={4} />}

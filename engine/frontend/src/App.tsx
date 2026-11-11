@@ -564,8 +564,8 @@ export default function App() {
 const APP_ROUTES = (
   <>
         {/* Landing → Overview workspace home (P1). */}
-        {/* Carres: the landing page is the Sales Orders list (carres/navOnly.ts). */}
-        <Route path="/" element={<Navigate to={CARRES_HOME} replace />} />
+        {/* Landing → Overview workspace home (P1). */}
+        <Route path="/" element={<Overview />} />
         <Route
           path="/assr"
           element={

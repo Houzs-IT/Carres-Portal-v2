@@ -36,6 +36,19 @@ jobs:
         run: |
           npm run typecheck --prefix engine/backend
           npm run build --prefix engine/frontend
+      # New steps in engine/backend/scripts/carres-db/migrations go in before the code that needs them. Already
+      # applied steps are skipped, so most merges change nothing here. ENGINE_DATABASE_URL is the engine project's
+      # admin connection string (a repository secret); the runner refuses any other project.
+      - name: Apply new database steps
+        working-directory: engine/backend
+        env:
+          ENGINE_DATABASE_URL: ${{ secrets.ENGINE_DATABASE_URL }}
+        run: |
+          if [ -z "$ENGINE_DATABASE_URL" ]; then
+            echo "::warning::ENGINE_DATABASE_URL is not set, so new database steps were not applied."
+          else
+            node scripts/carres-db/apply.mjs --ci
+          fi
       - name: Deploy the server
         working-directory: engine/backend
         run: npx wrangler deploy --message "main ${GITHUB_SHA}"
