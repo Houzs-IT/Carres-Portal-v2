@@ -31,11 +31,15 @@ jobs:
         run: |
           files="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "Changed files:"; echo "$files"
-          outside() { grep -vE "$1" <<<"$files" | grep -q . ; }
+          # One grep, no pipe: with the runner's pipefail, `grep -vE … | grep -q .` failed with SIGPIPE on a
+          # large change, so a PR touching hundreds of web files was judged api-only and its web tests and
+          # kit check were skipped (seen on run 42996212738).
+          outside() { grep -qvE "$1" <<<"$files"; }
           deploy='^\.github/workflows/(deploy-engine|deploy-production|preview|baselines)\.yml$'
           if ! outside "^engine/|$deploy"; then scope=engine
           elif ! outside "^engine/|^apps/api/|$deploy"; then scope=api
           else scope=all; fi
+          echo "Checks for this PR: $scope"
           echo "scope=$scope" >> "$GITHUB_OUTPUT"
           echo "Checks for this PR: $scope" >> "$GITHUB_STEP_SUMMARY"
 
