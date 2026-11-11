@@ -143,4 +143,3 @@ export const REGISTER_FIELD_WIDTH = {
   smallCount: 120,
 } as const;
 
-export type RegisterFieldWidth = keyof typeof REGISTER_FIELD_WIDTH;

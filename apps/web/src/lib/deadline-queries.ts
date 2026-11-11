@@ -23,30 +23,7 @@
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  DEFAULT_DELIVERY_CALENDAR,
-  deliveryCalendarFromResponse,
-  deliveryDayRefusal,
-  deliveryHolidayName,
-  deliveryWorkingDayOptions,
-  type DeliveryCalendar,
-  type DeliveryCalendarResponse,
-  type DeliveryDayRefusal,
-  DEFAULT_ASSIGNMENT_LEAD_WORKING_DAYS,
-  DEFAULT_COLLECTION_TIMING,
-  collectionTimingFor,
-  collectionTimingRulesOf,
-  officeHolidayName,
-  officeOwnerCalendar,
-  personOwnerCalendar,
-  officeWorkingDayOptions,
-  type CollectionTiming,
-  type CollectionTimingRule,
-  type CollectionTimingRuleRow,
-  type OfficeCalendar,
-  type OwnerCalendar,
-  type WorkingDayOptions,
-} from "@carres/shared";
+import { DEFAULT_DELIVERY_CALENDAR, deliveryCalendarFromResponse, deliveryDayRefusal, deliveryHolidayName, deliveryWorkingDayOptions, type DeliveryCalendar, type DeliveryCalendarResponse, type DeliveryDayRefusal, DEFAULT_ASSIGNMENT_LEAD_WORKING_DAYS, DEFAULT_COLLECTION_TIMING, collectionTimingFor, collectionTimingRulesOf, officeHolidayName, officeOwnerCalendar, personOwnerCalendar, officeWorkingDayOptions, type CollectionTiming, type CollectionTimingRuleRow, type OfficeCalendar, type OwnerCalendar, type WorkingDayOptions } from "@carres/shared";
 import { apiFetch } from "./api";
 import { appTodayIso } from "./fmt-date";
 import { useOfficeCalendar } from "./settings-queries";
@@ -180,11 +157,6 @@ function useCollectionTimingRead(orderId: string | null) {
   });
 }
 
-/** Every effective-dated Collection timing rule; [] while loading. */
-export function useCollectionTimingRules(): CollectionTimingRule[] {
-  const q = useCollectionTimingRead(null);
-  return useMemo(() => collectionTimingRulesOf(q.data?.rules ?? []), [q.data]);
-}
 
 /** The Collection timing this order's clock runs under: the rule in force on
  *  the day its clock started (its Sales Invoice's issue day, else today). */

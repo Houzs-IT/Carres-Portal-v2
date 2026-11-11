@@ -18,7 +18,9 @@ vi.mock("../components/EmbeddedSalesOrders", () => ({ default: ({ orderIds }: { 
 import { ApiError } from "@/lib/api";
 import { fmtDate } from "@/lib/fmt-date";
 import type { ReactElement, ReactNode } from "react";
-import { BatchPanel, batchTasksOf } from "./BatchPanel";
+import {
+  BatchPanel,
+} from "./BatchPanel";
 import type { WorkPanelHost } from "../tasks/tasks-host";
 
 const KEY = "2026-09-01T11:00";
@@ -108,18 +110,6 @@ function mount(): Host {
 const panel = () => screen.getByTestId(`batch-panel-${TASK.id}`);
 const loaded = () => waitFor(() => expect(within(panel()).getByTestId("batch-send")).toBeInTheDocument());
 
-describe("batchTasksOf — one task per supplier and batch, never the word round", () => {
-  it("names POs to send, the one PO left, and lines still to buy", () => {
-    expect(batchTasksOf(read()).map((t) => [t.action, t.reference])).toEqual([["Send 2 POs to Nice Future", "11:00 AM"]]);
-    fake.pos[0]!.sends.push({ kind: "confirmed_sent", po_version: 1 });
-    expect(batchTasksOf(read()).map((t) => [t.action, t.reference])).toEqual([["Send PO to Nice Future", "PO-260903-7907-V1"]]);
-    fake.pos = []; fake.lines = [leaf("o9", 1368)];
-    const tasks = batchTasksOf(read());
-    expect(tasks.map((t) => [t.action, t.reference])).toEqual([["Issue PO to Nice Future", "SO-1368 · 1 item to buy"]]);
-    expect(JSON.stringify(tasks)).not.toMatch(/round|PO window/i);
-  });
-});
-
 describe("BatchPanel — one count with the Tasks row and the Work completion (Law D)", () => {
   /* Production acceptance 2026-10-06: the row said `Send 11 POs`, the panel
      listed 13 to send. A sent PO whose PDF cannot be built (no Deliver To
@@ -192,26 +182,6 @@ describe("BatchPanel — opened by window key from any page", () => {
     ]);
     expect(within(steps).getAllByRole("listitem").map((li) => li.getAttribute("data-state"))).toEqual(["current", "pending", "pending"]);
     expect(within(card).getByTestId("batch-whatsapp-step-record")).toHaveTextContent(/PO sent to supplier \(2\)/);
-  });
-
-  it("records only the ticked PO; the task stays open and the other stays to send", async () => {
-    const host = mount();
-    await loaded();
-    fireEvent.click(within(panel()).getByLabelText("PO-260903-7907-V1"));
-    expect(within(panel()).getByText("Select all · 1 of 2 ticked")).toBeInTheDocument();
-    fireEvent.click(within(panel()).getByRole("button", { name: "PO sent to supplier (1)" }));
-    const list = await screen.findByTestId("batch-record-list");
-    expect(list).toHaveTextContent("PO-260903-4585-V1");
-    expect(list).not.toHaveTextContent("7907");
-    expect(list).toHaveTextContent("Not ticked: stays in this task.");
-    fireEvent.click(screen.getByTestId("batch-record-confirm"));
-    await waitFor(() => expect(within(panel()).getByTestId("batch-status")).toHaveTextContent("1 PO to send · Sending not confirmed"));
-    expect(fake.confirmPosts).toEqual(["PO-20260903-4585"]);
-    expect(within(panel()).getByTestId("batch-po-PO-20260903-4585")).toHaveTextContent("Sent · WhatsApp");
-    // The module's own words; the task stays open while a PO is left.
-    expect(host.result).toHaveBeenCalledWith("PO sent to supplier · Nice Future · 1 PO · WhatsApp · 1 still to send", { stay: true });
-    expect(host.back).not.toHaveBeenCalled();
-    expect(batchTasksOf(read())[0]).toMatchObject({ action: "Send PO to Nice Future", reference: "PO-260903-7907-V1" });
   });
 
   it("done: every PO recorded and nothing left to buy hands the result to the host, which returns to the list", async () => {

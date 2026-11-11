@@ -28,16 +28,6 @@ export type PoSupplierPreparation = {
   supplierId: string; selectedIds: string[]; channel: "email" | "whatsapp";
   subject: string; messageIntroduction: string; scope: "round" | "today"; roundWindow?: string;
 };
-export function readPoSupplierPreparation(value: unknown): PoSupplierPreparation | undefined {
-  if (!value || typeof value !== "object") return;
-  const state = value as Partial<PoSupplierPreparation>;
-  if (typeof state.supplierId !== "string" || !Array.isArray(state.selectedIds) || !state.selectedIds.every(id => typeof id === "string")
-    || (state.channel !== "email" && state.channel !== "whatsapp") || (state.scope !== "round" && state.scope !== "today")
-    || typeof state.subject !== "string" || typeof state.messageIntroduction !== "string"
-    || (state.roundWindow !== undefined && typeof state.roundWindow !== "string")) return;
-  return { supplierId: state.supplierId, selectedIds: [...new Set(state.selectedIds)], channel: state.channel,
-    subject: state.subject, messageIntroduction: state.messageIntroduction, scope: state.scope, roundWindow: state.roundWindow };
-}
 
 /** Same issued POs, grouped for supplier preparation and human-triggered dispatch. */
 export default function PoSupplierBundle({ pos, onPreview, roundWindow, onEvidenceChanged, onOpenObject, initialPreparation, title = "Purchase orders", onOpenSettings, reviewed, taskScoped = false }: {

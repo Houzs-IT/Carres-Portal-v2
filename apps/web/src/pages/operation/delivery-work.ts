@@ -170,22 +170,6 @@ export const DW = {
   loanReturnWarehouse: "Carres Warehouse",
 } as const;
 
-/**
- * The governed Logistics Partners, in the owner's ruled rail order. They are
- * ALWAYS on the rail, count or no count: a roster that hides a quiet partner
- * teaches the operator that the rail is a result rather than the list of people
- * who can carry goods. Anyone else in the partner table joins below them, and
- * only when they are actually carrying a scope.
- */
-export const GOVERNED_LOGISTICS = [
-  "NETS",
-  "AL",
-  "TEOW",
-  "TT",
-  "EU",
-  "SSY",
-  "HOUZS",
-] as const;
 
 /** One parent row: a delivery scope, or one leg of a Delivery Journey. */
 export interface DeliveryScopeRow {
@@ -427,15 +411,6 @@ export function deliveryEntryFactsOf(o: operationOrderListRow): DeliveryEntryFac
   return { hasLocation, hasBuilding, hasGoods, isTravelling: isOpenDeliveryScope(o) };
 }
 
-/** What this order still needs before it is delivery work — in the operator's words. */
-export function deliveryEntryBlockers(o: operationOrderListRow): string[] {
-  const f = deliveryEntryFactsOf(o);
-  const out: string[] = [];
-  if (!f.hasLocation) out.push(DW.blockerNoLocation);
-  if (!f.hasBuilding) out.push(DW.blockerNoBuilding);
-  if (!f.hasGoods) out.push(DW.blockerNoGoods);
-  return out;
-}
 
 /**
  * ⭐ THE ENTRY RULE, re-ruled 2026-09-13 (Delivery MASTER §8.3): an order with

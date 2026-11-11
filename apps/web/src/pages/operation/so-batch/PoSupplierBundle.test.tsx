@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
 import type { PoTemplateData } from "@/lib/pdf/types";
-import PoSupplierBundle, { readPoSupplierPreparation, type PoSupplierPreparation } from "./PoSupplierBundle";
+import PoSupplierBundle, {
+  type PoSupplierPreparation,
+} from "./PoSupplierBundle";
 const api = vi.hoisted(() => vi.fn());
 const renderPdf = vi.hoisted(() => vi.fn());
 const zip = vi.hoisted(() => vi.fn());
@@ -212,11 +214,7 @@ describe("issued supplier bundle", () => {
     expect(screen.getByLabelText("PO-002-V1")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Download PDFs" })).toBeDisabled();
   });
-  it("refuses malformed navigation presentation instead of treating it as prepared authority", () => {
-    expect(readPoSupplierPreparation({ supplierId: "s1", selectedIds: [null], channel: "email", scope: "round", subject: "", messageIntroduction: "" })).toBeUndefined();
-    expect(readPoSupplierPreparation({ supplierId: "s1", selectedIds: [], channel: "unknown", scope: "round", subject: "", messageIntroduction: "" })).toBeUndefined();
-  });
-  it("keeps restored Today preparation blocked through repeated source failures and retains the subset after retry", async () => {
+    it("keeps restored Today preparation blocked through repeated source failures and retains the subset after retry", async () => {
     let unavailable = true;
     api.mockImplementation(async (path: string) => {
       if (path.endsWith("issued-today")) {
@@ -298,7 +296,6 @@ describe("issued supplier bundle", () => {
     expect(api.mock.calls.every(call => call.length === 1)).toBe(true);
   });
 });
-
 
 /**
  * THE THREE STEPS (owner's 12 Oct 2026 package; Purchasing MASTER §5.6).

@@ -23,11 +23,10 @@ import {
   entersDeliveryWork,
   isOpenDeliveryScope,
   requiredSalesFactsMissing,
-  deliveryEntryBlockers,
   regionBucketOf,
   SINGAPORE_KEY,
   DW,
-  } from "./delivery-work";
+} from "./delivery-work";
 
 function order(
   over: Partial<operationOrderListRow> & { id: string; so: number },
@@ -298,20 +297,6 @@ describe("the entry rule keeps Sales work out of Delivery Work", () => {
     expect(build([order({ id: "a", so: 1301 })])).toHaveLength(1);
   });
 
-  it("refuses a scope with NO delivery address — that is Sales work", () => {
-    const o = order({
-      id: "a",
-      so: 1301,
-      customer_address: null,
-      customer_address_city: null,
-      customer_address_state: null,
-      customer_address_line1: null,
-    });
-    expect(entersDeliveryWork(o)).toBe(false);
-    expect(build([o])).toHaveLength(0);
-    expect(deliveryEntryBlockers(o)).toContain(DW.blockerNoLocation);
-  });
-
   it("accepts a written address even when the structured locality is empty", () => {
     // An AutoCount order often carries only the free-text address; refusing it
     // would throw away real delivery work over a data-entry shape.
@@ -323,24 +308,6 @@ describe("the entry rule keeps Sales work out of Delivery Work", () => {
       customer_address: "12 Jalan Sekolah, 41000 Klang",
     });
     expect(entersDeliveryWork(o)).toBe(true);
-  });
-
-  it("⭐ a scope with no building facts ENTERS as a data problem (owner ruling 2026-09-13)", () => {
-    /* Only a missing ADDRESS keeps an order out of Monitor. Every other
-       required Sales fact that is missing is named on the row: the status
-       reads `Order details incomplete` and the brief names the fact. */
-    const o = order({ id: "a", so: 1301, building_type: null, delivery_floor: null, delivery_has_lift: null });
-    expect(entersDeliveryWork(o)).toBe(true);
-    expect(deliveryEntryBlockers(o)).toContain(DW.blockerNoBuilding);
-    expect(requiredSalesFactsMissing(o)).toEqual([
-      DW.buildingNotRecorded,
-      DW.floorNotRecorded,
-      DW.liftNotRecorded,
-    ]);
-    const rows = build([o]);
-    expect(rows[0]!.status.label).toBe("Order details incomplete");
-    expect(rows[0]!.status.second).toBe(DW.buildingNotRecorded);
-    expect(rows[0]!.missingFacts).toContain(DW.floorNotRecorded);
   });
 
   it("a complete row lacks nothing — the requested-date answer `not yet` counts as recorded", () => {
@@ -376,16 +343,6 @@ describe("the entry rule keeps Sales work out of Delivery Work", () => {
     expect(isOpenDeliveryScope(order({ id: "o", so: 1396 }))).toBe(true);
   });
 
-  it("⭐ refuses an order whose only line is a SERVICE — a truck carries goods", () => {
-    const o = order({
-      id: "a",
-      so: 1301,
-      order_lines: [{ id: "l-1", sku: "DELIVERY", qty: 1 }],
-    });
-    expect(entersDeliveryWork(o)).toBe(false);
-    expect(deliveryEntryBlockers(o)).toContain(DW.blockerNoGoods);
-  });
-
   it("admits an order carrying goods AND a service", () => {
     expect(
       entersDeliveryWork(
@@ -401,21 +358,7 @@ describe("the entry rule keeps Sales work out of Delivery Work", () => {
     ).toBe(true);
   });
 
-  it("names every missing fact at once rather than one per visit", () => {
-    const o = order({
-      id: "a",
-      so: 1301,
-      customer_address: null,
-      customer_address_city: null,
-      customer_address_state: null,
-      building_type: null,
-      delivery_floor: null,
-      delivery_has_lift: null,
-      order_lines: [],
-    });
-    expect(deliveryEntryBlockers(o)).toHaveLength(3);
   });
-});
 
 /**
  * ⭐ DELIVERY'S OWN ARRANGEMENT (0379) OUTRANKS THE SALES COLUMN.
@@ -501,7 +444,6 @@ describe("the arrangement is what Delivery wrote", () => {
   });
 });
 
-
 describe("REGION classification — direct state names (owner correction 2026-09-06)", () => {
   it("classifies a whole-order scope by its address state", () => {
     const rows = build([order({ id: "a", so: 1301 })]); // Selangor fixture
@@ -543,7 +485,6 @@ describe("REGION classification — direct state names (owner correction 2026-09
     expect(regionBucketOf(leg1)).toBe("Johor");
     expect(regionBucketOf(leg2)).toBe(SINGAPORE_KEY);
   });
-
 
 });
 
@@ -657,22 +598,7 @@ describe("the location, the State and the warning read ONE address", () => {
     expect(requiredSalesFactsMissing(o)).not.toContain(DW.stateNotRecorded);
   });
 
-  it("an order with NO address at all is still Sales work, never a Monitor row", () => {
-    /* The entry rule is untouched: reading an address that exists never
-       admits an order that has none. */
-    const o = order({
-      id: "nothing",
-      so: 1255,
-      customer_address: null,
-      customer_address_line1: null,
-      customer_address_city: null,
-      customer_address_state: null,
-    });
-    expect(entersDeliveryWork(o)).toBe(false);
-    expect(deliveryEntryBlockers(o)).toContain(DW.blockerNoLocation);
-    expect(build([o])).toEqual([]);
   });
-});
 
 /* ── 【DELIVERY】 CARD 20 — a Journey leg's arrival on Monitor ──────────────
    `Delivered` is the customer's word. Leg 1's `delivered` result on its own

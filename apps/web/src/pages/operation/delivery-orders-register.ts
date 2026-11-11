@@ -1,54 +1,4 @@
-/**
- * DELIVERY ORDERS REGISTER — the arithmetic behind the document register.
- * Owner UI correction 2026-09-06 · `docs/delivery/MASTER.md` §8.
- *
- * PURE. No React, no I/O. The register's rows, its WORK TO DO queues, its
- * DOCUMENT STATUS counts and the trip-scope goods derivation all live here so
- * the rail count and the listing it filters cannot be two different numbers
- * (Architecture Law D), and so the page component stays composition.
- *
- * ── WHAT THE QUEUES ARE, AND WHAT THEY ARE NOT ──────────────────────────────
- *
- * A WORK TO DO row is a lens over CANONICAL recorded facts only:
- *
- *   Record delivery result       derived `Out for delivery` — the §4 chain's
- *                                Received by Logistics with no result yet
- *   Upload delivery photo        a recorded Delivered/Partially Delivered
- *                                result whose T6 photo ledger is KNOWN and
- *                                empty (an unknown ledger claims nothing)
- *   Upload signed Delivery Order the same recorded result with no signed
- *                                document on file (`orders.do_file_path`)
- *
- *   Check delivery proof         a delivered/partially delivered result whose
- *                                newest file no review has judged yet — the
- *                                §6.1 review record (0489, Card 13). A later
- *                                upload reopens it; `Proof Rejected` / `More
- *                                Proof Required` reopen the UPLOAD queue with
- *                                the reason instead.
- *
- * One document sits in at most ONE primary queue (the order above); completed
- * work leaves the queue but the document stays in the status views forever.
- */
-
-import {
-  deliveryGroupOf,
-  scheduledDeliveryOf,
-  deliveryOrderStatusOf,
-  signedDeliveryDocumentOf,
-  latestEvidenceAtOf,
-  proofDecisionLabel,
-  proofReviewStateOf,
-  type DeliveryAttemptEvidenceRow,
-  type DeliveryHandoverKind,
-  type DeliveryOrderStatus,
-  type DeliveryProofReviewRow,
-  type ProofReviewState,
-} from "@carres/shared";
-import { displayCustomerName } from "@/lib/customer-name";
-import type { DeliveryOrderAttemptRow, DeliveryOrderRow } from "@/lib/queries";
-import { resolveDeliveryLocality } from "@/lib/locality";
-import { requestedDeliveryOf } from "./sales-order-columns";
-import { lineName } from "./sales-order-facts";
+import { deliveryGroupOf, latestEvidenceAtOf, proofDecisionLabel, proofReviewStateOf, type DeliveryAttemptEvidenceRow, type DeliveryOrderStatus, type DeliveryProofReviewRow, type ProofReviewState } from "@carres/shared";
 
 /** ⭐ EVERY VISIBLE WORD, IN ONE PLACE (COPY-STANDARD, Delivery section). */
 export const DOR_COPY = {
@@ -133,12 +83,6 @@ export const DOR_COPY = {
   created: (doNumber: string) => `${doNumber} created`,
 } as const;
 
-/** The result an attempt records, in the governed three words (MASTER §6). */
-export const DELIVERY_RESULT_LABEL: Record<"delivered" | "partial" | "failed", string> = {
-  delivered: "Delivered",
-  partial: "Partially Delivered",
-  failed: "Failed Delivery",
-};
 
 /**
  * ⭐ DRIVER SUBMISSION — WHAT CAME BACK FROM **THIS** TRIP (owner ruling
@@ -208,34 +152,10 @@ export function driverSubmissionOf(
   return { known: true, photos, videos, unbound };
 }
 
-/** This document's own files, in the order they were recorded. The gallery and
- *  the player read the SAME predicate the count does (Law D). */
-export function submissionFilesOf<T extends DriverSubmissionFile>(
-  ledger: readonly T[] | null | undefined,
-  doNumber: string,
-  kind: "photo" | "video",
-): T[] {
-  return (ledger ?? []).filter((entry) => {
-    if ((entry.doNumber ?? "").trim() !== doNumber) return false;
-    return (entry.kind === "video" ? "video" : "photo") === kind;
-  });
-}
 
 export type DoWorkQueue = "record_result" | "upload_photo" | "upload_signed_do" | "check_proof";
 
-export const DO_WORK_QUEUES: readonly DoWorkQueue[] = [
-  "record_result",
-  "upload_photo",
-  "upload_signed_do",
-  "check_proof",
-];
 
-export const DO_QUEUE_LABEL: Record<DoWorkQueue, string> = {
-  record_result: DOR_COPY.recordResult,
-  upload_photo: DOR_COPY.uploadPhoto,
-  upload_signed_do: DOR_COPY.uploadSignedDo,
-  check_proof: DOR_COPY.checkProof,
-};
 
 /**
  * §6.1 (0489) — what Operation has said about THIS document's proof, and
@@ -277,17 +197,6 @@ export function proofReviewOf(input: {
   };
 }
 
-/** The document ladder's kinds, in register reading order. `arrived` (Card
- *  20) is an intermediate Journey leg's document whose goods reached the named
- *  partner warehouse — a sixth word, never a synonym of `Delivered`. */
-export const DO_STATUS_KEYS: readonly DeliveryOrderStatus["kind"][] = [
-  "created",
-  "out_for_delivery",
-  "arrived",
-  "delivered",
-  "exception",
-  "cancelled",
-];
 
 export interface DoRegisterRow {
   id: string;
@@ -351,14 +260,6 @@ export interface DoRegisterRow {
   amount: number | null;
 }
 
-/** This trip's lines; add-ons are order-wide, so they ride an unsplit document only. */
-function tripAmountOf(r: DeliveryOrderRow, lines: DoRegisterRow["lines"]): number {
-  const money = (x: { qty: number; unit_price?: number | string | null }) =>
-    Number(x.unit_price ?? 0) * Number(x.qty);
-  const goods = (lines as Array<{ qty: number; unit_price?: number | string | null }>).reduce((n, l) => n + money(l), 0);
-  const whole = !r.trip_groups || r.trip_groups.length === 0;
-  return goods + (whole ? (r.orders.order_addons ?? []).reduce((n, a) => n + money(a), 0) : 0);
-}
 
 /**
  * THIS TRIP's goods — the SAME derivation the DO object page and the print
@@ -377,15 +278,6 @@ export function tripLinesOf<T extends { sku: string }>(
   });
 }
 
-/** Two named items and a truthful tail — the register summary shape. */
-function goodsSummaryOf(
-  lines: readonly { sku: string; qty: number; attrs?: Record<string, unknown> | null }[],
-): string {
-  if (lines.length === 0) return "";
-  const named = lines.slice(0, 2).map((l) => `${lineName(l)} ×${l.qty}`);
-  const rest = lines.length - 2;
-  return rest > 0 ? `${named.join(" · ")} · +${rest} more` : named.join(" · ");
-}
 
 /**
  * THE MISSING EVIDENCE of a recorded delivered result — the ONE arithmetic
@@ -423,35 +315,7 @@ export function proofReopened(review: Pick<DoProofReview, "state"> | null | unde
   return review?.state === "rejected" || review?.state === "more_required";
 }
 
-/** The ONE primary queue (priority order; a voided document queues nowhere). */
-export function doWorkQueueOf(row: {
-  status: DeliveryOrderStatus;
-  latestResult: DoRegisterRow["latestResult"];
-  photosPresent: boolean | null;
-  signedDoPresent: boolean;
-  proofReview?: DoProofReview;
-  intermediateLeg?: boolean;
-}): DoWorkQueue | null {
-  if (row.status.kind === "cancelled") return null;
-  /* An arrival at a partner warehouse closes the leg's work: the next leg's
-     document carries the next act, and the customer leg carries the proof. */
-  if (row.status.kind === "arrived") return null;
-  if (row.status.kind === "out_for_delivery") return "record_result";
-  const missing = missingDeliveryProofOf(row);
-  if (missing.photo) return "upload_photo";
-  if (missing.signedDo) return "upload_signed_do";
-  /* §6.1 — a rejection reopens the upload with its reason; a file nobody has
-     judged yet is the review's own queue. */
-  if (proofReopened(row.proofReview)) return "upload_photo";
-  if (row.proofReview?.state === "pending") return "check_proof";
-  return null;
-}
 
-/** PostgREST may embed a to-one overlay as an object or a one-row array. */
-function overlayOf<T>(value: T | T[] | null | undefined): T | null {
-  if (value == null) return null;
-  return Array.isArray(value) ? value[0] ?? null : value;
-}
 
 /** §6.1's records, keyed by document number, as the page groups them once. */
 export interface DoProofRecords {
@@ -473,187 +337,17 @@ export function groupProofRecords(
   return { reviewsByDo, evidenceByDo };
 }
 
-export function buildDoRegisterRow(
-  r: DeliveryOrderRow,
-  attemptsByDo: ReadonlyMap<string, DeliveryOrderAttemptRow[]>,
-  handoverByDoId: ReadonlyMap<string, DeliveryHandoverKind[]>,
-  proofRecords?: DoProofRecords,
-): DoRegisterRow {
-  const attempts = attemptsByDo.get(r.do_number) ?? [];
-  /* 0491 — the Delivery scope this document carries: 0 the whole order,
-     1..n a Journey leg. A leg BEFORE the last one is a warehouse trip: its
-     success is an ARRIVAL, and it owes no delivery proof (Card 20). */
-  const leg = r.leg ?? 0;
-  const stops = r.orders.delivery_stops ?? [];
-  const lastLeg = stops.reduce((max, stop) => Math.max(max, Number(stop.leg) || 0), 0);
-  const stop = leg > 0 ? stops.find((s) => Number(s.leg) === leg) ?? null : null;
-  const intermediateLeg = leg > 0 && leg < lastLeg;
-  const status = deliveryOrderStatusOf({
-    voidedAt: r.voided_at,
-    voidReason: r.void_reason,
-    attempts: attempts.map((a) => ({
-      result: a.result,
-      reasonKey: a.reason_key,
-      recordedAt: a.recorded_at,
-    })),
-    handoverEvents: (handoverByDoId.get(r.id) ?? []).map((kind) => ({ kind })),
-    intermediateLeg,
-    legStop: stop?.to_loc ?? null,
-  });
-  const latest = [...attempts].sort((a, b) => b.recorded_at.localeCompare(a.recorded_at))[0];
-  /* The document's own day and carrier were snapshotted when it was minted;
-     one minted before the booking has neither. Delivery's arrangement for the
-     same leg is the one fallback every other surface already reads. */
-  const arrangement = r.orders.ops_delivery_arrangements?.find((a) => (a.leg ?? 0) === leg) ?? null;
-  const scheduled = scheduledDeliveryOf({
-    document: { deliveryDate: r.delivery_date, timeSlot: r.time_slot },
-    arrangement: arrangement
-      ? { confirmedDate: arrangement.confirmed_date, confirmedTime: arrangement.confirmed_time }
-      : null,
-  });
-  const partnerEmbed = arrangement?.delivery_partners;
-  const arrangementPartner = (Array.isArray(partnerEmbed) ? partnerEmbed[0]?.name : partnerEmbed?.name) ?? null;
-  const control = overlayOf(r.orders.ops_order_control);
-  const photos = control?.delivery_photos;
-  const lines = tripLinesOf(r.orders.order_lines ?? [], r.trip_groups);
-  /* ⭐ Scoped to THIS document (owner ruling 2026-09-11): the ledger belongs
-     to the Sales Order, the count belongs to the trip. */
-  const submission = driverSubmissionOf(photos, r.do_number);
-  const signedDocument = signedDeliveryDocumentOf({
-    documentNumber: r.do_number,
-    order: r.orders,
-    evidence: proofRecords?.evidenceByDo.get(r.do_number),
-  });
-  const reached =
-    !intermediateLeg && (latest?.result === "delivered" || latest?.result === "partial");
-  /* §6.1 — only a result that reached the customer has proof to review. */
-  const proofReview = reached
-    ? proofReviewOf({
-        doNumber: r.do_number,
-        ledger: photos,
-        signedDoUploadedAt: signedDocument?.uploadedAt ?? null,
-        reviews: proofRecords?.reviewsByDo.get(r.do_number) ?? [],
-        attemptEvidence: proofRecords?.evidenceByDo.get(r.do_number) ?? [],
-      })
-    : NO_PROOF_REVIEW;
-  const base = {
-    status,
-    latestResult: (latest?.result ?? null) as DoRegisterRow["latestResult"],
-    submission,
-    submissionLedger: (photos ?? null) as readonly DriverSubmissionFile[] | null,
-    photosPresent: submission.known ? submission.photos > 0 : null,
-    signedDoPresent: Boolean(signedDocument),
-    proofReview,
-    intermediateLeg,
-  };
-  return {
-    id: r.id,
-    doNumber: r.do_number,
-    orderId: r.orders.id,
-    leg,
-    lastLeg,
-    legRoute: stop ? [stop.from_loc, stop.to_loc].filter(Boolean).join(" → ") : null,
-    so: r.orders.so,
-    customer: displayCustomerName(r.orders.customer_name ?? "") || "No customer name",
-    /* The SAME `Requested Delivery Date` arithmetic Monitor and the Sales
-       Orders register read — never a second copy of the tbd guard. */
-    requestedDelivery: requestedDeliveryOf(r.orders).iso,
-    requestedTbd: requestedDeliveryOf(r.orders).tbd,
-    confirmedDelivery: scheduled.iso,
-    confirmedTime: scheduled.time,
-    /* ⭐ THE SAME ADDRESS READING MONITOR RUNS (owner correction
-       2026-09-14). Both pages read the SAME order row, so a second
-       interpretation here is how one Delivery surface starts printing
-       `Not recorded` over an address the other prints as `Puchong,
-       Selangor`. No live row differs today — all 4 issued documents carry
-       the structured state — and this is what stops the first one that does
-       not from splitting the two registers. */
-    location: resolveDeliveryLocality(r.orders).label,
-    logisticsPartner: r.logistics_partner ?? arrangementPartner,
-    issuedAt: r.issued_at,
-    lines,
-    goodsSummary: goodsSummaryOf(lines),
-    queue: doWorkQueueOf(base),
-    invoiceNos: invoiceNosOf(r),
-    refNo: r.orders.source_ref ?? null,
-    salesperson: (Array.isArray(r.orders.salespersons) ? r.orders.salespersons[0]?.name : r.orders.salespersons?.name) ?? null,
-    driver: arrangement?.driver_name ?? null,
-    vehicle: arrangement?.vehicle ?? null,
-    phone: r.orders.customer_phone ?? null,
-    email: r.orders.customer_email ?? null,
-    address: r.orders.customer_address ?? null,
-    city: r.orders.customer_address_city ?? null,
-    state: r.orders.customer_address_state ?? null,
-    postcode: r.orders.customer_address_postcode ?? null,
-    buildingType: r.orders.building_type ?? null,
-    amount: intermediateLeg ? null : tripAmountOf(r, lines),
-    ...base,
-  };
-}
 
 export interface DoRegisterFilters {
   queue: DoWorkQueue | null;
   status: DeliveryOrderStatus["kind"] | null;
 }
 
-export function matchesDoFilters(row: DoRegisterRow, f: DoRegisterFilters): boolean {
-  return (
-    (f.queue === null || row.queue === f.queue) &&
-    (f.status === null || row.status.kind === f.status)
-  );
-}
 
-function invoiceNosOf(r: DeliveryOrderRow): string[] {
-  const live = (r.orders.invoice_documents ?? [])
-    .filter((i) => !i.voided_at && i.invoice_no)
-    .map((i) => i.invoice_no as string);
-  if (live.length > 0) return live;
-  return r.orders.invoice_no ? [r.orders.invoice_no] : [];
-}
 
-export type DoDateBy = "do" | "delivery";
 
-/** Houzs `Transfer from` and return chips: PO numbers by SO, return numbers by document. */
-export function documentLinksOf(
-  sourcePos: readonly { id: string; so: number | null; so_refs: number[] | null }[] = [],
-  returns: readonly { delivery_order_id: string; return_no: string | null }[] = [],
-) {
-  const posBySo = new Map<number, string[]>();
-  for (const po of sourcePos) {
-    for (const so of new Set([...(po.so_refs ?? []), ...(po.so == null ? [] : [po.so])])) {
-      posBySo.set(so, [...(posBySo.get(so) ?? []), po.id]);
-    }
-  }
-  const returnsByDo = new Map<string, string[]>();
-  for (const r of returns) {
-    if (r.return_no) returnsByDo.set(r.delivery_order_id, [...(returnsByDo.get(r.delivery_order_id) ?? []), r.return_no]);
-  }
-  return { posBySo, returnsByDo };
-}
 
-/** Houzs DoDateFilter: a from/to window over the DO date or the delivery date.
- *  A row with no delivery date falls outside a delivery-date window. */
-export function matchesDoDates(
-  row: DoRegisterRow,
-  w: { from: string | null; to: string | null; by: DoDateBy },
-): boolean {
-  if (!w.from && !w.to) return true;
-  const day = (w.by === "do" ? row.issuedAt : row.confirmedDelivery)?.slice(0, 10);
-  if (!day) return false;
-  return (!w.from || day >= w.from) && (!w.to || day <= w.to);
-}
 
-/** Houzs' four tiles (MfgDeliveryOrdersListV2.tsx:1646-1684). A cancelled
- *  document is neither a delivery nor revenue. */
-export function doRegisterTiles(rows: readonly DoRegisterRow[]) {
-  const live = rows.filter((r) => r.status.kind !== "cancelled");
-  return {
-    total: live.length,
-    revenue: live.reduce((n, r) => n + (r.amount ?? 0), 0),
-    inTransit: live.filter((r) => r.status.kind === "out_for_delivery").length,
-    delivered: live.filter((r) => r.status.kind === "delivered").length,
-  };
-}
 
 export interface DoRegisterRails {
   work: Record<DoWorkQueue, number>;
@@ -661,32 +355,4 @@ export interface DoRegisterRails {
   total: number;
 }
 
-/**
- * Each group's counts are computed over the rows the OTHER group has already
- * narrowed — a count is always what clicking that row will actually show.
- */
-export function buildDoRegisterRails(
-  rows: readonly DoRegisterRow[],
-  f: DoRegisterFilters,
-): DoRegisterRails {
-  const forWork = rows.filter((r) => f.status === null || r.status.kind === f.status);
-  const forStatus = rows.filter((r) => f.queue === null || r.queue === f.queue);
-  const work = { record_result: 0, upload_photo: 0, upload_signed_do: 0, check_proof: 0 };
-  for (const r of forWork) if (r.queue) work[r.queue] += 1;
-  const status: DoRegisterRails["status"] = {
-    created: 0,
-    out_for_delivery: 0,
-    arrived: 0,
-    delivered: 0,
-    exception: 0,
-    cancelled: 0,
-  };
-  for (const r of forStatus) status[r.status.kind] += 1;
-  return { work, status, total: forStatus.length };
-}
 
-/** The footer sentence — documents, counted truthfully. */
-export function doRegisterFooter(shown: number, total: number): string {
-  const word = total === 1 ? "delivery order" : "delivery orders";
-  return shown === total ? `${shown} ${word}` : `${shown} of ${total} delivery orders`;
-}

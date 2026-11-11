@@ -88,10 +88,11 @@ describe("Card C1 · the Office has exactly ONE receiving door", () => {
 
   it("every Office receiving call in the web app goes through office-receive", () => {
     const officeCallers = SOURCES.filter((f) => /office-receive/.test(code(f)));
-    // The hook that owns the door, and nothing else in pages/**.
-    expect(officeCallers.map((f) => f.replace(WEB_SRC + "/", "")).sort()).toEqual([
-      "lib/queries.ts",
-    ]);
+    // At most the hook that owns the door, and nothing else in pages/**. The Carres Receiving page was
+    // replaced by the Houzs engine page on 11 Nov 2026, so the hook itself is gone too (12 Nov 2026).
+    expect(
+      officeCallers.map((f) => f.replace(WEB_SRC + "/", "")).filter((f) => f !== "lib/queries.ts"),
+    ).toEqual([]);
   });
 
   it("the order drawer hands over instead of receiving in place", () => {

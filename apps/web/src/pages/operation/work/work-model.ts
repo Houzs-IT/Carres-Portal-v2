@@ -119,33 +119,10 @@ export function workFocusDay(today: string, dueIsos: readonly (string | null)[])
   return today;
 }
 
-/**
- * The Date choice (Work left rail, owner ruling 2026-09-24). Exactly one of
- * `missed` · one calendar date (`YYYY-MM-DD`) · `no_date` is chosen. `focus` is
- * the MASTER §5.1 opening list (Missed plus the focus day) and `all` is the
- * whole open set, which the toolbar's timing filter still opens.
- */
-export type WorkDayKey = "focus" | "missed" | "no_date" | "all" | string;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function isWorkDate(key: string): boolean {
-  return ISO_DATE.test(key);
-}
 
-/** Whether a row belongs to the chosen Date. Pure: `today` is the feed's own
- *  Malaysia date and `focusDay` its §5.1 focus day. */
-export function inWorkDay(item: WorkRow, day: WorkDayKey, today: string, focusDay: string): boolean {
-  if (day === "all") return true;
-  if (item.timingBucket === "overdue") return day === "missed" || day === "focus";
-  if (day === "missed") return false;
-  if (day === "no_date") return item.dueIso === null;
-  // The focus list also holds anything due between today and the focus day
-  // (work dated on today's holiday or Sunday), so opening on the next
-  // working day never hides it.
-  if (day === "focus") return item.dueIso !== null && item.dueIso >= today && item.dueIso <= focusDay;
-  return item.dueIso === day;
-}
 
 /** The Monday a `week` URL value names, or null when it names no date. */
 export function parseWorkWeek(value: string | null): string | null {
@@ -370,15 +347,7 @@ export type WorkStatus = "todo" | "waiting" | "done";
 
 export const WORK_STATUS_ORDER: readonly WorkStatus[] = ["todo", "waiting", "done"];
 
-export const WORK_STATUS_WORD: Record<WorkStatus, string> = {
-  todo: "To do",
-  waiting: "Waiting for answer",
-  done: "Done today",
-};
 
-export function workStatusOf(row: WorkRow): WorkStatus {
-  return row.source.communication?.replyState === "waiting" && row.timingBucket !== "overdue" ? "waiting" : "todo";
-}
 
 /** The chosen statuses from the URL's `status` (`todo,waiting`); more than
  *  one may be on. Absent or empty = `To do` alone, the opening list. */
@@ -397,35 +366,4 @@ export function toggleWorkStatus(current: readonly WorkStatus[], status: WorkSta
   return next.length === 1 && next[0] === "todo" ? null : next.join(",");
 }
 
-/** ⭐ THE ORDER IS THE CORE (Jess, 2026-09-26 night): the list shows one row
- *  per RECORD — a Sales Order, or a PO for supplier work — carrying every
- *  open act on it. Order of records = order of their first act in the list;
- *  the record's date is its earliest act; it is missed when any act is. */
-export interface WorkRecord {
-  key: string;
-  soRef: string;
-  module: WorkRow["module"];
-  items: WorkRow[];
-  dueIso: string | null;
-  missed: boolean;
-  timingBucket: WorkRow["timingBucket"];
-}
 
-export function groupByRecord(rows: readonly WorkRow[]): WorkRecord[] {
-  const byKey = new Map<string, WorkRecord>();
-  for (const row of rows) {
-    const key = `${row.orderId}`;
-    const record = byKey.get(key);
-    if (record) {
-      record.items.push(row);
-      if (row.dueIso && (!record.dueIso || row.dueIso < record.dueIso)) record.dueIso = row.dueIso;
-      if (row.timingBucket === "overdue") { record.missed = true; record.timingBucket = "overdue"; }
-      continue;
-    }
-    byKey.set(key, {
-      key, soRef: row.soRef, module: row.module, items: [row], dueIso: row.dueIso,
-      missed: row.timingBucket === "overdue", timingBucket: row.timingBucket,
-    });
-  }
-  return [...byKey.values()];
-}

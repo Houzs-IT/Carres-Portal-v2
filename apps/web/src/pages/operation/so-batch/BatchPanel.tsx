@@ -28,20 +28,7 @@ import PoSendProofFields, { usePoSendProof, PoSendEvidenceButton } from "../comp
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import {
-  SO_BATCH_PANEL_WORDS as R,
-  SO_BATCH_TASK_WORDS as T,
-  defaultAllocations,
-  documentDisplayNumber,
-  groupSelectionsIntoDocuments,
-  isSelectableForOrder,
-  parsePoWindowKey,
-  poWindowTimeWord,
-  soBatchPurchaseResponseSchema,
-  type PurchaseDemandRow,
-  type SoBatchOrderRow,
-  type SoBatchPurchaseResponse,
-} from "@carres/shared";
+import { SO_BATCH_PANEL_WORDS as R, SO_BATCH_TASK_WORDS as T, defaultAllocations, documentDisplayNumber, groupSelectionsIntoDocuments, isSelectableForOrder, parsePoWindowKey, poWindowTimeWord, soBatchPurchaseResponseSchema, type SoBatchOrderRow, type SoBatchPurchaseResponse } from "@carres/shared";
 import Button from "@/components/kit/Button";
 import Checkbox from "@/components/kit/Checkbox";
 import Icon from "@/components/kit/Icon";
@@ -90,8 +77,6 @@ export interface BatchTask {
   dueAt: string;
 }
 
-const poLabel = (po: { poId: string; version?: number | null }) =>
-  documentDisplayNumber(`${po.poId}${po.version == null ? "" : `-V${po.version}`}`);
 
 /** POs attributed to a batch belong to its EARLIEST window, once (§5.6.1). */
 function batchPos(data: SoBatchPurchaseResponse) {
@@ -116,41 +101,6 @@ function buyLines(data: SoBatchPurchaseResponse) {
     && isSelectableForOrder(row, status.get(row.orderId) ?? "blank"));
 }
 
-/**
- * The open tasks of an SO Batch read: per batch and supplier, unsent POs to
- * send, else lines to buy. The same facts the panel reads; the host only orders.
- */
-export function batchTasksOf(data: SoBatchPurchaseResponse): BatchTask[] {
-  type Acc = { windowKey: string; supplierId: string; supplierName: string; unsent: Array<{ poId: string; version?: number | null }>; buy: PurchaseDemandRow[] };
-  const tasks = new Map<string, Acc>();
-  const at = (windowKey: string, supplierId: string, supplierName: string) => {
-    const key = `${windowKey}::${supplierId}`;
-    let acc = tasks.get(key);
-    if (!acc) tasks.set(key, (acc = { windowKey, supplierId, supplierName, unsent: [], buy: [] }));
-    return acc;
-  };
-  for (const po of batchPos(data)) {
-    if (!po.supplierId || po.status === "received" || po.sentCurrentVersion) continue;
-    at(po.poWindow!, po.supplierId, po.supplierName ?? "Supplier not set").unsent.push(po);
-  }
-  for (const row of buyLines(data)) at(row.poWindow!, row.supplierId!, row.supplier ?? "Supplier not set").buy.push(row);
-  return [...tasks.entries()].map(([key, acc]) => {
-    const parsed = parsePoWindowKey(acc.windowKey);
-    const timeWord = parsed ? poWindowTimeWord(parsed.time) : acc.windowKey;
-    const dueAt = parsed ? `${parsed.date}T${parsed.time}:00+08:00` : acc.windowKey;
-    if (acc.unsent.length > 0) {
-      const one = acc.unsent.length === 1;
-      return { key, windowKey: acc.windowKey, supplierId: acc.supplierId, supplierName: acc.supplierName, dueAt,
-        action: one ? T.sendOne(acc.supplierName) : T.sendMany(acc.unsent.length, acc.supplierName),
-        reference: one ? poLabel(acc.unsent[0]!) : timeWord };
-    }
-    const sos = [...new Set(acc.buy.map((row) => row.so))];
-    const qty = acc.buy.reduce((sum, row) => sum + (row.toBuy ?? 0), 0);
-    return { key, windowKey: acc.windowKey, supplierId: acc.supplierId, supplierName: acc.supplierName, dueAt,
-      action: T.issue(acc.supplierName),
-      reference: `${sos.length === 1 ? (sos[0] == null ? "" : `SO-${sos[0]}`) : T.salesOrders(sos.length)} · ${T.itemsToBuy(qty)}` };
-  }).sort((a, b) => a.dueAt.localeCompare(b.dueAt) || a.supplierName.localeCompare(b.supplierName));
-}
 
 /* ── The host contract: `tasks-host.ts` (UI Tasks build) ─────────────── */
 

@@ -24,7 +24,6 @@ const GOODS_DOCUMENTS = [
   "po-template.tsx",
   "sales-order-template.tsx",
   "do-template.tsx",
-  "grn-template.tsx",
   "invoice-template.tsx",
 ] as const;
 

@@ -41,7 +41,6 @@ describe.skipIf(!ON)("go-live render", () => {
 
     const { SalesOrderTemplate } = await import("./sales-order-template");
     const { PoTemplate } = await import("./po-template");
-    const { GrnTemplate } = await import("./grn-template");
     const { InvoiceTemplate } = await import("./invoice-template");
 
     const goods = [
@@ -81,19 +80,6 @@ describe.skipIf(!ON)("go-live render", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any));
 
-    await write("golive-grn.pdf", GrnTemplate({
-      grn_no: "GRN-20260923-0210", grn_doc_date: "2026-09-23T02:00:00Z", status_label: "Valid",
-      source: { po_number: "PO-20260922-8987", is_consignment: false },
-      supplier: { name: "Nice Future Sdn Bhd" }, supplier_do_no: "DO-77412",
-      deliver_to: "Carres Klang Warehouse", goods_arrived_at: "Carres Klang Warehouse",
-      goods_received_on: "2026-09-22",
-      lines: [
-        { sku: "B1201F-K", description: "Forte Mattress — King", category: "Mattress", order_qty: 12, received_qty: 11, damaged_qty: 1, wrong_item_qty: 0, pending_delivery_qty: 1 },
-        { sku: "PIL-STD", description: "Pillow Standard", category: "Accessory", order_qty: 4, received_qty: 4, damaged_qty: 0, wrong_item_qty: 0, pending_delivery_qty: 0 },
-      ],
-      duty: { holder_name: "Li Ching", cover_name: null, actor_name: "Li Ching", authority_label: "GRN Duty", posted_on: "2026-09-23" },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any));
 
     await write("golive-invoice.pdf", InvoiceTemplate({
       doc_title: "TAX INVOICE", invoice_no: "INV-20260923-4471", issue_date: "2026-09-23",

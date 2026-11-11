@@ -17,8 +17,6 @@ const IMAGE_MIMES = ["image/jpeg", "image/png"] as const;
 const VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/webm"] as const;
 const PDF_MIMES = ["application/pdf"] as const;
 const MAX_SIZE = 10 * 1024 * 1024;
-export const SUPPLIER_ANSWER_MIMES: readonly string[] = [...IMAGE_MIMES, ...VIDEO_MIMES, ...PDF_MIMES];
-export const SUPPLIER_ANSWER_MAX_BYTES = MAX_SIZE;
 
 /** The signed upload slot for one PO's answer evidence. */
 export const signSupplierAnswerUpload = (poId: string, poVersion: number, file: File) =>
