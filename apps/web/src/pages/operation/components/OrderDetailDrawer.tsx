@@ -5305,7 +5305,7 @@ function BookingBlock({
             <div className="text-right py-0.5">
               <Link
                 className="text-meta font-semibold text-kit-blue-11"
-                to={`/operation/settings/delivery/partners/${encodeURIComponent(checkedPartner.id)}/schedule`}
+                to={"/operation/sc/settings"}
                 data-testid="drawer-partner-rules-door"
               >
                 {checkedPartner.name} delivery rules

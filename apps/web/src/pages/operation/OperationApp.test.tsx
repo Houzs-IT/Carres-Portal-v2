@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 /**
  * The Operations shell after 11 Nov 2026: Service Cases, Projects and Supply Chain are the engine's pages at
  * `/operation/sc/<row>`; the old Carres pages of those areas are removed and their addresses move to the nearest
- * engine row; Carres's own pages (Workspace, Leave, Subscription, Issue Tracker, Settings) still mount here.
+ * engine row; Carres's own pages (Workspace, Leave, Subscription) still mount here. The Issue Tracker, the Sales
+ * invoice lines report, the Settings workspace and the HR area are removed (owner, 11 Nov 2026); `hr` opens
+ * the System rows only.
  * Children are stubbed: this suite owns routing only.
  */
 vi.mock("./SupplyChainEngine", () => ({
@@ -22,17 +24,10 @@ vi.mock("./components/GlobalTopBar", () => ({
   default: () => <div data-testid="global-topbar-stub">topbar</div>,
   TopBarIcons: () => <div data-testid="topbar-icons-stub">icons</div>,
 }));
-vi.mock("./SettingsWorkspace", () => ({
-  default: () => <div data-testid="settings-stub">Settings</div>,
-  settingsSectionLabel: (path: string) => (path.includes("staff-duties") ? "Staff & Duties" : null),
-}));
 vi.mock("./tasks/WorkspaceTasks", () => ({ default: () => <div data-testid="work-stub">work</div> }));
 vi.mock("./OperationLeave", () => ({ default: () => <div data-testid="leave-stub">leave</div> }));
 vi.mock("./OperationRental", () => ({ default: () => <div data-testid="rental-stub">rental</div> }));
-vi.mock("./OperationIssueTracker", () => ({ default: () => <div data-testid="issues-stub">issues</div> }));
-vi.mock("./IssueRelatedPartyReport", () => ({ default: () => <div data-testid="issue-report-stub">report</div> }));
-vi.mock("./DocumentLinesReport", () => ({ SalesInvoiceLinesReport: () => <div data-testid="si-lines-stub">lines</div> }));
-
+import { useAuth } from "@/lib/auth";
 import OperationApp from "./OperationApp";
 
 function LocationProbe() {
@@ -53,6 +48,8 @@ function renderApp(initialPath: string) {
 }
 
 const at = () => screen.getByTestId("location-probe").textContent;
+
+beforeEach(() => useAuth.setState({ role: "operation" as never }));
 
 describe("OperationApp — the engine rows", () => {
   it.each([
@@ -81,7 +78,15 @@ describe("OperationApp — retired Carres addresses move to the nearest engine r
     ["/operation?tab=guarantees", "/operation/sc/service-notes"],
     ["/operation?tab=projects", "/operation/sc/projects"],
     ["/operation?tab=warehouse-inbound", "/operation/sc/receiving"],
-    ["/operation/settings/service", "/operation/sc/service-maintenance"],
+    // The Carres Settings workspace is removed: every Settings address opens Houzs's own Settings.
+    ["/operation/settings/service", "/operation/sc/settings"],
+    ["/operation/settings/staff-duties", "/operation/sc/settings"],
+    ["/operation/settings", "/operation/sc/settings"],
+    ["/operation?tab=staff-duties", "/operation/sc/settings"],
+    // The Carres Issue Tracker and the Sales invoice lines report are removed: Sales Orders.
+    ["/operation/issues", "/operation/sc/orders"],
+    ["/operation/issues/reports", "/operation/sc/orders"],
+    ["/operation?tab=sales-invoice-lines", "/operation/sc/orders"],
   ])("%s → %s", (from, to) => {
     renderApp(from);
     expect(at()).toBe(to);
@@ -94,10 +99,6 @@ describe("OperationApp — Carres's own pages stay", () => {
     ["/operation?tab=work", "work-stub"],
     ["/operation?tab=leave", "leave-stub"],
     ["/operation?tab=rental", "rental-stub"],
-    ["/operation?tab=sales-invoice-lines", "si-lines-stub"],
-    ["/operation/issues", "issues-stub"],
-    ["/operation/issues/reports", "issue-report-stub"],
-    ["/operation/settings/staff-duties", "settings-stub"],
   ])("%s mounts its page", (path, id) => {
     renderApp(path);
     expect(screen.getByTestId(id)).toBeInTheDocument();
@@ -110,4 +111,43 @@ describe("OperationApp — Carres's own pages stay", () => {
     renderApp("/operation?tab=payments&so=SO-1");
     expect(at()).toBe("/finance/monitor?order=SO-1");
   });
+});
+
+describe("OperationApp — the System rows (owner, 11 Nov 2026)", () => {
+  it.each([
+    ["/operation/sc/hub-team", "/team?tab=hub"],
+    ["/operation/sc/team-directory", "/team?tab=directory"],
+    ["/operation/sc/team-org-chart", "/team?tab=orgchart2"],
+    ["/operation/sc/team-departments", "/team?tab=departments2"],
+    ["/operation/sc/team-mailboxes", "/team?tab=mail2"],
+    ["/operation/sc/team-roles", "/team?tab=permissions"],
+    ["/operation/sc/mail-center", "/mail-center"],
+    ["/operation/sc/it-support", "/it-support"],
+    ["/operation/sc/settings", "/settings"],
+  ])("%s opens the engine page %s", (path, page) => {
+    renderApp(path);
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", page);
+  });
+});
+
+describe("OperationApp — hr opens the System rows only", () => {
+  beforeEach(() => useAuth.setState({ role: "hr" as never }));
+
+  it.each(["/operation/sc/hub-team", "/operation/sc/team-directory", "/operation/sc/mail-center", "/operation/sc/it-support"])(
+    "%s opens for hr",
+    (path) => {
+      renderApp(path);
+      expect(at()).toBe(path);
+      expect(screen.getByTestId("engine-stub")).toBeInTheDocument();
+    },
+  );
+
+  it.each(["/operation", "/operation/sc/orders", "/operation/sc/hub-scm", "/operation/sc/settings", "/operation?tab=work", "/operation/settings/office"])(
+    "%s sends hr to the Team hub",
+    (path) => {
+      renderApp(path);
+      expect(at()).toBe("/operation/sc/hub-team");
+      expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/team?tab=hub");
+    },
+  );
 });
