@@ -28,7 +28,7 @@ import type { Env } from "../types";
 import type { AuthUser } from "../services/auth";
 import { hasPermission } from "../services/permissions";
 import { recipientList, sendEmail } from "../services/email";
-import { getBranding, getBrandingForCompany } from "../services/branding";
+import { getBranding, getBrandingForCompany, brandingMailDomain, CARRES_MAIL_DOMAIN } from "../services/branding";
 import { toStoredMailAttachments, validateMailAttachments } from "../lib/mail-attachments";
 import { isSalesDirectorUser } from "../services/pmsAccess";
 import { activeCompanyCodePred, activeCompanyId, activeCompanySql } from "../scm/lib/companyScope";
@@ -69,9 +69,10 @@ const RECIPIENT_COMPANY_RULES: Array<{
   match: (addr: string) => boolean;
   code: string;
 }> = [
-  // HOUZS inbound addresses / domain.
+  // HOUZS (the one Carres company, internal code HOUZS) inbound domain.
+  // Carres: carresofficial.com, never a Houzs domain.
   {
-    match: (a) => a.endsWith("@houzscentury.com") || a === "hello@houzscentury.com",
+    match: (a) => a.endsWith(`@${CARRES_MAIL_DOMAIN}`),
     code: "HOUZS",
   },
   // 2990's inbound domain (hello@2990shome.com et al).
@@ -226,16 +227,15 @@ async function storeAttachments(
   }
 }
 
-// The inbound mailbox domain (e.g. "houzscentury.com") comes from the central
-// Branding config — never a literal. Falls back to houzscentury.com if Branding
-// is unreadable (getBranding never throws).
+// The inbound mailbox domain comes from the central Branding config — never a
+// literal. Carres: falls back to carresofficial.com (never a Houzs domain) when
+// Branding has no email or is unreadable (getBranding never throws).
 async function brandingDomain(env: Env | undefined): Promise<string> {
-  if (!env) return "houzscentury.com";
+  if (!env) return CARRES_MAIL_DOMAIN;
   try {
-    const branding = await getBranding(env);
-    return (branding.email.split("@")[1] || "houzscentury.com").trim().toLowerCase();
+    return brandingMailDomain(await getBranding(env));
   } catch {
-    return "houzscentury.com";
+    return CARRES_MAIL_DOMAIN;
   }
 }
 

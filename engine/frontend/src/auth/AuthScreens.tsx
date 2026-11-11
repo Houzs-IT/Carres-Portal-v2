@@ -360,7 +360,7 @@ export function LoginScreen() {
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@houzscentury.com"
+            placeholder="you@carresofficial.com"
             required
             autoFocus={!email}
           />
@@ -472,7 +472,7 @@ export function ForgotPasswordScreen() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@houzscentury.com"
+            placeholder="you@carresofficial.com"
             required
             autoFocus
           />
@@ -641,7 +641,7 @@ export function BootstrapScreen() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="jane@houzscentury.com"
+            placeholder="jane@carresofficial.com"
             required
           />
         </div>

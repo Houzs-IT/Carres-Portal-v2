@@ -1,6 +1,6 @@
 import type { Env } from "../types";
 import { issueSurveyToken } from "./assr";
-import { sendEmail, publicUrl } from "./email";
+import { sendEmail, enginePublicUrl } from "./email";
 import { resolveCompanyCode, getBrandingForCompany } from "./branding";
 
 /* The satisfaction survey a case sends when it reaches 'completed' — shared by
@@ -25,7 +25,7 @@ export async function sendCompletionSurvey(env: Env, id: number): Promise<void> 
     // row's company_id), not the operator's active company.
     const caseCompanyCode = await resolveCompanyCode(env, row!.company_id);
     const token = await issueSurveyToken(env, id);
-    const link = publicUrl(env, `/survey/${token}`, caseCompanyCode);
+    const link = enginePublicUrl(env, `/survey/${token}`) /* Carres: engine page */;
     const name = (row!.customer_name || "").split(" ")[0] || "there";
     // Footer must carry the CASE's company (2990 cases must not sign off as
     // Houzs) — derive it from the document's branding, not a hardcode.

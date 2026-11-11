@@ -71,6 +71,14 @@ export interface Branding {
   debtorInvoiceTerms: string;
 }
 
+// Carres: the mail domain when Settings > Branding has no email yet (never a Houzs domain).
+export const CARRES_MAIL_DOMAIN = "carresofficial.com";
+
+/** Carres: the domain of the Branding email, else carresofficial.com. */
+export function brandingMailDomain(branding: Pick<Branding, "email"> | null | undefined): string {
+  return ((branding?.email ?? "").split("@")[1] || CARRES_MAIL_DOMAIN).trim().toLowerCase();
+}
+
 const BRANDING_KEY = "branding";
 
 /** Company code whose canonical branding row is the legacy 'branding' key. */
