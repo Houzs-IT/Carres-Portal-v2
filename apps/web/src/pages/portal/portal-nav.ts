@@ -60,6 +60,8 @@ import {
   Building2,
   Mail,
   LifeBuoy,
+  ListChecks,
+  AlertCircle,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
@@ -116,6 +118,16 @@ export type PortalSection =
    * IT Support as plain rows ("System" has no module row). */
   | "Team"
   | "System"
+  /* HOUZS FINANCE (engine; owner 11 Nov 2026): Houzs's Finance group (Sidebar.tsx:736-873), its plain rows
+   * (To do, Money today), its five sub-groups and its one Reports entry. Kept apart from the Carres Finance
+   * sections below, which belong to the old Carres Finance area. */
+  | "Finance"
+  | "Finance Money in"
+  | "Finance Money out"
+  | "Finance Bank"
+  | "Finance Books"
+  | "Finance Reports"
+  | "Finance Setup"
   | "Admin"
   /* The Finance modules (Chew, 2026-10-03; docs/finance/MASTER.md §4). Used
    * only by Finance's own pages; no other area has a page in them. */
@@ -142,6 +154,14 @@ export const SECTION_ORDER: ReadonlyArray<PortalSection> = [
   "Delivery",
   "Warehouse",
   "Showroom",
+  /* Houzs Finance, after Supply Chain as in Houzs. */
+  "Finance",
+  "Finance Money in",
+  "Finance Money out",
+  "Finance Bank",
+  "Finance Books",
+  "Finance Reports",
+  "Finance Setup",
   "Team",
   "System",
   "Admin",
@@ -210,6 +230,13 @@ export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   { section: "Warehouse", label: "Warehouse", icon: Warehouse, landingKey: WAREHOUSE_LANDING_KEY },
   { section: "Customer Care", label: "Service Cases", icon: Zap, mIcon: "support_agent" },
   { section: "Projects", label: "Projects", icon: FolderKanban, mIcon: "event" },
+  /* Houzs Finance's sub-groups, Houzs words and icons (Sidebar.tsx:761-871). A Houzs group only opens and
+   * shuts (it has no `to`), so the row goes nowhere. Reports is one entry, so it draws as a plain row. */
+  { section: "Finance Money in", label: "Money in", icon: HandCoins, handleOnly: true },
+  { section: "Finance Money out", label: "Money out", icon: Wallet, handleOnly: true },
+  { section: "Finance Bank", label: "Bank & cards", icon: Landmark, handleOnly: true },
+  { section: "Finance Books", label: "Books", icon: BookOpen, handleOnly: true },
+  { section: "Finance Setup", label: "Setup", icon: Settings, handleOnly: true },
   /* System, Houzs words (Sidebar.tsx:963-1000). */
   { section: "Team", label: "Team", icon: Users },
   /* Finance, Houzs words (Sidebar.tsx:740-853). */
@@ -315,6 +342,9 @@ export interface PortalNavGroup {
 
 /** Who sees the System rows: everyone who sees Operations, and `hr` (owner 11 Nov 2026). */
 const SYSTEM_ROLES: ReadonlyArray<Role> = ["operation", "principal", "hr"];
+/** Who sees the Houzs Finance rows: everyone who sees Operations, and `finance` (owner 11 Nov 2026). What each
+ *  person may open inside it is the engine's own role (Team > Roles & Permissions), as in Houzs. */
+const FINANCE_ROLES: ReadonlyArray<Role> = ["operation", "principal", "finance"];
 
 export const PORTAL_NAV: PortalNavGroup[] = [
   {
@@ -323,7 +353,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
     base: "/operation",
     /* `hr` sees only the rows that name it (Payment Requests by grant, and the System rows): the Carres
      * HR area is removed (owner, 11 Nov 2026) and Houzs's Team is where people are kept now. */
-    roles: ["operation", "principal", "hr"],
+    /* `finance` sees only the Houzs Finance rows (FINANCE_ROLES). */
+    roles: ["operation", "principal", "hr", "finance"],
     itemRoles: ["operation", "principal"],
     // The Operations landing is the Houzs Sales Orders page (the old Carres Overview is removed).
     defaultTab: "orders",
@@ -423,6 +454,42 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "stock-transfers", label: "Transfers", icon: ArrowLeftRight, path: "/operation/sc/stock-transfers", section: "Warehouse" },
       { key: "stock-takes", label: "Stock Take", icon: ClipboardCheck, path: "/operation/sc/stock-takes", section: "Warehouse" },
 
+      /* FINANCE — Houzs's whole Finance group (Sidebar.tsx:736-873; owner 11 Nov 2026): its rows, order,
+       * words, icons and addresses. Also shown to `finance`. */
+      { key: "fin-todo", label: "To do", icon: ListChecks, path: "/operation/sc/fin-todo", badge: "finance-todo", section: "Finance", roles: FINANCE_ROLES },
+      { key: "fin-money-today", label: "Money today", icon: Landmark, path: "/operation/sc/fin-money-today", section: "Finance", roles: FINANCE_ROLES },
+      { key: "fin-receipts", label: "Receipts", icon: Receipt, path: "/operation/sc/fin-receipts", section: "Finance Money in", roles: FINANCE_ROLES },
+      { key: "fin-invoices", label: "Invoices", icon: FileText, path: "/operation/sc/fin-invoices", section: "Finance Money in", roles: FINANCE_ROLES },
+      { key: "fin-debtors", label: "Debtor maintenance", icon: Settings, path: "/operation/sc/fin-debtors", section: "Finance Money in", roles: FINANCE_ROLES },
+      { key: "fin-credit-notes", label: "Credit / debit notes", icon: FileText, path: "/operation/sc/fin-credit-notes", section: "Finance Money in", roles: FINANCE_ROLES },
+      { key: "fin-outstanding", label: "Outstanding", icon: AlertCircle, path: "/operation/sc/fin-outstanding", section: "Finance Money in", roles: FINANCE_ROLES },
+      { key: "fin-not-billed", label: "Not yet billed", icon: HandCoins, path: "/operation/sc/fin-not-billed", section: "Finance Money in", roles: FINANCE_ROLES },
+      { key: "fin-payment-vouchers", label: "Payment vouchers", icon: Wallet, path: "/operation/sc/fin-payment-vouchers", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-payment-listing", label: "Payment listing", icon: ListChecks, path: "/operation/sc/fin-payment-listing", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-payment-requests", label: "Payment requests", icon: HandCoins, path: "/operation/sc/fin-payment-requests", badge: "payment-requests-waiting", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-supplier-bills", label: "Supplier bills", icon: FileText, path: "/operation/sc/fin-supplier-bills", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-supplier-maintenance", label: "Supplier maintenance", icon: Truck, path: "/operation/sc/fin-supplier-maintenance", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-official-docs", label: "Official invoices owed", icon: FileText, path: "/operation/sc/fin-official-docs", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-supplier-notes", label: "Supplier & other creditor CN / DN", icon: FileText, path: "/operation/sc/fin-supplier-notes", section: "Finance Money out", roles: FINANCE_ROLES },
+      { key: "fin-merchant-recon", label: "Merchant reports", icon: CreditCard, path: "/operation/sc/fin-merchant-recon", section: "Finance Bank", roles: FINANCE_ROLES },
+      { key: "fin-bank-recon", label: "Bank statements", icon: Banknote, path: "/operation/sc/fin-bank-recon", section: "Finance Bank", roles: FINANCE_ROLES },
+      { key: "fin-daily-bank", label: "Daily Bank", icon: Landmark, path: "/operation/sc/fin-daily-bank", section: "Finance Bank", roles: FINANCE_ROLES },
+      { key: "fin-unmatched", label: "Unmatched Payments", icon: AlertCircle, path: "/operation/sc/fin-unmatched", section: "Finance Bank", roles: FINANCE_ROLES },
+      { key: "fin-journal", label: "Journal entries", icon: BookOpen, path: "/operation/sc/fin-journal", section: "Finance Books", roles: FINANCE_ROLES },
+      { key: "fin-gl", label: "General ledger", icon: FileText, path: "/operation/sc/fin-gl", section: "Finance Books", roles: FINANCE_ROLES },
+      { key: "fin-tb", label: "Trial balance", icon: Receipt, path: "/operation/sc/fin-tb", section: "Finance Books", roles: FINANCE_ROLES },
+      { key: "fin-self-check", label: "Self-check", icon: ClipboardCheck, path: "/operation/sc/fin-self-check", section: "Finance Books", roles: FINANCE_ROLES },
+      { key: "fin-stock-close", label: "Stock close", icon: History, path: "/operation/sc/fin-stock-close", section: "Finance Books", roles: FINANCE_ROLES },
+      /* Houzs's one Reports entry: it opens the first report (P&L); every report lights it (ENGINE_ROW_ALIASES). */
+      { key: "fin-reports", label: "Reports", icon: BarChart3, path: "/operation/sc/fin-reports", section: "Finance Reports", roles: FINANCE_ROLES },
+      { key: "fin-coa", label: "Chart of accounts", icon: Settings, path: "/operation/sc/fin-coa", section: "Finance Setup", roles: FINANCE_ROLES },
+      { key: "fin-opening-balance", label: "Opening balance", icon: Settings, path: "/operation/sc/fin-opening-balance", section: "Finance Setup", roles: FINANCE_ROLES },
+      { key: "fin-item-groups", label: "Item groups", icon: Settings, path: "/operation/sc/fin-item-groups", section: "Finance Setup", roles: FINANCE_ROLES },
+      { key: "fin-recon-setup", label: "Recon setup", icon: Settings, path: "/operation/sc/fin-recon-setup", section: "Finance Setup", roles: FINANCE_ROLES },
+      { key: "fin-currencies", label: "Currencies", icon: DollarSign, path: "/operation/sc/fin-currencies", section: "Finance Setup", roles: FINANCE_ROLES },
+      { key: "fin-deposit-invoices", label: "Deposit invoices", icon: Receipt, path: "/operation/sc/fin-deposit-invoices", section: "Finance Setup", roles: FINANCE_ROLES },
+      { key: "fin-todo-rules", label: "To do rules", icon: ListChecks, path: "/operation/sc/fin-todo-rules", section: "Finance Setup", roles: FINANCE_ROLES },
+
       /* SYSTEM — Houzs's Team, Mail Center and IT Support (Sidebar.tsx:922-1085; owner 11 Nov 2026). Also
        * shown to `hr`. */
       { key: "team-directory", label: "Directory", icon: Users, path: "/operation/sc/team-directory", section: "Team", roles: SYSTEM_ROLES },
@@ -435,8 +502,51 @@ export const PORTAL_NAV: PortalNavGroup[] = [
     ],
   },
   {
+    area: "principal",
+    label: "Admin",
+    base: "/principal",
+    roles: ["principal"],
+    defaultTab: "dashboard",
+    items: [
+      { key: "dashboard", label: "Overview", icon: LayoutDashboard },
+      { key: "approvals", label: "Approvals", icon: BadgeCheck, pendingPill: true },
+      // POS-parity (Loo 2026-07-03): the entry opens the POS *catalog* — named
+      // like 2990s (the POS home IS the catalog), not "New order".
+      { key: "pos", label: "Catalog", icon: LayoutGrid },
+      // The principal trace-only Orders page is gone (Loo 2026-07-16) — Admin
+      // "Orders" jumps straight to the Operations order control grid.
+      //
+      // ONE DESTINATION, ONE WORD (owner ruling 2026-09-23). A principal stands
+      // in Operations AND Admin at once, so this row and the Operations child
+      // above point at the same page and light together. Two different words on
+      // two rows for one register is the duplicate the ruling names; the
+      // word for that register is the Houzs `Sales Orders`. The address is
+      // unchanged, so the principal's bookmark still lands.
+      { key: "orders", label: "Sales Orders", icon: ShoppingCart, path: "/operation/orders" },
+      // Loo 2026-07-19 — two separate doors: "Dealers" = external resellers,
+      // "Showrooms" = the stores Carres owns. Same page, filtered by
+      // `dealers.channel`.
+      { key: "dealers", label: "Dealers", icon: Users },
+      { key: "showrooms", label: "Showrooms", icon: Store },
+      { key: "partners", label: "Partners", icon: Network },
+      { key: "audit", label: "Audit log", icon: ScrollText },
+      { key: "accounts", label: "Accounts", icon: Settings },
+      // Catalog split (Loo 2026-07-25) — the SELLING catalog (retail / POS
+      // prices, PWP, promos; the full 8-tab Product & Maintenance page) is an
+      // ADMIN door: only the principal touches selling prices (0226). Costing
+      // stays in Operations as the Operation Catalog above.
+      { key: "catalog", label: "Product & Maintenance", icon: BookOpen },
+      // Rental split out of P&M (Loo 2026-07-26): the rent/buy offer config
+      // had outgrown a tab strip that is otherwise pure catalog work. Settings
+      // only — the agreements/units registry stays the Operations "Rental" page.
+      { key: "rental-setting", label: "Rental", icon: Repeat },
+    ],
+  },
+  {
     area: "finance",
-    label: "Finance",
+    /* The old Carres Finance, moved to the very bottom of the menu (owner, 11 Nov 2026) under its own word, so
+     * it is not a second "Finance" beside Houzs's Finance group in Operations. Nothing in it is removed. */
+    label: "Finance (old)",
     base: "/finance",
     roles: ["finance", "principal"],
     defaultTab: "dashboard",
@@ -510,47 +620,6 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "dealers", label: "Dealers", icon: Users, financePath: "/finance/dealers" },
     ],
   },
-  {
-    area: "principal",
-    label: "Admin",
-    base: "/principal",
-    roles: ["principal"],
-    defaultTab: "dashboard",
-    items: [
-      { key: "dashboard", label: "Overview", icon: LayoutDashboard },
-      { key: "approvals", label: "Approvals", icon: BadgeCheck, pendingPill: true },
-      // POS-parity (Loo 2026-07-03): the entry opens the POS *catalog* — named
-      // like 2990s (the POS home IS the catalog), not "New order".
-      { key: "pos", label: "Catalog", icon: LayoutGrid },
-      // The principal trace-only Orders page is gone (Loo 2026-07-16) — Admin
-      // "Orders" jumps straight to the Operations order control grid.
-      //
-      // ONE DESTINATION, ONE WORD (owner ruling 2026-09-23). A principal stands
-      // in Operations AND Admin at once, so this row and the Operations child
-      // above point at the same page and light together. Two different words on
-      // two rows for one register is the duplicate the ruling names; the
-      // word for that register is the Houzs `Sales Orders`. The address is
-      // unchanged, so the principal's bookmark still lands.
-      { key: "orders", label: "Sales Orders", icon: ShoppingCart, path: "/operation/orders" },
-      // Loo 2026-07-19 — two separate doors: "Dealers" = external resellers,
-      // "Showrooms" = the stores Carres owns. Same page, filtered by
-      // `dealers.channel`.
-      { key: "dealers", label: "Dealers", icon: Users },
-      { key: "showrooms", label: "Showrooms", icon: Store },
-      { key: "partners", label: "Partners", icon: Network },
-      { key: "audit", label: "Audit log", icon: ScrollText },
-      { key: "accounts", label: "Accounts", icon: Settings },
-      // Catalog split (Loo 2026-07-25) — the SELLING catalog (retail / POS
-      // prices, PWP, promos; the full 8-tab Product & Maintenance page) is an
-      // ADMIN door: only the principal touches selling prices (0226). Costing
-      // stays in Operations as the Operation Catalog above.
-      { key: "catalog", label: "Product & Maintenance", icon: BookOpen },
-      // Rental split out of P&M (Loo 2026-07-26): the rent/buy offer config
-      // had outgrown a tab strip that is otherwise pure catalog work. Settings
-      // only — the agreements/units registry stays the Operations "Rental" page.
-      { key: "rental-setting", label: "Rental", icon: Repeat },
-    ],
-  },
 ];
 /** Service Cases, Projects and Supply Chain: each row's engine page (engine/, Houzs's own screens), shown in a
  *  frame at the row's `/operation/sc/<row>` address. Keyed by row, valued by the engine address. */
@@ -586,8 +655,38 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "hub-team": "/team?tab=hub", "team-directory": "/team?tab=directory", "team-org-chart": "/team?tab=orgchart2",
   "team-departments": "/team?tab=departments2", "team-mailboxes": "/team?tab=mail2", "team-roles": "/team?tab=permissions",
   "mail-center": "/mail-center", "it-support": "/it-support",
+  // Houzs Finance (Sidebar.tsx:736-873).
+  "fin-todo": "/scm/finance", "fin-money-today": "/scm/daily-bank?view=board", "fin-receipts": "/scm/receipts",
+  "fin-invoices": "/scm/ar-invoices", "fin-debtors": "/scm/other-debtors",
+  "fin-credit-notes": "/scm/credit-notes", "fin-outstanding": "/scm/outstanding",
+  "fin-not-billed": "/scm/unbilled-deliveries", "fin-payment-vouchers": "/scm/payment-vouchers",
+  "fin-payment-listing": "/scm/payment-listing", "fin-payment-requests": "/scm/payment-requests",
+  "fin-supplier-bills": "/scm/ap-invoices", "fin-supplier-maintenance": "/scm/supplier-maintenance",
+  "fin-official-docs": "/scm/official-docs", "fin-supplier-notes": "/scm/supplier-notes",
+  "fin-merchant-recon": "/scm/merchant-recon", "fin-bank-recon": "/scm/bank-recon",
+  "fin-daily-bank": "/scm/daily-bank", "fin-unmatched": "/scm/unmatched-payments",
+  "fin-journal": "/scm/accounting?tab=je", "fin-gl": "/scm/accounting?tab=gl",
+  "fin-tb": "/scm/accounting?tab=tb", "fin-self-check": "/scm/accounting?tab=check",
+  "fin-stock-close": "/scm/accounting?tab=close", "fin-reports": "/scm/accounting?tab=pnl",
+  "fin-coa": "/scm/chart-of-accounts", "fin-opening-balance": "/scm/opening-balance",
+  "fin-item-groups": "/scm/accounting?tab=groups", "fin-recon-setup": "/scm/settlement-setup",
+  "fin-currencies": "/scm/currencies", "fin-deposit-invoices": "/scm/finance/deposit-invoices",
+  "fin-todo-rules": "/scm/finance/rules",
   // Houzs's own Settings: the menu's Settings gear opens it (owner, 11 Nov 2026). No menu row of its own.
   settings: "/settings",
+};
+
+/** Engine pages a row stands for beyond its own page: Houzs's one Reports entry is lit on every report (its
+ *  reports catalogue, pages/scm-v2/reports-catalog.ts) and on a Books page opened from the report list
+ *  (`in=reports`, Sidebar.tsx `alsoActive`). An alias outranks a row page of the same length. */
+export const ENGINE_ROW_ALIASES: Readonly<Record<string, ReadonlyArray<string>>> = {
+  "fin-reports": [
+    "/scm/accounting?tab=bs", "/scm/accounting?tab=rp", "/scm/accounting?tab=ar", "/scm/accounting?tab=ap",
+    "/scm/accounting?tab=collection", "/scm/accounting?tab=performance", "/scm/accounting?tab=products",
+    "/scm/accounting?tab=events", "/scm/accounting?tab=commission", "/scm/accounting?tab=logistics",
+    "/scm/accounting?tab=charges", "/scm/accounting?tab=corrections", "/scm/accounting?in=reports",
+    "/scm/forecast", "/scm/finance-dashboard", "/reports/fair-report",
+  ],
 };
 
 /** The Settings gear's address outside Finance: Houzs's own Settings (ENGINE_PAGES `settings`). */
@@ -645,8 +744,10 @@ const RETIRED_TABS: Readonly<Record<string, string>> = {
 /** Houzs's module rows open a hub page (Houzs Sidebar.tsx `to`): Service Cases, Projects, each Supply Chain
  *  module, and Supply Chain itself ("supply-chain", the Operations fold row). Keyed by section, valued by
  *  the ENGINE_PAGES key. */
-export const ENGINE_HUBS: Readonly<Partial<Record<PortalSection | "supply-chain", string>>> = {
-  "supply-chain": "hub-scm", "Customer Care": "hub-service", Projects: "hub-projects", Sales: "hub-sales",
+export const ENGINE_HUBS: Readonly<Partial<Record<PortalSection | "supply-chain" | "finance", string>>> = {
+  "supply-chain": "hub-scm",
+  /* Houzs's Finance row opens Finance's To do (Sidebar.tsx:741 `to: "/scm/finance"`). */
+  finance: "fin-todo", "Customer Care": "hub-service", Projects: "hub-projects", Sales: "hub-sales",
   Consignment: "hub-consignment", Purchasing: "hub-procurement", Delivery: "hub-transportation", Warehouse: "hub-warehouse",
   Team: "hub-team",
 };
@@ -693,14 +794,18 @@ export function engineRowFor(enginePath: string): string | null {
   let url: URL;
   try { url = new URL(enginePath, "http://engine"); } catch { return null; }
   let best: { key: string; score: number } | null = null;
-  for (const [key, page] of Object.entries(ENGINE_PAGES)) {
+  const pages: Array<[string, string, number]> = [
+    ...Object.entries(ENGINE_PAGES).map(([key, page]): [string, string, number] => [key, page, 0]),
+    ...Object.entries(ENGINE_ROW_ALIASES).flatMap(([key, list]) => list.map((page): [string, string, number] => [key, page, 0.5])),
+  ];
+  for (const [key, page, bonus] of pages) {
     if (ENGINE_SHORTCUT_ROWS.has(key)) continue;
     const p = new URL(page, "http://engine");
     const onPath = p.pathname === "/" ? url.pathname === "/" : url.pathname === p.pathname || url.pathname.startsWith(`${p.pathname}/`);
     if (!onPath) continue;
     const params = [...p.searchParams];
     if (!params.every(([k, v]) => url.searchParams.get(k) === v)) continue;
-    const score = p.pathname.length * 10 + params.length;
+    const score = p.pathname.length * 10 + params.length + bonus;
     if (!best || score > best.score) best = { key, score };
   }
   return best?.key ?? null;
@@ -841,7 +946,10 @@ export interface MenuGroup {
 }
 
 /** The Houzs areas of the Operations menu: their pages wear Houzs's own icon, as in Houzs's menu. */
-export const HOUZS_ICON_SECTIONS: ReadonlySet<PortalSection> = new Set<PortalSection>(["Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse", "Team"]);
+export const HOUZS_ICON_SECTIONS: ReadonlySet<PortalSection> = new Set<PortalSection>([
+  "Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse", "Team",
+  "Finance", "Finance Money in", "Finance Money out", "Finance Bank", "Finance Books", "Finance Reports", "Finance Setup",
+]);
 
 export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
   { label: "Workspace", sections: ["Workspace"] },
@@ -850,6 +958,13 @@ export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
     label: null,
     row: { key: "supply-chain", label: "Supply Chain", icon: Boxes },
     sections: ["Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse"],
+  },
+  /* Houzs's Finance group after Supply Chain (Sidebar.tsx:736; owner 11 Nov 2026): one expandable row holding
+   * To do, Money today, its five groups and Reports. */
+  {
+    label: null,
+    row: { key: "finance", label: "Finance", icon: BookOpen },
+    sections: ["Finance", "Finance Money in", "Finance Money out", "Finance Bank", "Finance Books", "Finance Reports", "Finance Setup"],
   },
   /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026): the Team module, then Mail Center and
    * IT Support. The Carres bottom group (Payments, Issue Tracker, Sales invoice lines) is removed. */

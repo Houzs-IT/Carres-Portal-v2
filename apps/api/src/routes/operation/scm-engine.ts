@@ -25,12 +25,12 @@ export async function engineAssertion(secret: string, who: { email: string; role
   return `${body}.${b64url(await crypto.subtle.sign("HMAC", key, enc.encode(body)))}`;
 }
 
-/** Operations staff and the principal; and `hr`, whose portal menu now holds Houzs's Team, Mail Center and IT
- *  Support (owner, 11 Nov 2026). The engine decides again (engine/backend/src/carres/sso.ts ENGINE_ROLES)
+/** Operations staff and the principal; `hr`, whose portal menu now holds Houzs's Team, Mail Center and IT
+ *  Support; and `finance`, whose portal menu now holds Houzs's Finance (owner, 11 Nov 2026). The engine decides again (engine/backend/src/carres/sso.ts ENGINE_ROLES)
  *  and gives a new person no pages until the owner picks their role there. */
-const ENGINE_ROLES = new Set(["operation", "principal", "hr"]);
+const ENGINE_ROLES = new Set(["operation", "principal", "hr", "finance"]);
 const requireEngineRole: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (!ENGINE_ROLES.has(c.var.auth?.role ?? "")) throw new HTTPException(403, { message: "operation, Principal or HR only" });
+  if (!ENGINE_ROLES.has(c.var.auth?.role ?? "")) throw new HTTPException(403, { message: "operation, Principal, HR or Finance only" });
   await next();
 };
 

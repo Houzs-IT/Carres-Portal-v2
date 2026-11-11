@@ -298,7 +298,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     return rowMatchesTab(group, item, current, location.search);
   }
 
-  const homeHref = groups[0] ? areaDefaultHref(groups[0]) : "/";
+  /* Home is the first area whose ordinary rows this role sees: `finance` stands in Operations for the Houzs
+     Finance rows only, so its home stays its own Finance area. */
+  const homeGroup = groups.find((g) => !g.itemRoles || (role != null && g.itemRoles.includes(role))) ?? groups[0];
+  const homeHref = homeGroup ? areaDefaultHref(homeGroup) : "/";
   const activeGroup = groups.find((g) => g.area === activeArea) ?? groups[0];
 
   /* ── THE ACCORDION ──────────────────────────────────────────────────────
@@ -620,8 +623,8 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           data-testid={`nav-fold-${row.key}`}
           aria-expanded={open}
           onClick={() => {
-            /* Supply Chain opens Houzs's /scm hub, as Houzs's row does; a second click folds it. */
-            const hubKey = !open ? ENGINE_HUBS[row.key as "supply-chain"] : undefined;
+            /* Supply Chain opens Houzs's /scm hub and Finance its To do, as Houzs's rows do; a second click folds it. */
+            const hubKey = !open ? ENGINE_HUBS[row.key as "supply-chain" | "finance"] : undefined;
             if (hubKey) navigate(`/operation/sc/${hubKey}`);
             else setFoldByHand({ at: here, open: !open });
           }}

@@ -17,8 +17,8 @@ import ShellTasks, { useShellTasks } from "./components/ShellTasks";
 import { useTasksHost } from "./tasks/tasks-host";
 import { ENGINE_SETTINGS_HREF, activeNavTitle, engineFor, retiredRedirect, roleMayOpenEngineRow } from "@/pages/portal/portal-nav";
 
-/** Where a person who may open only some rows (`hr`) lands: Houzs's Team hub. */
-const LIMITED_HOME = "/operation/sc/hub-team";
+/** Where a person who may open only some rows lands: `finance` on Houzs Finance's To do, `hr` on Houzs's Team hub. */
+const limitedHome = (role: string | null) => (role === "finance" ? "/operation/sc/fin-todo" : "/operation/sc/hub-team");
 
 /**
  * The Operations shell: the menu, one header over the page and the Tasks panel.
@@ -32,7 +32,8 @@ const LIMITED_HOME = "/operation/sc/hub-team";
  * the Payments rows left the Operations menu on 11 Nov 2026 (owner); their old addresses open Sales Orders.
  *
  * The `hr` role is let in for the System rows only (Team, Mail Center, IT Support; portal-nav SYSTEM_ROLES):
- * any other address sends it to the Team hub.
+ * any other address sends it to the Team hub. The `finance` role likewise for the Houzs Finance rows only
+ * (portal-nav FINANCE_ROLES): any other address sends it to Finance's To do.
  */
 export default function OperationApp() {
   const location = useLocation();
@@ -54,7 +55,8 @@ export default function OperationApp() {
 
   const navTitle = activeNavTitle(location.pathname, location.search);
   if (!fullAccess && !(enginePage && engineRow && roleMayOpenEngineRow(role, engineRow))) {
-    return location.pathname === LIMITED_HOME ? null : <Navigate to={LIMITED_HOME} replace />;
+    const home = limitedHome(role);
+    return location.pathname === home ? null : <Navigate to={home} replace />;
   }
   if (retired) return <Navigate to={retired} replace />;
 

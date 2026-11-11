@@ -9,6 +9,9 @@ export const ENGINE_BADGES = [
   "payment-backdate-approvals",
   "fair-links-to-settle",
   "product-request-approvals",
+  /* Houzs Finance (11 Nov 2026): To do's count and Money out's Payment requests waiting for Finance. */
+  "finance-todo",
+  "payment-requests-waiting",
 ] as const;
 export type EngineBadge = (typeof ENGINE_BADGES)[number];
 

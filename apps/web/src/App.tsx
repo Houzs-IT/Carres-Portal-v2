@@ -151,7 +151,8 @@ export default function App() {
                   is_operation(); API twin: requireOperation admits principal. */}
               {/* `hr` for the System rows only (Team, Mail Center, IT Support; owner 11 Nov 2026):
                   OperationApp sends it to the Team hub from every other address. */}
-              <RequireRole roles={["operation", "principal", "hr"]}>
+              {/* `finance` for the Houzs Finance rows only (owner 11 Nov 2026). */}
+              <RequireRole roles={["operation", "principal", "hr", "finance"]}>
                 <OperationApp />
               </RequireRole>
             </RequireAuth>

@@ -81,6 +81,19 @@ and the Operations Payments rows (Finance keeps Monitor and Payment Records). `h
 the System rows only; the engine opens for them only once its `ENGINE_ROLES` (engine/backend/src/carres/sso.ts)
 admits `hr`.
 
+**Houzs Finance (owner, 11 Nov 2026).** The engine's Finance module is on (`navOnly.ts` KEEP has `Finance`;
+only `/scm/hr` stays hidden, since Carres keeps people in Team). The menu draws Houzs's Finance group as one
+row after Supply Chain: To do · Money today · Money in ▸ · Money out ▸ · Bank & cards ▸ · Books ▸ · Reports ·
+Setup ▸, 32 engine rows (`fin-*` in `ENGINE_PAGES`), Houzs's words, order, icons and addresses; the row opens
+To do (`/scm/finance`). Reports opens the first report (P&L) and every report lights it
+(`ENGINE_ROW_ALIASES`). To do and Payment requests carry Houzs's counts (`finance-todo`,
+`payment-requests-waiting`, via `carres:badges`). `finance` logins see that group in `/operation` (and nothing
+else there) and may open the engine (`ENGINE_ROLES` in the portal API and the engine); like every non-principal
+account they start on the engine's "New member" role until the owner picks a role on Team > Roles &
+Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bottom of the menu as
+**Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
+migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
+
 **Resync from a newer Houzs main** (done 11 Nov 2026 from `a87a841be`):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
