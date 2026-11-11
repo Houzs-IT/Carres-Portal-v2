@@ -6,22 +6,23 @@ permissions:
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# The checks run side by side on separate machines (owner, 11 Nov 2026: CI took 25 minutes because every
+# check ran one after another on one machine, and the three test suites shared its CPUs). The web and
+# server suites are split into shards. `verify` is the one check to wait for: it passes only when every
+# check this PR needs passed.
 jobs:
-  verify:
-    # Pinned: Playwright cannot install chromium on ubuntu-latest (26.04) yet.
+  # What the PR can affect, from the files it changes. Only two narrow cases skip anything: a PR inside
+  # engine/ (its own site and checks) and a PR inside apps/api/. Any other file, docs and scripts included
+  # (web tests read them), runs everything.
+  scope:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: pnpm/action-setup@v4
-        with: { run_install: false }
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      # What the PR can affect, from the files it changes. Only two narrow cases skip anything: a PR inside engine/
-      # (its own site and checks) and a PR inside apps/api/. Any other file, docs and scripts included (web tests
-      # read them), runs everything.
       - name: Decide which checks this PR needs
         id: scope
         shell: bash
@@ -37,25 +38,27 @@ jobs:
           else scope=all; fi
           echo "scope=$scope" >> "$GITHUB_OUTPUT"
           echo "Checks for this PR: $scope" >> "$GITHUB_STEP_SUMMARY"
+
+  # Laws, guards, types, the production build and the bundle secret check: fast, always.
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
       - name: Validate migration law (never applies migrations)
         run: pnpm ci:migrations
       - name: Design and governance guards
         run: pnpm lint
       - name: Type checks
         run: pnpm typecheck
-      - name: Unit and integration tests
-        if: steps.scope.outputs.scope == 'all'
-        run: pnpm test
-      - name: Server tests (the PR changes only the server)
-        if: steps.scope.outputs.scope == 'api'
-        run: pnpm --filter @carres/api test
       - name: Production build
         run: pnpm build
-      - name: Kit check on the moved screens (1025, 1164 and 1440 wide)
-        if: steps.scope.outputs.scope == 'all'
-        run: |
-          pnpm exec playwright install --with-deps chromium
-          pnpm kit:check
       - name: Prove no server secret entered the web bundle
         shell: bash
         run: |
@@ -63,3 +66,99 @@ jobs:
             echo "Server-only secret name found in web build" >&2
             exit 1
           fi
+
+  # The web suite, in four shards on four machines.
+  web-tests:
+    needs: scope
+    if: needs.scope.outputs.scope == 'all'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Web tests, shard ${{ matrix.shard }} of 4
+        run: pnpm --filter @carres/web exec vitest run --shard=${{ matrix.shard }}/4
+
+  # The server suite in two shards, and the shared package, on their own machines.
+  server-tests:
+    needs: scope
+    if: needs.scope.outputs.scope == 'all' || needs.scope.outputs.scope == 'api'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [api-1, api-2, shared]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Server tests, shard 1 of 2
+        if: matrix.part == 'api-1'
+        run: pnpm --filter @carres/api exec vitest run --shard=1/2
+      - name: Server tests, shard 2 of 2
+        if: matrix.part == 'api-2'
+        run: pnpm --filter @carres/api exec vitest run --shard=2/2
+      - name: Shared package tests
+        if: matrix.part == 'shared' && needs.scope.outputs.scope == 'all'
+        run: pnpm --filter @carres/shared test
+
+  # The kit check on its own machine, with the Playwright browser cached between runs.
+  kit:
+    needs: scope
+    if: needs.scope.outputs.scope == 'all'
+    # Pinned: Playwright cannot install chromium on ubuntu-latest (26.04) yet.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { run_install: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache the Playwright browser
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Install chromium's system libraries
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      - name: Kit check on the moved screens (1025, 1164 and 1440 wide)
+        run: pnpm kit:check
+
+  # The one check to wait for: every needed check passed (a check this PR does not need is skipped).
+  verify:
+    if: always()
+    needs: [scope, checks, web-tests, server-tests, kit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every needed check passed
+        shell: bash
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then echo "A check did not pass: $r" >&2; exit 1; fi
+          done
