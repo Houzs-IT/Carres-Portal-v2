@@ -1,5 +1,5 @@
-import { Hono } from "hono";
-import { requireOperation } from "../../lib/auth-guards";
+import { Hono, type MiddlewareHandler } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "../../types";
 
 /**
@@ -25,7 +25,16 @@ export async function engineAssertion(secret: string, who: { email: string; role
   return `${body}.${b64url(await crypto.subtle.sign("HMAC", key, enc.encode(body)))}`;
 }
 
-router.post("/session", requireOperation, async (c) => {
+/** Operations staff and the principal; `hr`, whose portal menu now holds Houzs's Team, Mail Center and IT
+ *  Support; and `finance`, whose portal menu now holds Houzs's Finance (owner, 11 Nov 2026). The engine decides again (engine/backend/src/carres/sso.ts ENGINE_ROLES)
+ *  and gives a new person no pages until the owner picks their role there. */
+const ENGINE_ROLES = new Set(["operation", "principal", "hr", "finance"]);
+const requireEngineRole: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!ENGINE_ROLES.has(c.var.auth?.role ?? "")) throw new HTTPException(403, { message: "operation, Principal, HR or Finance only" });
+  await next();
+};
+
+router.post("/session", requireEngineRole, async (c) => {
   const api = c.env.SCM_ENGINE_API, site = c.env.SCM_ENGINE_SITE, secret = c.env.SCM_ENGINE_SSO_SECRET;
   if (!api || !site || !secret) return c.json({ error: "not_set_up", message: NOT_SET_UP }, 501);
   const auth = c.var.auth;

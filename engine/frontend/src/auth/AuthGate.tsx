@@ -9,6 +9,8 @@ import {
   shortCompanyName,
 } from "../lib/branding";
 import { useIsMobile } from "../mobile/useIsMobile";
+import { CARRES_EMBEDDED } from "../carres/embed";
+import { reportCarresSignedOut } from "../carres/ready";
 
 // Code-split the mobile app: desktop users never download it, and it stays out
 // of the initial JS bundle (keeps the bundle-budget CI gate green).
@@ -112,9 +114,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // banner surviving and the panel's own Reload being the honest exit.
   const slotKey = (screen: string) => `authgate:${screen}:${hash}`;
 
-  // Initial loading state — neutral splash
+  // Carres: inside the portal a refused session is told to the portal, which hands over a new one (carres/ready.ts).
+  useEffect(() => {
+    if (CARRES_EMBEDDED && !loading && !user) reportCarresSignedOut();
+  }, [loading, user]);
+
+  // Initial loading state — neutral splash. Carres: inside the portal its own skeleton is the one loading state.
   if (loading) {
-    return <AuthSplash />;
+    return CARRES_EMBEDDED ? null : <AuthSplash />;
   }
 
   // No users in the database → first-owner bootstrap

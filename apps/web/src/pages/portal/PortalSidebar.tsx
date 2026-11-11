@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import MIcon from "@/components/carres/MIcon";
-import ReportProblemModal from "@/pages/operation/components/ReportProblemModal";
 import { useAuth } from "@/lib/auth";
 import { useNavCapabilities } from "./nav-capabilities";
 import NavBadge from "@/components/NavBadge";
@@ -25,6 +24,9 @@ import {
   HOUZS_ICON_SECTIONS,
   ENGINE_HUBS,
   hubSectionFor,
+  roleMayOpenEngineRow,
+  ENGINE_SETTINGS_HREF,
+  IT_SUPPORT_HREF,
 } from "./portal-nav";
 import { useEngineBadges } from "./engine-badges";
 import {
@@ -153,7 +155,6 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
       if (compactForCanvas) canvasRailOpen = value;
       return value;
     });
-  const [reporting, setReporting] = useState(false);
   // Only the Sales Order detail's own compact rail starts shut again on each page or width change.
   useEffect(() => { if (!compactForCanvas) setDetailExpanded(false); }, [location.pathname, narrowDetail, compactForCanvas]);
   const autoDetail = isSalesOrderDetail && narrowDetail;
@@ -180,7 +181,8 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
 
   // Badge counts — operation area only. `enabled` keeps a finance-only user
   // from hitting /api/operation/badges (it would 403).
-  const opVisible = groups.some((g) => g.area === "operation");
+  // `hr` stands in Operations for the System rows only and has no Operations badges to read.
+  const opVisible = groups.some((g) => g.area === "operation") && (role === "operation" || role === "principal");
   const principalVisible = groups.some((g) => g.area === "principal");
   const badgesQ = useOperationBadges({ enabled: opVisible });
   const lpRejected = badgesQ.data?.lpRejected ?? 0;
@@ -248,8 +250,6 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   // `path` (orders) OR an item's `activeFor` path matcher. Used to suppress the
   // tab-key match for every OTHER item while a path section is showing.
   function onPathSection(group: PortalNavGroup): boolean {
-    // Settings is a routed destination even though it has no permanent menu row.
-    if (group.area === "operation" && location.pathname.startsWith("/operation/settings")) return true;
     return group.items.some((it) => {
       if (it.path && location.pathname.startsWith(it.path)) return true;
       return (
@@ -298,7 +298,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     return rowMatchesTab(group, item, current, location.search);
   }
 
-  const homeHref = groups[0] ? areaDefaultHref(groups[0]) : "/";
+  /* Home is the first area whose ordinary rows this role sees: `finance` stands in Operations for the Houzs
+     Finance rows only, so its home stays its own Finance area. */
+  const homeGroup = groups.find((g) => !g.itemRoles || (role != null && g.itemRoles.includes(role))) ?? groups[0];
+  const homeHref = homeGroup ? areaDefaultHref(homeGroup) : "/";
   const activeGroup = groups.find((g) => g.area === activeArea) ?? groups[0];
 
   /* ── THE ACCORDION ──────────────────────────────────────────────────────
@@ -620,8 +623,8 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           data-testid={`nav-fold-${row.key}`}
           aria-expanded={open}
           onClick={() => {
-            /* Supply Chain opens Houzs's /scm hub, as Houzs's row does; a second click folds it. */
-            const hubKey = !open ? ENGINE_HUBS[row.key as "supply-chain"] : undefined;
+            /* Supply Chain opens Houzs's /scm hub and Finance its To do, as Houzs's rows do; a second click folds it. */
+            const hubKey = !open ? ENGINE_HUBS[row.key as "supply-chain" | "finance"] : undefined;
             if (hubKey) navigate(`/operation/sc/${hubKey}`);
             else setFoldByHand({ at: here, open: !open });
           }}
@@ -650,16 +653,20 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   );
 
   /* Settings — the ONE Settings entry sits at the bottom of the menu (Layout
-   * Standard §2). Finance keeps its own Settings page; People has none. */
+   * Standard §2). Outside Finance it opens Houzs's own Settings (owner, 11 Nov 2026; the Carres Settings
+   * workspace is removed). Finance keeps its own Settings page. */
   const settingsHref = location.pathname.startsWith("/finance")
     ? "/finance/settings"
     : role === "operation" || role === "principal"
-      ? "/operation/settings"
+      ? ENGINE_SETTINGS_HREF
       : role === "finance"
         ? "/finance/settings"
         : null;
   const onSettings =
-    location.pathname.startsWith("/operation/settings") || location.pathname.startsWith("/finance/settings");
+    location.pathname === ENGINE_SETTINGS_HREF || location.pathname.startsWith("/finance/settings");
+  /* Report a problem to IT opens Houzs's IT Support page (owner, 11 Nov 2026), for every role that may open it. */
+  const itSupport = roleMayOpenEngineRow(role, "it-support");
+  const onItSupport = location.pathname === IT_SUPPORT_HREF;
   const roleWord: Record<string, string> = {
     operation: "Operations",
     principal: "Principal",
@@ -793,18 +800,18 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
             {!collapsed && <span>Settings</span>}
           </Link>
         )}
-        <button
-          type="button"
-          onClick={() => setReporting(true)}
-          data-testid="nav-report-problem"
-          title="Report a problem to IT"
-          aria-label={collapsed ? "Report a problem to IT" : undefined}
-          className={`${ROW} ${collapsed ? "justify-center" : ""} ${ROW_REST}`}
-        >
-          <MIcon name="support_agent" size={MODULE_ICON} className="text-c-tab" />
-          {!collapsed && <span>Report a problem to IT</span>}
-        </button>
-        <ReportProblemModal open={reporting} onClose={() => setReporting(false)} />
+        {itSupport && (
+          <Link
+            to={IT_SUPPORT_HREF}
+            data-testid="nav-report-problem"
+            title="Report a problem to IT"
+            aria-label={collapsed ? "Report a problem to IT" : undefined}
+            className={`${ROW} ${collapsed ? "justify-center" : ""} ${ROW_REST}`}
+          >
+            <MIcon name="support_agent" size={MODULE_ICON} className={onItSupport ? undefined : "text-c-tab"} />
+            {!collapsed && <span>Report a problem to IT</span>}
+          </Link>
+        )}
         <Link
           to="/me"
           title={`${displayName} · Profile · Sign out`}

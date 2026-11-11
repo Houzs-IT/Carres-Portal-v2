@@ -1,6 +1,7 @@
 // Carres only (not part of Houzs's code). The Carres copy of this engine is Supply Chain and Service Cases,
 // opened from the Carres portal's own menu (owner, 6 Nov 2026). Projects joined on 11 Nov 2026 (the engine replaces
-// the Carres Projects pages); Carres keeps its own Finance.
+// the Carres Projects pages). Finance joined on 11 Nov 2026 (owner: bring Houzs's whole Finance in; the Carres
+// Finance moves to the bottom of the portal menu).
 // Everything that builds a menu reads the registry in components/Sidebar.tsx, so trimming it here keeps the
 // desktop rail, the mobile menu and the hub pages in agreement.
 
@@ -16,9 +17,9 @@ const KEEP = new Set([
 ]);
 
 /** Houzs modules switched off here: their menu entries are dropped and their addresses go to CARRES_HOME
- *  (App.tsx). Path prefixes, matched on whole segments. */
+ *  (App.tsx). Path prefixes, matched on whole segments. HR stays off (Carres keeps people in Team); the
+ *  Forecast P&L and the finance Dashboard are Finance reports and are on with Finance (11 Nov 2026). */
 export const CARRES_HIDDEN_PATHS: readonly string[] = [
-  // Forecast and the finance dashboard are open again: the portal's Houzs Finance menu opens them (PR #2273).
   "/scm/hr",
   "/autocount-sync", "/pos-admin",
 ];
@@ -52,8 +53,9 @@ export function carresNavOnly<T extends NavNode>(tabs: T[]): T[] {
   return pruneHidden(tabs.filter((t) => KEEP.has(t.label)));
 }
 
-/** No AutoCount in the Carres engine: Settings drops its Sync tab and never asks for that status. */
-export const CARRES_AUTOCOUNT: boolean = true; // Settings shows its Sync tab as in Houzs (owner, 11 Nov 2026: same as Houzs except colour)
+/** No AutoCount in the Carres engine: the Worker does not serve /api/sync/*, so Settings drops its Sync tab
+ *  and never asks for that status (showing it only produced an error). Everything else in Settings is Houzs's. */
+export const CARRES_AUTOCOUNT: boolean = false;
 
 /** Where a switched-off module's address goes. The landing page itself is Houzs's Overview, as in Houzs. */
 export const CARRES_HOME = "/scm/sales-orders";

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { fail } from "../../lib/route-helpers";
 import { requireOperationOrPrincipal } from "../../lib/auth-guards";
 import { userClient } from "../../lib/supabase";
-import { actorKindOf, actorRoleWord, resolveActorIdentities, resolveActorNames } from "../../lib/actor-names";
+import { actorKindOf, actorRoleWord, resolveActorIdentities } from "../../lib/actor-names";
 import type { AppEnv } from "../../types";
 
 /**
@@ -81,39 +81,3 @@ annotationsRouter.get("/:id/timeline", requireOperationOrPrincipal, async (c) =>
 });
 
 export default annotationsRouter;
-
-// ─── Escalation inbox router (separate export, mounted at /operation/escalations) ───
-
-export const escalationsRouter = new Hono<AppEnv>();
-
-/**
- * GET /api/operation/escalations
- * Recent 'escalate'-tagged annotations with joined order + author.
- * Limit defaults to 10; ?limit=N accepted (max 30).
- */
-escalationsRouter.get("/", requireOperationOrPrincipal, async (c) => {
-  const limitRaw = Number(c.req.query("limit") ?? "10");
-  const limit = Math.min(Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 10), 30);
-
-  const sb = userClient(c.env, c.var.auth.jwt);
-  const { data, error } = await sb
-    .from("order_annotations")
-    .select("id, content, created_at, created_by, orders(id, so, customer_name)")
-    .eq("tag", "escalate")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) return fail(c, error);
-
-  // created_by FK points to auth.users (not public.app_users) so PostgREST
-  // can't traverse it. Names come from the one actor lookup.
-  const rows = data ?? [];
-  const names = await resolveActorNames(sb, rows.map((r) => r.created_by));
-
-  return c.json(
-    rows.map((r) => ({
-      ...r,
-      app_users: r.created_by ? { name: names.get(r.created_by) ?? null } : null,
-    })),
-  );
-});

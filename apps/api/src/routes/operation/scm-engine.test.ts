@@ -27,8 +27,18 @@ describe("POST /api/operation/scm-engine/session", () => {
     expect((await post(baseEnv)).status).toBe(501);
   });
 
-  it("403 for a role outside operation and principal", async () => {
-    expect((await post(engineEnv, "finance")).status).toBe(403);
+  it("403 for a role outside operation, principal, hr and finance", async () => {
+    expect((await post(engineEnv, "dealer")).status).toBe(403);
+  });
+
+  it("lets finance ask: its menu holds Houzs's Finance (owner, 11 Nov 2026)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ token: "tok" }), { status: 200 }));
+    expect((await post(engineEnv, "finance")).status).toBe(200);
+  });
+
+  it("lets hr ask too: its menu holds Houzs's Team, Mail Center and IT Support", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ token: "tok" }), { status: 200 }));
+    expect((await post(engineEnv, "hr")).status).toBe(200);
   });
 
   it("asks the engine with a signed assertion and hands back its session and site", async () => {

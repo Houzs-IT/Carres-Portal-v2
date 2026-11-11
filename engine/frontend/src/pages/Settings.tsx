@@ -28,6 +28,7 @@ import {
   setBrandingCache,
 } from "../lib/branding";
 import type { SyncStatusResponse, Paginated, ExecutionLog } from "../types";
+import { CARRES_AUTOCOUNT } from "../carres/navOnly"; // Carres: no AutoCount, no Sync tab
 import { correlatedFetch } from "../lib/requestCorrelation";
 import { DocumentTypesTab } from "./settings/DocumentTypesTab";
 
@@ -46,7 +47,7 @@ export function Settings() {
 
   const raw = params.get("tab") as SettingsTab | null;
   const active: SettingsTab =
-    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw)
+    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw) && (CARRES_AUTOCOUNT || raw !== "sync") // Carres
       ? raw
       : "connection";
 
@@ -56,11 +57,12 @@ export function Settings() {
     setParams(p, { replace: true });
   }
 
-  const status = useQuery<SyncStatusResponse>("/api/sync/status", () => api.get("/api/sync/status"));
+  // Carres: /api/sync/* is not served by the Carres engine, so never ask for it.
+  const status = useQuery<SyncStatusResponse>("/api/sync/status", () => api.get("/api/sync/status"), [], { enabled: CARRES_AUTOCOUNT });
 
   const tabs: TabOption<SettingsTab>[] = [
     { value: "connection", label: "Connection" },
-    { value: "sync", label: "Sync" },
+    ...(CARRES_AUTOCOUNT ? [{ value: "sync" as const, label: "Sync" }] : []), // Carres
     { value: "email", label: "Email" },
     { value: "branding", label: "Branding" },
     { value: "documents", label: "Documents" },

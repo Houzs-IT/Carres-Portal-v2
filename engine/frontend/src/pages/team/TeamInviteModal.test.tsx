@@ -62,7 +62,7 @@ describe("TeamInviteModal — Role", () => {
     expect(select.value).toBe("328");
 
     fireEvent.change(select, { target: { value: "8" } });
-    fireEvent.change(screen.getByPlaceholderText("name@houzscentury.com"), { target: { value: "new.member@houzs.test" } });
+    fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "new.member@houzs.test" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
 
     await waitFor(() => expect(post).toHaveBeenCalled());
@@ -76,7 +76,7 @@ describe("TeamInviteModal — Role", () => {
     mount();
     fireEvent.change(screen.getByPlaceholderText("Full name"), { target: { value: "Nur Aina Rahman" } });
     expect(screen.getByPlaceholderText("nur.rahman@houzscentury.com")).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText("name@houzscentury.com"), { target: { value: "aina@houzs.test" } });
+    fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "aina@houzs.test" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect((post.mock.calls[0] as unknown as [string, Record<string, unknown>])[1].email_alias).toBeUndefined();
@@ -84,7 +84,7 @@ describe("TeamInviteModal — Role", () => {
     post.mockClear();
     cleanup();
     mount();
-    fireEvent.change(screen.getByPlaceholderText("name@houzscentury.com"), { target: { value: "aina@houzs.test" } });
+    fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "aina@houzs.test" } });
     fireEvent.change(screen.getByPlaceholderText("first.last@houzscentury.com"), { target: { value: "aina.r@houzscentury.com" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
     await waitFor(() => expect(post).toHaveBeenCalled());

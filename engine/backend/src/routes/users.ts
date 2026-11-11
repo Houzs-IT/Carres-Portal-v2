@@ -16,7 +16,7 @@ import { avatarCacheControl } from "../lib/avatar-cache";
 import type { Context } from "hono";
 import {
   sendEmail,
-  publicUrl,
+  enginePublicUrl,
   inviteEmailHtml,
   resetEmailHtml,
   erpProductName,
@@ -960,7 +960,7 @@ app.post("/invite", requirePermissionOrSalesDirector("users.manage"), async (c) 
   // when the channel/key is off we still hand back the link for
   // copy-paste, and the UI shows the delivery status.
   const identity = await activeCompanyEmailIdentity(c.env, c.get("companyCode"));
-  const invite_url = publicUrl(c.env, `/invite/${token}`, identity.companyCode);
+  const invite_url = enginePublicUrl(c.env, `/invite/${token}`) /* Carres: engine page */;
   const sendResult = await sendEmail(c.env, {
     to: email,
     subject: `You're invited to ${identity.productName}`,
@@ -1046,7 +1046,7 @@ app.post(
     }
 
     const identity = await activeCompanyEmailIdentity(c.env, c.get("companyCode"));
-    const invite_url = publicUrl(c.env, `/invite/${inv.token}`, identity.companyCode);
+    const invite_url = enginePublicUrl(c.env, `/invite/${inv.token}`) /* Carres: engine page */;
     const sendResult = await sendEmail(c.env, {
       to: inv.email,
       subject: `You're invited to ${identity.productName}`,
@@ -1124,7 +1124,7 @@ app.post("/:id/resend-invite", requirePermission("users.manage"), async (c) => {
   }
 
   const identity = await activeCompanyEmailIdentity(c.env, c.get("companyCode"));
-  const invite_url = publicUrl(c.env, `/invite/${inv.token}`, identity.companyCode);
+  const invite_url = enginePublicUrl(c.env, `/invite/${inv.token}`) /* Carres: engine page */;
   const sendResult = await sendEmail(c.env, {
     to: inv.email,
     subject: `You're invited to ${identity.productName}`,
@@ -1756,7 +1756,7 @@ app.get("/invitations", requirePermissionOrSalesDirector("users.read"), async (c
   return c.json({
     invitations: rows.map((r) => ({
       ...r,
-      invite_url: publicUrl(c.env, `/invite/${r.token}`),
+      invite_url: enginePublicUrl(c.env, `/invite/${r.token}`) /* Carres: engine page */,
     })),
   });
 });
@@ -1917,7 +1917,7 @@ app.post("/:id/reset-password", requirePermission("users.manage"), async (c) => 
   // claiming success. The token is NOT returned; the mailbox is the only place
   // it lands.
   const identity = await activeCompanyEmailIdentity(c.env, c.get("companyCode"));
-  const link = publicUrl(c.env, `/reset/${token}`, identity.companyCode);
+  const link = enginePublicUrl(c.env, `/reset/${token}`) /* Carres: engine page */;
   const name = (target.name || target.email.split("@")[0]).split(" ")[0];
   const sendResult = await sendEmail(c.env, {
     to: target.email,

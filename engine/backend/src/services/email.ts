@@ -3,6 +3,7 @@ import {
   getBrandingForCompany,
   shortCompanyName,
   HOUZS_COMPANY_CODE,
+  brandingMailDomain,
 } from "./branding";
 
 // ── Email service (Resend-backed) ─────────────────────────────
@@ -255,7 +256,8 @@ async function deliverViaResend(
   }
   if (!from) {
     const branding = await getBrandingForCompany(env, m.companyCode);
-    const domain = (branding.email.split("@")[1] || "houzscentury.com").trim();
+    // Carres: Branding email's domain, else carresofficial.com (never a Houzs domain).
+    const domain = brandingMailDomain(branding);
     from = `${branding.companyName} <no-reply@${domain}>`;
   }
   const replyTo = m.replyTo ?? env.EMAIL_REPLY_TO ?? null;
@@ -617,8 +619,20 @@ export function publicUrl(env: Env, path: string, companyCode?: string | null): 
   const base = (
     (code && code !== HOUZS_COMPANY_CODE && COMPANY_PUBLIC_URLS[code]) ||
     env.PUBLIC_APP_URL ||
-    "https://erp.houzscentury.com"
+    // Carres: the Carres portal, never a Houzs host.
+    "https://carres-portal.pages.dev"
   ).replace(/\/+$/, "");
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+/** Carres: the engine's own site, where the public pages a link must open live (/survey/<token>,
+ *  /invite/<token>, /reset/<token>). PUBLIC_APP_URL is the Carres portal, which has none of them. */
+export const DEFAULT_ENGINE_PUBLIC_URL = "https://carres-scm.pages.dev";
+
+/** Carres: a link to a public engine page (survey, invite, password reset). */
+export function enginePublicUrl(env: Env, path: string): string {
+  const base = (env.ENGINE_PUBLIC_URL || DEFAULT_ENGINE_PUBLIC_URL).replace(/\/+$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }

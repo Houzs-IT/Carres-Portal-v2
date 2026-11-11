@@ -8,6 +8,7 @@ describe("publicUrl for a 2990 email", () => {
     const env = { PUBLIC_APP_URL: "https://erp.houzscentury.com" } as any;
     expect(publicUrl(env, "/invite/abc", "2990")).toBe("https://erp.houzscentury.com/invite/abc");
     expect(publicUrl(env, "/reset/abc", "2990")).toBe("https://erp.houzscentury.com/reset/abc");
-    expect(publicUrl({} as any, "/invite/abc", "2990")).toBe("https://erp.houzscentury.com/invite/abc");
+    // Carres: with no PUBLIC_APP_URL the fallback is the Carres portal, never a Houzs host.
+    expect(publicUrl({} as any, "/invite/abc", "2990")).toBe("https://carres-portal.pages.dev/invite/abc");
   });
 });

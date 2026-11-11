@@ -40,18 +40,3 @@ export function isMissingRelationError(error: unknown): boolean {
   );
 }
 
-/**
- * Run a read whose relation may be absent. An absent relation yields
- * `fallback`; every other error is rethrown unchanged.
- */
-export async function readOptionalRelation<T>(
-  run: () => Promise<T>,
-  fallback: T,
-): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    if (isMissingRelationError(error)) return fallback;
-    throw error;
-  }
-}

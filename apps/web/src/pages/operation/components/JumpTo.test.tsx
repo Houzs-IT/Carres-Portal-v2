@@ -64,7 +64,7 @@ describe("permission filtering — before display, never after", () => {
 
   it("the principal is offered every area the sidebar gives them", () => {
     const areas = new Set(permittedDestinations("principal").map((d) => d.area));
-    expect(areas).toEqual(new Set(["Operations", "Finance", "HR", "Admin"]));
+    expect(areas).toEqual(new Set(["Operations", "Admin", "Finance (old)"]));
   });
 
   /* ⭐ THE TWO-ROLE PROOF, at the surface. `Approvals` is an Admin door; an
@@ -99,7 +99,7 @@ describe("the empty query", () => {
         "operation:work",
         "operation:orders",
         "operation:stock",
-        "operation:payments",
+        "operation:mail-center",
         "operation:receiving",
         "operation:suppliers",
       ]),
@@ -123,11 +123,8 @@ describe("the empty query", () => {
       "WorkspaceOperations",
       "Sales OrdersOperations",
       "InventoryOperations",
-      // `operation:payments` is the Payments module's `Monitor` since the
-      // 2026-09-12 ruling — same key, same recent, the sidebar's own word.
-      // The Transportation and Warehouse monitors left with the old Carres
-      // pages (11 Nov 2026), so the word is unique again and wears no module.
-      "MonitorOperations",
+      // Houzs's Mail Center, a plain System row (owner, 11 Nov 2026).
+      "Mail CenterOperations",
       "Goods ReceiptOperations",
     ]);
     expect(labels.filter((l) => l === "SuppliersOperations")).toHaveLength(1);
@@ -241,10 +238,9 @@ describe("the keyboard", () => {
     });
     renderJump();
     const input = openSurface();
-    /* `payment records` matches exactly one destination, so the document is
-     * the row after it and one ↓ is what reaches it. (`payments` stopped being
-     * unique when the module gained its two destinations, 2026-09-12.) */
-    fireEvent.change(input, { target: { value: "payment records" } });
+    /* `mail center` matches exactly one destination, so the document is
+     * the row after it and one ↓ is what reaches it. */
+    fireEvent.change(input, { target: { value: "mail center" } });
     await screen.findByTestId("jump-to-document"); // the debounced lookup lands
     const before = screen.getAllByRole("option");
     expect(before[0]).toHaveAttribute("data-active", "true");
@@ -304,11 +300,11 @@ describe("the keyboard", () => {
 describe("navigate-only", () => {
   it("selecting a destination only opens it — and remembers it as recent", () => {
     renderJump();
-    fireEvent.change(openSurface(), { target: { value: "Monitor" } });
+    fireEvent.change(openSurface(), { target: { value: "Mail Center" } });
     fireEvent.click(screen.getByTestId("jump-to-destination"));
-    expect(screen.getByTestId("here")).toHaveTextContent("/finance/monitor");
+    expect(screen.getByTestId("here")).toHaveTextContent("/operation/sc/mail-center");
     expect(JSON.parse(localStorage.getItem("carres-jump-recent") ?? "[]")).toEqual([
-      "operation:payments",
+      "operation:mail-center",
     ]);
   });
 

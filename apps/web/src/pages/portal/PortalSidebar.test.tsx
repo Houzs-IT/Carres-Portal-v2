@@ -15,8 +15,8 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
  * "Side menu": one rule for every module, drawn from data). The Operations
  * area follows the Houzs tree (Weisiang, WhatsApp 2026-11-01): two small caps
  * headings, Workspace (Overview first) and Operations, then the Supply Chain row
- * holding the Product Request row and five modules, then a small caps CARRES
- * heading over Payments, Issue Tracker and the Sales invoice lines report.
+ * holding the Product Request row and five modules, then a small caps SYSTEM
+ * heading over Houzs's Team module, Mail Center and IT Support (owner, 11 Nov 2026).
  * Service Cases, Projects and Supply Chain rows each open an engine page at
  * their own `/operation/sc/<row>` address (owner, 11 Nov 2026).
  */
@@ -125,7 +125,7 @@ describe("PortalSidebar — role visibility", () => {
     expect(screen.queryByText("Accounts")).not.toBeInTheDocument();
   });
 
-  it("principal sees the Finance, HR and Admin area words, never an Operations area title; only the active area is expanded", () => {
+  it("principal sees the Finance and Admin area words (the HR area is removed, 11 Nov 2026), never an Operations area title; only the active area is expanded", () => {
     mockRole = "principal";
     renderAt("/operation");
     /* The Operations area has no area title to fold it by (owner ruling
@@ -135,7 +135,7 @@ describe("PortalSidebar — role visibility", () => {
     expect(screen.queryByTestId("nav-area-operation")).not.toBeInTheDocument();
     expect(screen.getAllByText("Finance").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId("nav-area-finance")).toBeInTheDocument();
-    expect(screen.getByTestId("nav-area-hr")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-area-hr")).not.toBeInTheDocument();
     expect(screen.getByText("Admin")).toBeInTheDocument();
     openSupply();
     fireEvent.click(module_("purchasing"));
@@ -215,13 +215,13 @@ describe("PortalSidebar — the area you are in folds", () => {
     expect(finance).not.toHaveClass("!text-c-select-fg");
     fireEvent.click(finance);
     expect(finance).toHaveClass("!text-c-select-fg");
-    expect(screen.getByTestId("nav-area-hr")).not.toHaveClass("!text-c-select-fg");
+    expect(screen.getByTestId("nav-area-principal")).not.toHaveClass("!text-c-select-fg");
   });
 
   it("every area title carries its caret, open or shut", () => {
     renderAt("/finance/dashboard");
     // Operations has no area title for the boss (owner ruling 2026-10-08).
-    for (const area of ["finance", "hr", "principal"]) {
+    for (const area of ["finance", "principal"]) {
       expect(screen.getByTestId(`nav-area-${area}`).querySelector(MICON), area).not.toBeNull();
     }
   });
@@ -229,9 +229,9 @@ describe("PortalSidebar — the area you are in folds", () => {
   it("another area's title still jumps there, and that area opens", () => {
     renderAt("/finance/dashboard");
     fireEvent.click(screen.getByTestId("nav-area-finance"));
-    fireEvent.click(screen.getByTestId("nav-area-hr"));
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/hr?tab=overview");
-    expect(screen.getByTestId("nav-area-hr")).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByTestId("nav-area-principal"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/principal?tab=dashboard");
+    expect(screen.getByTestId("nav-area-principal")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("nav-area-finance")).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -326,7 +326,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       ["purchasing", "Procurement"],
       ["delivery", "Transportation"],
       ["warehouse", "Warehouse"],
-      ["payments", "Payments"],
+      ["team", "Team"],
       // The Customer Care module's word is `Service Cases` (Houzs tree, 2026-11-01).
       ["customer-care", "Service Cases"],
       ["projects", "Projects"],
@@ -334,18 +334,18 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       const row = module_(slug);
       expect(row.tagName).toBe("BUTTON");
       expect(within(row).getByText(name)).toBeInTheDocument();
-      // icon + caret. The Houzs modules wear Houzs's own (lucide) icon; Payments keeps its Material Symbol.
+      // icon + caret. The Houzs modules wear Houzs's own (lucide) icon.
       expect(row.querySelectorAll(`${MICON}, svg`).length).toBe(2);
       expect(row.getAttribute("aria-expanded")).toBe("false");
     }
   });
 
-  it("the Operations menu has three small uppercase headings, Workspace, Operations and Carres, in that order", () => {
+  it("the Operations menu has three small uppercase headings, Workspace, Operations and System, in that order", () => {
     renderAt("/operation/sc/purchase-orders");
     const heads = Array.from(
       document.querySelectorAll<HTMLElement>("[data-testid^='nav-group-head-']"),
     );
-    expect(heads.map((h) => h.textContent)).toEqual(["Workspace", "Operations", "Carres"]);
+    expect(heads.map((h) => h.textContent)).toEqual(["Workspace", "Operations", "System"]);
     for (const head of heads) {
       // A label rank: 11px semibold caps, never a link or a button.
       expect(head.tagName).toBe("SPAN");
@@ -379,10 +379,11 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "module-customer-care",
       "module-projects",
       "fold-supply-chain",
-      "group-head-carres",
-      "module-payments",
-      "child-issue-tracker",
-      "child-sales-invoice-lines",
+      "fold-finance",
+      "group-head-system",
+      "module-team",
+      "child-mail-center",
+      "child-it-support",
     ]);
     openSupply();
     expect(walk()).toEqual([
@@ -402,10 +403,11 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "module-purchasing",
       "module-delivery",
       "module-warehouse",
-      "group-head-carres",
-      "module-payments",
-      "child-issue-tracker",
-      "child-sales-invoice-lines",
+      "fold-finance",
+      "group-head-system",
+      "module-team",
+      "child-mail-center",
+      "child-it-support",
     ]);
   });
 
@@ -419,53 +421,60 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
     }
   });
 
-  it("single pages stay plain rows — no caret on Sales Orders, Workspace, Leave, Issue Tracker, Sales invoice lines", () => {
+  it("single pages stay plain rows — no caret on Sales Orders, Workspace, Leave, Mail Center, IT Support", () => {
     renderAt("/operation");
-    /* Reports keeps one page, `Sales invoice lines`, so it draws as a plain row:
-       a module needs two pages to earn its parent row. */
-    expect(screen.queryByTestId("nav-module-reports")).toBeNull();
-    for (const key of ["orders-shortcut", "work", "leave", "issue-tracker", "sales-invoice-lines"]) {
+    for (const key of ["orders-shortcut", "work", "leave", "mail-center", "it-support"]) {
       const row = child(key);
       expect(row.tagName).toBe("A");
       expect(row.getAttribute("aria-expanded")).toBeNull();
-      // No caret — a plain row has nothing to expand. (`Sales invoice lines`
-      // has no Material Symbols icon of its own, so it carries none at all.)
-      expect(row.querySelectorAll(MICON).length, key).toBe(key === "sales-invoice-lines" ? 0 : 1);
+      // One icon, no caret: a plain row has nothing to expand. Mail Center and IT Support wear Houzs's lucide icon.
+      expect(row.querySelectorAll(`${MICON}, svg`).length, key).toBe(1);
     }
+    expect(child("mail-center")).toHaveAttribute("href", "/operation/sc/mail-center");
+    expect(child("it-support")).toHaveAttribute("href", "/operation/sc/it-support");
   });
 
-  /* ⭐ PAYMENTS → Monitor · Payment Records (owner ruling 2026-09-12). A
-     module of two destinations, no `Payments · Invoices` tabs, no standalone
-     Invoices or Receipts row, no clickable parent — and the rail is tested for
-     its DESTINATIONS, not only its shape (the 2026-09-09 lesson). */
-  it("Payments is a module with exactly Monitor and Payment Records beneath it", () => {
-    renderAt("/finance/monitor");
-    const parent = module_("payments");
-    expect(parent.tagName).toBe("BUTTON");
-    expect(parent).toHaveAttribute("aria-expanded", "true");
-    const children = screen.getByTestId("nav-children-payments");
-    const rows = within(children).getAllByRole("link");
-    expect(rows.map((r) => r.textContent?.trim())).toEqual(["Monitor", "Payment Records"]);
-    expect(child("payments")).toHaveAttribute("href", "/finance/monitor");
-    expect(child("payment-records")).toHaveAttribute("href", "/finance/payments");
-    expect(screen.queryByText("Invoices")).not.toBeInTheDocument();
-    expect(screen.queryByText("Receipts")).not.toBeInTheDocument();
-    expect(screen.queryByText("Order Payments")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("nav-module-finance")).not.toBeInTheDocument();
-  });
-
-  it("the parent row is not a page of its own — it opens the named landing, Monitor", () => {
+  /* The Carres bottom group is removed from Operations (owner, 11 Nov 2026): Payments, Issue Tracker and
+     Sales invoice lines. Finance keeps its own Monitor and Payment Records. */
+  it("Operations no longer carries Payments, Issue Tracker or Sales invoice lines", () => {
     renderAt("/operation");
-    fireEvent.click(module_("payments"));
-    // The shipped shell rule: expanding a module opens its landing page.
-    // Payments names it (Monitor); there is no parent page to land on.
-    expect(screen.getByTestId("location-probe")).toHaveTextContent("/finance/monitor");
-    expect(screen.getByTestId("nav-children-payments")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-module-payments")).toBeNull();
+    for (const key of ["payments", "payment-records", "issue-tracker", "sales-invoice-lines"]) {
+      expect(screen.queryByTestId(`nav-child-${key}`), key).toBeNull();
+    }
+    expect(screen.queryByTestId("nav-group-head-carres")).toBeNull();
   });
 
-  it("the Monitor row stays lit on the retired Invoices address while it forwards", () => {
-    renderAt("/finance/invoices?invoice=abc");
-    expect(child("payments").className).toContain("bg-c-select-pill");
+  /* ⭐ THE TEAM MODULE (Houzs Sidebar.tsx:963-1000): its row opens Houzs's Team hub, its pages hang beneath. */
+  it("Team holds Directory, Org Chart, Departments, Mailboxes and Roles & Permissions, and its row opens the Team hub", () => {
+    renderAt("/operation");
+    fireEvent.click(module_("team"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent(/^\/operation\/sc\/hub-team$/);
+    const rows = within(screen.getByTestId("nav-children-team")).getAllByRole("link");
+    expect(rows.map((r) => r.textContent?.trim())).toEqual(["Directory", "Org Chart", "Departments", "Mailboxes", "Roles & Permissions"]);
+    expect(rows.map((r) => r.getAttribute("href"))).toEqual([
+      "/operation/sc/team-directory", "/operation/sc/team-org-chart", "/operation/sc/team-departments",
+      "/operation/sc/team-mailboxes", "/operation/sc/team-roles",
+    ]);
+    // Each page wears Houzs's own icon.
+    expect(screen.getByTestId("houzs-icon-team-directory")).toBeInTheDocument();
+  });
+
+  it("on the Team hub the Team module is the open one", () => {
+    renderAt("/operation/sc/hub-team");
+    expect(module_("team")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("hr sees only the System group", () => {
+    mockRole = "hr";
+    renderAt("/operation/sc/hub-team");
+    const heads = Array.from(document.querySelectorAll<HTMLElement>("[data-testid^='nav-group-head-']"));
+    expect(heads.map((h) => h.textContent)).toEqual(["System"]);
+    expect(module_("team")).toBeInTheDocument();
+    expect(child("mail-center")).toBeInTheDocument();
+    expect(child("it-support")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-fold-supply-chain")).toBeNull();
+    expect(screen.queryByTestId("nav-settings")).toBeNull();
   });
 
   it("finance sees the same two Payments destinations — never a second Payment IA", () => {
@@ -513,25 +522,25 @@ describe("PortalSidebar — the Supply Chain row", () => {
       expect(screen.getByTestId("nav-fold-children-supply-chain"), path).toBeInTheDocument();
       view.unmount();
     }
-    for (const path of ["/operation/sc/service-notes", "/operation/sc/projects", "/finance/monitor", "/operation/issues"]) {
+    for (const path of ["/operation/sc/service-notes", "/operation/sc/projects", "/finance/monitor", "/operation/sc/mail-center"]) {
       const view = renderAt(path);
       expect(supply(), path).toHaveAttribute("aria-expanded", "false");
       view.unmount();
     }
   });
 
-  it("holds the five modules in order, and Service Cases, Projects, Payments and the report stay outside", () => {
+  it("holds the five modules in order, and Service Cases, Projects and the System rows stay outside", () => {
     renderAt("/operation");
     openSupply();
     const inside = screen.getByTestId("nav-fold-children-supply-chain");
     expect(
       Array.from(inside.querySelectorAll("[data-testid^='nav-module-']")).map((el) => el.getAttribute("data-testid")),
     ).toEqual(["nav-module-sales", "nav-module-consignment", "nav-module-purchasing", "nav-module-delivery", "nav-module-warehouse"]);
-    for (const slug of ["payments", "customer-care", "projects"]) {
+    for (const slug of ["team", "customer-care", "projects"]) {
       expect(inside.contains(module_(slug)), slug).toBe(false);
     }
-    expect(inside.contains(child("issue-tracker"))).toBe(false);
-    expect(inside.contains(child("sales-invoice-lines"))).toBe(false);
+    expect(inside.contains(child("mail-center"))).toBe(false);
+    expect(inside.contains(child("it-support"))).toBe(false);
   });
 
   it("a click opens and shuts it without navigating", () => {
@@ -723,11 +732,11 @@ describe("the tree line", () => {
     expect(child("rental")).toHaveTextContent(/^Subscription$/);
   });
 
-  it("the Houzs pages wear Houzs's icon; Carres's own rows below do not change", () => {
+  it("the Houzs pages wear Houzs's icon; Carres's own Workspace rows do not change", () => {
     renderAt("/operation/sc/stock-adjustments");
     expect(screen.getByTestId("houzs-icon-stock-adjustments")).toBeInTheDocument();
     expect(screen.getByTestId("houzs-icon-stock")).toBeInTheDocument();
-    expect(screen.queryByTestId("houzs-icon-payment-records")).toBeNull();
+    expect(screen.queryByTestId("houzs-icon-work")).toBeNull();
   });
 
   it("a long name wraps to a second line and is never cut", () => {
@@ -895,33 +904,16 @@ describe("PortalSidebar — catalog split into two doors (2026-07-25)", () => {
   });
 });
 
-describe("PortalSidebar — Commission is ONE HR entry (Loo 2026-07-27)", () => {
-  beforeEach(() => {
+/* The Carres HR area (Overview, People, Commission, Team, Performance, People cost) is removed (owner,
+   11 Nov 2026): no rail carries it; Houzs's Team, under System, keeps the people. */
+describe("PortalSidebar — the HR area is gone", () => {
+  it("the principal's rail carries no HR area and none of its rows", () => {
     mockRole = "principal";
-  });
-
-  const commissionLink = () =>
-    screen.getByText("Commission").closest("a") as HTMLAnchorElement;
-
-  it("the rail no longer carries a second Commission Setup item", () => {
-    renderAt("/hr?tab=commission");
-    expect(commissionLink()).toHaveAttribute("href", "/hr?tab=commission");
-    expect(screen.queryByText("Commission Setup")).not.toBeInTheDocument();
-  });
-
-  it("Attribution is gone from the rail (retired 2026-07-27)", () => {
-    renderAt("/hr?tab=commission");
-    expect(screen.queryByText("Attribution")).not.toBeInTheDocument();
-  });
-
-  it("stays lit on the Setup sub-tab (?tab=setup)", () => {
-    renderAt("/hr?tab=setup");
-    expect(commissionLink().className).toContain("bg-c-select-pill");
-  });
-
-  it("is NOT lit on another HR tab (?tab=team)", () => {
-    renderAt("/hr?tab=team");
-    expect(commissionLink().className).not.toContain("bg-c-select-pill");
+    renderAt("/operation/sc/orders");
+    expect(screen.queryByTestId("nav-area-hr")).toBeNull();
+    for (const word of ["Commission", "People cost", "Performance"]) {
+      expect(screen.queryByText(word), word).toBeNull();
+    }
   });
 });
 
@@ -1025,20 +1017,20 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(child("sales-invoices").className).toContain("bg-c-select-pill");
   });
 
-  it("the bottom group sits under the caps CARRES heading: Payments, Issue Tracker, Sales invoice lines", () => {
+  it("the bottom group sits under the caps SYSTEM heading: Team, Mail Center, IT Support", () => {
     renderAt("/operation");
-    const head = screen.getByTestId("nav-group-head-carres");
-    expect(head).toHaveTextContent(/^Carres$/);
+    const head = screen.getByTestId("nav-group-head-system");
+    expect(head).toHaveTextContent(/^System$/);
     expect(head.className).toMatch(/uppercase/);
     const nav = screen.getByRole("navigation", { name: "Modules" });
     const order = Array.from(
       nav.querySelectorAll<HTMLElement>("[data-testid^='nav-group-head-'], [data-testid^='nav-module-'], [data-testid^='nav-child-']"),
     ).map((el) => el.dataset.testid!);
-    expect(order.slice(order.indexOf("nav-group-head-carres"))).toEqual([
-      "nav-group-head-carres",
-      "nav-module-payments",
-      "nav-child-issue-tracker",
-      "nav-child-sales-invoice-lines",
+    expect(order.slice(order.indexOf("nav-group-head-system"))).toEqual([
+      "nav-group-head-system",
+      "nav-module-team",
+      "nav-child-mail-center",
+      "nav-child-it-support",
     ]);
   });
 
@@ -1074,9 +1066,8 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(child("service-mine")).toHaveAttribute("href", "/operation/sc/service-mine");
     // The removed Guarantees row stays gone.
     expect(screen.queryByTestId("nav-child-guarantees")).toBeNull();
-    // Issue Tracker is its own row after Payments, never inside the module.
-    expect(group.querySelector("[data-testid='nav-child-issue-tracker']")).toBeNull();
-    expect(child("issue-tracker")).toHaveAttribute("href", "/operation/issues");
+    // The Carres Issue Tracker row is removed (owner, 11 Nov 2026).
+    expect(screen.queryByTestId("nav-child-issue-tracker")).toBeNull();
   });
 
   it("the four Service Cases rows light one at a time", () => {
@@ -1873,7 +1864,8 @@ describe("the one Settings row, at the bottom of the menu", () => {
       const view = renderAt(path);
       const settings = screen.getByTestId("nav-settings");
       expect(screen.getAllByTestId("nav-settings"), path).toHaveLength(1);
-      expect(settings).toHaveAttribute("href", "/operation/settings");
+      // Houzs's own Settings (owner, 11 Nov 2026; the Carres Settings workspace is removed).
+      expect(settings).toHaveAttribute("href", "/operation/sc/settings");
       expect(settings).toHaveTextContent("Settings");
       // Below the module list, never inside it; inside the one Modules landmark.
       const list = screen.getByTestId("portal-sidebar-list");
@@ -1886,32 +1878,44 @@ describe("the one Settings row, at the bottom of the menu", () => {
     }
   });
 
-  it("principal — the same one row, to Operations Settings or to Finance Settings where she stands", () => {
+  it("principal — the same one row, to Houzs's Settings or to Finance Settings where she stands", () => {
     mockRole = "principal";
     const view = renderAt("/operation/sc/purchase-orders");
-    expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/operation/settings");
+    expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/operation/sc/settings");
     view.unmount();
     renderAt("/finance/dashboard");
     expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/finance/settings");
   });
 
-  it("every module's menu has Report a problem to IT at the bottom, and it opens the dialog", () => {
-    for (const [role, path] of [["operation", "/operation"], ["finance", "/finance/dashboard"], ["principal", "/operation"]] as const) {
+  /* Report a problem to IT opens Houzs's IT Support page (owner, 11 Nov 2026), not the Carres dialog. */
+  it("Report a problem to IT sits at the bottom and opens Houzs's IT Support row", () => {
+    for (const [role, path] of [["operation", "/operation"], ["principal", "/finance/dashboard"], ["hr", "/operation/sc/hub-team"]] as const) {
       mockRole = role;
       const view = renderAt(path);
-      fireEvent.click(screen.getByTestId("nav-report-problem"));
-      expect(screen.getByRole("dialog", { name: "Report a problem to IT" }), role).toBeInTheDocument();
+      const report = screen.getByTestId("nav-report-problem");
+      expect(report.tagName, role).toBe("A");
+      expect(report, role).toHaveAttribute("href", "/operation/sc/it-support");
+      expect(report).toHaveTextContent("Report a problem to IT");
+      fireEvent.click(report);
+      expect(screen.getByTestId("location-probe"), role).toHaveTextContent(/^\/operation\/sc\/it-support$/);
+      expect(screen.queryByRole("dialog")).toBeNull();
       view.unmount();
     }
   });
 
-  it("finance has Finance Settings; People has no Settings page, so no row", () => {
+  it("a finance-only login, which cannot open Operations, has no Report a problem row", () => {
+    mockRole = "finance";
+    renderAt("/finance/dashboard");
+    expect(screen.queryByTestId("nav-report-problem")).toBeNull();
+  });
+
+  it("finance has Finance Settings; hr has no Settings page, so no row", () => {
     mockRole = "finance";
     const view = renderAt("/finance/dashboard");
     expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/finance/settings");
     view.unmount();
     mockRole = "hr";
-    renderAt("/hr?tab=overview");
+    renderAt("/operation/sc/hub-team");
     expect(screen.queryByTestId("nav-settings")).not.toBeInTheDocument();
   });
 
@@ -1925,8 +1929,8 @@ describe("the one Settings row, at the bottom of the menu", () => {
 });
 
 
-it("Settings does not select a menu row or restore a permanent Staff & Duties menu row", () => {
-  renderAt("/operation/settings/staff-duties");
+it("Houzs's Settings does not select a menu row or restore a permanent Staff & Duties menu row", () => {
+  renderAt("/operation/sc/settings");
   expect(child("orders-shortcut")).not.toHaveClass(SELECTED);
   expect(child("work")).not.toHaveClass(SELECTED);
   expect(screen.queryByTestId("nav-child-staff-duties")).toBeNull();
@@ -2069,5 +2073,41 @@ describe("one lit row on engine addresses that share a prefix", () => {
     renderAt(path);
     expect(child(on).className).toContain(SELECTED);
     expect(child(off).className).not.toContain(SELECTED);
+  });
+});
+
+/* ⭐ HOUZS FINANCE (owner, 11 Nov 2026; Houzs Sidebar.tsx:736-873): one Finance row after Supply Chain, the old
+   Carres Finance at the very bottom as "Finance (old)". */
+describe("PortalSidebar — Houzs Finance", () => {
+  it("the Finance row opens Finance's To do, as Houzs's row does", () => {
+    renderAt("/operation");
+    fireEvent.click(screen.getByTestId("nav-fold-finance"));
+    expect(screen.getByTestId("location-probe")).toHaveTextContent(/^\/operation\/sc\/fin-todo$/);
+  });
+
+  it("on a Finance page its group is open and the page wears Houzs's icon", () => {
+    renderAt("/operation/sc/fin-receipts");
+    expect(screen.getByTestId("nav-fold-finance")).toHaveAttribute("aria-expanded", "true");
+    expect(module_("finance-money-in")).toHaveAttribute("aria-expanded", "true");
+    expect(child("fin-receipts")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("houzs-icon-fin-receipts")).toBeInTheDocument();
+    const rows = within(screen.getByTestId("nav-children-finance-money-in")).getAllByRole("link");
+    expect(rows.map((r) => r.textContent?.trim())).toEqual(["Receipts", "Invoices", "Debtor maintenance", "Credit / debit notes", "Outstanding", "Not yet billed"]);
+  });
+
+  it("the principal sees the old Carres Finance last, as Finance (old)", () => {
+    mockRole = "principal";
+    renderAt("/operation");
+    const areas = Array.from(document.querySelectorAll<HTMLElement>("[data-testid^='nav-area-']")).map((el) => el.dataset.testid);
+    expect(areas).toEqual(["nav-area-principal", "nav-area-finance"]);
+    expect(screen.getByTestId("nav-area-finance")).toHaveTextContent("Finance (old)");
+  });
+
+  it("finance sees the Houzs Finance row and its own old Finance, and its home is still its Finance area", () => {
+    mockRole = "finance";
+    renderAt("/finance/dashboard");
+    expect(screen.getByTestId("nav-fold-finance")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-fold-supply-chain")).toBeNull();
+    expect(screen.getByTitle("Carres home")).toHaveAttribute("href", "/finance/dashboard");
   });
 });

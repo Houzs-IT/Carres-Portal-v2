@@ -1,11 +1,9 @@
 /** The narrow SC procurement decision in the existing Purchasing source.
  * One projection serves Tasks/Workspace and the owning decision completion. */
 import type { Context } from "hono";
-import { operationWorkItemFromProjection, serviceCaseRemedyDecisionSchema, addWorkingDays, officeWorkingDayOptions, DEFAULT_OFFICE_CALENDAR, klDateOfIso, type WorkingDayOptions, type ServiceCaseRemedyState, type OperationWorkItem } from "@carres/shared";
+import { operationWorkItemFromProjection, addWorkingDays, officeWorkingDayOptions, DEFAULT_OFFICE_CALENDAR, klDateOfIso, type WorkingDayOptions, type ServiceCaseRemedyState, type OperationWorkItem } from "@carres/shared";
 import type { AppEnv } from "../types";
 import { userClient } from "./supabase";
-import { todayIsoMYT } from "./today";
-import { workCompletion } from "./work-completion";
 export function projectCaseRemedyWork(state:ServiceCaseRemedyState,today:string,office:WorkingDayOptions=officeWorkingDayOptions(DEFAULT_OFFICE_CALENDAR)):OperationWorkItem[]{
  const a=state.approver;const person=a.actor_user_id?{userId:a.actor_user_id,name:a.actorName??null}:null;
  const normal=a.normal_user_id?{userId:a.normal_user_id,name:a.normal_user_name??null}:person;const cover=a.is_cover&&a.acting_user_id?{userId:a.acting_user_id,name:a.acting_user_name??null}:null;
@@ -23,11 +21,3 @@ export async function loadCaseRemedyWork(c:Context<AppEnv>,today:string,office?:
  for(let offset=0;;offset+=200){const {data,error}=await sb.from("approvals").select("id,payload").eq("payload->>domain","service_case_remedy").eq("status","pending").order("id").range(offset,offset+199);if(error)throw new Error(error.message);for(const row of data??[])cases.add(row.payload.caseId);if((data?.length??0)<200)break;}
  const items:OperationWorkItem[]=[];for(const id of cases)items.push(...projectCaseRemedyWork(await readCase(c,id),today,office??officeWorkingDayOptions(await (await import("../routes/operation/work")).officeCalendarOf(c))));return items;
 }
-export const caseRemedyCompletion=()=>workCompletion({targets:async c=>{
- const raw=await c.req.json().catch(()=>null);const parsed=serviceCaseRemedyDecisionSchema.safeParse(raw);if(!parsed.success)return[];const body=parsed.data;const id=body.approvalId;const caseId=c.req.param("id");if(typeof id!=="string"||!caseId)return[];
- return[{objectIds:[id],spec:{owner:"Service Case",rules:["service_case.remedy_approve"],probe:async(parent:Context<AppEnv>,approvalId:string)=>{
-  const office=officeWorkingDayOptions(await (await import("../routes/operation/work")).officeCalendarOf(parent));
-  const items=projectCaseRemedyWork(await readCase(parent,caseId),todayIsoMYT(),office).filter(p=>p.object.id===approvalId);
-  const {readWorkLedger,supabaseWorkLedger}=await import("../routes/operation/work");const {currentId}=await readWorkLedger(parent,supabaseWorkLedger,items.map(i=>i.id));return items.map(i=>({...i,id:currentId.get(i.id)??i.id}));
- },readFacts:async(parent:Context<AppEnv>,approvalId:string)=>{const state=await readCase(parent,caseId);return state.proposals.find(p=>p.id===approvalId)??null;},result:(_rule:string,facts:ServiceCaseRemedyState["proposals"][number]|null)=>facts&&facts.status!=="pending"&&facts.decidedAt?`approvals:${facts.id}:${facts.status}@${facts.decidedAt}`:null}}];
-}});

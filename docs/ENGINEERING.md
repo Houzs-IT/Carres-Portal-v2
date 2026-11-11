@@ -66,12 +66,33 @@ Rule: the engine's screens match Houzs except the theme; Carres edits live only 
 the files the commits below name, and the Carres config files.
 
 **The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
-the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription, Issue Tracker,
-Sales invoice lines, Settings); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
+the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
 values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still
 in the tree because Finance imports its shared components; no menu row or address opens it. Old Carres tables
 and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
 orders in the old order book (`OLD_ORDER_FLOWS`).
+
+**System rows, Settings and IT (owner, 11 Nov 2026).** The menu's SYSTEM group is Houzs's Team (Directory · Org
+Chart · Departments · Mailboxes · Roles & Permissions; its row opens `/team?tab=hub`), Mail Center and IT Support,
+each an engine row. The Settings gear opens Houzs's `/settings` (`/operation/sc/settings`) and `Report a problem
+to IT` opens Houzs's IT Support row. Removed: the Carres HR area (`/hr*` → Team hub), the Carres Settings
+workspace (`/operation/settings/*` → Houzs Settings), the Issue Tracker and Sales invoice lines (→ Sales Orders)
+and the Operations Payments rows (Finance keeps Monitor and Payment Records). `hr` logins enter `/operation` for
+the System rows only; the engine opens for them only once its `ENGINE_ROLES` (engine/backend/src/carres/sso.ts)
+admits `hr`.
+
+**Houzs Finance (owner, 11 Nov 2026).** The engine's Finance module is on (`navOnly.ts` KEEP has `Finance`;
+only `/scm/hr` stays hidden, since Carres keeps people in Team). The menu draws Houzs's Finance group as one
+row after Supply Chain: To do · Money today · Money in ▸ · Money out ▸ · Bank & cards ▸ · Books ▸ · Reports ·
+Setup ▸, 32 engine rows (`fin-*` in `ENGINE_PAGES`), Houzs's words, order, icons and addresses; the row opens
+To do (`/scm/finance`). Reports opens the first report (P&L) and every report lights it
+(`ENGINE_ROW_ALIASES`). To do and Payment requests carry Houzs's counts (`finance-todo`,
+`payment-requests-waiting`, via `carres:badges`). `finance` logins see that group in `/operation` (and nothing
+else there) and may open the engine (`ENGINE_ROLES` in the portal API and the engine); like every non-principal
+account they start on the engine's "New member" role until the owner picks a role on Team > Roles &
+Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bottom of the menu as
+**Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
+migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour): the only non-colour differences are the Carres integration (`src/carres/*`, the
@@ -100,6 +121,17 @@ geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat)
    `engine/backend/scripts/carres-db/migrations/` as the next `11xx_<original name>`, verbatim.
    Build a throwaway database from that folder (PGlite) before merging; the owner applies them to the
    engine database with `engine/backend/scripts/carres-db/apply.mjs`.
+
+**Test data: Houzs's master data in the engine** (`engine/backend/scripts/carres-db/seed-from-houzs.mjs`, 11 Nov
+2026). To test-run the whole engine flow on real master data, the owner runs, from `engine/backend` on the machine
+that holds Houzs's masked local database (`houzs_local`, built by `houzs-erp-local/.local-dev/import-snapshot.sh`):
+`node scripts/carres-db/seed-from-houzs.mjs --dry-run`, then without `--dry-run`. It asks for the engine database
+connection string hidden, like `apply.mjs`, and copies only master/config rows (catalogue, suppliers and bindings,
+warehouses and racks, customers, delivery rates, lead times, Finance chart of accounts and settings, lookup lists)
+of Houzs's main company, re-labelled to the Carres company, in one transaction; never transactions, stock, history,
+tokens or users, and it never changes or deletes a row already there (re-runs copy nothing new).
+`--classify` lists every Houzs table as copied or skipped with the reason. Before go-live, the engine database
+starts clean again (CLAUDE.md §6): this is test data.
 
 ---
 
