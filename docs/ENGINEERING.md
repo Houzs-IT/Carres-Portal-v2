@@ -136,6 +136,24 @@ Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bo
 **Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
 migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
+**Sales Order: Carres rulings (owner, 12 Nov 2026).** Three places where the engine's SO (desktop New SO and
+edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
+1. *Deposit before Proceed / Processing Date is 50%*: `processingDateThresholdFor` (backend
+   `scm/shared/order-rules.ts`) gives the HOUZS row 2990's 50%, and the refusal text says 50%. As in Houzs since
+   20 Aug 2026, the deposit is not a save gate; the 50% is what the refusal, the cancel/refund floor and the
+   proceed message use.
+2. *No fairs: Showroom, or Project instead.* The Fair picker, "Earlier fair? Order date" and "No fair" give way to
+   a Showroom pick with a Project group (`engine/frontend/src/carres/SalePlacePicker.tsx`, rules in
+   `carres/salePlace.ts`). A new order starts with the salesperson's own showroom (Team › member › Sales venue ›
+   Showroom) and follows the Salesperson until someone picks; none set means pick before saving. Stored in the
+   existing columns (backend `scm/lib/carres-sale-place.ts`): a showroom is the order's `venue` with `fair_match`
+   NO_FAIR, a project is `project_id` with the project's name as `venue`. The keyer-fair rule is off
+   (`KEYER_FAIR_COMPANY_CODES` empty); a confirmed create, the /validate check and Draft → Confirmed require a
+   showroom or a project. Options: `GET /mfg-sales-orders/sale-places`.
+3. *Sale type: Outright or Subscription* (default Outright) on `scm.mfg_sales_orders.sale_type`, migration
+   `2006_so_sale_type.sql` (also re-creates the list view with the column). On the SO form, detail, quick view,
+   list (column + server funnel), phone and PDF. Subscription billing is not built.
+
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits
 met in only `mail-center.ts` and `fair-binding.ts`, both merged cleanly): the only non-colour differences are the Carres integration (`src/carres/*`, the

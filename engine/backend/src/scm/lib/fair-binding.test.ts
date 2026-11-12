@@ -1,4 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+/* Carres: these pin Houzs's keyer-fair rule for the HOUZS code. The HOUZS row is Carres, which names a showroom
+   or a project instead (owner 2026-11-12, carres-sale-place.test.ts), so the rule is switched back on here to
+   keep testing the code the engine still carries for it. */
+vi.mock('./fair-options', async (orig) => {
+  const real = await orig<typeof import('./fair-options')>();
+  return { ...real, companyUsesKeyerFair: (code: unknown) => String(code ?? '').trim().toUpperCase() === 'HOUZS' };
+});
+vi.mock('./carres-sale-place', async (orig) => ({
+  ...(await orig<typeof import('./carres-sale-place')>()),
+  companyUsesShowroomSale: () => false,
+}));
 import {
   editFairKeyerId,
   fairBoothQuestion,

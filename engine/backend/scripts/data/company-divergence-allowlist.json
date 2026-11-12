@@ -220,9 +220,9 @@
     },
     {
       "file": "backend/src/scm/shared/order-rules.ts",
-      "text": "String(companyCode ?? '').trim().toUpperCase() === '2990'",
-      "why": "The deposit fraction before a Processing Date may be set: HOUZS 30%, 2990 50%. The one per-company BUSINESS rule the owner stated outright, and the fallback for an unknown company is deliberately the looser one.",
-      "whoSetIt": "Owner, 2026-07-14, restated 2026-07-31: 'Houzs 30%, 2990 50%'."
+      "text": "return code === '2990' || code === 'HOUZS'",
+      "why": "The deposit fraction before Proceed / a Processing Date: 2990 50% and, in this engine, the HOUZS row (which is Carres) 50% too; an unknown company keeps the looser 30%.",
+      "whoSetIt": "Owner, 2026-07-14 / 2026-07-31 ('Houzs 30%, 2990 50%'); Carres owner, 2026-11-12: Carres (the HOUZS row) is 50%."
     },
     {
       "file": "backend/src/services/agents/agent-company.ts",
@@ -481,6 +481,18 @@
       "text": "return typeof code === 'string' && code.trim().toUpperCase() === BASE_COMPANY_CODE;",
       "why": "Which company's return lines export with the AutoCount account book's item code, description, group, UOM, agent, branding and venue spellings. Only HOUZS has an AutoCount book (AED_HOUZS); 2990 has none, so its lines keep the ERP's own words. Data of the book, not a capability.",
       "whoSetIt": "Owner, 2026-09-09: 2990's documents do not go into AutoCount (「2990 的单不要进」)."
+    },
+    {
+      "file": "frontend/src/carres/salePlace.ts",
+      "text": "return (companyCode ?? '').trim().toUpperCase() === 'HOUZS';",
+      "why": "Carres (the engine's one company, kept under the HOUZS code) sells from showrooms: its SO asks for a Showroom or a Project instead of Houzs's Fair. The backend twin is carres-sale-place.ts SHOWROOM_SALE_COMPANY_CODES.",
+      "whoSetIt": "Carres owner, 2026-11-12."
+    },
+    {
+      "file": "backend/src/scm/lib/fair-binding.test.ts",
+      "text": "return { ...real, companyUsesKeyerFair: (code: unknown) => String(code ?? '').trim().toUpperCase() === 'HOUZS' };",
+      "why": "Test only: switches Houzs's keyer-fair rule back on for the HOUZS code so the tests keep pinning the code the engine still carries; Carres itself runs with the rule off.",
+      "whoSetIt": "Carres owner, 2026-11-12 (Carres runs no fairs)."
     }
   ]
 }

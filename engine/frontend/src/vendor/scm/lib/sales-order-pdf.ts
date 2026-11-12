@@ -51,6 +51,7 @@ import {
    docs/modules/document-status-vocabulary.md §1. */
 import { statusLabel } from './status-pill';
 import { PDF_COMPRESS } from './pdf-options';
+import { soSaleTypeLabel } from '../../shared/so-sale-type';
 
 // ----------------------------------------------------------------------------
 // Sales Order PDF generator — dynamic jspdf import so it doesn't bloat the
@@ -138,6 +139,10 @@ type SoHeader = {
      reuse path (no such columns) simply omits them and the rows don't print. */
   salesperson_name?: string | null;
   salesperson_phone?: string | null;
+  /* Carres: Outright / Subscription (owner 2026-11-12) and the project an order was sold for instead of a
+     showroom. Sent by GET /mfg-sales-orders/:docNo; the Consignment Order reuse path has neither. */
+  sale_type?: string | null;
+  project_id?: number | string | null;
   /* Authoritative received-to-date rollup stamped by GET /:docNo (ledger +
      legacy header deposit). Falls back to summing `payments` when absent. */
   paid_sen_total?: number | null;
@@ -564,7 +569,9 @@ export async function renderSalesOrderInto(
         [opts?.refLabel ?? 'Reference', opts?.refLabel ? (customerRefOf(header) || '—') : (customerRefOf(header) || null)],
         ['Agent', header.agent],
         ['Sales Location', header.sales_location],
-        ['Venue', header.venue],
+        /* Carres: a Sales Order names its Showroom, or the Project it was sold for (owner 2026-11-12). */
+        [header.sale_type === undefined ? 'Venue' : header.project_id != null ? 'Project' : 'Showroom', header.venue],
+        ...(header.sale_type === undefined ? [] : [['Sale Type', soSaleTypeLabel(header.sale_type)] as [string, string]]),
         /* Owner batch 2026-07 — salesperson name (· phone when scm.staff has
            one) + the customer's emergency contact phone. Value-gated: rows
            with no data don't print (drawInfoColumns skips blanks). */

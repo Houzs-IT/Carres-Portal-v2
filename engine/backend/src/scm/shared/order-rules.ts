@@ -252,10 +252,14 @@ export type CompanyCode = 'HOUZS' | '2990';
  *  HOUZS, and moving 2990 to 50% newly refuses **ZERO** of them — no 2990 order
  *  sits in the 30-49% band. This change is a rule correction with no blast radius,
  *  which is exactly why it ships alone. */
-export const processingDateThresholdFor = (companyCode?: CompanyCode | string | null): number =>
-  String(companyCode ?? '').trim().toUpperCase() === '2990'
+export const processingDateThresholdFor = (companyCode?: CompanyCode | string | null): number => {
+  const code = String(companyCode ?? '').trim().toUpperCase();
+  // Carres: the engine runs Carres as the HOUZS row, and Carres's deposit before
+  // Proceed / Processing Date is 50% (owner 2026-11-12), so HOUZS takes 2990's 50%.
+  return code === '2990' || code === 'HOUZS'
     ? PROCEED_PAID_THRESHOLD
     : PROCESSING_DATE_PAID_THRESHOLD;
+};
 
 /** Total physical pieces in an order (for delivery slot allocation). */
 export const pieceCount = (_orderItems: unknown[]): number => {

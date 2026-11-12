@@ -52,6 +52,7 @@ import { loadFairPutAside, NOT_PUT_ASIDE, setFairPutAside } from '../lib/fair-pu
 import { loadFairChecks } from '../lib/fair-checks';
 import { fairStateOf, recordFairChange } from '../lib/fair-audit';
 import { canReassignFair, FAIR_REASSIGN_REFUSAL } from '../lib/fair-reassign';
+import { showroomVenueName } from '../lib/carres-sale-place';
 import { FAIR_TRANSFER_MAX, fairTransferItemsOf, transferFairDay, transferOrdersToFairs } from '../lib/fair-transfer';
 /* GET /active-venue moved here from mfg-sales-orders.ts on 2026-09-13. It is the
    same concern as the picker — which exhibition is this rep at — and that file
@@ -505,6 +506,37 @@ mfgSoFairs.post('/:docNo/fair', async (c) => {
 // the master holds ~38). The form stamps the text anyway and hints that it is
 // unmastered; it does NOT reject the order. Rejecting unmastered venues would
 // block real sales to enforce a list nobody has finished filling in.
+// Carres: GET /mfg-sales-orders/sale-places — the SO form's Showroom pick (owner 2026-11-12): every active
+// showroom (scm.warehouses flagged as one) and, as the other choice, every live project (not archived or
+// cancelled), both in the active company. The form defaults to the salesperson's own showroom
+// (scm.staff.showroom_warehouse_id) from this list. carres-sale-place.ts has the model.
+mfgSoFairs.get('/sale-places', async (c) => {
+  const sb = c.get('supabase');
+  const wh = await scopeToCompany(
+    sb.from('warehouses').select('id, name, venue_name, is_active').eq('is_showroom', true),
+    c,
+  ).order('name', { ascending: true });
+  if (wh.error) return c.json({ error: 'load_failed', reason: wh.error.message }, 500);
+  const showrooms = ((wh.data ?? []) as Array<Record<string, unknown>>)
+    .filter((r) => (r.isActive ?? r.is_active) !== false)
+    .map((r) => ({ id: String(r.id), name: showroomVenueName(r) }))
+    .filter((r) => r.name !== '');
+  let projects: Array<{ id: number; name: string }> = [];
+  try {
+    const rows = await c.env.DB.prepare(
+      `SELECT p.id AS id, p.name AS name, p.code AS code FROM projects p
+        WHERE p.archived_at IS NULL AND lower(coalesce(p.status, '')) <> 'cancelled'${activeCompanySql(c, 'p.company_id')}
+        ORDER BY p.name`,
+    ).bind().all<Record<string, unknown>>();
+    projects = ((rows.results ?? []) as Array<Record<string, unknown>>)
+      .map((r) => ({ id: Number(r.id), name: String(r.name ?? '').trim() || String(r.code ?? '').trim() }))
+      .filter((r) => Number.isInteger(r.id) && r.name !== '');
+  } catch (e) {
+    return c.json({ error: 'load_failed', reason: e instanceof Error ? e.message : String(e) }, 500);
+  }
+  return c.json({ showrooms, projects });
+});
+
 mfgSoFairs.get('/active-venue', async (c) => {
   const hu = c.get('houzsUser');
   const uid = hu?.id != null ? Number(hu.id) : NaN;

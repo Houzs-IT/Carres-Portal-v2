@@ -19,7 +19,9 @@ export const SO_LIST_COLUMNS = [
   "customer_state", "customer_country", "customer_delivery_date",
   "processing_date", "linked_do_doc_no", "ship_to_address", "bill_to_address",
   "install_to_address", "subtotal_sen", "overdue", "email", "customer_type",
-  "salesperson_id", "city", "postcode", "building_type", "emergency_contact_name",
+  "salesperson_id", "city", "postcode", "building_type",
+  "sale_type", // Carres: Outright / Subscription (migration 2006)
+  "emergency_contact_name",
   "emergency_contact_phone", "emergency_contact_relationship", "target_date",
   "payment_method", "installment_months", "merchant_provider", "approval_code",
   "payment_date", "deposit_sen", "paid_sen", "delivery_fee_sen",
@@ -228,6 +230,7 @@ export const PG_REAL_SCHEMA_DDL = `
     city text,
     postcode text,
     building_type text,
+    sale_type text NOT NULL DEFAULT 'outright', -- Carres: migration 2006
     emergency_contact_name text,
     emergency_contact_phone text,
     emergency_contact_relationship text,

@@ -95,6 +95,9 @@ import { useAuth as useHouzsAuth } from '../../auth/AuthContext';
 import { useVenues, type AutoVenue } from '../../vendor/scm/lib/venues-queries';
 import { FairDayPicker, FairPicker, useAutoFair, type FairPickValue } from '../../components/FairPicker';
 import { FairFallback } from '../../components/FairFallback';
+import { SalePlacePicker, useSalePlace, useSalePlaces } from '../../carres/SalePlacePicker';
+import { companyUsesShowroomSale, salePlacePayload } from '../../carres/salePlace';
+import { DEFAULT_SO_SALE_TYPE, SO_SALE_TYPE_OPTIONS, type SoSaleType } from '../../vendor/shared/so-sale-type';
 import { fairDayCheck, fairEditPatch, fairEventOf } from '../../components/fairPick';
 import {
   useLocalities, countryForState,
@@ -262,6 +265,8 @@ export const SalesOrderNew = () => {
 
   // ── Order Info fields (Building Type / Venue / Dates / Note) ───────
   const [buildingType,   setBuildingType] = useState<string>('');
+  // Carres: Outright or Subscription, Outright to start with (owner 2026-11-12).
+  const [saleType, setSaleType] = useState<SoSaleType>(DEFAULT_SO_SALE_TYPE);
   /* PR #156 — Commander 2026-05-27: "开单的 venue 呢也没有". Detail page
      keeps Venue as a free-text field separate from Building Type — match
      that here so the two layouts line up.
@@ -1056,7 +1061,15 @@ export const SalesOrderNew = () => {
     setFairPick(next);
     if (next.organizer) setNoFair(false);
   }, []);
-  const autoFair = useAutoFair(!noFair, fairPick, onFairChange); // the keyer's fair (owner 2026-10-19)
+  /* Carres: a Showroom, or a Project instead, in place of the Fair (owner 2026-11-12) — defaulted to the
+     salesperson's own showroom and following the Salesperson until a person picks (carres/salePlace.ts). */
+  const carresSale = companyUsesShowroomSale(branding.companyCode);
+  const salePlacesQ = useSalePlaces(carresSale);
+  const [salePlace, dispatchSalePlace] = useSalePlace({
+    enabled: carresSale, places: salePlacesQ.data, follow: true,
+    salespersonShowroomId: selectedStaff?.showroomWarehouseId ?? null,
+  });
+  const autoFair = useAutoFair(!noFair && !carresSale, fairPick, onFairChange); // the keyer's fair (owner 2026-10-19)
   const effectiveVenueName: string = useMemo(() => {
     if (fairPick.venue) return fairPick.venue;
     const id = pickedVenueId ?? resolvedVenueId;
@@ -1405,7 +1418,7 @@ export const SalesOrderNew = () => {
     items: lines.map((l) => ({ itemCode: l.itemCode, itemGroup: l.itemGroup, variants: l.variants, qty: l.qty, description: l.description, unitPriceSen: l.unitPriceSen, discountSen: l.discountSen })),
     asDraft: asDraftFlag,
     hasVenue: !!effectiveVenueId,
-    ...fairDayCheck(fairEditPatch(fairEventOf(fairPick)), {}),
+    ...(carresSale ? salePlacePayload(salePlace.value) : fairDayCheck(fairEditPatch(fairEventOf(fairPick)), {})), // Carres: the showroom / project
     noFair, fairWhy: autoFair.why,
     hasSalesperson: !!salespersonId,
     companyCode: branding.companyCode,
@@ -1424,7 +1437,7 @@ export const SalesOrderNew = () => {
       convertedFromDocNo: d.convertedFromDocNo,
       amountSen: d.amountSen,
     })),
-  }), [debtorName, phone, lines, effectiveVenueId, fairPick, noFair, autoFair.why, salespersonId, branding.companyCode, salesLocation, state, country, processingDate, deliveryDate, fillAddressLater, address1, postcode, paymentDrafts]);
+  }), [debtorName, phone, lines, effectiveVenueId, fairPick, noFair, autoFair.why, salespersonId, branding.companyCode, salesLocation, state, country, processingDate, deliveryDate, fillAddressLater, address1, postcode, paymentDrafts, carresSale, salePlace.value]);
 
   /* Live "Can't save — N to fix" list, asked of the backend as the operator
      types (debounced). Based on the CONFIRMED create (asDraft:false), which is
@@ -1632,6 +1645,13 @@ export const SalesOrderNew = () => {
         /* Which DAY of that event (owner 2026-09-24) — kept only as one of its days. */
         fairDate: fairPick.day ?? undefined,
         fairProjectId: fairPick.booth ?? undefined, // the booth, when the form asked (FairPicker rule 9)
+        /* Carres: the picked showroom or project, sent by id (the server writes its name as the venue), and no
+           fair keys at all (owner 2026-11-12). */
+        ...(carresSale ? {
+          ...salePlacePayload(salePlace.value),
+          noFair: undefined, fairOrganizer: undefined, fairStart: undefined, fairEnd: undefined, fairDate: undefined, fairProjectId: undefined,
+        } : {}),
+        saleType, // Carres: Outright / Subscription
         /* Address handling: address1/2 skipped when fill-later is on, but
            State/City/Postcode/BuildingType always submit. */
         address1: fillAddressLater ? undefined : (address1 || undefined),
@@ -1962,6 +1982,42 @@ export const SalesOrderNew = () => {
                 <ChevronDown size={14} strokeWidth={1.75} className={styles.selectChevron} />
               </span>
             </label>
+            {/* Carres: Outright or Subscription (owner 2026-11-12), beside Building Type. */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Sale Type</span>
+              <span className={styles.selectWrap}>
+                <select
+                  className={styles.fieldSelect}
+                  value={saleType}
+                  onChange={(e) => setSaleType(e.target.value as SoSaleType)}
+                >
+                  {SO_SALE_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} strokeWidth={1.75} className={styles.selectChevron} />
+              </span>
+            </label>
+            {/* Carres: the Showroom, or a Project instead, in place of the Fair (owner 2026-11-12). */}
+            {carresSale && (
+              <label className={styles.field} style={{ gridColumn: 'span 2' }}>
+                <span className={styles.fieldLabel}>Showroom</span>
+                <SalePlacePicker
+                  id="so-showroom"
+                  value={salePlace.value}
+                  places={salePlacesQ.data}
+                  onChange={(v) => dispatchSalePlace({ type: 'pick', value: v })}
+                  wrapClassName={styles.selectWrap}
+                  selectClassName={styles.fieldSelect}
+                />
+                {salePlace.value && !salePlace.manual && (
+                  <span style={{ fontSize: '11px', marginTop: '4px', opacity: 0.7 }}>
+                    The salesperson&apos;s showroom. Change it, or pick a project, if this order was sold elsewhere.
+                  </span>
+                )}
+              </label>
+            )}
+            {!carresSale && (
             <label className={styles.field} style={{ gridColumn: 'span 2' }}>
               <span className={styles.fieldLabel}>Fair</span>
               {/* Owner 2026-09-13: a row is a PLACE plus an ORGANIZER, no dates,
@@ -1997,9 +2053,10 @@ export const SalesOrderNew = () => {
               <FairFallback enabled value={fairPick} orderDate={fairDate} onOrderDate={setFairDate}
                 maxDate={today} noFair={noFair} onNoFair={setNoFair} />
             </label>
+            )}
             {/* Which DAY of the picked event (owner 2026-09-24) — shown once an
                 event is picked, in the slot the row keeps free for it. */}
-            {fairEventOf(fairPick) && (
+            {!carresSale && fairEventOf(fairPick) && (
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Fair Day</span>
                 <FairDayPicker id="so-fair-day" value={fairPick} soDate={fairDate} onChange={setFairPick}

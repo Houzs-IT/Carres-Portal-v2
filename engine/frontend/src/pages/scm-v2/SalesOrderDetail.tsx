@@ -141,6 +141,10 @@ import { AddressPostcodeField } from '../../vendor/scm/components/AddressPostcod
 import { DebtorSuggestList } from '../../vendor/scm/components/DebtorSuggestList';
 import { soStatusDisplay, type DeliveryState, type SoLifecycle } from '../../vendor/scm/lib/so-status';
 import { useAuth as useHouzsAuth } from '../../auth/AuthContext';
+import { useBranding } from '../../hooks/useBranding';
+import { SalePlacePicker, useSalePlaces } from '../../carres/SalePlacePicker';
+import { companyUsesShowroomSale, salePlaceFromOrder, salePlacePayload, type SalePlaceValue } from '../../carres/salePlace';
+import { DEFAULT_SO_SALE_TYPE, SO_SALE_TYPE_OPTIONS, parseSoSaleType } from '../../vendor/shared/so-sale-type';
 import { useAuth } from '../../vendor/scm/lib/auth';
 import { useVenues } from '../../vendor/scm/lib/venues-queries';
 import { FairDayPicker, FairPicker } from '../../components/FairPicker';
@@ -294,6 +298,8 @@ type SoHeader = {
   venue_id: string | null;
   fair?: LinkedFair | null; // the linked event (owner 2026-09-24); absent on an older server
   fair_date?: string | null; fair_match?: string | null; // the day of that event; how it was linked
+  /* Carres: the project an order was sold for instead of a showroom, and Outright / Subscription (owner 2026-11-12). */
+  project_id?: number | null; sale_type?: string | null;
   branding: string | null;
   transfer_to: string | null;
   address1: string | null;
@@ -2839,6 +2845,10 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
   /* Task #118 — DB-backed dropdowns (was hardcoded). Falls back to the
      migration 0081 seed list when loading or when the DB has zero rows
      so commander never sees an empty select on this page. */
+  /* Carres: a Showroom, or a Project instead, in place of the Fair (owner 2026-11-12, carres/salePlace.ts).
+     The recorded place is shown until a person picks another; only a pick is sent. */
+  const carresSale = companyUsesShowroomSale(useBranding().companyCode);
+  const salePlacesQ = useSalePlaces(carresSale);
   const customerTypeOptsQ = useSoDropdownOptions('customer_type');
   const buildingTypeOptsQ = useSoDropdownOptions('building_type');
   const relationshipOptsQ = useSoDropdownOptions('relationship');
@@ -2877,6 +2887,8 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
     customerType: h.customer_type ?? '',
     salespersonId: h.salesperson_id ?? '',
     buildingType: h.building_type ?? '',
+    saleType: parseSoSaleType(h.sale_type) ?? DEFAULT_SO_SALE_TYPE, // Carres: Outright / Subscription
+    salePlace: null as SalePlaceValue | null, salePlaceTouched: false, // Carres: a person's pick, once made
     /* PR #156 — Commander 2026-05-27: "开单的 venue 呢也没有". Reinstate
        venue as a free-text field separate from Building Type.
 
@@ -2929,6 +2941,8 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
     customerType: f.customerType,
     salespersonId: f.salespersonId || null,
     buildingType: f.buildingType,
+    saleType: f.saleType, // Carres
+    ...(f.salePlaceTouched ? salePlacePayload(f.salePlace) : {}), // Carres: the picked showroom / project, by id
     /* Commander 2026-05-27: Venue is locked to the salesperson's
        staff.venue_id. We persist both the FK + the resolved name. */
     venue: f.venue,
@@ -3433,6 +3447,37 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
                 <ChevronDown size={14} strokeWidth={1.75} className={styles.selectChevron} />
               </span>
             </label>
+            {/* Carres: Outright or Subscription (owner 2026-11-12), beside Building Type. */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Sale Type</span>
+              <span className={styles.selectWrap}>
+                <select className={styles.fieldSelect} value={form.saleType}
+                  disabled={customerDisabled}
+                  onChange={(e) => setForm((s) => ({ ...s, saleType: parseSoSaleType(e.target.value) ?? DEFAULT_SO_SALE_TYPE }))}>
+                  {SO_SALE_TYPE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} strokeWidth={1.75} className={styles.selectChevron} />
+              </span>
+            </label>
+            {/* Carres: the Showroom, or a Project instead, in place of the Fair (owner 2026-11-12). */}
+            {carresSale && (
+              <label className={styles.field} style={{ gridColumn: 'span 2' }}>
+                <span className={styles.fieldLabel}>Showroom</span>
+                <SalePlacePicker
+                  id="so-detail-showroom"
+                  value={form.salePlaceTouched ? form.salePlace : (salePlaceFromOrder(header, salePlacesQ.data)
+                    ?? (header.venue ? { kind: 'showroom', id: '', name: header.venue } : null))}
+                  places={salePlacesQ.data}
+                  disabled={inputsDisabled}
+                  onChange={(v) => setForm((s) => ({ ...s, salePlace: v, salePlaceTouched: true }))}
+                  wrapClassName={styles.selectWrap}
+                  selectClassName={styles.fieldSelect}
+                />
+              </label>
+            )}
+            {!carresSale && (
             <label className={styles.field} style={{ gridColumn: 'span 2' }}>
               <span className={styles.fieldLabel}>Fair</span>
               {/* Same picker as the create forms. A picked EVENT is saved and linked
@@ -3459,7 +3504,8 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', marginTop: '6px', cursor: 'pointer' }}><input type="checkbox" checked={form.noFair} disabled={inputsDisabled} onChange={(e) => setForm((s) => ({ ...s, noFair: e.target.checked }))} />
                   <span>No fair (showroom / direct sale)</span></label>)}
             </label>
-            {form.fair && (/* which DAY of the picked event (owner 2026-09-24) */
+            )}
+            {!carresSale && form.fair && (/* which DAY of the picked event (owner 2026-09-24) */
               <label className={styles.field}><span className={styles.fieldLabel}>Fair Day</span><FairDayPicker id="so-detail-fair-day" value={fairPickValue(form.venue || null, form.fair)} soDate={header.so_date} disabled={inputsDisabled}
                 onChange={(next) => setForm((s) => ({ ...s, fair: fairEventOf(next) }))} wrapClassName={styles.selectWrap} selectClassName={styles.fieldSelect} /></label>)}
             <label className={styles.field} style={{ gridColumn: 'span 2' }}>

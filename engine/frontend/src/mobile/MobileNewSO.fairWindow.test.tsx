@@ -14,6 +14,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { detailBody } = vi.hoisted(() => ({ detailBody: { current: null as unknown } }));
 
+/* Carres: these pin Houzs's Fair picker. Carres shows a Showroom pick instead (owner 2026-11-12,
+   carres/salePlace.test.ts), so they run the form on the Fair path the code keeps. */
+vi.mock("../carres/salePlace", async (orig) => ({
+  ...(await orig<typeof import("../carres/salePlace")>()),
+  companyUsesShowroomSale: () => false,
+}));
 vi.mock("../vendor/scm/lib/authed-fetch", async (orig) => ({
   ...(await orig<typeof import("../vendor/scm/lib/authed-fetch")>()),
   authedFetch: vi.fn((path: string) => {

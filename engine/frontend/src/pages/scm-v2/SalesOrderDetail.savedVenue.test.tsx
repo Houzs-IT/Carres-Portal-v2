@@ -17,6 +17,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { detail } = vi.hoisted(() => ({ detail: vi.fn() }));
 
+/* Carres: these pin Houzs's Fair picker. Carres shows a Showroom pick instead (owner 2026-11-12,
+   carres/salePlace.test.ts), so they run the form on the Fair path the code keeps. */
+vi.mock("../../carres/salePlace", async (orig) => ({
+  ...(await orig<typeof import("../../carres/salePlace")>()),
+  companyUsesShowroomSale: () => false,
+}));
 vi.mock("../../vendor/scm/lib/sales-order-queries", async (orig) => ({
   ...(await orig<typeof import("../../vendor/scm/lib/sales-order-queries")>()),
   useMfgSalesOrderDetail: detail,

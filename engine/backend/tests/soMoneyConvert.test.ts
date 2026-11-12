@@ -376,10 +376,10 @@ describe('a LIVE order (owner 2026-09-16) — money may leave it above its depos
     const { money: m, others } = await money(app, LIVE);
     expect(m).toMatchObject({ docNo: LIVE, cancelled: false, open: true, reason: null, bookedSen: 100_000, remainingSen: 100_000, totalSen: 150_000, keepFraction: 0.5, keepSen: 75_000, movableSen: 25_000 });
     expect(others).toEqual([]);
-    /* Houzs keeps 30%. */
+    /* Carres: the HOUZS row is Carres, which keeps 50% too (owner 2026-11-12). */
     const houzs = harness({ companies: [{ id: CO, code: 'HOUZS' }] });
     const { money: h } = await money(houzs.app, LIVE);
-    expect(h).toMatchObject({ keepFraction: 0.3, keepSen: 45_000, movableSen: 55_000 });
+    expect(h).toMatchObject({ keepFraction: 0.5, keepSen: 75_000, movableSen: 25_000 });
   });
 
   test('convert: more than the floor allows is refused with the figures; up to it moves, and the order MIRRORS the money that left', async () => {

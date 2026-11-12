@@ -24,6 +24,9 @@ export interface StaffRow {
   role: StaffRoleValue;
   showroomId: string | null;
   venueId: string | null;
+  /* Carres: the showroom the person is parked under (Team › member › Sales venue › Showroom). Already sent by
+     backend staff.ts toApi; the SO form defaults its Showroom from it (carres/salePlace.ts). */
+  showroomWarehouseId?: string | null;
   initials: string;
   color: string;
   active: boolean;

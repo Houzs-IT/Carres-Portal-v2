@@ -84,6 +84,7 @@ import { useStaffLookup } from "../../hooks/useStaffLookup";
 import { useBranding } from "../../hooks/useBranding";
 import { shortCompanyName, getBrandingCompanyCode } from "../../lib/branding";
 import { brandingLabel, isPlaceholderBrandText } from "../../vendor/shared/so-branding-label";
+import { soSaleTypeLabel } from "../../vendor/shared/so-sale-type";
 import { soOffersTransferToDo } from "../../lib/so-transfer-to-do";
 import { useDebouncedSearchTerm, useSearchResultTransition } from "../../hooks/useServerSearch";
 import { useMfgSalesOrdersPaged, useMfgCustomers, useUpdateMfgSalesOrderStatus, useMfgSalesOrderDetail, useEnrichedSoListRows, useSoLineCoverage, useSoFunnelValues } from "../../vendor/scm/lib/sales-order-queries";
@@ -167,6 +168,7 @@ type SoRow = HoldFields & {
   note: string | null;
   customer_type: string | null;
   building_type: string | null;
+  sale_type?: string | null; // Carres: Outright / Subscription (owner 2026-11-12)
   customer_country: string | null;
   shipped_qty?: number | null;   // §0.4b — how much has LEFT
   deliverable_qty?: number | null;
@@ -573,6 +575,7 @@ function DetailDrawer({
                 <MetaItem k="Location" v={<LocationText row={row} />} />
                 <MetaItem k="Ref No." v={refOf(row)} mono />
                 <MetaItem k="Branding" v={brandOf(row)} />
+                <MetaItem k="Sale type" v={soSaleTypeLabel(row.sale_type)} />{/* Carres (owner 2026-11-12) */}
                 <MetaItem k="Order date" v={fmtDate(row.so_date)} />
                 {/* Owner 2026-07-24 — the quick view showed only the order
                     date; operators need Processing (processing_date, the one
@@ -1797,6 +1800,8 @@ export function MfgSalesOrdersListV2() {
     {
       key: "venue",
       group: "Logistics",
+      /* Carres: carries the order's Showroom, or the Project it was sold for (owner 2026-11-12). The label stays
+         AutoCount's VENUE: it is the SALES ORDER DETAILS-SALES export column name. */
       label: SO_LABELS.venue,
       width: "150px",
       defaultHidden: true,
@@ -1887,6 +1892,19 @@ export function MfgSalesOrdersListV2() {
       getValue: (r) => r.building_type ?? "",
       render: (r) => (
         <span className="text-[12.5px] text-ink-secondary">{r.building_type || "—"}</span>
+      ),
+    },
+    /* Carres: Outright / Subscription (owner 2026-11-12). The cell shows the word; the server funnel maps it to
+       the stored value (so-list-column-funnels.ts kind 'sale_type'). */
+    {
+      key: "sale_type",
+      group: "Basic",
+      label: "Sale Type",
+      width: "120px",
+      disableSort: true,
+      getValue: (r) => soSaleTypeLabel(r.sale_type),
+      render: (r) => (
+        <span className="text-[12.5px] text-ink-secondary">{soSaleTypeLabel(r.sale_type)}</span>
       ),
     },
     {

@@ -45,6 +45,7 @@ import { SO_FINANCE_KEYS } from './finance-keys';
 import { AC_DEBTOR_CODE } from '../../services/autocount-writeback';
 import { AGENT_MAP, VENUE_MAP } from '../../services/autocount-master-maps';
 import { soFunnelRowsSql, type SqlEnv } from './so-funnel-values-sql';
+import { parseSoSaleType, soSaleTypeLabel, type SoSaleType } from '../shared/so-sale-type';
 
 /** The blank-cell key the grid uses (dataTableRows.filterKeyOf). */
 export const BLANK = '—';
@@ -56,7 +57,9 @@ type Spec =
   | { kind: 'date'; col: string }
   /** A number column. Blank = NULL; `zeroIsNull` when the cell shows 0 for NULL. */
   | { kind: 'number'; col: string; zeroIsNull: boolean }
-  | { kind: 'doc_no' | 'debtor_code' | 'salesperson' | 'venue' | 'reference' | 'sales_location' };
+  | { kind: 'doc_no' | 'debtor_code' | 'salesperson' | 'venue' | 'reference' | 'sales_location' }
+  /** Carres: the Sale type column — the cell shows the word (Outright), the column stores the value (outright). */
+  | { kind: 'sale_type' };
 
 const money = (col: string): Spec => ({ kind: 'number', col, zeroIsNull: true });
 
@@ -87,6 +90,7 @@ export const SO_COLUMN_FUNNELS: Record<string, Spec> = {
   note: { kind: 'text', col: 'note' },
   customer_type: { kind: 'text', col: 'customer_type' },
   building_type: { kind: 'text', col: 'building_type' },
+  sale_type: { kind: 'sale_type' }, // Carres: Outright / Subscription (owner 2026-11-12)
   customer_country: { kind: 'text', col: 'customer_country' },
   ...Object.fromEntries(SO_FINANCE_KEYS.map((k) => [k, money(k)])),
 };
@@ -183,6 +187,12 @@ export async function resolveSoColumnFunnels(sb: Sb, c: CompanyScopeCtx, funnels
         for (const v of plain) for (const cand of reverseBook(VENUE_MAP, v)) terms.push(`venue.ilike.${ilikeExact(cand)}`);
         if (blank) terms.push(...blankText('venue'));
         break;
+      case 'sale_type': {
+        /* Carres: never blank (NOT NULL DEFAULT 'outright'), so a blank tick matches nothing. */
+        const types = [...new Set(plain.map(parseSoSaleType).filter((t): t is SoSaleType => t != null))];
+        if (types.length) terms.push(inList('sale_type', types));
+        break;
+      }
       case 'reference':
         if (plain.length) terms.push(inList('ref', plain), inList('customer_so_no', plain));
         if (blank) terms.push(...blankText('ref'));
@@ -231,6 +241,7 @@ const VIEW_COLS = [
   'venue', 'branding', 'ref', 'customer_so_no', 'sales_location', 'address1', 'address2', 'city', 'postcode',
   'customer_state', 'paid_total_sen', 'paid_sen', 'balance_sen_live', 'balance_sen', 'processing_date',
   'customer_delivery_date', 'note', 'customer_type', 'building_type', 'customer_country', 'currency',
+  'sale_type', // Carres
   'so_line_warehouse_ids',
 ];
 
@@ -262,6 +273,7 @@ function cellOf(key: string, r: ValueRow, ctx: { acDocNo: string | null; staffNa
       return str(book().ac_agent ?? (agent && UUID_RE.test(agent) ? ctx.staffName(agent) : agent));
     }
     case 'reference': return trimmedOrNull(r.ref) ?? trimmedOrNull(r.customer_so_no) ?? '';
+    case 'sale_type': return soSaleTypeLabel(r.sale_type); // Carres
     case 'sales_location': return str(trimmedOrNull(r.sales_location));
   }
 }

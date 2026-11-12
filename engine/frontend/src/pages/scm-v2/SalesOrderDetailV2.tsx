@@ -117,6 +117,8 @@ import { OrderSlipPhoto } from "../../vendor/scm/components/OrderSlipPhoto";
 import { ADD_LINE_LABEL, addLineHref } from "../../vendor/scm/lib/add-line-handoff";
 import { fairLabel } from "../../vendor/scm/lib/fair-options-queries";
 import { linkedEvent, type LinkedFair } from "../../components/fairPick";
+import { companyUsesShowroomSale } from "../../carres/salePlace";
+import { soSaleTypeLabel } from "../../vendor/shared/so-sale-type";
 import { soStreetTail } from "../../vendor/scm/lib/order-address";
 // ─── Row types (subset — see MfgSalesOrdersList.tsx for the full SoRow) ────
 
@@ -167,6 +169,9 @@ type SoHeader = {
   fair?: LinkedFair | null;
   // The day of that fair the order was written on; null = not recorded.
   fair_date?: string | null;
+  // Carres: the project an order was sold for instead of a showroom, and Outright / Subscription (owner 2026-11-12).
+  project_id?: number | null;
+  sale_type?: string | null;
   // The processing-date column the lock reads. Label, API field and column are
   // finally the same word (mig 0284 renamed it from internal_expected_dd).
   processing_date?: string | null;
@@ -1422,13 +1427,22 @@ function SalesOrderDetailV2ReadOnly() {
                   value={salesOrder.building_type || "—"}
                   muted={!salesOrder.building_type}
                 />
+                {/* Carres: Outright / Subscription, and the Showroom (or Project) in place of the Fair (owner 2026-11-12). */}
+                <Field label="Sale type" value={soSaleTypeLabel(salesOrder.sale_type)} />
+                {companyUsesShowroomSale(getBrandingCompanyCode()) && (
+                  <Field
+                    label={salesOrder.project_id != null ? "Project" : "Showroom"}
+                    value={salesOrder.venue || "—"}
+                    muted={!salesOrder.venue}
+                  />
+                )}
                 {/* A recorded pick reads back as its event — venue, organizer and
                     dates (owner 2026-09-24); shown only under the order's own venue. */}
-                <Field
+                {!companyUsesShowroomSale(getBrandingCompanyCode()) && <Field
                   label="Fair"
                   value={salesOrder.fair && linkedEvent(salesOrder.venue, salesOrder.fair, null) ? fairLabel(salesOrder.fair) : salesOrder.venue || "—"}
                   muted={!salesOrder.venue}
-                />
+                />}
                 {/* Which day of the fair (owner 2026-09-24) — only once one is recorded. */}
                 {salesOrder.fair_date && (
                   <Field label="Fair day" value={fmtDate(salesOrder.fair_date)} />

@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useConfirm } from "../vendor/scm/components/ConfirmDialog";
 import { useNotify } from "../vendor/scm/components/NotifyDialog"; import { notifySaveProblems } from "../vendor/scm/components/SaveProblemsList";
 import { usePrompt } from "../vendor/scm/components/PromptDialog"; import { CancelRequestPanel } from "../vendor/scm/components/CancelRequestPanel"; import { useCancelRequestAction } from "../pages/scm-v2/use-cancel-request-action"; import { WrongApproverFlagButton } from "../pages/scm-v2/WrongApproverFlagButton";
+import { companyUsesShowroomSale } from "../carres/salePlace"; import { soSaleTypeLabel } from "../vendor/shared/so-sale-type"; import { getBrandingCompanyCode } from "../lib/branding";
 import { fetchScanSlipImageBlobUrl } from "../vendor/scm/lib/slip"; import { fairLabel } from "../vendor/scm/lib/fair-options-queries"; import { fairElsewhereLine, type LinkedFair } from "../components/fairPick";
 import { MobileLinePhotos } from "./MobileLinePhotos";
 import { useStaff, usePickableStaff } from "../vendor/scm/lib/admin-queries";
@@ -132,6 +133,7 @@ type SoHeader = {
   venue: string | null;
   venue_id: string | null;
   fair?: LinkedFair | null; fair_date?: string | null; // + the day of it the order was written on
+  project_id?: number | null; sale_type?: string | null; // Carres: the project instead of a showroom; Outright / Subscription
   note: string | null;
   /* Delivery address columns — the desktop SO form maps these to labelled
      lines (address1/2 = free-text; address3 = city fallback; address4 =
@@ -1027,7 +1029,10 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
 
             {/* Order info */}
             <div className="card"><div className="card-h"><span className="card-t">Order info</span></div><div className="card-b">
-              <div style={{ display: "flex", gap: 9 }}><div style={{ flex: 1, minWidth: 0 }}><RoField label="Building type" value={val(h.building_type)} /></div><div style={{ flex: 1, minWidth: 0 }}><RoField label="Fair" value={h.fair ? fairLabel(h.fair) : val(h.venue ?? h.venue_id)} /></div></div>{h.fair_date ? <RoField label="Fair day" value={dl(h.fair_date)} mono /> : null}
+              <div style={{ display: "flex", gap: 9 }}><div style={{ flex: 1, minWidth: 0 }}><RoField label="Building type" value={val(h.building_type)} /></div><div style={{ flex: 1, minWidth: 0 }}>{companyUsesShowroomSale(getBrandingCompanyCode()) /* Carres: the Showroom or Project, not a Fair (owner 2026-11-12) */
+                ? <RoField label={h.project_id != null ? "Project" : "Showroom"} value={val(h.venue)} />
+                : <RoField label="Fair" value={h.fair ? fairLabel(h.fair) : val(h.venue ?? h.venue_id)} />}</div></div>
+              <RoField label="Sale type" value={soSaleTypeLabel(h.sale_type)} />{/* Carres (owner 2026-11-12) */}{h.fair_date ? <RoField label="Fair day" value={dl(h.fair_date)} mono /> : null}
               {h.fair && h.venue && fairElsewhereLine(h.venue, h.fair) ? <RoField label="Venue" value={`${h.venue} · Venue differs`} /> : null}{/* the fair is named above; its place is not the order's (owner 2026-10-19) */}
               <div style={{ display: "flex", gap: 9 }}><div style={{ flex: 1, minWidth: 0 }}><RoField label="Processing Date" value={dl(h.processing_date)} mono /></div><div style={{ flex: 1, minWidth: 0 }}><RoField label="Delivery Date" value={dl(h.customer_delivery_date)} mono /></div></div>
               <RoField label="Sales location" value={val(h.sales_location ?? h.customer_state)} />
