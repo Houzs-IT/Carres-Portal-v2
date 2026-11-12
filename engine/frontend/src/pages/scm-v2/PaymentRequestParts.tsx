@@ -127,13 +127,13 @@ export function BalanceForm({ request, onDone, onCancel }: { request: PaymentReq
         </label>
       </div>
       {over && (
-        <div role="alert" style={{ color: 'var(--c-festive-b, #B8331F)', fontSize: 'var(--fs-12)' }}>
+        <div role="alert" style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))', fontSize: 'var(--fs-12)' }}>
           More than is left to ask on the bill ({fmtSen(left)}) — it still goes, and Finance sees it.
         </div>
       )}
       <label className={styles.field}>
         <span className={styles.fieldLabel}>What is it for</span>
-        <input className={styles.fieldInput} value={purpose} onChange={(e) => setPurpose(e.target.value)} aria-label="Balance purpose" />
+        <input data-upper className={styles.fieldInput} value={purpose} onChange={(e) => setPurpose(e.target.value)} aria-label="Balance purpose" />
       </label>
       <label className={styles.field}>
         <span className={styles.fieldLabel}>The official invoice (optional — when the first was a proforma)</span>

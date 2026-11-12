@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { lazy, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
@@ -17,6 +17,10 @@ import { RefreshButton } from "./RefreshButton";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { Avatar } from "./Avatar";
 import { cn } from "../lib/utils";
+import { LazySlot } from "./LazySlot";
+
+// Loaded when the account menu opens: keeps it off the first-load budget.
+const ThemeChoice = lazy(() => import("./ThemeChoice"));
 import { api } from "../api/client";
 import { useQuery } from "../hooks/useQuery";
 import { useDialog } from "../hooks/useDialog";
@@ -26,6 +30,7 @@ import {
   subscribeActiveCompany,
 } from "../lib/activeCompany";
 import { clearAllScmHandoffs } from "../lib/scmHandoffStorage";
+import { allowNextUnload, confirmLeaving, leaveGuardActive } from "../lib/leaveGuard";
 
 /**
  * Desktop-only sticky top chrome — ONE 52px bar (top-chrome redesign 2b,
@@ -42,18 +47,22 @@ import { clearAllScmHandoffs } from "../lib/scmHandoffStorage";
  * Every lg sticky below parks at top-[52px]: Layout PageHeader, DetailLayout,
  * the two SCM V2 doc bars — change this bar's height, change them all.
  */
-export function TopNavbar() {
+export function TopNavbar({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
 
+  /* z-40, one above the DataTable's sticky thead / tfoot (z-30). The bar is a
+     stacking context, so its dropdowns can never rise above the bar's own
+     layer; at a z-30 tie the later-painted table header won and covered the
+     company / bell / profile menus. TopNavbar.layer.test.ts pins the order. */
   return (
-    <header className="sticky top-0 z-30 hidden h-[52px] items-center border-b border-border bg-surface pl-3.5 pr-2 lg:flex">
+    <header className="sticky top-0 z-40 hidden h-[52px] items-center border-b border-border bg-surface pl-3.5 pr-2 lg:flex">
       {/* Workspace tabs (left; scrolls in place on overflow). */}
       <WorkspaceTabs />
 
       {/* Utility cluster (right): company / search / bell / profile — the
           company pill leads, as it always has (owner screenshot 2026-07-23). */}
       <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-4">
-        <CompanySwitcher />
+        {!embedded && <CompanySwitcher />}
         <div className="w-[220px]">
           <GlobalSearchTrigger tone="inset" />
         </div>
@@ -69,8 +78,12 @@ export function TopNavbar() {
                 much is waiting — which is the whole point of routing
                 amendment approvals here. */}
             <NotificationBell collapsed direction="down" align="end" tone="navbar" />
-            <span aria-hidden className="mx-0.5 h-6 w-px bg-border-subtle" />
-            <ProfileMenu />
+            {!embedded && (
+              <>
+                <span aria-hidden className="mx-0.5 h-6 w-px bg-border-subtle" />
+                <ProfileMenu />
+              </>
+            )}
           </>
         )}
       </div>
@@ -152,9 +165,10 @@ function CompanySwitcher() {
     setOpen(false);
     if (id === activeId) return;
     // The switch below hard-reloads the whole app (see the block comment) to
-    // guarantee zero cross-company staleness — but a reload silently discards
-    // any unsaved edits: the app registers no beforeunload guard, so nothing
-    // else warns the user. Confirm first so a mid-edit switch can't lose work.
+    // guarantee zero cross-company staleness — and a reload discards any unsaved
+    // edits. Confirm first, in our own words, so a mid-edit switch can't lose
+    // work; allowNextUnload() then stops the browser's own leave prompt
+    // (LeaveGuardBridge) asking the same question a second time.
     // Only reached when the target company actually differs (same-company
     // re-selects already returned above), so we never nag on a no-op pick.
     const ok = await dialog.confirm({
@@ -185,6 +199,7 @@ function CompanySwitcher() {
     // (see lib/scmHandoffStorage).
     clearAllScmHandoffs();
     setActiveCompanyId(id);
+    allowNextUnload();
     window.location.reload();
   }
 
@@ -309,6 +324,9 @@ function ProfileMenu() {
 
   async function onLogout() {
     setOpen(false);
+    // Asked BEFORE logout(): the guard on the /login move would come after the
+    // session is already gone.
+    if (leaveGuardActive() && !(await confirmLeaving())) return;
     // Same rule as the company switcher: transient SCM navigation handoffs
     // must not survive an SPA identity change, or the next user picks up the
     // outgoing user's in-flight state.
@@ -430,6 +448,9 @@ function ProfileMenu() {
                 Switch user
               </Link>
             )}
+            <LazySlot resetKey="account-menu" fallback={null}>
+              <ThemeChoice />
+            </LazySlot>
             <button
               type="button"
               role="menuitem"

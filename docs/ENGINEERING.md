@@ -54,6 +54,103 @@ from the browser to Supabase Auth. Everything after login goes through Hono with
 never in a committed `.env`, never referenced from `apps/web`, never logged, never in a
 response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must be 0.**
 
+### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
+
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`efa70b116`**, run as its
+own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
+frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu (the only menu). On those pages the
+one top row is Houzs's own top bar inside the frame (workspace tabs, search, Refresh, presence, bell; no company
+switcher or profile menu), and the Carres header and Tasks card stand down (owner, 11 Nov 2026). The menu: every Service Cases, Projects
+and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, in Houzs's order and words.
+Rule: the engine's screens match Houzs except the theme; Carres edits live only in `engine/frontend/src/carres/`,
+the files the commits below name, and the Carres config files.
+
+**The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
+the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
+values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still
+in the tree because Finance (old) and the print pages import
+it; no menu row or address opens it. Code nothing reachable used any more (unused `lib/queries.ts` hooks, the
+Delivery Monitor/Delivery Orders register helpers, the case wizard, `ReportProblemModal`, the `/api/it-support`
+route) was removed on 12 Nov 2026. Also on 12 Nov the Workspace task feed stopped carrying supply-chain work
+(Workspace MASTER banner) and the five API routers that only it and the removed pages read were deleted:
+`/api/operation/purchasing/requests` (Manual Purchase), `/api/operation/stock`, `/api/operation/purchase-returns`,
+`/api/operation/repair-orders` and `/api/ops/issues`. With the PO, supplier-answer and delivery task panels gone,
+the old Carres Sales Order workspace (`SalesOrderWorkspace`, `OrderDetailDrawer`, `so-detail/*`, `so-batch/*` and
+the order components they mount, about 70 files) is no longer reachable from any page; it is left for a separate
+removal PR. The dealer POS does not import it. Old Carres tables
+and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
+orders in the old order book (`OLD_ORDER_FLOWS`).
+
+**System rows, Settings and IT (owner, 11 Nov 2026; completed 12 Nov 2026).** The menu's SYSTEM group is Houzs's
+Team (Directory · Org Chart · Departments · Mailboxes · Roles & Permissions; its row opens `/team?tab=hub`), Mail
+Center, Announcements, the IT module (System Health · AI Usage; its row only opens and shuts, as Houzs's IT group
+has no page), Change Log, Assistant, Agent Console (`/agents`), IT Support and OCR, each an engine row in Houzs's
+order, words and icons. Every top-level entry in the engine's `navOnly.ts` KEEP list now has a portal place
+(`portal-nav.system.test.ts` reads KEEP and fails on a missing one); Houzs's own gates (`it.pages.view`, `*`,
+`scm.changelog.read`, `org.assistant.use`) stay inside the engine, so a row the person may not use opens Houzs's
+refusal. Houzs draws Mail Center and Announcements in its Operations section; the portal keeps them in SYSTEM where
+the owner put Mail Center on 11 Nov. Not rows, as in Houzs: Sales Entries (`/sales`, commented out of Houzs's menu)
+and the DO / SI / DR detail listings (`/scm/reports/*-detail-listing`; no Houzs menu entry or page links them). The Settings gear opens Houzs's `/settings` (`/operation/sc/settings`) and `Report a problem
+to IT` opens Houzs's IT Support row (the portal's own `/api/it-support` route and its `IT_HUB_URL` /
+`IT_HUB_API_KEY` Worker secrets are no longer used; the secrets can be deleted). A Sales Order's `Report a problem`
+opens Houzs's Service Cases row. Removed: the Carres HR area (`/hr*` → Team hub), the Carres Settings
+workspace (`/operation/settings/*` → Houzs Settings), the Issue Tracker and Sales invoice lines (→ Sales Orders)
+and the Operations Payments rows (Finance keeps Monitor and Payment Records). `hr` logins enter `/operation` for
+the System rows only; the engine opens for them only once its `ENGINE_ROLES` (engine/backend/src/carres/sso.ts)
+admits `hr`.
+
+**Houzs Finance (owner, 11 Nov 2026).** The engine's Finance module is on (`navOnly.ts` KEEP has `Finance`;
+only `/scm/hr` stays hidden, since Carres keeps people in Team). The menu draws Houzs's Finance group as one
+row after Supply Chain: To do · Money today · Money in ▸ · Money out ▸ · Bank & cards ▸ · Books ▸ · Reports ·
+Setup ▸, 32 engine rows (`fin-*` in `ENGINE_PAGES`), Houzs's words, order, icons and addresses; the row opens
+To do (`/scm/finance`). Reports opens the first report (P&L) and every report lights it
+(`ENGINE_ROW_ALIASES`). To do and Payment requests carry Houzs's counts (`finance-todo`,
+`payment-requests-waiting`, via `carres:badges`). `finance` logins see that group in `/operation` (and nothing
+else there) and may open the engine (`ENGINE_ROLES` in the portal API and the engine); like every non-principal
+account they start on the engine's "New member" role until the owner picks a role on Team > Roles &
+Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bottom of the menu as
+**Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
+migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
+
+**What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
+after normalising the recolour): the only non-colour differences are the Carres integration (`src/carres/*`, the
+frame/top-bar branches in `Layout.tsx`/`TopNavbar.tsx`/`App.tsx`/`main.tsx`, `backend/src/carres/sso.ts`), the brand
+name and blank Branding defaults, `CR-` document numbers, the Carres hosts and dev fallbacks, showroom venues in
+`fair-binding.ts`, and the supplier-code check in `ProductModels.tsx`. Every loading feature is Houzs's unchanged
+(lazy routes, boot preload, react-query, service worker, `_headers`, vite build). Left out on purpose: HR, AutoCount
+Sync, POS Admin and Venture Portal Feed (`navOnly.ts`). Not wired yet: the scan queue (`SCAN_QUEUE`, Houzs
+`houzs-scan-ocr`; without it scans run in `waitUntil`), the metrics dataset (`ERP_METRICS`, optional). Features that
+wait for a secret answer that they are not set up and the rest of the page works: `ANTHROPIC_API_KEY` (GRN/SO/PI/
+payment/credit-note/stock-take/lorry-invoice scans, bill and PV reading, 3PL bills, assistant, floorplans,
+announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worker `GOOGLE_MAPS_API_KEY` (maps,
+geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
+`TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
+
+**Resync from a newer Houzs main** (done 12 Nov 2026 from `efa70b116`):
+1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
+2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
+   Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:
+   keep the Carres light, print and dark values there (the recolour script does not touch channel triplets).
+3. Re-apply the Carres edits: `git diff <recoloured old import> origin/main -- engine/` with `git apply --3way`.
+   The first import (`f6e9ca924`) itself changed 16 files (Carres wrangler settings, dev fallbacks to
+   localhost); check they survived. **Check both `wrangler.toml` files name the Carres account, buckets and
+   URLs, never Houzs's** — a conflict there once reverted to Houzs's production settings.
+4. Copy Houzs `backend/src/db/migrations-pg/*.sql` newer than the last copied one into
+   `engine/backend/scripts/carres-db/migrations/` as the next `11xx_<original name>`, verbatim.
+   Build a throwaway database from that folder (PGlite) before merging; the owner applies them to the
+   engine database with `engine/backend/scripts/carres-db/apply.mjs`.
+
+**Test data: Houzs's master data in the engine** (`engine/backend/scripts/carres-db/seed-from-houzs.mjs`, 11 Nov
+2026). To test-run the whole engine flow on real master data, the owner runs, from `engine/backend` on the machine
+that holds Houzs's masked local database (`houzs_local`, built by `houzs-erp-local/.local-dev/import-snapshot.sh`):
+`node scripts/carres-db/seed-from-houzs.mjs --dry-run`, then without `--dry-run`. It asks for the engine database
+connection string hidden, like `apply.mjs`, and copies only master/config rows (catalogue, suppliers and bindings,
+warehouses and racks, customers, delivery rates, lead times, Finance chart of accounts and settings, lookup lists)
+of Houzs's main company, re-labelled to the Carres company, in one transaction; never transactions, stock, history,
+tokens or users, and it never changes or deletes a row already there (re-runs copy nothing new).
+`--classify` lists every Houzs table as copied or skipped with the reason. Before go-live, the engine database
+starts clean again (CLAUDE.md §6): this is test data.
+
 ---
 
 ## 3 · RLS performance — three rules that are not optional
@@ -143,8 +240,14 @@ Draft  →  review business impact  →  commit the exact file  →  merge-ready
 
 ## 6 · Deployment
 
-**Authoritative automation (2026-08-13):** `.github/workflows/ci.yml` owns PR checks and
-The same workflow has a manual `diagnose_schedule` mode for read-only verification: it reads the
+**Authoritative automation (2026-08-13):** `.github/workflows/ci.yml` owns PR checks. Since 11 Nov 2026
+its checks run side by side on separate machines (it took 25 minutes in one job): `checks` (migration law,
+guards, types, build, bundle-secret grep), `web-tests` in 4 Vitest shards, `server-tests` (api in 2
+shards, plus shared), `kit` (Playwright browser cached). **`verify` is the one check to wait for**: it
+passes only when every check the PR needs passed. `scope` decides what a PR needs (engine-only,
+api-only, or all); it must never pipe into `grep -q` — under the runner's `pipefail` that SIGPIPEd on
+large PRs and skipped their web tests while CI stayed green.
+The deploy workflow has a manual `diagnose_schedule` mode for read-only verification: it reads the
 registered schedules and observes scheduled outcomes/exceptions for 95 seconds, without deploying.
 It uses its own concurrency group so diagnostics do not block production delivery. HTTP request
 payloads and credentials are not printed or uploaded. No observed event means execution remains

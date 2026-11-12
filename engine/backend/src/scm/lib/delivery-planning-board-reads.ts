@@ -13,7 +13,7 @@
 // grow (file-size gate); it is pure (sb + docNos -> four in-flight promises) and
 // is exercised end-to-end by delivery-planning.board.test.ts through the handler.
 import type { Context } from 'hono';
-import { chunkIn } from './paginate-all';
+import { chunkIn, paginateAll } from './paginate-all';
 import { boardDeliverableByDoc } from './board-deliverable';
 import { scopeToAllowedCompanies } from './companyScope';
 import { assrBoardUnionSql } from './assr-board-scope';
@@ -24,8 +24,10 @@ export function kickOffBoardReads(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sb is the scm service client, mirrored from boardDeliverableByDoc
   sb: any,
   docNos: string[],
+  /** false for ?counts_only: the balance and DO reads only feed display columns and the row scope. */
+  display: boolean,
 ) {
-  const liveBalanceReadP = chunkIn<{ doc_no: string | null; balance_sen_live: number | null }>(docNos, (batch, from, to) =>
+  const liveBalanceReadP = chunkIn<{ doc_no: string | null; balance_sen_live: number | null }>(display ? docNos : [], (batch, from, to) =>
     sb.from('mfg_sales_orders_with_payment_totals')
       .select('doc_no, balance_sen_live')
       .in('doc_no', batch).order('doc_no').range(from, to),
@@ -51,10 +53,13 @@ export function kickOffBoardReads(
     (r) => ({ ok: r } as const),
     (e) => ({ err: e } as const),
   );
-  const doRowsReadP = chunkIn<DeliveryOrderExecRow>(docNos, (batch, from, to) =>
+  const doRowsReadP = chunkIn<DeliveryOrderExecRow>(display ? docNos : [], (batch, from, to) =>
     sb.from('delivery_orders')
-      .select('id, do_number, so_doc_no, status, driver_id, delivery_state, customer_delivery_date, do_date, delivered_at, pod_r2_key, pod_lat, time_range, time_confirmed, arrival_at, departure_at, shipout_date, customer_delivered_date, eta_arriving_port, delivery_substatus, arrives_em_warehouse_date, em_delivery_status, consignment_no, vessel_voyage, etd_port_klang, bs_delivery_date, esb_remarks, bs_remarks, ctn, em_delivered_date')
-      .in('so_doc_no', batch).order('id').range(from, to),
+      .select('id, do_number, so_doc_no, status, driver_id, driver_name, vehicle, delivery_state, customer_delivery_date, do_date, delivered_at, pod_r2_key, pod_lat, time_range, time_confirmed, arrival_at, departure_at, shipout_date, customer_delivered_date, eta_arriving_port, delivery_substatus, arrives_em_warehouse_date, em_delivery_status, consignment_no, vessel_voyage, etd_port_klang, bs_delivery_date, esb_remarks, bs_remarks, ctn, em_delivered_date')
+      // Oldest first, so "the last DO" (whose crew the row shows and the crew cells
+      // write) is the NEWEST one, the same DO latestLiveDoIdForSo picks; by id alone
+      // it was whichever UUID sorted last.
+      .in('so_doc_no', batch).order('created_at').order('id').range(from, to),
   );
   return { liveBalanceReadP, itemRowsReadP, deliverableReadP, doRowsReadP };
 }
@@ -159,6 +164,8 @@ export function kickOffSubBoardReads(
         customer_pickup_at: string | null; inspection_visit_at: string | null;
         inspection_by: string | null; do_date: string | null;
         delivery_by: string | null; pickup_by: string | null; pickup_pic: string | null; actual_pickup_at: string | null;
+        actual_inspection_at: string | null; actual_delivery_at: string | null;
+        pickup_cancelled_at: string | null; inspection_cancelled_at: string | null; delivery_cancelled_at: string | null;
         sched_pickup_date: string | null; sched_inspection_date: string | null; sched_delivery_date: string | null;
         pickup_time_range: string | null; inspection_time_range: string | null; delivery_time_range: string | null;
         pickup_remark: string | null; inspection_remark: string | null; delivery_remark: string | null;
@@ -166,21 +173,28 @@ export function kickOffSubBoardReads(
         delivery_message_status: string | null; pickup_message_status: string | null; inspection_message_status: string | null;
         addr1: string | null; addr2: string | null; addr3: string | null; addr4: string | null;
         so_state: string | null; so_postcode: string | null; so_country: string | null;
+        so_ref_src: string | null; so_custso_src: string | null; related_do_nos: string | null;
       }>() } as const;
     } catch (e) { return { err: e } as const; }
   })();
 
   const dpResP = (async () => {
     try {
-      let dpQuery = sb.from('dp_orders')
-        .select('id, dp_no, job_type, party_name, contact_phone, address1, address2, address3, address4, city, postcode, state, requested_date, status, trip_id, delivery_message_status, time_range, remark')
-        .is('so_doc_no', null).is('assr_case_id', null).is('do_id', null)
-        // Keep CANCELLED off the board, but KEEP DELIVERED (owner 2026-10-21: a
-        // finished DP job belongs on the Delivered tab, not hidden).
-        .neq('status', 'CANCELLED')
-        .limit(1000);
-      dpQuery = scopeToAllowedCompanies(dpQuery, c);
-      return { ok: await dpQuery } as const;
+      /* PAGED, ordered by id: this read used to stop at .limit(1000) with no order, so
+         once manual DP jobs (DELIVERED ones are kept) passed 1,000 the board silently
+         dropped an arbitrary set of them. */
+      const dpRes = await paginateAll<Record<string, unknown>>((from, to) => scopeToAllowedCompanies(
+        sb.from('dp_orders')
+          .select('id, dp_no, job_type, party_name, contact_phone, address1, address2, address3, address4, city, postcode, state, requested_date, status, trip_id, delivery_message_status, time_range, remark')
+          .is('so_doc_no', null).is('assr_case_id', null).is('do_id', null)
+          // Keep CANCELLED off the board, but KEEP DELIVERED (owner 2026-10-21: a
+          // finished DP job belongs on the Delivered tab, not hidden).
+          .neq('status', 'CANCELLED')
+          .order('id'),
+        c,
+      ).range(from, to));
+      if (dpRes.error) throw dpRes.error;
+      return { ok: dpRes } as const;
     } catch (e) { return { err: e } as const; }
   })();
 

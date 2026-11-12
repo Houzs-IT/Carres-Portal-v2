@@ -1,11 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  leaveRecorderViewSchema,
-  myLeaveResponseSchema,
-  teamLeaveResponseSchema,
-  type StaffLeaveRecordForInput,
-  type StaffLeaveSubmitInput,
-} from "@carres/shared/workspace-leave";
+import { leaveRecorderViewSchema, myLeaveResponseSchema, type StaffLeaveRecordForInput, type StaffLeaveSubmitInput } from "@carres/shared/workspace-leave";
 import { apiFetch } from "./api";
 
 /**
@@ -29,13 +23,6 @@ export function useMyLeave() {
   });
 }
 
-export function useTeamLeave(days = 7) {
-  return useQuery({
-    queryKey: leaveKeys.team(days),
-    queryFn: async () => teamLeaveResponseSchema.parse(await apiFetch<unknown>(`/api/operation/leave/team?days=${days}`)),
-    staleTime: 30_000,
-  });
-}
 
 function useRefreshAfterLeave() {
   const client = useQueryClient();

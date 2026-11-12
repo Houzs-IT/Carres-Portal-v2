@@ -53,11 +53,13 @@ import { requireActiveCompanyId } from '../lib/companyScope';
 import { chunkIn, paginateAll } from '../lib/paginate-all';
 import { resolveRoles, type RoleCodes } from '../../acc/rules';
 import { countsInTheBooks } from '../../acc/reversal-pairs';
-import { layOutCashFlow, type LaidLine, type LaidNode } from '../../acc/report-layout';
+import { layOutCashFlow, type LaidLine, type LaidNode, type SplitTo } from '../../acc/report-layout';
 import { OPENING_CLEARING, OPENING_SOURCE } from '../../acc/opening-balance';
-import { inBankShares, loadCardPayoutFacts, paymentKey, type CardPayoutFacts } from '../../acc/card-in-bank';
+import { inBankShares, loadCardPayoutFacts, merchantMatched, paymentKey, type CardPayoutFacts } from '../../acc/card-in-bank';
 import { loadOrderPaymentFacts, paymentKinds, type OrderPaymentFacts, type PaymentKind } from '../../acc/order-payment-kind';
+import { loadAutoCountReceipts, type AutoCountReceipt } from '../../acc/autocount-receipts';
 import { allowedIds, resolveLayout, type ResolvedLayout } from './accounting-report-layouts';
+import { partyNameKey } from '../../acc/typed-text';
 
 const requirePerm = (c: any): boolean => hasHouzsPerm(c, 'scm.payment_voucher.post');
 const NO_PERM = { error: "You don't have permission to read the financial statements." };
@@ -73,8 +75,11 @@ type GlLine = RpGlLine;
 
 export type RpRow = {
   key: string; code: string | null; name: string; cells: Record<string, number>; totalSen: number;
-  /** A sub-heading the row prints under, within its account's place on the tree (Deposit / Balance). */
+  /** A sub-heading the row prints under, within its account's place on the tree (Deposit / Settlement). */
   group?: { id: string; label: string };
+  /** The Settlement / Deposit column the row's money goes to whatever its category says
+      (a customer's order payment by its kind, a refund to Deposit — owner 2026-11-09). */
+  splitTo?: SplitTo;
 };
 export type RpEntry = {
   jeNo: string; entryDate: string; sourceType: string | null; sourceDocNo: string | null;
@@ -95,7 +100,12 @@ export type RpReport = {
   entries: RpEntry[];
   /** The card money the bank has not received (owner 2026-09-28). */
   card: RpCard;
+  /** Customers' money AutoCount recorded after the books started, which no journal carries
+      (owner 2026-11-08): named under the customer receipts, in no total. */
+  autoCount: RpAutoCount;
 };
+export type RpAutoCount = { sen: number; count: number; entries: RpEntry[] };
+const NO_AUTOCOUNT: RpAutoCount = { sen: 0, count: 0, entries: [] };
 /** A swipe books Dr card-machine clearing / Cr the customer; the acquirer's payout
     Dr bank / Cr clearing. Since 2026-11-05 the swipes are Cash In in the Card column;
     these two figures stay for the API's readers: what was swiped in the period — every
@@ -114,25 +124,31 @@ const ADVANCE_KEY = 'ADV';
    yet in the bank. */
 export const CARD_COLUMN = 'CARD';
 const CARD_COLUMN_NAME = 'Card money not yet in the bank';
-/* A swipe's receipt row, by how much of it the acquirer has paid into a bank by the period's end. */
+/* A swipe's receipt rows (owner 2026-11-06: 分多一个 condition): the share the acquirer
+   has paid into a bank by the period's end, the rest by whether the merchant's report
+   has matched the payment. Only the rows differ: Cash In and the Card column are the
+   same whichever one a swipe reads. */
 export const CARD_IN_BANK = 'CARD-BANK';
-export const CARD_NOT_IN_BANK = 'CARD-TRANSIT';
+export const CARD_MATCHED = 'CARD-MATCHED';
+export const CARD_NOT_MATCHED = 'CARD-UNMATCHED';
 const CARD_IN_BANK_NAME = 'Card - in the bank';
-const CARD_NOT_IN_BANK_NAME = 'Card - not yet in the bank';
+const CARD_MATCHED_NAME = 'Card - merchant matched';
+const CARD_NOT_MATCHED_NAME = 'Card - not matched yet';
 /* The customers' money on the debtor control (owner 2026-11-05): an order's payments
-   are Deposit or Balance (acc/order-payment-kind.ts), each by how it came in; a refund
-   to a customer is a negative receipt; what reaches the debtor control otherwise
-   (a sales-invoice payment, a journal) is Other receipts. Not by party. */
+   are Deposit or Settlement (acc/order-payment-kind.ts; "Balance" until 2026-11-09, his
+   workbook's word is Settlement), each by how it came in; a refund to a customer is a
+   negative receipt; what reaches the debtor control otherwise (a sales-invoice
+   payment, a journal) is Other receipts. Not by party. */
 const KIND_GROUP: Record<PaymentKind, { id: string; label: string }> = {
   DEP: { id: 'DEP', label: 'Deposit' },
-  BAL: { id: 'BAL', label: 'Balance' },
+  BAL: { id: 'BAL', label: 'Settlement' },
 };
 const CASH_PART = 'CASH';
 const CASH_PART_NAME = 'Transfer / cash';
 export const CUSTOMER_REFUND = 'REFUND';
 export const CUSTOMER_OTHER = 'OTHER';
-/* Where a debtor-control row prints among its siblings: Deposit's three, Balance's three, Refund, Other. */
-const CUSTOMER_ORDER = [`DEP:${CASH_PART}`, `DEP:${CARD_IN_BANK}`, `DEP:${CARD_NOT_IN_BANK}`, `BAL:${CASH_PART}`, `BAL:${CARD_IN_BANK}`, `BAL:${CARD_NOT_IN_BANK}`, CUSTOMER_REFUND, CUSTOMER_OTHER];
+/* Where a debtor-control row prints among its siblings: Deposit's four, Balance's four, Refund, Other. */
+const CUSTOMER_ORDER = (['DEP', 'BAL'] as const).flatMap((kind) => [CASH_PART, CARD_IN_BANK, CARD_MATCHED, CARD_NOT_MATCHED].map((part) => `${kind}:${part}`)).concat(CUSTOMER_REFUND, CUSTOMER_OTHER);
 const customerRank = (r: RpRow): number => {
   const i = r.code === null ? -1 : CUSTOMER_ORDER.indexOf(r.key.slice(r.code.length + 1));
   return i < 0 ? -1 : i;
@@ -233,6 +249,8 @@ export type RpSources = {
   roles: () => Promise<RoleCodes>;
   /** What each named supplier-payment voucher settled (rule A), keyed by pv_number. */
   splits: (pvNumbers: string[], controlCodes: Set<string>) => Promise<{ ok: true; byPv: Map<string, RpSplit[]> } | Fail>;
+  /** Customers' money AutoCount recorded in the period after the books started; a source without it names none. */
+  autoCountReceipts?: (from: string, to: string) => Promise<{ ok: true; payments: AutoCountReceipt[] } | Fail>;
 };
 /** The database, as the route reads it. */
 export const rpDbSources = (sb: Sb, companyId: number, layoutIds: number[]): RpSources => ({
@@ -250,6 +268,7 @@ export const rpDbSources = (sb: Sb, companyId: number, layoutIds: number[]): RpS
   },
   roles: () => resolveRoles(sb, companyId),
   splits: (pvNumbers, controlCodes) => supplierPurposeSplits(sb, companyId, pvNumbers, controlCodes),
+  autoCountReceipts: (from, to) => loadAutoCountReceipts(sb, companyId, from, to),
 });
 
 /** What each supplier-payment voucher settled, read through the documents it
@@ -370,7 +389,7 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
   if (!acquirers.ok) return { ok: false, reason: acquirers.reason };
   const clearingCodes = [...new Set([String(roles.TRANSIT_EDC).trim(), ...acquirers.codes].filter(Boolean))].sort();
   const clearingSet = new Set(clearingCodes);
-  if (bankColumns.length === 0) return { ok: true, report: { from, to, byParty, columns: [], opening: {}, receipts: [], payments: [], totals: {}, entries: [], card: { takingsSen: 0, transitSen: 0, codes: [] } } };
+  if (bankColumns.length === 0) return { ok: true, report: { from, to, byParty, columns: [], opening: {}, receipts: [], payments: [], totals: {}, entries: [], card: { takingsSen: 0, transitSen: 0, codes: [] }, autoCount: NO_AUTOCOUNT } };
   const loaded = await src.lines(bankColumns.map((a) => a.code), clearingCodes, from, to);
   if (!loaded.ok) return { ok: false, reason: loaded.reason };
   /* The Card column shows once a clearing account has ever moved. */
@@ -380,6 +399,7 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
   const payouts = cardOn ? await src.cardPayouts() : { ok: true as const, facts: { matches: [], rows: [], batches: [], receipts: [] } };
   if (!payouts.ok) return { ok: false, reason: payouts.reason };
   const inBank = inBankShares(payouts.facts, to);
+  const matched = merchantMatched(payouts.facts);
 
   const opening: Record<string, number> = {};
   for (const col of columns) opening[col.code] = 0;
@@ -415,10 +435,10 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
   const receipts = new Map<string, RpRow>();
   const payments = new Map<string, RpRow>();
   const entries: RpEntry[] = [];
-  const add = (side: 'R' | 'P', key: string, code: string | null, name: string, column: string, amount: number, e: { jeNo: string; entryDate: string; sourceType: string | null; sourceDocNo: string | null; narration: string | null; party: string | null }, group?: RpRow['group']) => {
+  const add = (side: 'R' | 'P', key: string, code: string | null, name: string, column: string, amount: number, e: { jeNo: string; entryDate: string; sourceType: string | null; sourceDocNo: string | null; narration: string | null; party: string | null }, group?: RpRow['group'], splitTo?: SplitTo) => {
     if (amount === 0) return;
     const book = side === 'R' ? receipts : payments;
-    const row: RpRow = book.get(key) ?? { key, code, name, cells: {}, totalSen: 0, ...(group ? { group } : {}) };
+    const row: RpRow = book.get(key) ?? { key, code, name, cells: {}, totalSen: 0, ...(group ? { group } : {}), ...(splitTo ? { splitTo } : {}) };
     row.cells[column] = (row.cells[column] ?? 0) + amount;
     row.totalSen += amount;
     book.set(key, row);
@@ -510,41 +530,47 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
       }
 
       /* A swipe into the Card column: the share its statement has paid into a bank by
-         the period's end, and the rest (a payment no statement claims: all of it). */
+         the period's end (a payment no statement claims: none), and the rest, by whether
+         its report has matched it. */
       const swipe = leg.account_code === CARD_COLUMN && !settlementOwn(first);
-      const bankShare = swipe && first.source_doc_no ? (inBank.get(paymentKey(base, first.source_doc_no)) ?? 0) : 0;
+      const payment = swipe && first.source_doc_no ? paymentKey(base, first.source_doc_no) : null;
+      const bankShare = payment ? (inBank.get(payment) ?? 0) : 0;
+      const rest = payment && matched.has(payment) ? { part: CARD_MATCHED, name: CARD_MATCHED_NAME } : { part: CARD_NOT_MATCHED, name: CARD_NOT_MATCHED_NAME };
       for (const l of counterparts) {
         const amt = shareOf(Math.abs(sen(l)));
         const onControl = controlCodes.has(l.account_code);
         /* The party keys on its CODE where the line carries one (owner 2026-09-08:
            one customer, one code — two customers can share a name), the name
            still being what the row reads. */
-        const key = byParty && onControl ? `${l.account_code}:${l.party_code ?? l.party_name ?? '—'}` : l.account_code;
+        /* A name keys the row case-blind: Finance's words are upper case from 2026-11-09, older lines are not. */
+        const key = byParty && onControl ? `${l.account_code}:${l.party_code ?? partyNameKey(l.party_name) ?? '—'}` : l.account_code;
         const name = byParty && onControl ? `${l.party_name ?? '(no party)'} · ${l.account_name ?? l.account_code}` : String(l.account_name ?? l.account_code);
         const lineMeta = { ...meta, party: l.party_name ?? null };
         if (!byParty && l.account_code === roles.AR) {
           /* A customer's money, always a receipt: money back out of the bank is a negative one. */
           const signed = side === 'R' ? amt : -amt;
           const kind = base === 'SOPAY' && first.source_doc_no ? kinds.get(first.source_doc_no) : undefined;
-          const put = (part: string, partName: string, value: number, group?: RpRow['group']) =>
-            add('R', `${l.account_code}:${part}`, l.account_code, partName, leg.account_code, value, lineMeta, group);
+          const put = (part: string, partName: string, value: number, group?: RpRow['group'], to?: SplitTo) =>
+            add('R', `${l.account_code}:${part}`, l.account_code, partName, leg.account_code, value, lineMeta, group, to);
           if (!kind) {
-            if (side === 'P') put(CUSTOMER_REFUND, '(-) Refund', signed);
+            /* A refund is a deposit given back (his workbook: Sales returns/refunds under Deposit). */
+            if (side === 'P') put(CUSTOMER_REFUND, '(-) Refund', signed, undefined, 'deposit');
             else put(CUSTOMER_OTHER, 'Other receipts (not order payments)', signed);
             continue;
           }
           const g = KIND_GROUP[kind];
-          if (!swipe) { put(`${kind}:${CASH_PART}`, CASH_PART_NAME, signed, g); continue; }
+          const to: SplitTo = kind === 'DEP' ? 'deposit' : 'settlement';
+          if (!swipe) { put(`${kind}:${CASH_PART}`, CASH_PART_NAME, signed, g, to); continue; }
           const banked = Math.round(signed * bankShare);
-          put(`${kind}:${CARD_IN_BANK}`, CARD_IN_BANK_NAME, banked, g);
-          put(`${kind}:${CARD_NOT_IN_BANK}`, CARD_NOT_IN_BANK_NAME, signed - banked, g);
+          put(`${kind}:${CARD_IN_BANK}`, CARD_IN_BANK_NAME, banked, g, to);
+          put(`${kind}:${rest.part}`, rest.name, signed - banked, g, to);
           continue;
         }
         if (!swipe) { add(side, key, l.account_code, name, leg.account_code, amt, lineMeta); continue; }
         const banked = Math.round(amt * bankShare);
         const cardName = (part: string) => (byParty && onControl ? `${name} · ${part}` : part);
         add(side, `${key}:${CARD_IN_BANK}`, l.account_code, cardName(CARD_IN_BANK_NAME), leg.account_code, banked, lineMeta);
-        add(side, `${key}:${CARD_NOT_IN_BANK}`, l.account_code, cardName(CARD_NOT_IN_BANK_NAME), leg.account_code, amt - banked, lineMeta);
+        add(side, `${key}:${rest.part}`, l.account_code, cardName(rest.name), leg.account_code, amt - banked, lineMeta);
       }
     };
     for (const leg of moneyLegs) {
@@ -596,7 +622,17 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
   const ownTransfer = (r: RpRow) => r.key.startsWith('XFER:') && r.code !== null && colSet.has(r.code);
   const cf = layOutCashFlow(tree, cashFlowLines(receiptRows.filter((r) => !ownTransfer(r))), cashFlowLines(paymentRows.filter((r) => !ownTransfer(r))), companyId);
   const layout = { stored: laid.stored, tree: cf.nodes, inSen: cf.inSen, outSen: cf.outSen };
-  return { ok: true, report: { from, to, byParty, columns, opening, receipts: receiptRows, payments: paymentRows, layout, totals, entries, card } };
+  const ac = src.autoCountReceipts ? await src.autoCountReceipts(from, to) : { ok: true as const, payments: [] };
+  if (!ac.ok) return { ok: false, reason: ac.reason };
+  const autoCount: RpAutoCount = ac.payments.length === 0 ? NO_AUTOCOUNT : {
+    sen: ac.payments.reduce((s, p) => s + p.amountSen, 0),
+    count: ac.payments.length,
+    entries: ac.payments.map((p) => ({
+      jeNo: '', entryDate: p.paidOn, sourceType: 'AUTOCOUNT', sourceDocNo: p.docNo, narration: p.note,
+      party: p.party, side: 'R' as const, rowKey: 'AUTOCOUNT', column: 'AUTOCOUNT', sen: p.amountSen,
+    })),
+  };
+  return { ok: true, report: { from, to, byParty, columns, opening, receipts: receiptRows, payments: paymentRows, layout, totals, entries, card, autoCount } };
 }
 
 /* ── GET /accounting/reports/receipts-payments?from&to&accounts=a,b&party=1 ── */
@@ -627,5 +663,6 @@ export function cashFlowLines(rows: RpRow[]): LaidLine[] {
     label: r.key === r.code ? `${r.code} · ${r.name}` : r.name,
     amountSen: r.totalSen, cells: { ...r.cells },
     ...(r.group ? { group: r.group } : {}),
+    ...(r.splitTo ? { splitTo: r.splitTo } : {}),
   }));
 }

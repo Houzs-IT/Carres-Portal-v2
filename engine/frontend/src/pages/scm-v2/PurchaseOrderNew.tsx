@@ -36,6 +36,7 @@ import {
   type MaterialKind,
   type OutstandingSoItem,
 } from '../../vendor/scm/lib/suppliers-queries';
+import { defaultSupplierBinding } from '../../vendor/scm/lib/default-supplier-binding';
 import { useIdempotencyKey } from '../../lib/idempotency';
 import { serviceConfirm } from '../../vendor/scm/lib/dialog-service';
 import { readScmHandoff, removeScmHandoff, writeScmHandoff } from '../../lib/scmHandoffStorage';
@@ -69,6 +70,9 @@ import { computeTotalHeight, isTotalHeightCategory, isTotalHeightPart } from '..
 import { DateField } from "../../vendor/scm/components/DateField";
 import { showsVariantEditor } from '../../vendor/scm/lib/variant-editor-groups';
 import { useLinkProductRequestPo, useProductRequest } from '../../vendor/scm/lib/product-request-queries';
+import { supplierEmailList } from '../../vendor/shared/supplier-emails';
+import { FormTouchScope } from '../../components/FormTouchScope';
+import { useFormTouched, useLeaveGuard } from '../../hooks/useLeaveGuard';
 
 const ICON    = { size: 16, strokeWidth: 1.75 } as const;
 const SM_ICON = { size: 14, strokeWidth: 1.75 } as const;
@@ -140,6 +144,8 @@ const newLine = (): DraftLine => ({
 
 export const PurchaseOrderNew = () => {
   const navigate = useNavigate();
+  const { touched: formTouched, markTouched } = useFormTouched();
+  const { allowLeave } = useLeaveGuard(formTouched, null);
   const create   = useCreatePurchaseOrder();
   /* One key for the one PO this page is open to raise (lib/idempotency.ts).
      Route-level form, navigates to the PO detail on success, so the MOUNT is
@@ -242,9 +248,8 @@ export const PurchaseOrderNew = () => {
     if (supplierId) { setPendingItemPick(null); return; }
     if (itemSuppliersQuery.isLoading) return;
     const matches = itemSuppliersQuery.data?.bindings ?? [];
-    const b = matches[0];
-    if (matches.length === 1 && b) {
-      // Exactly one supplier binds this — adopt it + autofill the line.
+    const b = defaultSupplierBinding(matches);
+    if (b) {
       setSupplierId(b.supplier.id);
       setLines((prev) => prev.map((l) => (l.rid === pendingItemPick.rid ? {
         ...l,
@@ -258,7 +263,7 @@ export const PurchaseOrderNew = () => {
       } : l)));
       setPendingItemPick(null);
     }
-    // N > 1 — leave pendingItemPick set so the hint banner renders.
+    // Several suppliers and no single main one — leave pendingItemPick set so the hint banner renders.
     // 0      — keep pendingItemPick so the "no bindings, free entry" hint renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- categoryForCode is a stable code→category lookup, not a reactive trigger
   }, [pendingItemPick, supplierId, itemSuppliersQuery.isLoading, itemSuppliersQuery.data]);
@@ -467,6 +472,8 @@ export const PurchaseOrderNew = () => {
     removeScmHandoff('poNewDraft');
 
     appliedFromSoRef.current = true;
+    // Lines brought back from the picker are work the person did.
+    if (draft || pickedRows) markTouched();
     try {
       // Restore the prior draft (header + lines) FIRST so any picks append.
       if (draft) {
@@ -573,6 +580,7 @@ export const PurchaseOrderNew = () => {
       notify({ title: 'Unable to continue', body: 'This browser could not safely store the current Purchase Order draft. Nothing was discarded; free some browser storage and try again.', tone: 'error' });
       return;
     }
+    allowLeave();
     navigate('/scm/purchase-orders/from-so');
   };
 
@@ -832,6 +840,7 @@ export const PurchaseOrderNew = () => {
                 /* writeFailedAs already said why; the PO stands, unlinked. */
               }
             }
+            allowLeave();
             navigate(`/scm/purchase-orders/${res.id}`);
           },
           onError: async (err) => {
@@ -866,6 +875,7 @@ export const PurchaseOrderNew = () => {
   };
 
   return (
+    <FormTouchScope onTouch={markTouched}>
     <div className="space-y-4">
       <PageHeader back
         eyebrow="Procurement"
@@ -1030,7 +1040,7 @@ export const PurchaseOrderNew = () => {
             }}>
               {supplier.contact_person && <span>Contact: <strong>{supplier.contact_person}</strong></span>}
               {supplier.phone          && <span>Phone: <strong>{formatPhone(supplier.phone)}</strong></span>}
-              {supplier.email          && <span>Email: <strong>{supplier.email}</strong></span>}
+              {supplierEmailList(supplier).length > 0          && <span>Email: <strong>{supplierEmailList(supplier).join(", ")}</strong></span>}
               {supplier.payment_terms  && <span>Terms: <strong>{supplier.payment_terms}</strong></span>}
               <span>Currency: <strong>{currency}</strong></span>
             </div>
@@ -1201,7 +1211,7 @@ export const PurchaseOrderNew = () => {
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
-                        color: 'var(--c-festive-b, #B8331F)',
+                        color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
                         padding: 4,
                         display: 'inline-flex',
                       }}
@@ -1620,5 +1630,6 @@ export const PurchaseOrderNew = () => {
       )}
 
     </div>
+    </FormTouchScope>
   );
 };

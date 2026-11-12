@@ -33,7 +33,7 @@
 /* ── The question on an unsaved Close. ── */
 .ask {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 16px;
-  background: var(--fin-warn-bg); border-bottom: 1px solid #e5d6b3; font-size: 12.5px; color: #5a3a14;
+  background: var(--fin-warn-bg); border-bottom: 1px solid #e5d6b3; font-size: 12.5px; color: var(--hz-c-accent-ink);
 }
 .askIcon { flex: none; color: var(--fin-brass); }
 .askText { flex: 1; min-width: 240px; line-height: 1.45; }
@@ -102,6 +102,14 @@
   font: 400 12px 'IBM Plex Sans', system-ui, sans-serif; color: var(--fin-text);
 }
 .dirText { font-size: 12px; font-weight: 400; font-style: normal; color: var(--fin-detail); }
+/* The Cash Flow's Settlement / Deposit column (owner 2026-11-09): the choice, and its two parts when split. */
+.split { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.parts { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--fin-detail); }
+.part {
+  width: 44px; height: 26px; box-sizing: border-box; padding: 0 4px; border: 1px solid var(--fin-input); border-radius: 6px;
+  background: var(--fin-surface); font: 400 12px 'IBM Plex Sans', system-ui, sans-serif; color: var(--fin-text); text-align: right;
+}
+.part:focus { border-color: var(--fin-petrol); outline: none; }
 .tick { width: 16px; height: 16px; margin: 0; accent-color: var(--fin-petrol); cursor: pointer; vertical-align: middle; }
 
 .icons { display: inline-flex; align-items: center; gap: 2px; }
@@ -121,6 +129,6 @@
 /* A picked-up row on its way (owner 2026-11-05): the bar stays above the tree while the page scrolls. */
 .parked {
   position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px;
-  margin: 0 16px 8px; padding: 8px 12px; border: 1px solid var(--fin-petrol-line, #b9d6d1); border-radius: 8px;
-  background: var(--fin-petrol-pale, #DCE6FD); color: var(--fin-petrol-ink, #2F55E0); font-size: 12.5px;
+  margin: 0 16px 8px; padding: 8px 12px; border: 1px solid var(--fin-petrol-line, var(--hz-dk-primary-line, #b9d6d1)); border-radius: 8px;
+  background: var(--fin-petrol-pale, var(--hz-c-primary-soft)); color: var(--fin-petrol-ink, var(--hz-c-primary-ink)); font-size: 12.5px;
 }

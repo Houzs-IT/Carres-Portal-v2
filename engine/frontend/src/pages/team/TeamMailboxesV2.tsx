@@ -613,7 +613,7 @@ function MailboxCreatePanel({
             <input
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="name@houzscentury.com"
+              placeholder="name@carresofficial.com"
               className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-[12.5px] text-ink outline-none focus:border-primary"
             />
           </div>

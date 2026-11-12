@@ -8,7 +8,7 @@
 //   • the money side is NOT here — it is BankRecon.test.tsx, and the setup is
 //     SettlementSetup.test.tsx: three jobs, three screens, as the owner asked.
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { AcquirerSetup, SettlementRow } from './settlement-queries';
@@ -70,6 +70,10 @@ const confirmMatchedBatch = vi.fn();
 const refreshAfterPosting = vi.fn();
 const uploadMutateAsync = vi.fn();
 const saveMutate = vi.fn();
+const writeSheet = vi.fn();
+const reportLinesPdf = vi.fn();
+const waitingCardsPdf = vi.fn();
+const readBatches = vi.fn();
 
 /* The batch list, swappable: the screen draws a different conclusion from
    "3 lines still open" than from "every line decided", and both have to be
@@ -98,10 +102,13 @@ const findResults = [
 const setBatchList = (b: Array<Record<string, unknown>>) => { batchList = b; };
 const REPORT_ROWS: SettlementRow[] = [ROW, MATCHED_ROW, SUGGESTED_ROW, DONE_ROW, LONELY_ROW];
 let reportRows: SettlementRow[] = REPORT_ROWS;
+/* What differs on the report a test opens. */
+let openedBatch: Record<string, unknown> = {};
 
-vi.mock('./settlement-queries', () => ({
+vi.mock('./settlement-queries', () => { const m = {
   useAcquirerSetup: () => ({ data: { acquirers: [MBB, GHL], bankAccounts: [{ account_code: '310-0010', account_name: 'Bank — Maybank Current' }] }, isLoading: false }),
   useSaveAcquirerSetup: () => ({ mutate: saveMutate, isPending: false }),
+  useReadSettlementBatches: () => readBatches,
   useSettlementBatches: () => ({ data: { batches: batchList }, isLoading: false }),
   useSettlementBatch: () => ({
     data: {
@@ -109,6 +116,7 @@ vi.mock('./settlement-queries', () => ({
         id: 1, acquirer_code: 'MBB', net_sen: 175100, stated_net_sen: null,
         adjustment_sen: 0, adjustment_je_no: null, received_on: null,
         received_sen: 60000, outstanding_sen: 115100,
+        ...openedBatch,
         receipts: [{ id: 9, received_on: '2026-08-05', amount_sen: 60000, bank_ref: null, note: null, je_no: 'JE-2608-0007', created_by: 'Ah Chew' }],
       },
       acquirer: { code: 'MBB', hasUniqueRef: true, dateToleranceDays: 3 },
@@ -138,11 +146,11 @@ vi.mock('./settlement-queries', () => ({
     isLoading: false, isError: false, error: null,
   }),
   useSettlementWatchlist: () => ({ data: { from: '2026-05-18', to: '2026-08-16', clean: false, arrivedNotRecorded: [], recordedNotArrived: [
-    { source: 'SOPAY', id: 'w1', acquirerCode: 'MBB', docNo: 'SO-2607-088', paidOn: '2026-07-18', amountSen: 35000, approvalCode: 'A0900', ageDays: 29, salespersonName: 'Kah Wai' },
+    { source: 'SOPAY', id: 'w1', acquirerCode: 'MBB', docNo: 'SO-2607-088', paidOn: '2026-07-18', amountSen: 35000, approvalCode: 'A0900', ageDays: 29, salespersonName: 'Kah Wai', ref: 'HC13025', customer_so_no: 'HC99999', accountSheet: 'R49241' },
     /* Keyed in without a bank — the server lists it once, under no acquirer (docs/bugs/0688). */
-    { source: 'SOPAY', id: 'w2', acquirerCode: null, docNo: 'SO-2606-013', paidOn: '2026-06-14', amountSen: 336500, approvalCode: '009577', ageDays: 63 },
+    { source: 'SOPAY', id: 'w2', acquirerCode: null, docNo: 'SO-2606-013', paidOn: '2026-06-14', amountSen: 336500, approvalCode: '009577', ageDays: 63, ref: null, customer_so_no: 'ZNT6656', accountSheet: '393020' },
   ] }, isLoading: false }),
-}));
+}; return { ...m, useSettlementBatchRow: m.useSettlementBatch }; });
 
 /* The advice tab is the acquirer's own paperwork, so it has a door on this
    screen too (owner, 2026-08-24: 毕竟它属于card merchant 那边). Its contract is
@@ -151,6 +159,22 @@ vi.mock('./PayoutAdviceTab', () => ({ PayoutAdviceTab: () => <div>payment advice
 /* The cards read a missing report off Finance's To do (card-missing). */
 let todoJobs: Array<Record<string, unknown>> = [];
 vi.mock('./finance/finance-todo-queries', () => ({ useFinanceTodo: () => ({ data: { mine: todoJobs } }) }));
+
+/* The exports leave through these two doors; what goes through them is what is pinned here. */
+vi.mock('../../components/dataTableLineExport', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../components/dataTableLineExport')>()),
+  writeLineExportFile: (...args: unknown[]) => writeSheet(...args),
+}));
+vi.mock('../../vendor/scm/lib/merchant-recon-pdf', () => ({
+  generateReportLinesPdf: (...args: unknown[]) => reportLinesPdf(...args),
+  generateWaitingCardsPdf: (...args: unknown[]) => waitingCardsPdf(...args),
+}));
+/* "Previous record" leaves through this door (owner 2026-11-11: 之前record，我哪里都不会take-in). */
+const markPrevious = vi.fn();
+vi.mock('./unmatched-payments-queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./unmatched-payments-queries')>()),
+  useMarkPrevious: () => ({ mutate: (...args: unknown[]) => markPrevious(...args), isPending: false }),
+}));
 
 import { MerchantRecon } from './MerchantRecon';
 import { refusalText } from './settlement-ui';
@@ -498,6 +522,20 @@ describe('confirming a pile of reports', () => {
   const NOTHING_TO_POST = { ...BATCH, id: 2, file_name: 'sep.csv', to_confirm_count: 0, to_choose_count: 2, open_count: 2 };
   const CHARGE_ONLY = { ...BATCH, id: 3, file_name: 'aeon.csv', to_confirm_count: 0, adjustment_sen: 48984, adjustment_je_no: null };
 
+  test('a report with a charge beyond its lines: its net is what the acquirer pays, on the list and above the card', () => {
+    /* AEON's subvention fee: lines net RM 1,751.00, the report pays RM 1,261.16. */
+    const charged = { stated_net_sen: 126_116, adjustment_sen: 48_984, adjustment_je_no: null };
+    setBatchList([{ ...BATCH, ...charged }]);
+    openedBatch = charged;
+    draw();
+    expect(screen.getByText('net RM 1,261.16')).toBeTruthy();
+    expect(screen.queryByText('net RM 1,751.00')).toBeNull();
+    fireEvent.click(screen.getByText('Reconcile'));
+    expect(screen.getByText(/· net RM 1,261\.16/)).toBeTruthy();
+    openedBatch = {};
+    setBatchList([BATCH]);
+  });
+
   test('the work list offers one press for every matched line, sends only the reports with work in them, and refreshes once', async () => {
     confirmMatchedBatch.mockReset();
     refreshAfterPosting.mockReset();
@@ -669,11 +707,25 @@ describe('inside one report', () => {
     open();
     const row = screen.getByText('969745').closest('tr') as HTMLElement;
     fireEvent.click(within(row).getByText('Not this'));
-    expect(releaseMutate).toHaveBeenCalledWith(9, expect.anything());
+    expect(releaseMutate).toHaveBeenCalledWith({ rowId: 9, payments: [] }, expect.anything());
     /* A confirmed line has Undo, not Not this. */
     openTab('Confirmed');
     const done = screen.getByText(/done · JE-2608-0011/).closest('tr') as HTMLElement;
     expect(within(done).queryByText('Not this')).toBeNull();
+  });
+
+  /* Owner 2026-11-10 (这个 system guess 的，如果我确定了不是有没有按钮可以按不是了 → 做):
+     the guess is no link, so the press names the payments the line shows. */
+  test('the system’s guess can be told "Not this" too — on its card, naming the guessed sale', () => {
+    releaseMutate.mockClear();
+    open();
+    openTab('To choose');
+    const card = screen.getByLabelText('Select SO-2608-050').closest('section') as HTMLElement;
+    fireEvent.click(within(card).getByText('Not this'));
+    expect(releaseMutate).toHaveBeenCalledWith({ rowId: 10, payments: ['SOPAY:b3'] }, expect.anything());
+    /* A line with only possibilities and no guess has nothing to turn down. */
+    const choose = screen.getByLabelText('Select SO-2608-001').closest('section') as HTMLElement;
+    expect(within(choose).queryByText('Not this')).toBeNull();
   });
 
   test('a line that needs choosing keeps its card', () => {
@@ -690,6 +742,24 @@ describe('inside one report', () => {
     open();
     openTab('To choose');
     expect(screen.getAllByText(/just moves a line out of the working list/)).toHaveLength(1);
+  });
+});
+
+describe('"Not this" on the work list', () => {
+  test('the guess and the reference match each carry it; a line to choose does not', () => {
+    releaseMutate.mockClear();
+    draw();
+    const guess = screen.getByText('TYPO9').closest('tr') as HTMLElement;
+    expect(within(guess).getByText('the system’s guess — check it')).toBeTruthy();
+    fireEvent.click(within(guess).getByText('Not this'));
+    expect(releaseMutate).toHaveBeenLastCalledWith({ rowId: 10, payments: ['SOPAY:b3'] }, expect.anything());
+
+    const matched = screen.getByText('969745').closest('tr') as HTMLElement;
+    fireEvent.click(within(matched).getByText('Not this'));
+    expect(releaseMutate).toHaveBeenLastCalledWith({ rowId: 9, payments: [] }, expect.anything());
+
+    const choose = screen.getByText('ZZ9').closest('tr') as HTMLElement;
+    expect(within(choose).queryByText('Not this')).toBeNull();
   });
 });
 
@@ -843,5 +913,198 @@ describe('the watchlist names the salesperson', () => {
     expect(within(w1).getByText('Kah Wai')).toBeTruthy();
     const w2 = screen.getByText('SO-2606-013').closest('tr') as HTMLElement;
     expect(within(w2).getByText('—')).toBeTruthy();
+  });
+});
+
+/* Owner 2026-11-06: 这个 merchant report still to reconcile 和 card payment no merchant report
+   has reported yet 我要能 export; 我要有那个 reference HC, ZNT 等等; 可以 right click export; 支持 pdf. */
+describe('exporting the two lists', () => {
+  const readAll = () => readBatches.mockImplementation(async (ids: number[]) => ids.map(() => ({ rows: reportRows })));
+  const reportsMenu = () => fireEvent.contextMenu(screen.getByRole('columnheader', { name: 'Reference' }));
+  const cardsMenu = () => fireEvent.contextMenu(screen.getByRole('columnheader', { name: /customer paid on/i }));
+  const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+  const clear = () => [writeSheet, reportLinesPdf, waitingCardsPdf, readBatches].forEach((f) => f.mockReset());
+
+  test('the card payments list shows the order\'s Ref No., ref first, and the Account sheet', () => {
+    draw();
+    expect(screen.getByRole('columnheader', { name: /Ref No\./ })).toBeTruthy();
+    /* The reports list has one too. */
+    expect(screen.getAllByRole('columnheader', { name: /account sheet/i })).toHaveLength(2);
+    const w1 = screen.getByText('SO-2607-088').closest('tr') as HTMLElement;
+    expect(within(w1).getByText('HC13025')).toBeTruthy();
+    expect(within(w1).queryByText('HC99999')).toBeNull();
+    expect(within(w1).getByText('R49241')).toBeTruthy();
+    const w2 = screen.getByText('SO-2606-013').closest('tr') as HTMLElement;
+    expect(within(w2).getByText('ZNT6656')).toBeTruthy();
+    expect(within(w2).getByText('393020')).toBeTruthy();
+  });
+
+  test('its right click makes a PDF of the cells the Excel holds, Ref No. included', async () => {
+    clear();
+    draw();
+    cardsMenu();
+    press('Export to PDF');
+    await waitFor(() => expect(waitingCardsPdf).toHaveBeenCalledTimes(1));
+    const [view, opts] = waitingCardsPdf.mock.calls[0]!;
+    expect(view.matrix.header).toEqual(['Merchant', 'Document', 'Ref No.', 'Salesperson', 'Customer paid on', 'Days', 'Amount', 'Account sheet', 'Approval']);
+    expect(view.matrix.body[0]).toEqual(['MBB', 'SO-2607-088', 'HC13025', 'Kah Wai', '2026-07-18', 29, 350, 'R49241', 'A0900']);
+    expect(view.keys).toContain('days');
+    expect(opts).toEqual({ merchant: null });
+  });
+
+  test('its Excel goes out with the two new columns', async () => {
+    clear();
+    draw();
+    cardsMenu();
+    press('Export to Excel');
+    await waitFor(() => expect(writeSheet).toHaveBeenCalledTimes(1));
+    const [matrix, , file] = writeSheet.mock.calls[0]!;
+    expect(file).toMatch(/^card-payments-not-reported-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(matrix.header).toContain('Ref No.');
+    expect(matrix.header).toContain('Account sheet');
+  });
+
+  test('a right click on the reports list\'s header makes an Excel of every open line, read once per report', async () => {
+    clear();
+    readAll();
+    draw();
+    reportsMenu();
+    press('Export to Excel');
+    await waitFor(() => expect(writeSheet).toHaveBeenCalledTimes(1));
+    expect(readBatches).toHaveBeenCalledWith([1]);
+    const [matrix, sheet, file] = writeSheet.mock.calls[0]!;
+    expect(sheet).toBe('To reconcile');
+    expect(file).toMatch(/^merchant-reports-to-reconcile-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    expect(matrix.header.slice(0, 5)).toEqual(['Merchant', 'Report', 'Date', 'Line', 'Reference']);
+    /* REPORT_ROWS without the line already done. */
+    expect(matrix.body.map((r: unknown[]) => r[4])).toEqual(['ZZ9', '969745', 'TYPO9', '615318040666']);
+    expect(matrix.body[0].slice(0, 2)).toEqual(['MBB', 'aug.csv']);
+    expect(screen.queryByRole('button', { name: 'Export to Excel' })).toBeNull();
+  });
+
+  test('and a PDF of the same reports, saying which merchant the list was cut to', async () => {
+    clear();
+    readAll();
+    draw();
+    reportsMenu();
+    press('Export to PDF');
+    await waitFor(() => expect(reportLinesPdf).toHaveBeenCalledTimes(1));
+    const [reports, opts] = reportLinesPdf.mock.calls[0]!;
+    expect(reports.map((r: { file: string; lines: unknown[] }) => [r.file, r.lines.length])).toEqual([['aug.csv', 4]]);
+    expect(opts).toEqual({ merchant: null });
+  });
+
+  test('a file that cannot be made says why, beside the list it was asked of', async () => {
+    clear();
+    readBatches.mockRejectedValue(new Error('The report could not be read.'));
+    draw();
+    reportsMenu();
+    press('Export to Excel');
+    expect((await screen.findByRole('alert')).textContent).toContain('The report could not be read.');
+    expect(writeSheet).not.toHaveBeenCalled();
+  });
+
+  test('the header says the right click is there', () => {
+    draw();
+    expect(screen.getByRole('columnheader', { name: 'Reference' }).closest('thead')?.getAttribute('title')).toBe('Right-click to export to Excel or PDF');
+  });
+});
+
+/* A DuitNow QR line (owner 2026-11-09: 这个hlbb merchant 的0000PP 是qr direct 去bank
+   的，不算卡机的 → 「A 照传，做」). Its sale is keyed Online and already in the
+   bank, so the screen calls it QR money, offers that sale, and LINKS it — no fee,
+   nothing posted, no "Confirm and post". */
+describe('a DuitNow QR line', () => {
+  const JENNY = {
+    source: 'SOPAY' as const, id: 'jenny', docNo: '2990-SO-2611-041', paidOn: '2026-11-07', amountSen: 324000,
+    approvalCode: '20261031HLBBMYKLA30OQR77370349', accountSheet: 'Bank transfer', customerName: 'Jenny',
+    /* An Online payment carries no bank: that is not "keyed without a bank". */
+    merchantProvider: null,
+  };
+  const QR_ROW: SettlementRow = {
+    id: 857, line_no: 23, txn_date: '2026-10-31', ref: null, channel: 'QR',
+    gross_sen: 324000, fee_sen: 0, net_sen: 324000, bucket: 'NEEDS_CONFIRM', match_reason: 'amount+date',
+    confirmed_at: null, posted_je_no: null, notes: null, linked: [], comboHints: [],
+    candidates: [JENNY], suggested: [JENNY],
+    clue: 'DuitNow QR — the money went straight to the bank. 2990-SO-2611-041 is the only Online payment of this amount within 7 day(s). Check it and link it.',
+  };
+  const QR_LONELY: SettlementRow = {
+    ...QR_ROW, id: 856, line_no: 18, txn_date: '2026-11-01', gross_sen: 10000, net_sen: 10000,
+    bucket: 'UNMATCHED', match_reason: null, candidates: [], suggested: [],
+    clue: "DuitNow QR — no Online payment of RM 100.00 near 2026-11-01. Key the sale as Online, with the QR's code.",
+  };
+  const QR_BATCH = {
+    ...BATCH, acquirer_code: 'HLB', file_name: '00005992284_20261101.CSV', gross_sen: 0, fee_sen: 0, net_sen: 0,
+    outstanding_sen: 0, qr_count: 2, qr_gross_sen: 334000,
+    to_confirm_count: 0, to_choose_count: 1, no_record_count: 1, open_count: 2, confirmed_count: 0,
+  };
+  const withQr = (run: () => void) => {
+    setBatchList([QR_BATCH]);
+    reportRows = [QR_ROW, QR_LONELY];
+    openedBatch = { acquirer_code: 'HLB', net_sen: 0, received_sen: 0, outstanding_sen: 0, qr_count: 2, qr_gross_sen: 334000 };
+    try { run(); } finally { setBatchList([BATCH]); reportRows = REPORT_ROWS; openedBatch = {}; }
+  };
+
+  test('on the work list it reads DuitNow QR, in QR words, and its report names the QR money', () => withQr(() => {
+    draw();
+    expect(screen.getAllByText('DuitNow QR')).toHaveLength(2);
+    expect(screen.getByText('the Online sale — check it')).toBeTruthy();
+    expect(screen.getByText('no Online sale keyed')).toBeTruthy();
+    expect(screen.queryByText('the system’s guess — check it')).toBeNull();
+    expect(screen.getByText(/QR RM 3,340\.00 · straight to the bank/)).toBeTruthy();
+  }));
+
+  test('inside the report it links the Online sale, ticked — nothing is posted', () => withQr(() => {
+    draw();
+    fireEvent.click(screen.getByText('Reconcile'));
+    openTab('To choose');
+    const box = screen.getByLabelText('Select 2990-SO-2611-041') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    const line = box.closest('section') as HTMLElement;
+    expect(within(line).queryByText('Confirm and post')).toBeNull();
+    expect(within(line).getByText('DuitNow QR')).toBeTruthy();
+    fireEvent.click(within(line).getByText('Link the sale'));
+    expect(confirmMutate).toHaveBeenCalledWith(expect.objectContaining({
+      rowId: 857, payments: [expect.objectContaining({ id: 'jenny', amountSen: 324000 })],
+    }));
+  }));
+
+  /* Owner 2026-11-09 (「为什么我按find the sales 还有这么多？」 → 做): 未标 merchant
+     means a CARD payment keyed without its bank. An Online payment has no bank
+     to key, so a QR line never says it — not on its sale, not in Find the sale. */
+  test('a QR line never marks its Online payments 未标 merchant', () => withQr(() => {
+    draw();
+    fireEvent.click(screen.getByText('Reconcile'));
+    openTab('To choose');
+    const line = screen.getByLabelText('Select 2990-SO-2611-041').closest('section') as HTMLElement;
+    expect(within(line).queryByText('未标 merchant')).toBeNull();
+    fireEvent.click(within(line).getByText('Find the sale'));
+    expect(within(line).getByText(/Any Online payment of this company not yet on the bank statement/)).toBeTruthy();
+    expect(within(line).getAllByLabelText(/^Select /).length).toBeGreaterThan(1);
+    expect(within(line).queryByText('未标 merchant')).toBeNull();
+  }));
+
+  test('with no Online sale keyed it says to key the sale as Online', () => withQr(() => {
+    draw();
+    fireEvent.click(screen.getByText('Reconcile'));
+    openTab('No sale');
+    expect(screen.getByText(/No Online payment explains this QR money/)).toBeTruthy();
+  }));
+});
+
+/* Owner 2026-11-11: 我检查确定后，就直接说这个是之前record，我哪里都不会take-in. */
+describe('a card payment checked to be the previous system\'s', () => {
+  test('is ticked and marked a previous record from the list; what came back is said', () => {
+    markPrevious.mockClear();
+    draw();
+    const press = () => screen.getByRole('button', { name: /^Previous record/ });
+    expect(press().hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Tick SO-2606-013' }));
+    fireEvent.click(press());
+    expect(markPrevious).toHaveBeenCalledTimes(1);
+    const [refs, handlers] = markPrevious.mock.calls[0]! as [unknown, { onSuccess: (got: unknown) => void }];
+    expect(refs).toEqual([{ source: 'SOPAY', id: 'w2' }]);
+    act(() => handlers.onSuccess({ ok: true, marked: 1, refused: [] }));
+    expect(screen.getByText(/^1 payment marked as previous records/)).toBeTruthy();
   });
 });

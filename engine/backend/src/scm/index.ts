@@ -78,10 +78,12 @@ import { deliveryOrdersMfg } from "./routes/delivery-orders-mfg";
 import { deliveryOrderExports } from "./routes/delivery-order-exports";
 import { deliveryOrderScanToken } from "./routes/delivery-order-scan-token";
 import { deliveryOrderItemPhotos } from "./routes/delivery-order-item-photos";
+import { deliveryOrderPodAttempts } from "./routes/delivery-order-pod-attempts";
 import { salesInvoices } from "./routes/sales-invoices";
 import { salesInvoiceExports } from "./routes/sales-invoice-exports";
 import { deliveryReturns } from "./routes/delivery-returns";
 import { purchaseReturns } from "./routes/purchase-returns";
+import { grnFiles, purchaseInvoiceFiles, deliveryReturnFiles, purchaseReturnFiles } from "./routes/flow-doc-files";
 import { deliveryReturnExports } from "./routes/delivery-return-exports";
 import { purchaseReturnExports } from "./routes/purchase-return-exports";
 import { consignmentOrders } from "./routes/consignment-orders";
@@ -125,7 +127,9 @@ import { scanLorryInvoice } from "./routes/scan-lorry-invoice";
 import { scanFilesSo, scanFilesPayment, scanFilesPv, scanFilesWorkshop } from "./routes/scan-files";
 import { slips } from "./routes/slips";
 import { deliveryPlanning } from "./routes/delivery-planning";
+import { crewStopPhotos } from "./routes/crew-stop-photos";
 import { deliveryJobProgress } from "./routes/delivery-job-progress";
+import { doDeliveryIssues, soDeliveryIssues, jobDeliveryIssues, lastMileDeliveryIssues } from "./routes/delivery-issues";
 import { deliveryPlanningRegions } from "./routes/delivery-planning-regions";
 import { deliveryPlanningRowMarks } from "./routes/delivery-planning-row-marks";
 import { deliveryRemarks } from "./routes/delivery-remarks";
@@ -135,6 +139,7 @@ import { threeplCompanies } from "./routes/threepl-companies";
 import { savedLocations } from "./routes/saved-locations";
 import { deliveryZones } from "./routes/delivery-zones";
 import { deliveryRateCards } from "./routes/delivery-rate-cards";
+import { deliveryPlaces } from "./routes/delivery-places";
 import { threeplDoCharges } from "./routes/threepl-do-charges";
 import { driverLeave } from "./routes/driver-leave";
 import { trips } from "./routes/trips";
@@ -143,6 +148,7 @@ import { dpOrders } from "./routes/dp-orders";
 import { deliveryMessages } from "./routes/delivery-messages";
 import { arReconciliation } from "./routes/ar-reconciliation";
 import { lorryCapacity } from "./routes/lorry-capacity";
+import { lorryRoutes } from "./routes/lorry-routes";
 import { helpers } from "./routes/helpers";
 import { lorries } from "./routes/lorries";
 import { lorryServiceRecords } from "./routes/lorry-service-records";
@@ -154,6 +160,7 @@ import { hr } from "./routes/hr";
 
 import { scmAreaGuard } from "./middleware/area-guard";
 import { hasPositionCapability } from "../services/positionCapabilities";
+import { isTripLocationPing } from "./lib/tripLocation";
 import { scmWriteFreeze } from "./lib/write-freeze";
 import { venturePortalKick } from "./lib/venture-portal-kick";
 import { forgetLiveMrpOnWrite } from "./lib/live-mrp-memo";
@@ -391,6 +398,7 @@ scm.route("/grns", grnsListEnrichment);
 // The list's two exports (every page the filters match) — static /export/...
 // paths, so also BEFORE the main router's `/:id`.
 scm.route("/grns", grnExports);
+scm.route("/grns", grnFiles);
 scm.route("/grns", grns);
 scm.use("/purchase-invoices/*", scmAreaGuard("scm.procurement.pi"));
 // Deferred list enrichment — the MRP-derived PI-list columns (Assigned SO /
@@ -400,6 +408,7 @@ scm.use("/purchase-invoices/*", scmAreaGuard("scm.procurement.pi"));
 scm.route("/purchase-invoices", purchaseInvoicesListEnrichment);
 // The list's two exports — static /export/... paths, BEFORE the main router.
 scm.route("/purchase-invoices", purchaseInvoiceExports);
+scm.route("/purchase-invoices", purchaseInvoiceFiles);
 scm.route("/purchase-invoices", purchaseInvoices);
 // ── Sales Orders (scm.sales.orders) ─────────────────────────────────────────
 // Same key-not-area admission as the PO mount above: the Purchaser signs
@@ -456,6 +465,8 @@ scm.route("/mfg-sales-orders", mfgSoVpBrand);
 // same ceiling reason; ahead of the main router so `/:docNo/amendments/lane-preview`
 // is matched before its `/:docNo/amendments`. routes/so-amendment-lane-preview.ts.
 scm.route("/mfg-sales-orders", soAmendmentLanePreview);
+// The SO's crew-reported delivery problems (read only). routes/delivery-issues.ts.
+scm.route("/mfg-sales-orders", soDeliveryIssues);
 scm.route("/mfg-sales-orders", mfgSalesOrders);
 // SO amendment / revision workflow — SO-centric, so it rides the same L2 area
 // guard as Sales Orders (GET=view, PATCH=edit); the finer scm.amendment.* gates
@@ -521,6 +532,11 @@ scm.use(
       if (c.req.method === "POST" && c.req.path.endsWith("/revert")) {
         return hasPositionCapability(u, "scm.do.revert");
       }
+      // Crew "Delivered with issue" — POST .../delivery-issue only; the handler
+      // admits only the DO's own crew (or delivery scope 'all').
+      if (c.req.method === "POST" && c.req.path.endsWith("/delivery-issue")) {
+        return hasPositionCapability(u, "scm.do.dispatch");
+      }
       return false;
     },
   }),
@@ -545,6 +561,10 @@ scm.route("/delivery-orders-mfg", deliveryOrderItemPhotos);
 // The list's line export (every page the filters match) — a static /export/...
 // path, so also BEFORE the main router's `/:id`.
 scm.route("/delivery-orders-mfg", deliveryOrderExports);
+// Crew "Delivered with issue" report + the DO detail read. routes/delivery-issues.ts.
+scm.route("/delivery-orders-mfg", doDeliveryIssues);
+// Earlier delivery attempts (POD kept by "Undo delivered"). routes/delivery-order-pod-attempts.ts.
+scm.route("/delivery-orders-mfg", deliveryOrderPodAttempts);
 scm.route("/delivery-orders-mfg", deliveryOrdersMfg);
 // Ported 2026-06-20 — SI backend (skipped in the earlier sync; the vendored SI
 // pages 404'd on /sales-invoices). NEEDS scm.sales_invoice_payments +
@@ -562,9 +582,11 @@ scm.use("/delivery-returns/*", scmAreaGuard("scm.sales.returns"));
 // The list's ONE export (every return the filters match) — a static
 // /export/rows path, so BEFORE the main router's `/:id`; same area guard.
 scm.route("/delivery-returns", deliveryReturnExports);
+scm.route("/delivery-returns", deliveryReturnFiles);
 scm.route("/delivery-returns", deliveryReturns);
 scm.use("/purchase-returns/*", scmAreaGuard("scm.procurement.pr"));
 scm.route("/purchase-returns", purchaseReturnExports);
+scm.route("/purchase-returns", purchaseReturnFiles);
 scm.route("/purchase-returns", purchaseReturns);
 // ── Consignment (scm.consignment.*) ─────────────────────────────────────────
 scm.use("/consignment-orders/*", scmAreaGuard("scm.consignment.orders"));
@@ -868,7 +890,15 @@ scm.use(
       ),
   }),
 );
+// "Delivered with issue" (routes/delivery-issues.ts): the job report rides the
+// delivery-jobs guard above (POST writeBypass for scm.do.dispatch; the handler
+// admits only the caller's own job), the Last Mile read the delivery-planning one.
+scm.route("/delivery-jobs", jobDeliveryIssues);
+// The crew's shared pending photos for one stop (routes/crew-stop-photos.ts);
+// before deliveryJobProgress so /stop-photos is never read as a job type.
+scm.route("/delivery-jobs", crewStopPhotos);
 scm.route("/delivery-jobs", deliveryJobProgress);
+scm.route("/delivery-planning", lastMileDeliveryIssues);
 scm.route("/delivery-planning", deliveryPlanning);
 // openRead (2026-07-19, fix/so-maintenance-403) — this router is pure REFERENCE
 // data: the region master (code / name / sortOrder / active) and the per-state →
@@ -918,6 +948,9 @@ scm.route("/delivery-zones", deliveryZones);
 // and it does NOT touch the FIFO money-path.
 scm.use("/delivery-rate-cards/*", scmAreaGuard("scm.transportation.drivers"));
 scm.route("/delivery-rate-cards", deliveryRateCards);
+// Towns under the delivery zones (mig 20261111T1100): the places a rate card prices.
+scm.use("/delivery-places/*", scmAreaGuard("scm.transportation.drivers"));
+scm.route("/delivery-places", deliveryPlaces);
 // HC-0031 - the 3PL invoice keyed in after delivery, tallied per DO against the
 // rate cards above. Same Transportation area gate.
 scm.use("/threepl-do-charges/*", scmAreaGuard("scm.transportation.drivers"));
@@ -927,7 +960,15 @@ scm.route("/threepl-do-charges", threeplDoCharges);
 // the rest of the TMS fleet masters: read = view, record/delete = edit.
 scm.use("/driver-leave/*", scmAreaGuard("scm.transportation.drivers"));
 scm.route("/driver-leave", driverLeave);
-scm.use("/trips/*", scmAreaGuard("scm.transportation.drivers"));
+// writeBypass: a driver's GPS ping (POST /trips/:id/location) only. A Driver /
+// Helper holds view, not edit, so every ping was refused; the handler admits a
+// bypassed caller only for a trip they are crewed on (lib/tripLocation.ts).
+scm.use(
+  "/trips/*",
+  scmAreaGuard("scm.transportation.drivers", {
+    writeBypass: (c) => isTripLocationPing(c.req.method, c.req.path),
+  }),
+);
 /* Two routers on one prefix, like /delivery-orders-mfg above. The packing
    list's public scan-token mint is a NEW FILE so the large trips router does
    not grow; '/:id/scan-token' is two segments and cannot shadow '/packing'. */
@@ -960,6 +1001,8 @@ scm.use("/scan-lorry-invoice/*", scmAreaGuard("scm.transportation.drivers"));
 scm.route("/scan-lorry-invoice", scanLorryInvoice);
 scm.use("/lorry-capacity/*", scmAreaGuard("scm.transportation.drivers"));
 scm.route("/lorry-capacity", lorryCapacity);
+scm.use("/lorry-routes/*", scmAreaGuard("scm.transportation.drivers"));
+scm.route("/lorry-routes", lorryRoutes);
 scm.use("/helpers/*", scmAreaGuard("scm.transportation.drivers"));
 scm.route("/helpers", helpers);
 scm.use("/lorries/*", scmAreaGuard("scm.transportation.drivers"));
@@ -1069,10 +1112,14 @@ scm.route("/scan-files/workshop", scanFilesWorkshop);
 // → uploadSlipFull), and a driver holds scm.do.dispatch, not scm.sales.orders.
 // An upload session only stores an image under the caller's own staff id; it
 // attaches to nothing until a route that checks its own access consumes the key.
+// openReadPaths — the only reads here are a caller's OWN not-yet-claimed field
+// photos (re-listed after a page reload); the handler filters to the caller's
+// user id and active company, so a driver without scm.sales.orders can read them.
 scm.use(
   "/slips/*",
   scmAreaGuard("scm.sales.orders", {
     writeLevel: "view",
+    openReadPaths: ["/slips/field-photos", "/image"],
     writeBypass: (c) =>
       c.req.method === "POST" &&
       hasPositionCapability(

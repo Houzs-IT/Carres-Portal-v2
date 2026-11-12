@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { CrewPinForm } from "./CrewPinForm";
 import { useAuth } from "./AuthContext";
 import { signInErrorMessage } from "./loginErrors";
 import { Button } from "../components/Button";
@@ -14,6 +15,7 @@ import { validatePasswordStrength } from "../lib/passwordStrength";
 import { AmbientSnow } from "../components/AmbientSnow";
 import { consumeCorrelated, correlatedFetch } from "../lib/requestCorrelation";
 import { readRememberedEmail } from "../lib/rememberedEmail";
+import { todayMyt } from "../vendor/scm/lib/dates";
 
 // NOTE: this module is lazy-loaded by auth/AuthGate.tsx — every screen here is
 // unauthenticated-only UI, kept out of the initial bundle on purpose. AuthGate
@@ -44,7 +46,7 @@ function AuthShell({
   subtitle: string;
   children: ReactNode;
 }) {
-  const year = new Date().getFullYear();
+  const year = todayMyt().slice(0, 4);
   const branding = useBranding();
   return (
     <div
@@ -139,7 +141,7 @@ function AuthShell({
           style={{ animationDelay: "360ms" }}
         >
           <div
-            className="relative overflow-hidden rounded-[28px] border border-white/45 bg-white/[0.62] px-7 py-8 backdrop-blur-2xl backdrop-saturate-150"
+            className="relative overflow-hidden rounded-[28px] border border-white/45 bg-white/[0.62] dark:border-white/10 dark:bg-surface/[0.78] px-7 py-8 backdrop-blur-2xl backdrop-saturate-150"
             style={{
               boxShadow:
                 "0 28px 70px -30px rgba(0,0,0,0.85), inset 0 1px 1px rgba(255,255,255,0.85), inset 0 -14px 30px rgba(255,255,255,0.10)",
@@ -244,6 +246,8 @@ export function LoginScreen() {
   // Set once a password login returns a 2FA challenge — switches to the code step.
   const [challenge, setChallenge] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  // Crew sign-in (staff code + PIN) instead of email + password.
+  const [crew, setCrew] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -324,6 +328,18 @@ export function LoginScreen() {
     );
   }
 
+  if (crew) {
+    return (
+      <AuthShell
+        eyebrow="Crew Sign In"
+        title="Staff code and PIN"
+        subtitle="For drivers and helpers. Opens the delivery and project crew screens."
+      >
+        <CrewPinForm onTotp={setChallenge} onBack={() => setCrew(false)} />
+      </AuthShell>
+    );
+  }
+
   return (
     <AuthShell
       eyebrow="Sign In"
@@ -344,7 +360,7 @@ export function LoginScreen() {
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@houzscentury.com"
+            placeholder="you@carresofficial.com"
             required
             autoFocus={!email}
           />
@@ -382,6 +398,18 @@ export function LoginScreen() {
         <Button variant="brass" className="w-full" disabled={busy}>
           {busy ? "Signing in…" : "Sign In"}
         </Button>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setErr(null);
+              setCrew(true);
+            }}
+            className="text-[11px] text-ink-muted underline-offset-2 hover:text-accent hover:underline"
+          >
+            Driver or helper? Sign in with staff code and PIN
+          </button>
+        </div>
       </form>
     </AuthShell>
   );
@@ -444,7 +472,7 @@ export function ForgotPasswordScreen() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@houzscentury.com"
+            placeholder="you@carresofficial.com"
             required
             autoFocus
           />
@@ -459,6 +487,101 @@ export function ForgotPasswordScreen() {
           >
             Back to sign in
           </a>
+        </div>
+      </form>
+    </AuthShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// Required password change — the only screen a flagged member's session
+// reaches (desktop and phone alike; AuthGate shows it for both). The server
+// refuses every other request until this succeeds.
+// ──────────────────────────────────────────────────────────
+export function ForcedPasswordChangeScreen() {
+  const { user, completePasswordChange, logout } = useAuth();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirmNext, setConfirmNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const email = user?.email ?? "";
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (next !== confirmNext) {
+      setErr("The two new passwords don't match.");
+      return;
+    }
+    if (next === current) {
+      setErr("Choose a password different from your current one.");
+      return;
+    }
+    const strength = validatePasswordStrength(next, email);
+    if (!strength.ok) {
+      setErr(strength.error || "Password is too weak");
+      return;
+    }
+    setBusy(true);
+    try {
+      await completePasswordChange(current, next);
+    } catch (e) {
+      setErr(e instanceof Error && e.message ? e.message : "We couldn't change your password. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AuthShell
+      eyebrow="Security"
+      title="Choose a new password"
+      subtitle="Your administrator has asked you to set a new password before continuing. Enter your current password once more, then choose a new one."
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <FieldLabel>Current password</FieldLabel>
+          <PasswordInput
+            autoComplete="current-password"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            required
+            autoFocus
+          />
+        </div>
+        <div>
+          <FieldLabel>New password (min 12 chars)</FieldLabel>
+          <PasswordInput
+            autoComplete="new-password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            placeholder="Choose a strong password"
+            required
+          />
+          <PasswordStrengthMeter password={next} email={email} />
+        </div>
+        <div>
+          <FieldLabel>Confirm new password</FieldLabel>
+          <PasswordInput
+            autoComplete="new-password"
+            value={confirmNext}
+            onChange={(e) => setConfirmNext(e.target.value)}
+            required
+          />
+        </div>
+        {err && <div className="text-[11px] text-err">{err}</div>}
+        <Button variant="brass" className="w-full" disabled={busy}>
+          {busy ? "Saving…" : "Save new password"}
+        </Button>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="text-[11px] text-ink-muted underline-offset-2 hover:text-accent hover:underline"
+          >
+            Sign out
+          </button>
         </div>
       </form>
     </AuthShell>
@@ -518,7 +641,7 @@ export function BootstrapScreen() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="jane@houzscentury.com"
+            placeholder="jane@carresofficial.com"
             required
           />
         </div>

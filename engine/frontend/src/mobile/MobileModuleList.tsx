@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { siDepositAppliedSen, siOutstandingSen } from "../vendor/scm/lib/si-outstanding";
+import { siCreditNotesSen, siDepositAppliedSen, siOutstandingSen } from "../vendor/scm/lib/si-outstanding";
 import { lineIdentity } from "@2990s/shared";
 import { formatPhone } from "@2990s/shared/phone";
 import { useAuth } from "../auth/AuthContext";
@@ -8,6 +8,7 @@ import { formatDate } from "../lib/utils";
 import { deliveryReturnSearchText } from "../lib/so-ref-search";
 import { fmtAmt } from "../lib/scm";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useMobileListView } from "./useMobileListView";
 import { authedFetch } from "../vendor/scm/lib/authed-fetch";
 import { api } from "../api/client";
 import { SearchProgress } from "../components/SearchProgress";
@@ -23,6 +24,8 @@ import type { FormSchema } from "./MobileModuleForm";
 import { MobileVirtualList } from "./MobileVirtualList";
 import { warehouseLabel } from "../vendor/scm/lib/warehouse-label";
 import { mfgCategoryLabel } from "../vendor/shared/product-categories";
+import { supplierEmailList } from "../vendor/shared/supplier-emails";
+import { byStr } from "./mobile-list-compare";
 import "./mobile.css";
 
 // ---------------------------------------------------------------------------
@@ -295,11 +298,8 @@ const mrpState = (r: any): string => {
 const balanceSen = (r: any): number => siOutstandingSen(
   Number(pick(r, "totalSen", "total_sen", "localTotalSen", "local_total_sen") ?? 0),
   Number(pick(r, "paidSen", "paid_sen") ?? 0),
-  siDepositAppliedSen({ so_deposit_applied_sen: pick(r, "soDepositAppliedSen", "so_deposit_applied_sen") as number | null }));
+  siDepositAppliedSen({ so_deposit_applied_sen: pick(r, "soDepositAppliedSen", "so_deposit_applied_sen") as number | null }), siCreditNotesSen({ credit_notes_sen: pick(r, "creditNotesSen", "credit_notes_sen") as number | null }));
 
-/** Numeric-aware locale compare, mirroring the prototype's localeCompare with
- *  { numeric: true }. Used to keep sort keys terse in the configs. */
-const byStr = (a: unknown, b: unknown) => String(a ?? "").localeCompare(String(b ?? ""), undefined, { numeric: true });
 const byNum = (a: unknown, b: unknown) => (Number(b) || 0) - (Number(a) || 0);
 const byDate = (a: unknown, b: unknown) => {
   const ta = a ? +new Date(String(a)) : 0;
@@ -386,10 +386,7 @@ export function MobileModuleList({
    *  cards (e.g. the Members list's Pending Invitations accordion). */
   aboveList?: ReactNode;
 }) {
-  const [q, setQ] = useState("");
-  const [chip, setChip] = useState("all");
-  const [chip2, setChip2] = useState("all");
-  const [sortKey, setSortKey] = useState(config.sorts?.[0]?.key ?? "");
+  const { q, setQ, chip, setChip, chip2, setChip2, sortKey, setSortKey } = useMobileListView(config.endpoint, config.sorts?.[0]?.key ?? "");
 
   /* Debounced search term — the value actually sent to the server (and keyed
      into the infinite query) so a keystroke doesn't fire a request per
@@ -425,7 +422,7 @@ export function MobileModuleList({
 
   const {
     data, isLoading, isFetching, isPlaceholderData, error,
-    fetchNextPage, hasNextPage, isFetchingNextPage,
+    fetchNextPage, hasNextPage, isFetchingNextPage, refetch,
   } = useInfiniteQuery({
     // Paged lists key on the debounced search so changing it restarts at page 0
     // and the server re-searches the whole table. Un-paged lists keep the old
@@ -643,7 +640,7 @@ export function MobileModuleList({
         {!!error && !listLoading && (
           <div className="empty">
             <div className="empty-t">Couldn't load {config.title.toLowerCase()}.</div>
-            <div className="empty-s">Pull to refresh to try again.</div>
+            <button type="button" className="btn-ghost" style={{ marginTop: 14 }} disabled={isFetching} onClick={() => void refetch()}>{isFetching ? "Retrying…" : "Retry"}</button>
           </div>
         )}
 
@@ -829,7 +826,7 @@ function ListCard({ config, row, onOpen }: { config: ModuleConfig; row: any; onO
   return (
     <div className="card" onClick={open} style={{ ...cardStyle, padding: "12px 13px", ...(cancelled ? { opacity: 0.6 } : null) }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 800, color: "#111827", ...(cancelled ? { textDecoration: "line-through", textDecorationThickness: 1 } : null) }}>{name}</span>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 800, color: "var(--hz-c-ink)", ...(cancelled ? { textDecoration: "line-through", textDecorationThickness: 1 } : null) }}>{name}</span>
         {status ? <span style={{ flex: "none" }}><Badge label={status} tone={statusTone} /></span> : (() => {
           const rightRaw = config.right ? config.right(row) : "";
           const rightText = config.rightMoney ? `RM ${rm(rightRaw as unknown as number)}` : rightRaw;
@@ -840,8 +837,8 @@ function ListCard({ config, row, onOpen }: { config: ModuleConfig; row: any; onO
         <div className="so-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginTop: 8 }}>
           {cardFields.map(([accessor, label]) => (
             <div key={label} style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "#9aa093" }}>{label}</div>
-              <div className="money" style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{safe(accessor, row) || "—"}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: "var(--hz-c-ink-soft)" }}>{label}</div>
+              <div className="money" style={{ fontSize: 12, fontWeight: 600, color: "var(--hz-c-ink)" }}>{safe(accessor, row) || "—"}</div>
             </div>
           ))}
         </div>
@@ -875,12 +872,9 @@ const join = (...parts: Array<string | null | undefined>) =>
 // reference a schema directly when wiring onNew/onEdit.
 // ---------------------------------------------------------------------------
 
-/* suppliers — POST /suppliers (code+name required), PATCH /suppliers/:id.
-   Response wraps the record as { supplier: {...} }; id = supplier.id. Rich
-   AutoCount master; the mobile form exposes the everyday subset. credit_limit
-   is stored in SEN (credit_limit_sen) → money scale 100. Bindings (assigned
-   SKUs + per-category price matrix) are a separate endpoint → not in this
-   flat form. */
+/* suppliers — POST /suppliers (code+name required), PATCH /suppliers/:id; reply
+   { supplier }. The everyday subset of the AutoCount master; credit_limit is SEN
+   (money scale 100). Bindings (SKUs + price matrix) are a separate endpoint. */
 export const FORM_SUPPLIERS: FormSchema = {
   title: "Supplier",
   eyebrow: "Procurement",
@@ -897,6 +891,7 @@ export const FORM_SUPPLIERS: FormSchema = {
     { key: "mobile", label: "Mobile", type: "tel" },
     { key: "whatsappNumber", label: "WhatsApp", type: "tel" },
     { key: "email", label: "Email", type: "email", placeholder: "supplier@example.com" },
+    { key: "email2", label: "Email 2", type: "email" }, { key: "email3", label: "Email 3", type: "email" }, // owner 2026-11-09: PO Cc
     { key: "address", label: "Address", type: "textarea" },
     { key: "state", label: "State", type: "text" },
     { key: "postcode", label: "Postcode", type: "text" },
@@ -1106,6 +1101,7 @@ export const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       [(r) => pick(r, "code") ?? "—", "Code"],
       [(r) => pick(r, "contactPerson", "contact_person", "attention") ?? "—", "Contact"],
       [(r) => formatPhone(pick(r, "phone", "mobile", "whatsappNumber", "whatsapp_number")) || "—", "Phone"],
+      [(r) => supplierEmailList(r).join(", ") || "—", "Email"],
     ],
     sorts: [{ key: "name", label: "Name", cmp: (a, b) => byStr(a.name, b.name) }],
     form: FORM_SUPPLIERS,
@@ -1155,7 +1151,7 @@ export const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     ],
     chips: [
       { key: "all", label: "All", match: () => true },
-      { key: "Loaded", label: "Loaded", match: (r) => eq(pick(r, "status"), "dispatched") }, // stored value unchanged; DISPATCHED reads "Loaded" since 2026-08-26. Key moves with the label — `chip` is local useState (:388), nothing persists it.
+      { key: "Loaded", label: "Loaded", match: (r) => eq(pick(r, "status"), "dispatched") }, // stored value unchanged; DISPATCHED reads "Loaded" since 2026-08-26. Key moves with the label — `chip` lives only in this tab's session (useMobileListView), so an old key just reads as no chip.
       { key: "Delivered", label: "Delivered", match: (r) => eq(pick(r, "status"), "delivered") },
       { key: "Cancelled", label: "Cancelled", match: (r) => eq(pick(r, "status"), "cancelled") },
     ],
@@ -1263,7 +1259,7 @@ export const MODULE_CONFIGS: Record<string, ModuleConfig> = {
   "mfg-purchase-orders": {
     title: "Purchase Orders",
     eyebrow: "Procurement",
-    placeholder: "Search PO · supplier",
+    placeholder: "Search PO · supplier · item code",
     endpoint: "/mfg-purchase-orders?limit=500",
     listKey: "purchaseOrders",
     primary: (r) => r.supplier?.name || r.po_number,

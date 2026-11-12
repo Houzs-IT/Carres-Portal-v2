@@ -1,7 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { DeliveryZone, FleetCrew, FleetDayCrew, FleetLeave, FleetLorry, FleetStop, RateCard } from "@carres/shared/fleet";
+import { useQuery } from "@tanstack/react-query";
+import type { FleetCrew, FleetDayCrew, FleetLeave, FleetLorry, FleetStop } from "@carres/shared/fleet";
 import { apiFetch } from "@/lib/api";
-import { DELIVERY_SETTINGS_QUERY_KEY } from "@/lib/queries";
 
 /**
  * Carres' own lorries (migration 0724) — Weisiang's decision (Mr Lim,
@@ -198,66 +197,11 @@ export function useFleet(from: string, to: string = from) {
   });
 }
 
-/** One write helper: post or delete, then re-read every fleet view. */
-export function useFleetWrite() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ path, method = "POST", body }: { path: string; method?: "POST" | "DELETE"; body?: unknown }) =>
-      apiFetch(`/api/operation/fleet${path}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fleet"] }),
-  });
-}
 
-/** The refusal's own sentence when the door named it, else the plain retry line. */
-export function refusalOf(error: unknown): string {
-  const code = (error as { code?: string; body?: { code?: string } } | null)?.body?.code
-    ?? (error as { code?: string } | null)?.code;
-  return (code && FL.refusals[code]) || FL.saveFailed;
-}
 
-/** A plain map link: no API key, opens the phone's or browser's own map. */
-export const mapHref = (lat: number, lng: number) => `https://www.google.com/maps?q=${lat},${lng}`;
 
-export const monthRange = (month: string) => {
-  const [y, m] = month.split("-").map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
-};
 
-/* ── 0725 · Delivery Zones and Rate Cards (Weisiang's decision 2026-10-22) ── */
-export interface PricingPayload {
-  companies: Array<{ id: string; name: string; ownFleet: boolean; active: boolean }>;
-  zones: DeliveryZone[];
-  rates: RateCard[];
-}
 
-export function usePricing() {
-  return useQuery({ queryKey: ["fleet", "pricing"], queryFn: () => apiFetch<PricingPayload>("/api/operation/fleet/pricing") });
-}
 
-export interface ReconcileRow {
-  doId: string; doNo: string; deliveryDate: string | null; partnerId: string; company: string; bills: string[];
-  zone: string | null; items: number; sets: number; billed: number; expected: number | null;
-  lines: Array<{ kind: string; label: string; amount: number }>; difference: number | null; factsComplete: boolean;
-}
 
-export function useReconcile(range: { from: string; to: string }) {
-  const qs = new URLSearchParams(Object.entries(range).filter(([, v]) => v)).toString();
-  return useQuery({
-    queryKey: ["fleet", "reconcile", range],
-    queryFn: () => apiFetch<{ rows: ReconcileRow[] }>(`/api/operation/fleet/reconcile${qs ? `?${qs}` : ""}`),
-  });
-}
 
-/** Lorry and crew rows are saved through Settings → Logistics' own doors, so both views re-read. */
-export function useSettingsWrite() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ path, body }: { path: string; body: unknown }) =>
-      apiFetch(`/api/operation/delivery-settings${path}`, { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["fleet"] });
-      qc.invalidateQueries({ queryKey: DELIVERY_SETTINGS_QUERY_KEY });
-    },
-  });
-}

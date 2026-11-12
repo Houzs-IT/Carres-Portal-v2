@@ -1,17 +1,19 @@
 import React, { lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import App from "./App";
+import App, { preloadRouteChunks } from "./App";
 import "./index.css";
 // Vendored 2990's brand tokens (CSS custom properties only — the global
 // body/h1/table element resets from 2990's main.css are deliberately NOT
 // imported, so the rest of Houzs is unaffected). Scopes via :root variables
 // that the vendored /scm/* pages + design-system read from.
 import "./vendor/design-system/tokens.css";
+import "./theme.css";
 import { ToastProvider } from "./hooks/useToast";
 import { DialogProvider } from "./hooks/useDialog";
-import { AuthProvider } from "./auth/AuthContext";
-import { AuthGate } from "./auth/AuthGate";
+import { AuthProvider, primeAuthMe } from "./auth/AuthContext";
+import { AuthGate, mobileShellEnabled, preloadMobileApp } from "./auth/AuthGate";
+import { isMobileViewportNow } from "./mobile/useIsMobile";
 import { PwaBanners } from "./components/PwaBanners";
 import { NewVersionBanner } from "./components/NewVersionBanner";
 import { ChunkReloadBoundary } from "./components/RouteFallback";
@@ -19,17 +21,24 @@ import { LazySlot } from "./components/LazySlot";
 import { registerPwa } from "./pwa";
 import { installGlobalErrorReporting } from "./lib/errorReporter";
 import { installChunkFailureWatch } from "./lib/staleBuild";
+import { CJK_FONT_STYLESHEET, loadDeferredFontStylesheet } from "./lib/deferredFonts";
 import { clearStaleTableSorts } from "./lib/staleSortReset";
 import { consumeCompanyUrlSeed } from "./lib/activeCompany";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { tokenStore } from "./api/client";
-import { consumeCarresSignIn, followCarresMenu } from "./carres/embed";
+import { consumeCarresSignIn, followCarresMenu, reportCarresLocation } from "./carres/embed";
+import { reportCarresReady } from "./carres/ready";
 import { restoreNativeSession } from "./lib/nativeSession";
 import { registerNativePush } from "./lib/nativePush";
 import { readAuthToken } from "./lib/authToken";
 import { canonicalRedirectUrl } from "./lib/canonicalHost";
-import { useAppSurface } from "./routing/appSurface";
+import { appSurfaceForPath, useAppSurface } from "./routing/appSurface";
+
+// index.html already set <html data-theme> before first paint; this only
+// keeps it in step with later changes (Auto, other tabs). Loaded lazily to
+// stay off the first-load budget.
+void import("./lib/theme").then((m) => m.initTheme());
 
 // Canonical-domain guard (owner 2026-07: "我要全部看到 .houzscentury.com").
 // Production also answers on the Cloudflare Pages default host
@@ -54,13 +63,19 @@ import { useAppSurface } from "./routing/appSurface";
 const canonicalTarget = canonicalRedirectUrl(window.location.href);
 if (canonicalTarget) window.location.replace(canonicalTarget);
 
-// Carres: the portal's sign-in hand-over, then its menu picks the page (src/carres/embed.ts).
+// Carres: the portal's sign-in hand-over, then its menu picks the page (src/carres/embed.ts), and the portal
+// is told when the first page has drawn (src/carres/ready.ts).
 consumeCarresSignIn();
 followCarresMenu();
+reportCarresLocation();
+reportCarresReady();
 
 // The public surfaces (survey, customer/supplier portal, password reset)
 // are split out of the staff bundle — staff never download them, and the
 // public flows skip the whole dashboard bundle in return.
+// Lazy so the initial bundle does not carry it; it wraps the router a moment
+// after first paint, before anyone has typed into a form.
+const LeaveGuardBridge = lazy(() => import("./components/LeaveGuardBridge").then((m) => ({ default: m.LeaveGuardBridge })));
 const SurveyPublic = lazy(() => import("./pages/SurveyPublic").then((m) => ({ default: m.SurveyPublic })));
 const PortalApp = lazy(() => import("./portal/PortalApp").then((m) => ({ default: m.PortalApp })));
 const PublicDoScan = lazy(() => import("./pages/PublicDoScan").then((m) => ({ default: m.PublicDoScan })));
@@ -91,6 +106,7 @@ if (!canonicalTarget) registerPwa();
 // so even a first-render crash is captured. Prod builds only; reporting never
 // changes behaviour (see lib/errorReporter.ts).
 installGlobalErrorReporting();
+loadDeferredFontStylesheet(document, CJK_FONT_STYLESHEET);
 /* The other half of that: a dynamic import() that rejects inside an async event
    handler is CAUGHT by that handler, so it is never an unhandledrejection and
    installGlobalErrorReporting above cannot see it, and no React boundary sees it
@@ -99,6 +115,8 @@ installGlobalErrorReporting();
    boot is not missed. See lib/staleBuild.ts for exactly what is and is not
    covered. */
 installChunkFailureWatch();
+// Lazy: not needed for first paint, and the entry chunk sits at its size ceiling.
+void import("./lib/numberInputWheel").then((m) => m.installNumberInputWheelGuard());
 /* A PRINT that hits a chunk a deploy deleted reloads once and reopens its
    preview (lib/chunkActionRecovery.ts). That listener installs itself on the
    first tracked print, so it is not imported here: it would add ~0.9 KB gzip to
@@ -269,6 +287,24 @@ function RootApp() {
   );
 }
 
+/* Boot head start for a signed-in staff session (2026-11-11). Measured on
+   production, a cold /scm/delivery-planning ran its work strictly in series:
+   entry chunks -> /api/auth/me -> SCM shell chunk -> page chunk -> board data,
+   ~15 s before the board's first request. None of those steps needs the one
+   before it to have FINISHED to start downloading, so start them now:
+     - /api/auth/me goes out before React mounts (AuthProvider takes it over);
+     - the landing route's chunks (page + SCM shell) download while that
+       request is in flight — the phone shell instead on a phone.
+   Only the ONE route in the address bar is warmed, never a list. No token
+   (login screen) or a public surface: nothing is started. A refused guard or a
+   failed chunk changes nothing: render still owns the real load and the
+   existing ChunkReloadBoundary ladder still handles a stale chunk. */
+if (!canonicalTarget && readAuthToken() && appSurfaceForPath(window.location.pathname) === "staff") {
+  primeAuthMe();
+  if (mobileShellEnabled(isMobileViewportNow())) preloadMobileApp();
+  else preloadRouteChunks(window.location.pathname);
+}
+
 /* Native biometric session restore (flag-gated, default OFF — see
    lib/nativeSession.ts). Awaited BEFORE mount so the first authed request
    already carries the restored token, rather than firing unauthenticated and
@@ -299,6 +335,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <ToastProvider>
        <DialogProvider>
         <RootApp />
+        <LazySlot resetKey="leave-guard" fallback={null}><LeaveGuardBridge /></LazySlot>
         <PwaBanners />
        </DialogProvider>
       </ToastProvider>

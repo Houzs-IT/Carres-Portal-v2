@@ -56,6 +56,7 @@ import { usePickableStaff } from '../../vendor/scm/lib/admin-queries';
 import { sortByText, sortByNumeric } from '../../vendor/scm/lib/sort-options';
 import { SearchableSelect } from '../../vendor/scm/components/SearchableSelect';
 import styles from './SalesOrderDetail.module.css';
+import { DetailLoadFailure } from './DetailLoadFailure';
 import { PageHeader } from '../../components/Layout';
 import { PrintPreviewModal, usePrintPreview } from '../../components/scm-v2/PrintPreviewModal';
 import type { PdfAction } from '../../vendor/scm/lib/pdf-common';
@@ -327,10 +328,7 @@ export const ConsignmentNoteDetail = () => {
         <Link to="/scm/consignment-notes" className={styles.backBtn}>
           <ArrowLeft {...ICON} /><span>Back</span>
         </Link>
-        <div className={styles.bannerWarn}>
-          <strong>Consignment note not found.</strong>
-          {detail.error instanceof Error ? ` ${detail.error.message}` : null}
-        </div>
+        <DetailLoadFailure noun="Consignment note" error={detail.isError ? detail.error : null} onRetry={() => void detail.refetch()} retrying={detail.isFetching} />
       </div>
     );
   }
@@ -399,7 +397,7 @@ export const ConsignmentNoteDetail = () => {
             </Button>
           ) : !isEditing ? (
             <Button variant="ghost" size="md" onClick={handleCancel} disabled={updateStatus.isPending}
-              style={{ color: 'var(--c-festive-b, #B8331F)' }}>
+              style={{ color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>
               <Ban {...ICON} /><span>Cancel Note</span>
             </Button>
           ) : null}
@@ -475,6 +473,7 @@ export const ConsignmentNoteDetail = () => {
                               client-side invention - a red ring and a ` *` for a field the
                               backend never asked for. */
                               variantsRequired={false}
+                              specLockedReason={null}
                               lineDateLocked={false}
                               seedSofaLegDefault={false}
                               attachOptions={null}
@@ -489,6 +488,7 @@ export const ConsignmentNoteDetail = () => {
                               onRemove={cancelAddLine}
                               canRemove={true}
                               variantsRequired={false}
+                              specLockedReason={null}
                               lineDateLocked={false}
                               seedSofaLegDefault={false}
                               attachOptions={null}

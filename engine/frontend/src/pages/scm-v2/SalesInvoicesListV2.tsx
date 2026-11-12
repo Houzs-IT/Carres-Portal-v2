@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { siPaymentIntentSearch } from "./siPaymentIntent";
 import { salesInvoiceRowMenu } from "./row-menus";
 import {
+  siCreditNotesSen,
   siDepositAppliedSen,
   siOutstandingSen,
 } from "../../vendor/scm/lib/si-outstanding";
@@ -61,6 +62,7 @@ import {
 } from "../../vendor/scm/lib/sales-invoice-queries";
 import { useMfgCustomers } from "../../vendor/scm/lib/sales-order-queries";
 import { useServerColumnFunnels, funnelValues } from "../../hooks/useServerColumnFunnels";
+import { conditionDateRange } from "../../components/dataTableConditionFilters";
 import { authedFetch } from "../../vendor/scm/lib/authed-fetch";
 import { useNotify } from "../../vendor/scm/components/NotifyDialog";
 import { useChoice } from "../../vendor/scm/components/ChoiceDialog";
@@ -78,6 +80,7 @@ import type { PdfAction } from "../../vendor/scm/lib/pdf-common";
 import { salesInvoicePrintChain } from "../../lib/printChain";
 import { customerRefOf } from '../../lib/customer-ref';
 import { OVERDUE_CLASS, isPastDue } from '../../lib/tableHighlight';
+import { todayMyt } from "../../vendor/scm/lib/dates";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Subset of the full SiRow (see SalesInvoicesList.tsx for the 40-field shape).
@@ -136,6 +139,7 @@ type SiRow = {
      server could not read the order — read as 0, which shows the LARGER
      outstanding. Kept apart from paid_sen: different money, different document. */
   so_deposit_applied_sen?: number | null;
+  credit_notes_sen?: number | null; // customers' credit notes knocked off it (si-credit-notes) — apart from paid_sen too
   status: string;
   currency: string;
   line_count?: number;
@@ -161,7 +165,7 @@ type SiRow = {
   margin_pct_basis?: number;
 };
 
-type StatusTab = "all" | "sent" | "partial" | "paid" | "cancelled";
+type StatusTab = "all" | "draft" | "sent" | "partial" | "paid" | "cancelled";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 // margin_pct_basis is basis points (margin/total x 10000) → percent string.
@@ -182,7 +186,7 @@ const brandOf = (r: SiRow): string => r.branding || "—";
 const brandTone = brandingToneForLabel;
 
 // SI status → filter bucket. Business flow: DRAFT → SENT → PARTIALLY_PAID →
-// PAID → CANCELLED. Buckets: sent (Draft + Sent + Overdue) / partial / paid /
+// PAID → CANCELLED. Buckets: draft / sent (Sent + Overdue) / partial / paid /
 // cancelled — the same split SI_STATUS_BUCKETS uses server-side
 // (backend/src/scm/routes/sales-invoices.ts), which is what the tab COUNTS are
 // computed from. A row whose bucket here disagrees with the server's is a row
@@ -197,7 +201,7 @@ const STATUS_TONE: Record<
   string,
   { tone: "success" | "warning" | "error" | "neutral"; label: string; bucket: StatusTab }
 > = {
-  draft:           { tone: "warning", label: "Draft",       bucket: "sent" },
+  draft:           { tone: "warning", label: "Draft",       bucket: "draft" },
   sent:            { tone: "warning", label: "Submitted",   bucket: "sent" },
   issued:          { tone: "warning", label: "Submitted",   bucket: "sent" },
   overdue:         { tone: "error",   label: "Overdue",     bucket: "sent" },
@@ -224,7 +228,7 @@ const statusFor = (
    Outstanding ledger all have to answer the same number, and until 2026-08-23
    they answered six different ones (vendor/scm/lib/si-outstanding.ts). */
 const outstandingOf = (r: SiRow): number =>
-  siOutstandingSen(r.total_sen || r.local_total_sen || 0, r.paid_sen || 0, siDepositAppliedSen(r));
+  siOutstandingSen(r.total_sen || r.local_total_sen || 0, r.paid_sen || 0, siDepositAppliedSen(r), siCreditNotesSen(r));
 
 // ─── Split-menu dropdown ────────────────────────────────────────────────────
 
@@ -364,7 +368,7 @@ function CardsGrid({ rows, onOpen }: { rows: SiRow[]; onOpen: (r: SiRow) => void
             <div className="mt-3.5 flex items-end justify-between border-t border-border-subtle pt-3">
               <div className="min-w-0">
                 <div className="font-mono text-[9.5px] font-semibold uppercase tracking-brand text-ink-muted">
-                  Outstanding{siDepositAppliedSen(r) > 0 ? " · after SO deposit" : ""}
+                  Outstanding{siDepositAppliedSen(r) > 0 ? " · after SO deposit" : ""}{siCreditNotesSen(r) > 0 ? " · after credit notes" : ""}
                 </div>
                 <div
                   className={cn(
@@ -443,7 +447,7 @@ function DetailDrawer({
   const totalSen = row?.total_sen ?? row?.local_total_sen ?? 0;
   const paidSen = row?.paid_sen ?? 0;
   const depositSen = siDepositAppliedSen(row);
-  const outstanding = siOutstandingSen(totalSen, paidSen, depositSen);
+  const outstanding = siOutstandingSen(totalSen, paidSen, depositSen, siCreditNotesSen(row));
 
   return (
     <ResizableDetailDrawer
@@ -852,20 +856,20 @@ export function SalesInvoicesListV2() {
   const customersQ = useMfgCustomers();
   const customerNames = useMemo(() => [...new Set((customersQ.data?.customers ?? []).map((cst) => cst.name).filter((n): n is string => !!n))], [customersQ.data]);
   const { serverFunnels, onColFiltersChange } = useServerColumnFunnels(
-    (cf) => ({ debtorNames: funnelValues(cf, "debtor_name"), currencies: funnelValues(cf, "currency") }),
+    (cf) => ({ ...conditionDateRange(cf["invoice_date"]), debtorNames: funnelValues(cf, "debtor_name"), currencies: funnelValues(cf, "currency") }),
     () => setPageParam(0),
   );
   const { requestTerm: debouncedSearch } = useDebouncedSearchTerm(search);
 
   // Send the active tab's BUCKET NAME as `status`; the backend resolves each
-  // bucket to the raw statuses it covers (sent = DRAFT+SENT+OVERDUE, partial =
+  // bucket to the raw statuses it covers (draft = DRAFT, sent = SENT+OVERDUE, partial =
   // PARTIALLY_PAID, paid = PAID, cancelled = CANCELLED). `all` omits the filter.
   // ISSUED / PARTIAL / COMPLETED were listed here until 2026-08-17 and are not
   // members of the sales_invoice_status enum — sending them made each of those
   // three tabs 500. The server-side map is the authority (SI_STATUS_BUCKETS).
   const apiStatus = status === "all" ? undefined : status;
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } = useSalesInvoicesPaged({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useSalesInvoicesPaged({
     page,
     pageSize,
     status: apiStatus,
@@ -886,6 +890,7 @@ export function SalesInvoicesListV2() {
   // and these tiles summarise the SAME payload - so a settled-looking "RM 0.00"
   // (or the PREVIOUS term's money under a placeholder page) would outlive the
   // rows it describes. Same flag SearchScopeHint already uses for its count.
+  const statsFailed = Boolean(error);
   const statsPending =
     isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale;
   const updateStatus = useUpdateSalesInvoiceStatus();
@@ -895,6 +900,7 @@ export function SalesInvoicesListV2() {
   const total = data?.total ?? 0;
   const counts = data?.statusCounts ?? {
     all: 0,
+    draft: 0,
     sent: 0,
     partial: 0,
     paid: 0,
@@ -921,7 +927,7 @@ export function SalesInvoicesListV2() {
       /* The KPI sums the SAME per-row figure the Outstanding column renders, so
          the card and the table cannot disagree — which is the whole reason this
          block sums the rows on screen rather than asking the server. */
-      outstandingSen += siOutstandingSen(t, paid, siDepositAppliedSen(r));
+      outstandingSen += siOutstandingSen(t, paid, siDepositAppliedSen(r), siCreditNotesSen(r));
     }
     return { revenueSen, outstandingSen, paidSen };
   }, [visible.rows]);
@@ -1051,7 +1057,7 @@ export function SalesInvoicesListV2() {
       for (const r of chosen) bundles.push(await fetchSiBundle(r));
       if (how === "one") {
         await generateCombinedSalesInvoicePdf(bundles as never, {
-          fileName: `sales-invoices-${new Date().toISOString().slice(0, 10)}.pdf`,
+          fileName: `sales-invoices-${todayMyt()}.pdf`,
           action,
         });
       } else {
@@ -1272,6 +1278,7 @@ export function SalesInvoicesListV2() {
       render: (r) => {
         const outstanding = outstandingOf(r);
         const dep = siDepositAppliedSen(r);
+        const credit = siCreditNotesSen(r);
         /* A smaller number with no explanation invites "why is this 2,400 when
            the invoice is 4,400" — so when a deposit is in play the cell SAYS
            so. The marker carries the amount and the order it was taken on, the
@@ -1284,17 +1291,16 @@ export function SalesInvoicesListV2() {
               outstanding > 0 ? "text-err" : "text-synced"
             )}
             title={
-              dep > 0
-                ? `${fmtSen(dep)} was collected on ${r.so_doc_no ?? "the sales order"} and settles this invoice.`
-                : undefined
+              [dep > 0 ? `${fmtSen(dep)} was collected on ${r.so_doc_no ?? "the sales order"} and settles this invoice.` : "",
+                credit > 0 ? `${fmtSen(credit)} was knocked off by credit notes.` : ""].filter(Boolean).join(" ") || undefined
             }
           >
             {outstanding > 0 ? fmtSen(outstanding) : "Cleared"}
-            {dep > 0 && (
-              <span className="rounded-sm bg-surface-2 px-1 font-mono text-[9px] font-semibold uppercase tracking-brand text-ink-muted">
-                dep
+            {[dep > 0 ? "dep" : "", credit > 0 ? "cn" : ""].filter(Boolean).map((m) => (
+              <span key={m} className="rounded-sm bg-surface-2 px-1 font-mono text-[9px] font-semibold uppercase tracking-brand text-ink-muted">
+                {m}
               </span>
-            )}
+            ))}
           </span>
         );
       },
@@ -1682,6 +1688,7 @@ export function SalesInvoicesListV2() {
 
   const statusPillOptions: Array<{ value: StatusTab; label: string }> = [
     { value: "all", label: `All · ${counts.all}` },
+    { value: "draft", label: `Draft · ${counts.draft}` },
     { value: "sent", label: `Sent · ${counts.sent}` },
     { value: "partial", label: `Partial · ${counts.partial}` },
     { value: "paid", label: `Paid · ${counts.paid}` },
@@ -1761,7 +1768,7 @@ export function SalesInvoicesListV2() {
                 match count and contradicts the table the moment a client-side
                 funnel hides part of the page. */}
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Total Invoices"
               value={(visible.filtered ? visible.rows.length : total).toLocaleString("en-MY")}
               subtitle={visible.filtered ? "Filtered · shown below" : "All matching invoices"}
@@ -1769,14 +1776,14 @@ export function SalesInvoicesListV2() {
               active
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Billed"
               value={fmtSen(money.revenueSen)}
               subtitle={visible.filtered ? "Filtered · sum shown below" : "Sum on this page"}
               rail="bg-accent"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Outstanding"
               value={fmtSen(money.outstandingSen)}
               subtitle={visible.filtered ? "Balance · filtered" : "Balance on this page"}
@@ -1784,7 +1791,7 @@ export function SalesInvoicesListV2() {
               rail="bg-err"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Paid"
               value={fmtSen(money.paidSen)}
               subtitle={visible.filtered ? "Receipts · filtered" : "Receipts on this page"}

@@ -64,7 +64,7 @@ describe("permission filtering — before display, never after", () => {
 
   it("the principal is offered every area the sidebar gives them", () => {
     const areas = new Set(permittedDestinations("principal").map((d) => d.area));
-    expect(areas).toEqual(new Set(["Operations", "Finance", "HR", "Admin"]));
+    expect(areas).toEqual(new Set(["Operations", "Admin", "Finance (old)"]));
   });
 
   /* ⭐ THE TWO-ROLE PROOF, at the surface. `Approvals` is an Admin door; an
@@ -99,8 +99,8 @@ describe("the empty query", () => {
         "operation:work",
         "operation:orders",
         "operation:stock",
-        "operation:payments",
-        "operation:delivery",
+        "operation:mail-center",
+        "operation:receiving",
         "operation:suppliers",
       ]),
     );
@@ -123,12 +123,9 @@ describe("the empty query", () => {
       "WorkspaceOperations",
       "Sales OrdersOperations",
       "InventoryOperations",
-      // `operation:payments` is the Payments module's `Monitor` since the
-      // 2026-09-12 ruling — same key, same recent, the sidebar's own word.
-      // Three modules now own a `Monitor` (Delivery · Warehouse · Payments),
-      // so a shared label carries its module word.
-      "Payments · MonitorOperations",
-      "Transportation · MonitorOperations",
+      // Houzs's Mail Center, a plain System row (owner, 11 Nov 2026).
+      "Mail CenterOperations",
+      "Goods ReceiptOperations",
     ]);
     expect(labels.filter((l) => l === "SuppliersOperations")).toHaveLength(1);
     expect(screen.getByText("Recent")).toBeInTheDocument();
@@ -152,14 +149,17 @@ describe("what typing searches", () => {
     // rail, so Jump To may not offer them either — a demand is a hidden record,
     // not a destination.
     //
-    // Starts-with ranks first, in NAV order — the two consignment pages sit
-    // before Procurement in the Houzs tree (2026-11-01) — then contains, in NAV
-    // order: `SO Batch Purchase` then `Manual Purchase Request`.
+    // Starts-with ranks first, in NAV order — the consignment pages sit before
+    // Procurement in the Houzs tree (2026-11-01). Nothing merely contains the
+    // word since SO Batch, Forecast and Manual Purchase and the Purchasing
+    // report left with the old Carres pages (11 Nov 2026).
     expect(
       matchDestinations(permittedDestinations("operation"), "purch").map((d) => d.label),
     ).toEqual([
       /* Follows Houzs Sidebar.tsx:552 per Weisiang's ruling (2026-10-22):
-         the consignment receive and return pages are live destinations. */
+         the consignment receive and return pages are live destinations. The
+         Purchase Consignment Order row joined with the engine pages (11 Nov 2026). */
+      "Purchase Consignment Order",
       "Purchase Consignment Receive",
       "Purchase Consignment Return",
       "Purchase Orders",
@@ -167,12 +167,6 @@ describe("what typing searches", () => {
          beside Goods Receipt (YH, 2026-10-30). */
       "Purchase Invoices",
       "Purchase Returns",
-      /* The Purchasing REPORT page under DATA → Reports (owner 2026-10-08) —
-         a real page, so a real destination, named as a report. */
-      "Purchasing report",
-      "SO Batch Purchase",
-      "Forecast Purchase",
-      "Manual Purchase Request",
     ]);
   });
 
@@ -187,6 +181,12 @@ describe("what typing searches", () => {
       "Consignment Overview",
       "Consignment Receipts",
       "Manual Purchase Requests",
+      /* Removed with the old Carres Supply Chain pages (owner, 11 Nov 2026). */
+      "SO Batch Purchase",
+      "Forecast Purchase",
+      "Manual Purchase Request",
+      "Supplier Claims",
+      "Repair Orders",
     ]) {
       expect(all, word).not.toContain(word);
     }
@@ -238,10 +238,9 @@ describe("the keyboard", () => {
     });
     renderJump();
     const input = openSurface();
-    /* `payment records` matches exactly one destination, so the document is
-     * the row after it and one ↓ is what reaches it. (`payments` stopped being
-     * unique when the module gained its two destinations, 2026-09-12.) */
-    fireEvent.change(input, { target: { value: "payment records" } });
+    /* `mail center` matches exactly one destination, so the document is
+     * the row after it and one ↓ is what reaches it. */
+    fireEvent.change(input, { target: { value: "mail center" } });
     await screen.findByTestId("jump-to-document"); // the debounced lookup lands
     const before = screen.getAllByRole("option");
     expect(before[0]).toHaveAttribute("data-active", "true");
@@ -301,11 +300,11 @@ describe("the keyboard", () => {
 describe("navigate-only", () => {
   it("selecting a destination only opens it — and remembers it as recent", () => {
     renderJump();
-    fireEvent.change(openSurface(), { target: { value: "Payments · Monitor" } });
+    fireEvent.change(openSurface(), { target: { value: "Mail Center" } });
     fireEvent.click(screen.getByTestId("jump-to-destination"));
-    expect(screen.getByTestId("here")).toHaveTextContent("/finance/monitor");
+    expect(screen.getByTestId("here")).toHaveTextContent("/operation/sc/mail-center");
     expect(JSON.parse(localStorage.getItem("carres-jump-recent") ?? "[]")).toEqual([
-      "operation:payments",
+      "operation:mail-center",
     ]);
   });
 

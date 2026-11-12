@@ -15,7 +15,8 @@
 //   4. Returns an honest result:
 //        { ok: true,  data }                               ← truly persisted
 //        { ok: false, reason: 'http',     status, body }   ← server rejected
-//        { ok: false, reason: 'network',  details }        ← unreachable / read failed
+//        { ok: false, reason: 'network',  details }        ← write unreachable
+//        { ok: false, reason: 'unverified', details }      ← write 2xx, read-back failed
 //        { ok: false, reason: 'mismatch', diffs, data }    ← 200 but didn't stick
 //
 // ── HOUZS VENDOR ADAPTATION (only the auth + base URL changed) ─────────────
@@ -58,6 +59,11 @@ export type SaveResult<T> =
   | { ok: true; data: T }
   | { ok: false; reason: 'http'; status: number; body: string; requestId?: string }
   | { ok: false; reason: 'network'; details: string; requestId?: string }
+  /* The write returned 2xx but the read-back failed or was interrupted (route
+     change, the 30 s cap, a dropped connection). The row almost certainly
+     saved, so a caller must NOT say "failed" — that made staff re-key a SKU
+     price that had saved (Hookka #268). */
+  | { ok: false; reason: 'unverified'; details: string; requestId?: string }
   | { ok: false; reason: 'mismatch'; diffs: SaveDiff[]; data: T };
 
 /** Mutation transport — injectable so tests don't touch the network/auth. */
@@ -166,6 +172,9 @@ export function friendlySaveMessage(
     const parts = result.diffs.map((d) => `${label(d.field)} still shows ${fmt(d.actual)} instead of ${fmt(d.expected)}`);
     return `${Noun} not saved — ${parts.join('; ')}. Please key it in again and press Save.`;
   }
+  if (result.reason === 'unverified') {
+    return `${Noun} saved, but the check that it stuck was interrupted. Refresh the page to see it before keying it again.`;
+  }
   if (result.reason === 'network') {
     return `Couldn't confirm the ${opts.noun} saved — the connection may have dropped. Please check and press Save again.`;
   }
@@ -195,6 +204,9 @@ function extractPlainReason(body: string): string | null {
   return null;
 }
 
+const READBACK_ATTEMPTS = 3;
+const READBACK_BACKOFF_MS = [300, 900];
+
 export async function verifiedSave<T>(args: VerifiedSaveArgs<T>): Promise<SaveResult<T>> {
   const fetcher = args.fetcher ?? authedFetcher;
 
@@ -219,20 +231,32 @@ export async function verifiedSave<T>(args: VerifiedSaveArgs<T>): Promise<SaveRe
     return { ok: false, reason: 'http', status: res.status, body, requestId: requestIdFromResponse(res) };
   }
 
-  // 2. Read back (cache-bypassing) and 3. compare.
-  let data: T | null;
-  try {
-    data = await args.readback();
-  } catch (e) {
+  // 2. Read back (cache-bypassing) and 3. compare. The write has already
+  //    landed; a single dropped confirming read used to report "check
+  //    interrupted" for a save that was fine. Up to READBACK_ATTEMPTS reads.
+  let data: T | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < READBACK_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, READBACK_BACKOFF_MS[attempt - 1]));
+    try {
+      data = await args.readback();
+      lastError = null;
+    } catch (e) {
+      lastError = e;
+      data = null;
+    }
+    if (data != null) break;
+  }
+  if (lastError != null) {
     return {
       ok: false,
-      reason: 'network',
-      details: `readback failed: ${e instanceof Error ? e.message : String(e)}`,
-      requestId: requestIdFromError(e),
+      reason: 'unverified',
+      details: `readback failed: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      requestId: requestIdFromError(lastError),
     };
   }
   if (data == null) {
-    return { ok: false, reason: 'network', details: 'readback returned no data — save state unknown' };
+    return { ok: false, reason: 'unverified', details: 'readback returned no data — save state unknown' };
   }
 
   const diffs = computeSaveDiffs(data, args.expect, args.accessor);

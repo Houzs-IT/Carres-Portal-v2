@@ -12,13 +12,15 @@ import {
   sortSoLinesByGroupRank,
 } from '@2990s/shared/so-line-display';
 import { formatPhone } from '@2990s/shared/phone';
-import { COMPANY, DOC_TABLE_HEAD_STYLES, DOC_TABLE_STYLES, deliverPdf, drawHeader, drawInfoColumns, ensurePdfCjkFont, fmtRm, safeName, fmtDocDate, type PdfAction } from './pdf-common';
+import { docPageLabel, COMPANY, DOC_TABLE_HEAD_STYLES, DOC_TABLE_STYLES, deliverPdf, drawHeader, drawInfoColumns, ensurePdfCjkFont, fmtRm, safeName, fmtDocDate, type PdfAction } from './pdf-common';
 import { supplierBlock } from './pdf-party-blocks';
 import { loadSupplierDocData, supplierCodeFor, docVariantLine } from './supplier-doc-data';
 /* The status WORD comes from the one home for it, never from a caser here:
    what this document prints and what the screen shows must be the same word.
    docs/modules/document-status-vocabulary.md §1. */
 import { statusLabel } from './status-pill';
+import { piPoNumbers } from './pi-header-pos';
+import { PDF_COMPRESS } from './pdf-options';
 
 type PiHeader = {
   invoice_number: string; supplier_invoice_ref: string | null; status: string;
@@ -42,6 +44,8 @@ type PiItem = {
   item_group?: string | null;
   description?: string | null;
   variants?: Record<string, unknown> | null;
+  /* The line's own PO, resolved per line by the detail endpoint. */
+  source_po_number?: string | null;
 };
 
 /* Draw ONE purchase invoice's content into `doc` (letterhead → info → codes
@@ -87,6 +91,14 @@ export async function renderPurchaseInvoiceInto(
   ].filter(Boolean) as string[];
 
   const statusText = statusLabel('pi', header.status);
+  /* Every PO the lines bill, not only the header's first (owner 2026-11-10). */
+  const poNumbers = piPoNumbers(items.map((it) => it.source_po_number), header.purchase_order?.po_number ?? null);
+  /* Two per printed line: the right-hand rail has ~56mm for a value and does
+     not wrap, and a receipt can span a dozen POs. */
+  const poRefLines: string[] = [];
+  for (let i = 0; i < poNumbers.length; i += 2) {
+    poRefLines.push(poNumbers.slice(i, i + 2).join(', ') + (i + 2 < poNumbers.length ? ',' : ''));
+  }
   y = drawInfoColumns(doc, y,
     /* Canonical supplier block via the shared helper — Company, Code,
        Address, Tel, Fax, Email, Attn, Terms, Note. Previously the PI printed
@@ -107,7 +119,7 @@ export async function renderPurchaseInvoiceInto(
       title: 'INVOICE DETAILS',
       rows: [
         ['Our PI No', header.invoice_number],
-        ['PO Ref', header.purchase_order?.po_number ?? null],
+        [poNumbers.length > 1 ? 'PO Refs' : 'PO Ref', poRefLines],
         ['GRN Ref', header.grn?.grn_number ?? null],
         ['Supplier Ref', header.supplier_invoice_ref],
         ['Date', fmtDocDate(header.invoice_date)],
@@ -193,7 +205,7 @@ export async function renderPurchaseInvoiceInto(
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
     doc.text(header.invoice_number, margin, 290);
     doc.text(`${COMPANY.portalLabel} · ${fmtDocDate(header.invoice_date)}`, pageW / 2, 290, { align: 'center' });
-    doc.text(`Page ${p} of ${pageCount}`, pageW - margin, 290, { align: 'right' });
+    doc.text(docPageLabel(p, startPage, pageCount), pageW - margin, 290, { align: 'right' });
     doc.setTextColor(0);
   }
 }
@@ -206,7 +218,7 @@ export async function generatePurchaseInvoicePdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4' });
   await renderPurchaseInvoiceInto(doc, autoTable, header, items);
   deliverPdf(doc, `${header.invoice_number}-${safeName(header.supplier?.name ?? 'supplier')}.pdf`, opts?.action);
 }
@@ -219,7 +231,7 @@ export async function generateCombinedPurchaseInvoicePdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: 'a4' });
   for (let i = 0; i < docs.length; i += 1) {
     if (i > 0) doc.addPage();
     await renderPurchaseInvoiceInto(doc, autoTable, docs[i]!.header, docs[i]!.items);

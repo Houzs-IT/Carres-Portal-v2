@@ -12,6 +12,7 @@
 
 import { documentEmailHtml } from '../../services/email';
 import { fmtDate } from '../shared/format';
+import { isValidEmailAddress, resolvePoRecipients } from '../shared/supplier-emails';
 
 /* Attachment cap. Resend's own documented limit is 40 MB across the whole
    message, but the number that matters is smaller and comes from HOOKKA:
@@ -97,20 +98,39 @@ export function validatePoAttachment(pdfBase64: unknown, poNo: string): PoAttach
    malformed supplier address costs a provider error and an operator who thinks
    the PO went out. Deliberately permissive on the domain (no TLD allowlist) —
    this rejects nonsense, it does not adjudicate real domains. */
-const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
-
 export function isSendableEmail(addr: string | null | undefined): boolean {
-  return EMAIL_RE.test((addr ?? '').trim());
+  return isValidEmailAddress(addr);
+}
+
+/* Reply-To for a supplier PO email: the person who pressed Send. The From is
+   the shared no-reply sender, so without this a supplier's reply about the
+   order lands in the shared inbox instead of with the purchaser. null when the
+   sender has no sendable address; sendEmail then keeps its default Reply-To. */
+export function poReplyTo(sender: { email?: string | null } | null | undefined): string | null {
+  const addr = sender?.email?.trim() ?? '';
+  return isSendableEmail(addr) ? addr : null;
 }
 
 export interface PoEmailRow {
   id: string;
   po_number: string | null;
+  revision: number | string | null;
   status: string | null;
   total_sen: number | null;
   currency: string | null;
   po_date: string | null;
-  supplier?: { name?: string | null; email?: string | null } | null;
+  supplier?: { name?: string | null; email?: string | null; email2?: string | null; email3?: string | null } | null;
+}
+
+/* The number the supplier sees: `PO-2607-021_R1` after the first approved
+   revision, as printed on the PDF (frontend po-status.ts poDisplayNumber —
+   revision starts at 1, so the suffix is revision - 1). The subject and the
+   attachment name dropped it, so a revised order arrived looking identical to
+   the original. The underlying po_number never changes. */
+export function poEmailDocNo(row: Pick<PoEmailRow, 'id' | 'po_number' | 'revision'>): string {
+  const base = row.po_number ?? row.id;
+  const rev = Number(row.revision ?? 1);
+  return Number.isFinite(rev) && rev > 1 ? `${base}_R${rev - 1}` : base;
 }
 
 /**
@@ -123,16 +143,20 @@ export function buildPurchaseOrderEmail(
   row: PoEmailRow,
   companyName: string,
   note?: string | null,
-): { to: string; subject: string; html: string } | null {
-  const to = (row.supplier?.email ?? '').trim();
-  if (!isSendableEmail(to)) return null;
+): { to: string; cc: string[]; subject: string; html: string } | null {
+  /* To = Email, Cc = Email 2 / Email 3 (owner 2026-11-09) — the rule is
+     shared/supplier-emails.ts, which the PO page's confirm also reads. */
+  const recipients = resolvePoRecipients(row.supplier);
+  if (!recipients.ok) return null;
+  const { to, cc } = recipients;
 
-  const docNo = row.po_number ?? row.id;
+  const docNo = poEmailDocNo(row);
   const total = (Number(row.total_sen ?? 0) / 100).toFixed(2);
   const currency = row.currency ?? 'MYR';
 
   return {
     to,
+    cc,
     subject: `${companyName} — Purchase Order ${docNo}`,
     /* documentEmailHtml escapes every interpolated value (supplier names carry
        apostrophes, ampersands and Chinese characters) and inlines the summary,

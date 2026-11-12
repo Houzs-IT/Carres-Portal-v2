@@ -90,12 +90,19 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 // The Dashboard's cash read and month-end pack need a query client; every other read here is mocked.
+/** Where a forward to a Houzs engine row lands (the engine frame itself is not drawn here). */
+function EngineRowProbe() {
+  const location = useLocation();
+  return <p data-testid="engine-row">{location.pathname}</p>;
+}
+
 function show(path: string) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/finance/*" element={<FinanceApp />} />
+          <Route path="/operation/sc/:row" element={<EngineRowProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -160,14 +167,23 @@ describe("Finance routing", () => {
     expect(screen.getByTestId("payment-monitor-destination-header")).toBeInTheDocument();
     auth.role = "finance";
   });
-  /* 0645 (Chew 2026-10-03, Finance MASTER §3.3): the staff the boss allows ask
-     Finance to pay from here, so Payment Requests is not finance-only. The
-     database shows each person only their own requests. */
-  it("operation staff reach Payment Requests, and only that among Finance's own pages", () => {
+  /* Operations staff ask through Houzs's own Payment Requests now (owner, 11 Nov
+     2026: the Houzs pages are the system): their old link forwards there, record
+     links included. Finance and the principal keep this page (Finance (old)). */
+  it("operation staff are forwarded to Houzs's Payment Requests; Finance and the principal keep this page", () => {
     auth.role = "operation";
-    show("/finance/payment-requests");
-    expect(screen.getByTestId("payment-requests-destination-header")).toBeInTheDocument();
-    cleanup();
+    for (const path of ["/finance/payment-requests", "/finance/payment-requests/prq-0"]) {
+      show(path);
+      expect(screen.getByTestId("engine-row"), path).toHaveTextContent("/operation/sc/payment-requests");
+      cleanup();
+    }
+    for (const role of ["finance", "principal"]) {
+      auth.role = role;
+      show("/finance/payment-requests");
+      expect(screen.getByTestId("payment-requests-destination-header"), role).toBeInTheDocument();
+      cleanup();
+    }
+    auth.role = "operation";
     show("/finance/payment-vouchers");
     expect(screen.getByTestId("payment-monitor-destination-header")).toBeInTheDocument();
     auth.role = "finance";

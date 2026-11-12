@@ -11,7 +11,8 @@
 //       we don't re-derive them; the Theme C paint is chrome-only).
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { statusFor, doCancellableStatus, type StatusTab } from "./do-list-status";
+import { conditionDateRange } from "../../components/dataTableConditionFilters";
+import { statusFor, doCancellableStatus, doRevenueSen, type StatusTab } from "./do-list-status";
 import { deliveryOrderRowMenu } from "./row-menus";
 import { doCountsAsInvoiceable, doCountsAsDelivered } from "../../vendor/shared/do-shipped-states";
 import { useDoCancelAction } from "./use-do-cancel-action";
@@ -93,6 +94,7 @@ import { formatPhone } from "@2990s/shared/phone";
 import { useHoldAction } from "./use-hold-action";
 import { StatusWithHold, rowIsHeld, type HoldFields } from "../../vendor/scm/components/HoldChip";
 import { customerRefOf } from '../../lib/customer-ref';
+import { todayMyt } from "../../vendor/scm/lib/dates";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // Subset of the full DoRow (see MfgDeliveryOrdersList.tsx for the 40-field
@@ -752,6 +754,8 @@ type DoDrillItem = {
   /* Shipped (at least partly) from a PO-less stock ADJUSTMENT lot — renders a
      "STOCK ADJ" chip so the cell is explained, never blank (owner 2026-08-01). */
   source_adj?: boolean;
+  /* 'locked' = stamped when the line shipped; 'worked_out' = re-derived (older DO). */
+  source_state?: 'locked' | 'worked_out' | null;
 };
 
 function DoLinesExpansion({ doId }: { doId: string }) {
@@ -770,6 +774,7 @@ function DoLinesExpansion({ doId }: { doId: string }) {
     amountSen: l.amount_sen ?? l.total_sen ?? (l.qty ?? 0) * (l.unit_price_sen ?? 0),
     sourcePos: l.source_pos ?? [],
     sourceAdj: l.source_adj ?? false,
+    sourceState: l.source_state ?? null,
   }));
   return (
     <div className="flex flex-col gap-2">
@@ -835,7 +840,7 @@ export function MfgDeliveryOrdersListV2() {
      pagination runs over the filtered set: Customer (debtor) Name + Currency.
      Debtor CODE (grid value prefers ac_debtor_code) and line-level / MRP funnels
      stay client-side on the loaded page. */
-  const [serverFunnels, setServerFunnels] = useState<{ debtorNames?: string[]; currencies?: string[] }>({});
+  const [serverFunnels, setServerFunnels] = useState<{ debtorNames?: string[]; currencies?: string[]; from?: string; to?: string }>({});
   const customersQ = useMfgCustomers();
   const customerNames = useMemo(
     () => [...new Set((customersQ.data?.customers ?? []).map((cst) => cst.name).filter((n): n is string => !!n))],
@@ -850,7 +855,7 @@ export function MfgDeliveryOrdersListV2() {
   // cancelled = CANCELLED). `all` omits the filter.
   const apiStatus = status === "all" ? undefined : status;
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } = useMfgDeliveryOrdersPaged({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useMfgDeliveryOrdersPaged({
     enabled: true,
     page,
     pageSize,
@@ -875,6 +880,7 @@ export function MfgDeliveryOrdersListV2() {
   // and these tiles summarise the SAME payload - so a settled-looking "RM 0.00"
   // (or the PREVIOUS term's money under a placeholder page) would outlive the
   // rows it describes. Same flag SearchScopeHint already uses for its count.
+  const statsFailed = Boolean(error);
   const statsPending =
     isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale;
   const updateStatus = useUpdateMfgDeliveryOrderStatus();
@@ -894,11 +900,7 @@ export function MfgDeliveryOrdersListV2() {
 
   // Revenue sums the rows ON SCREEN (the paginated contract returns counts but
   // not full-set money sums), so the card and the table can never disagree.
-  const revenueSen = useMemo(() => {
-    let sum = 0;
-    for (const r of visible.rows) sum += r.local_total_sen ?? 0;
-    return sum;
-  }, [visible.rows]);
+  const revenueSen = useMemo(() => doRevenueSen(visible.rows, status), [visible.rows, status]);
 
   /* In-transit / Delivered normally read the server's FULL-set statusCounts —
      right, and deliberately unaffected by paging. But under an active column
@@ -976,7 +978,7 @@ export function MfgDeliveryOrdersListV2() {
       const v = colFilters[key];
       return v && v.length > 0 ? v : undefined;
     };
-    const next = { debtorNames: pick("debtor_name"), currencies: pick("currency") };
+    const next = { debtorNames: pick("debtor_name"), currencies: pick("currency"), ...conditionDateRange(colFilters.do_date) };
     const sig = JSON.stringify(next);
     if (sig === serverFunnelSigRef.current) return;
     serverFunnelSigRef.current = sig;
@@ -1104,7 +1106,7 @@ export function MfgDeliveryOrdersListV2() {
       bundles.sort((a, b) => compareDoPrintOrder(a.header as DoPrintHeader, b.header as DoPrintHeader));
       if (how === "one") {
         await generateCombinedDeliveryOrderPdf(bundles as never, {
-          fileName: `delivery-orders-${new Date().toISOString().slice(0, 10)}.pdf`,
+          fileName: `delivery-orders-${todayMyt()}.pdf`,
           action,
         });
       } else {
@@ -1646,7 +1648,7 @@ export function MfgDeliveryOrdersListV2() {
                 until a client-side funnel hides part of the page, at which
                 point they contradict the table beneath them. */}
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Total DOs"
               value={(visible.filtered ? visible.rows.length : total).toLocaleString("en-MY")}
               subtitle={visible.filtered ? "Filtered · shown below" : "All matching orders"}
@@ -1654,14 +1656,14 @@ export function MfgDeliveryOrdersListV2() {
               active
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Revenue"
               value={fmtRm(revenueSen)}
               subtitle={visible.filtered ? "Filtered · sum shown below" : "Sum on this page"}
               rail="bg-accent"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="In transit"
               value={(visible.filtered
                 ? visibleBucketCounts.inTransit
@@ -1672,7 +1674,7 @@ export function MfgDeliveryOrdersListV2() {
               rail="bg-accent-bright"
             />
             <StatCard
-              pending={statsPending}
+              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Delivered"
               value={(visible.filtered
                 ? visibleBucketCounts.delivered

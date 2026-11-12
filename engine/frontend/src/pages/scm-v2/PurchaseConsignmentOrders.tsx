@@ -46,6 +46,7 @@ import { StatusPill } from '../../vendor/scm/components/StatusPill';
 import styles from './Suppliers.module.css';
 import { PageHeader } from '../../components/Layout';
 import { FilterPills } from '../../components/FilterPills';
+import { supplierEmailList } from '../../vendor/shared/supplier-emails';
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -85,7 +86,7 @@ const buildColumns = (): GridColumn<PoHeaderRow>[] => [
     // Backend (purchase-consignment-orders list) returns pc_number, not the
     // PO's po_number — the PoHeaderRow type is shared with real POs, so read
     // pc_number with a po_number fallback.
-    accessor: (po) => <span style={{ fontWeight: 700, color: '#1B1B39', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(po.status)}>{pcNo(po)}</span>,
+    accessor: (po) => <span style={{ fontWeight: 700, color: 'var(--hz-c-primary)', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(po.status)}>{pcNo(po)}</span>,
     searchValue: (po) => pcNo(po),
     /* Accessor is JSX → export the raw doc-no string or the cell exports blank. */
     exportValue: (po) => pcNo(po),
@@ -166,7 +167,7 @@ const buildColumns = (): GridColumn<PoHeaderRow>[] => [
   {
     key: 'total_sen', label: 'Total', width: 130, sortable: true, align: 'right', groupable: false,
     accessor: (po) => (
-      <span style={{ fontFamily: 'var(--font-mark)', color: '#1B1B39', fontWeight: 800 }}>
+      <span style={{ fontFamily: 'var(--font-mark)', color: 'var(--hz-c-primary)', fontWeight: 800 }}>
         {fmtMoney(po.total_sen, po.currency)}
       </span>
     ),
@@ -258,7 +259,7 @@ export function PurchaseConsignmentOrderDrawer({
           <DrawerPartyCard name={row.supplier?.name ?? '—'} code={row.supplier?.code}>
             <DrawerKV k="Contact" v={row.supplier?.contact_person || '—'} />
             <DrawerKV k="Phone" v={row.supplier?.phone || '—'} />
-            <DrawerKV k="Email" v={row.supplier?.email || '—'} />
+            <DrawerKV k="Email" v={supplierEmailList(row.supplier).join(', ') || '—'} />
             <DrawerKV k="Address" v={row.supplier?.address || '—'} />
             {row.notes ? <DrawerKV k="Notes" v={row.notes} /> : null}
           </DrawerPartyCard>
@@ -431,7 +432,7 @@ const buildDrilldownColumns = (
   },
   {
     key: 'item_code', label: 'Item Code', width: 130,
-    accessor: (it) => <span style={{ fontWeight: 700, color: '#1B1B39' }}>{it.item_code}</span>,
+    accessor: (it) => <span style={{ fontWeight: 700, color: 'var(--hz-c-primary)' }}>{it.item_code}</span>,
     searchValue: (it) => it.item_code,
     sortFn: (a, b) => (a.item_code ?? '').localeCompare(b.item_code ?? ''),
   },
@@ -487,7 +488,7 @@ const buildDrilldownColumns = (
   },
   {
     key: 'line_total', label: 'Line Total', width: 110, align: 'right',
-    accessor: (it) => <span style={{ fontWeight: 700, color: '#1B1B39' }}>{fmtMoney(Number(it.line_total_sen ?? 0), currency)}</span>,
+    accessor: (it) => <span style={{ fontWeight: 700, color: 'var(--hz-c-primary)' }}>{fmtMoney(Number(it.line_total_sen ?? 0), currency)}</span>,
     exportValue: (it) => it.line_total_sen / 100,
     exportFormat: 'money',
     searchValue: (it) => String(it.line_total_sen ?? 0),
@@ -508,7 +509,7 @@ const ExpandedLines = ({ po }: { po: PoHeaderRow }) => {
   if (detail.error) {
     return (
       <div style={{ padding: 'var(--space-2) var(--space-3) var(--space-3) 40px', background: 'var(--c-cream)' }}>
-        <p style={{ fontSize: 'var(--fs-11)', color: 'var(--c-festive-b, #B8331F)', margin: 0 }}>
+        <p style={{ fontSize: 'var(--fs-11)', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))', margin: 0 }}>
           Failed to load lines: {detail.error instanceof Error ? detail.error.message : String(detail.error)}
         </p>
       </div>
@@ -548,7 +549,7 @@ const ExpandedLines = ({ po }: { po: PoHeaderRow }) => {
           fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
           letterSpacing: '0.06em', textTransform: 'uppercase',
         }}>Subtotal</span>
-        <span>Total <strong style={{ color: '#1B1B39' }}>{fmtMoney(subtotal, po.currency)}</strong></span>
+        <span>Total <strong style={{ color: 'var(--hz-c-primary)' }}>{fmtMoney(subtotal, po.currency)}</strong></span>
       </div>
     </div>
   );

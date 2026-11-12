@@ -806,7 +806,7 @@ in-panel writes are `delivery/MASTER.md` §8.3 to §8.6. These are their words:
 | Items panel Status | `Ready` · `Arriving {date}` · `Arriving after the requested date` · `No purchase order raised yet` · `Not received yet` |
 | Items panel Location | the place: `Carres Klang` · `With NETS Delivery` · `PJ Showroom`; never `Ready at Carres Klang Warehouse` |
 | Logistics Details pickup fact | `Handed over {date} {time} · {n} of {m} Units` · `Received by {partner} {time}` · `Pickup not recorded` |
-| An order nobody is assigned to | `Nobody assigned to this order` over `Manager assigns in Settings → Staff & Duties` (owner ruling 2026-09-26: the system deals every order to a person, so this is a system error and only a manager can add a person or assign the order; `Nobody holds Delivery Duty.` / `Set the holder …` and `Nobody is assigned to this order.` / `Assign it in Sales Orders → Team` are retired for an order — the Team door does not exist on the current register). Short word on a fixed row: `Not assigned` |
+| An order nobody is assigned to | `Nobody assigned to this order` over `Manager assigns in Settings`, opening Houzs's Settings (the Carres Settings workspace and its Staff & Duties page were replaced by the Houzs engine page 11 Nov 2026) (owner ruling 2026-09-26: the system deals every order to a person, so this is a system error and only a manager can add a person or assign the order; `Nobody holds Delivery Duty.` / `Set the holder …` and `Nobody is assigned to this order.` / `Assign it in Sales Orders → Team` are retired for an order — the Team door does not exist on the current register). Short word on a fixed row: `Not assigned` |
 
 **Do NOT use on Monitor:** `Paid in full` (that is the Sales Orders register's money word) ·
 `Payment pending` · `Needs attention` · `Attention` · `Alert` · `Checklist` · `Due` · `Next
@@ -5165,20 +5165,23 @@ matched payments to add up to the day's Sales total, and no matched payment may 
 The 2026-09-22 ruling's `Today` / `This week` / `This month` are the names of RANGE CHOICES in a select,
 which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`.
 
-## Sidebar words follow Houzs — Weisiang, WhatsApp 2026-11-01
+## Sidebar words follow Houzs — Weisiang, WhatsApp 2026-11-01; Houzs menu re-read 11 Nov 2026
 
-**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx`. Page and document words are not changed by this table.
+**This table overturns every older sidebar word in this file, including the Purchasing groups `BUY` · `RECEIVE` · `PROBLEMS` · `SHOWROOM`, `Outright` and `Receiving` as rows.** Source: Houzs-ERP `frontend/src/components/Sidebar.tsx` at Houzs `68c04607b` (the code `engine/` now carries). Service Cases, Projects and Supply Chain rows each open the engine page of the same name (portal-nav `ENGINE_PAGES`). Page and document words are not changed by this table.
 
 | Place | Exact words |
 |---|---|
-| Top | `Workspace` · `Operations` · `Supply Chain` (row, inside Operations) |
-| Supply Chain modules | `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
-| Sales Order | `Sales Orders` · `Sales Order Amendment` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
-| Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
+| Top | `Workspace` (its first row is `Overview`) · `Operations` · `Supply Chain` (row, inside Operations) · `System` |
+| Supply Chain | row `Product Request` first, then the modules `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
+| Sales Order | `Sales Orders` · `Fair Links to Settle` · `Sales Order Amendment` · `Payment Backdate Requests` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
+| Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Order` · `Product Request` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
 | Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
-| Transportation | `Logistic Overview` · `Delivery Planning` · `DP Orders` · `Last Mile Delivery` · `Lorry Live Map` · `Lorry Capacity` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
+| Transportation | `Logistic Overview` · `Delivery Planning` · `Last Mile Delivery (Driver)` · `DP Orders` · `Last Mile Delivery` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
+| Projects | `Project Overview` · `Project List` · `Calendar` · `Project Maintenance` |
+| System (after Supply Chain; owner 11 Nov 2026; completed 12 Nov 2026) | caps `System` · module `Team`: `Directory` · `Org Chart` · `Departments` · `Mailboxes` · `Roles & Permissions` · rows `Mail Center` · `Announcements` · module `IT`: `System Health` · `AI Usage` · rows `Change Log` · `Assistant` · `Agent Console` · `IT Support` · `OCR` |
+| Menu bottom | `Settings` (opens Houzs Settings) · `Report a problem to IT` (opens IT Support) |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
@@ -6323,14 +6326,12 @@ The supply chain and service case screens run as their own site (engine/), frame
 | Meaning | Use exactly |
 |---|---|
 | Frame | `Supply Chain` (read aloud) |
-| Settings rail (11 Nov 2026) | group `Supply Chain` · section `Supply Chain Settings` (opens the engine's own Settings in the frame) |
-| Settings rail (11 Nov 2026) | group `Team and access` · section `Access & Roles` (opens the engine's own Roles & Permissions in the frame) |
 | While it opens | `Opening Supply Chain` (read aloud) |
 | Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |
 
-## Old supply chain turned off · owner decision (10 Nov 2026)
+## Old supply chain removed · owner decisions (10 and 11 Nov 2026)
 
-The old Carres supply chain is turned off in production (`VITE_OLD_SUPPLY_CHAIN`, `OLD_ORDER_FLOWS`): its rows with no engine page leave the menu, and starting a new order there is refused. These words are admitted for that refusal.
+The old Carres Service, Projects and Supply Chain pages are removed from the portal (11 Nov 2026); their old addresses open the nearest engine page. Starting a new order in the old order book (sales portal, POS, imports, rental) is still refused on the server (`OLD_ORDER_FLOWS`). These words are admitted for that refusal.
 
 | Meaning | Use exactly |
 |---|---|

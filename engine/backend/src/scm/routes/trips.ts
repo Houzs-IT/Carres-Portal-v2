@@ -34,6 +34,7 @@
 // scm.trip_stops already exist (migration 0053). Mounted at '/trips'.
 // ----------------------------------------------------------------------------
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import { syncTripCrewToDos } from '../lib/trip-crew-sync';
 import { z } from 'zod';
@@ -58,8 +59,9 @@ import {
 } from '../lib/fleet-day-view';
 import { resolveDeliveryScope, scopeMatchesAssignment, type CrewAssignment } from '../lib/deliveryScope';
 import { reconcileStopsToBoard, reconcileFieldsFor, type ReconcileStop } from '../lib/tripReconcile';
-import { validatePing, shouldAcceptPing, latestPerDriver, PING_ACCEPTED_STATUSES } from '../lib/tripLocation';
+import { validatePing, shouldAcceptPing, latestPerDriver, PING_ACCEPTED_STATUSES, pingCallerAllowed } from '../lib/tripLocation';
 import { dateOrNull } from '../lib/date-coerce';
+import { DO_ARRIVED_STATES } from '../shared/do-shipped-states';
 
 export const trips = new Hono<{ Bindings: Env; Variables: Variables }>();
 trips.use('*', supabaseAuth);
@@ -99,8 +101,7 @@ function dual<T = unknown>(row: Record<string, unknown>, snake: string): T {
 /* Next TRIP-YYMM-NNN. Mirrors the sibling scm minters — max(suffix)+1 via
    mintMonthlyDocNo (self-healing; never count+1). */
 async function nextTripNo(sb: any): Promise<string> {
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   // TRIP stays CROSS-COMPANY (no companyDocPrefix) — one shared sequence, per
   // lib/companyScope.ts. mintMonthlyDocNo reads the row's single selected value,
   // so it keeps working whichever of trip_no/tripNo the driver hands back.
@@ -543,7 +544,7 @@ trips.get('/packing', async (c) => {
       const { data: itemData, error: itemErr } = await chunkIn<Record<string, unknown>>(readableDoIds, (batch, lo, hi) =>
         scopeToAllowedCompanies(
           sb.from('delivery_order_items')
-            .select('delivery_order_id, line_no, item_code, description, qty, rack_id')
+            .select('delivery_order_id, line_no, item_code, description, qty, rack_id, shipped_from')
             .in('delivery_order_id', batch).range(lo, hi),
           c,
         ));
@@ -555,6 +556,7 @@ trips.get('/packing', async (c) => {
         description: dual<string | null>(it, 'description'),
         qty: toNumericOrNull(dual(it, 'qty')),
         rack_id: dual<string | null>(it, 'rack_id'),
+        shipped_from: dual<unknown>(it, 'shipped_from') ?? null,
       }));
     }
   }
@@ -612,7 +614,7 @@ trips.get('/packing', async (c) => {
 
    Static segment → Hono matches it before '/:id'.
    ─────────────────────────────────────────────────────────────────────────*/
-const DO_DELIVERED = ['DELIVERED', 'SIGNED', 'INVOICED'];
+const DO_DELIVERED = [...DO_ARRIVED_STATES];
 
 trips.get('/history', async (c) => {
   const from = c.req.query('from');
@@ -1425,8 +1427,10 @@ trips.post('/:id/location', async (c) => {
   if (!trip) return c.json({ error: 'trip_not_found' }, 404);
   const t = trip as Record<string, unknown>;
 
+  // A crew member without Transportation edit arrives on the guard's
+  // writeBypass; only their OWN trip is accepted (tripLocation.ts, WHO MAY PING).
   const scope = await resolveDeliveryScope(sb, c.get('houzsUser'));
-  if (scope.mode === 'self' && !scopeMatchesAssignment(scope, tripAssignment(t))) {
+  if (!pingCallerAllowed(scope, tripAssignment(t), c.get('scmWriteBypassed') === true)) {
     return c.json({ error: 'not_your_trip' }, 403);
   }
 

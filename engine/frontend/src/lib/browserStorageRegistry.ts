@@ -62,11 +62,16 @@ export const BROWSER_STORAGE_KEY_REGISTRY: readonly StorageKeyRegistration[] = [
   { id: "chunk-print-resume", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "chunk-print-resume (the print to reopen after that reload)", matches: exact("chunk-print-resume") },
   { id: "workspace-tabs", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.workspaceTabs.v1 (per-window strip; blob records its {user,company} owner)", matches: exact("houzs.workspaceTabs.v1") },
   { id: "scm-list-return", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.scmListReturn.v1 (per-section last filtered list URL, for detail Back)", matches: exact("houzs.scmListReturn.v1") },
+  { id: "scm-list-focus", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.scmListFocus.v1 (per-section row last opened from a list, scrolled back to on return)", matches: exact("houzs.scmListFocus.v1") },
   // Peter 2026-10-14: the desktop Projects list saves <main>'s scrollTop when a
   // row opens and restores it on detail Back — same detail-Back shape as
   // scm-list-return above. Written then consumed; no identity/company data.
   { id: "projects-list-scroll", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "projects:listScroll (desktop list scroll position, for detail Back)", matches: exact("projects:listScroll") },
   { id: "return-scroll", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.returnScroll.v1 (where a page was scrolled when a document was opened from it, per address, taken once on return; last 20, 30 minutes)", matches: exact("houzs.returnScroll.v1") },
+  // Owner 2026-11-10 (bank reconciliation: 点开后也可以返回这里): the movement ids and
+  // journal numbers a page had ticked when an order was opened from it, given back once
+  // on return — ids and document numbers only, no identity data.
+  { id: "return-picks", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.returnPicks.v1 (what a page had ticked when a document was opened from it, per address, taken once on return; last 20, 30 minutes)", matches: exact("houzs.returnPicks.v1") }, // gitleaks:allow — a sessionStorage key's name, not a credential
   { id: "project-overview-scroll", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.projectOverview.scroll (where a project's Back goes — the Projects address it was opened from — and the Project Overview page + table scroll per address, given back once; last 20 entries, 30 minutes)", matches: exact("houzs.projectOverview.scroll") },
   { id: "assr-list-filter", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.assrListFilter.v1 (per-tab Service Cases search + stage, for detail Back)", matches: exact("houzs.assrListFilter.v1") },
   // Owner 2026-08-24: "i want make it my filter didnt close until i manually
@@ -110,6 +115,7 @@ export const BROWSER_STORAGE_KEY_REGISTRY: readonly StorageKeyRegistration[] = [
   // widths, order, hidden and frozen columns, one key per table. No identity data.
   { id: "finance-grid-layout", classification: "DEVICE_PREF", storage: ["localStorage"], keyFamily: "fin-grid-v1:<table>", matches: prefix("fin-grid-v1:") },
   { id: "mobile-language", classification: "DEVICE_PREF", storage: ["localStorage"], keyFamily: "houzs.mobile.lang", matches: exact("houzs.mobile.lang") },
+  { id: "theme", classification: "DEVICE_PREF", storage: ["localStorage"], keyFamily: "houzs.theme (light / dark / system, read before first paint by index.html too)", matches: exact("houzs.theme") },
   // Floating Assistant panel size — a per-device layout preference (width/height
   // of the draggable chat card), no identity/company data, same class as the
   // ResizableDrawer panel widths.
@@ -227,6 +233,8 @@ export const PRODUCTION_STORAGE_CALLERS = [
   // the account's saved layout on the first paint. Column keys only — no
   // identity data, and the company comes from the request, never from storage.
   "lib/tableLayouts.ts",
+  // Light / dark / auto, per browser (owner 2026-11-11 dark mode).
+  "lib/theme.ts",
   "lib/workspaceTabs.ts",
   "mobile/mobileI18n.ts",
   "mobile/MobileSalesOrders.tsx",

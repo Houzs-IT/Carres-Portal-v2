@@ -27,6 +27,12 @@
 // GET /knock-off?supplierId= and GET /:id/knock-off give the table, PUT
 // /:id/allocations sets it whole. A draft carries its ticks as a plan (create
 // and edit take `allocations` too) and the post carries it out.
+//
+// 2026-11-03 (owner: 「要」 — a customer CN knocks off the customer's sales
+// invoices, like AutoCount): the same table and the same three calls for a CN
+// — GET /knock-off?so= | ?customer= for a new note — posting nothing; a note
+// that answers a deposit invoice (a close-out, a refund's, a move's) is refused
+// (acc/credit-note-si.ts).
 // ----------------------------------------------------------------------------
 
 import { Hono } from 'hono';
@@ -43,14 +49,19 @@ import {
 import { parseEventId, unknownEventRefusal } from '../lib/event-tags';
 import { requireLeafAccount } from './accounting-chart';
 import { supabaseAuth } from '../middleware/auth';
-import { scanSupplierCreditNoteHandler } from './credit-note-scan';
+import { scanSupplierCreditNoteHandler, enqueueCreditNoteScanHandler, pollCreditNoteScanHandler } from './credit-note-scan';
 import {
-  appliedByNote, applyCreditNote, carryOutPlan, checkKnockOff, debtorParty, knockOffRows, noteAllocations, parseTargets, partyOfNote, partyOpenDocs,
-  removeAllocation, setNoteKnockOff, supplierParty, writePlan, type CreditParty, type CreditTarget,
+  appliedByNote, applyCreditNote, carryOutPlan, checkKnockOff, customerParty, debtorParty, depositPaperBlock, knockOffRows, noteAllocations, parseTargets,
+  moveNumbers, noteApplications, partyOfNote, partyOpenDocs, removeAllocation, setNoteKnockOff, supplierParty, writePlan,
+  type CreditParty, type CreditTarget, type KnockOffMove,
 } from '../../acc/credit-note-allocations';
+import { assertAuditWritable, auditUnavailableBody, compactChanges, fieldChange, recordEntityAudit, statusChange, type AuditAction } from '../lib/entity-audit';
+import { depositPapers } from '../../acc/credit-note-si';
 import { deleteCreditNoteFileHandler, listCreditNoteFilesHandler, streamCreditNoteFileHandler, uploadCreditNoteFileHandler } from './credit-note-files';
 import { fmtSen } from '../shared/format';
 import { openingDocumentRefusal } from '../../acc/books-opening';
+import { checkReturnLines, loadReturnCredit, type ReturnCredit } from '../lib/cn-from-return';
+import { noWriteUntilMarked, writesFromHere } from '../lib/no-write-refusal';
 
 type Row = Record<string, any>;
 const NO_PERM = (what: string) => ({ error: `You don't have permission to ${what}.` });
@@ -61,7 +72,7 @@ const NO_PERM = (what: string) => ({ error: `You don't have permission to ${what
    party lookup, the leaf check on a typed account, the draft edit. */
 
 /** projectId: the event the line's money is for (owner 2026-10-22) — null = none. */
-type CleanLine = { description: string | null; code: string | null; amountSen: number; projectId: number | null };
+type CleanLine = { description: string | null; code: string | null; amountSen: number; projectId: number | null; returnItemId: string | null; qty: number | null };
 
 function buildLines(raw: unknown): { lines: CleanLine[]; total: number } | { error: string; message: string } {
   const arr = Array.isArray(raw) ? raw : [];
@@ -69,18 +80,69 @@ function buildLines(raw: unknown): { lines: CleanLine[]; total: number } | { err
   const lines: CleanLine[] = [];
   for (const [i, l] of arr.entries()) {
     const code = String(l?.accountCode ?? '').trim() || null;
-    const amount = Number(l?.amountSen);
+    /* A JSON number only: Number() would read "350000" or true (= 1 sen) as an
+       amount, and a NaN the screen could not parse arrives as null. */
+    const amount = typeof l?.amountSen === 'number' ? l.amountSen : NaN;
     if (!Number.isInteger(amount) || amount <= 0) {
       return { error: 'bad_line', message: `Line ${i + 1}: amountSen must be a positive integer (got ${String(l?.amountSen)}).` };
     }
     const projectId = parseEventId(l?.projectId);
     if (projectId === 'invalid') return { error: 'bad_line', message: `Line ${i + 1}: projectId must be an event id (got ${String(l?.projectId)}).` };
-    lines.push({ description: l?.description ? String(l.description).trim() : null, code, amountSen: amount, projectId });
+    const returnItemId = String(l?.deliveryReturnItemId ?? '').trim() || null;
+    const qty = returnItemId ? Number(l?.qty) : null;
+    lines.push({ description: l?.description ? String(l.description).trim() : null, code, amountSen: amount, projectId, returnItemId, qty });
   }
   return { lines, total: lines.reduce((s, l) => s + l.amountSen, 0) };
 }
 
 const who = (c: any): string => String(c.get('houzsUser')?.name ?? c.get('user')?.id ?? '');
+
+/* A knock-off given back or changed moves what an invoice owes, and before
+   2026-11-10 it was a hard delete with no trace. The pre-flight runs before
+   the first write (entity-audit.ts); the row records each document's applied
+   amount from -> to, in sen, labelled by the document's number. */
+const knockOffAuditRefusal = async (c: any, companyId: number, note: any, action: AuditAction): Promise<Response | null> => {
+  const pf = await assertAuditWritable(c.get('supabase'), { entityType: 'CREDIT_NOTE', entityId: String(note.id), action, companyId });
+  return pf.ok ? null : c.json(auditUnavailableBody(), 409);
+};
+
+const recordKnockOffAudit = async (
+  c: any, companyId: number, note: any, action: AuditAction, moves: KnockOffMove[], extra: { status?: { from: string; to: string }; note?: string } = {},
+): Promise<void> => {
+  const sb = c.get('supabase');
+  const numbers = moves.length > 0 ? await moveNumbers(sb, companyId, moves) : new Map<string, string>();
+  const changes = [
+    ...(extra.status ? statusChange(extra.status.from, extra.status.to) : []),
+    ...compactChanges(moves.map((m) => fieldChange(`appliedSen:${numbers.get(m.id) ?? m.id}`, m.fromSen, m.toSen))),
+  ];
+  if (changes.length === 0) return;
+  await recordEntityAudit(sb, {
+    entityType: 'CREDIT_NOTE', entityId: String(note.id), entityDocNo: String(note.note_number ?? ''), action,
+    actor: c.get('houzsUser'), companyId, fieldChanges: changes, statusSnapshot: extra.status?.to ?? note.status ?? null,
+    ...(extra.note ? { note: extra.note } : {}),
+  });
+};
+
+/* A note raised from a delivery return (backlog A1): every line names one of
+   the return's lines and its units, held against what came back, what other
+   live notes already credit, and the invoice's price (lib/cn-from-return.ts). */
+async function checkedReturn(c: any, companyId: number, returnId: string, lines: CleanLine[], excludeNoteId: string | null): Promise<{ value: ReturnCredit } | { resp: Response }> {
+  const loaded = await loadReturnCredit(c.get('supabase'), companyId, returnId, excludeNoteId);
+  if (!loaded.ok) {
+    return { resp: loaded.status === 404 ? c.json({ error: 'return_unknown', message: loaded.reason }, 400) : c.json({ error: 'load_failed', reason: loaded.reason }, 500) };
+  }
+  const r = loaded.value;
+  if (String(r.ret.status).toUpperCase() === 'CANCELLED') {
+    return { resp: c.json({ error: 'return_cancelled', message: `${r.ret.return_number} is cancelled — nothing came back to credit.` }, 409) };
+  }
+  const unlinked = lines.findIndex((l) => !l.returnItemId);
+  if (unlinked >= 0) return { resp: c.json({ error: 'return_line_required', message: `Line ${unlinked + 1} names no line of ${r.ret.return_number} — a note from a return credits its returned lines only.` }, 400) };
+  const refusal = checkReturnLines(r.lines, lines.map((l) => ({ returnItemId: String(l.returnItemId), qty: Number(l.qty), amountSen: l.amountSen })));
+  return refusal ? { resp: c.json(refusal, 409) } : { value: r };
+}
+
+/* The database's own cap (migration 20261110T0200) refused a line another save took first. */
+const overReturnFromDb = (reason: string): boolean => /over_return_credit/.test(reason);
 
 async function loadNote(c: any, id: string): Promise<{ note: Row } | { resp: Response }> {
   const sb = c.get('supabase');
@@ -162,7 +224,23 @@ async function withInvoiceNumbers(c: any, rows: Row[]): Promise<{ rows: Row[] } 
     for (const s of (Array.isArray(data) ? data : []) as Array<{ id: string; invoice_number: string }>) numberOf.set(String(s.id), String(s.invoice_number));
   }
   const num = (v: unknown) => (typeof v === 'string' ? numberOf.get(v) ?? null : null);
-  return { rows: rows.map((r) => ({ ...r, sales_invoice_number: num(r.sales_invoice_id), purchase_invoice_number: num(r.purchase_invoice_id), ap_invoice_number: num(r.ap_invoice_id) })) };
+  /* An other debtor's account code (owner 2026-11-03), for the screens and the
+     print. Read here beside the note, never stored as party_code: the journal
+     line copies party_code, and the control's party fields stay as they were. */
+  const codeOfDebtor = new Map<string, string | null>();
+  const debtorIds = idsOf('debtor_id');
+  if (debtorIds.length > 0) {
+    const co = requireActiveCompanyId(c);
+    if (!co.ok) return { resp: c.json(co.refusal, 409) };
+    const { data, error } = await c.get('supabase').from('acc_debtors').select('id, code').eq('company_id', co.companyId).in('id', debtorIds);
+    if (error) return { resp: c.json({ error: 'load_failed', reason: error.message }, 500) };
+    for (const d of (Array.isArray(data) ? data : []) as Array<{ id: string; code: string | null }>) codeOfDebtor.set(String(d.id), d.code ?? null);
+  }
+  return { rows: rows.map((r) => ({
+    ...r,
+    sales_invoice_number: num(r.sales_invoice_id), purchase_invoice_number: num(r.purchase_invoice_id), ap_invoice_number: num(r.ap_invoice_id),
+    debtor_code: typeof r.debtor_id === 'string' ? codeOfDebtor.get(r.debtor_id) ?? null : null,
+  })) };
 }
 
 export const listCreditNotesHandler = async (c: any): Promise<Response> => {
@@ -189,9 +267,10 @@ export const listCreditNotesHandler = async (c: any): Promise<Response> => {
   /* A supplier note's control by its supplier code (party_code), the AP
      rule's one home — Supplier bills' Control column and Trade / Other filter. */
   for (const r of numbered.rows) if (r.kind === 'SCN') r.controlRole = apControlRole(r.party_code ?? null);
-  /* A posted supplier or other-debtor note's use (the redesign's "To use" /
-     "Used"): what its applications took, and the credit left. */
-  const credited = numbered.rows.filter((r) => (r.kind === 'SCN' || r.kind === 'OCN') && r.status === 'POSTED');
+  /* A posted supplier, other-debtor or customer note's use (the redesign's "To
+     use" / "Used", Money in's Knocks off): what its applications took, and the
+     credit left. */
+  const credited = numbered.rows.filter((r) => (r.kind === 'SCN' || r.kind === 'OCN' || r.kind === 'CN') && r.status === 'POSTED');
   if (credited.length > 0) {
     const used = await appliedByNote(sb, co.companyId, credited.map((r) => String(r.id)));
     if (!used.ok) return c.json({ error: 'load_failed', reason: used.reason }, 500);
@@ -199,6 +278,19 @@ export const listCreditNotesHandler = async (c: any): Promise<Response> => {
       const applied = used.byNote.get(String(r.id)) ?? 0;
       r.appliedSen = applied;
       r.unusedSen = Math.max(0, Number(r.total_sen ?? 0) - applied);
+    }
+  }
+  /* A customer note that answers a deposit invoice knocks off nothing — its
+     credit is not the customer's (acc/credit-note-si.ts) — so it carries what it
+     is instead of credit left. */
+  const customerNotes = numbered.rows.filter((r) => r.kind === 'CN');
+  if (customerNotes.length > 0) {
+    const papers = await depositPapers(sb, co.companyId, customerNotes);
+    if (!papers.ok) return c.json({ error: 'load_failed', reason: papers.reason }, 500);
+    for (const r of customerNotes) {
+      const paper = papers.value.get(String(r.id));
+      r.depositPaper = paper?.kind ?? null;
+      if (paper && r.unusedSen !== undefined) r.unusedSen = 0;
     }
   }
   return c.json({ rows: numbered.rows });
@@ -215,12 +307,29 @@ export const creditNoteDetailHandler = async (c: any): Promise<Response> => {
   const numbered = await withInvoiceNumbers(c, [found.note as unknown as Row]);
   if ('resp' in numbered) return numbered.resp;
   /* A supplier note's applications and the credit it has left (part 2) — an
-     other debtor's the same, off the debtor's bills. */
+     other debtor's the same, off the debtor's bills; a customer's off the
+     customer's sales invoices (2026-11-03). */
   let credit: Row = {};
-  if (found.note.kind === 'SCN' || found.note.kind === 'OCN') {
+  if (found.note.kind === 'SCN' || found.note.kind === 'OCN' || found.note.kind === 'CN') {
     const al = await noteAllocations(sb, co.companyId, found.note);
     if (!al.ok) return c.json({ error: 'load_failed', reason: al.reason }, 500);
     credit = { allocations: al.allocations, appliedSen: al.appliedSen, leftSen: al.leftSen };
+  }
+  /* A customer note answering a deposit invoice says what it answers, leaves no
+     credit on the customer, and a close-out names the final invoice it closed
+     against — its print's KNOCKED OFF AGAINST. */
+  if (found.note.kind === 'CN') {
+    const papers = await depositPapers(sb, co.companyId, [found.note]);
+    if (!papers.ok) return c.json({ error: 'load_failed', reason: papers.reason }, 500);
+    const paper = papers.value.get(String(found.note.id)) ?? null;
+    credit.depositPaper = paper;
+    if (paper) credit.leftSen = 0;
+    if (paper?.kind === 'closes' && found.note.sales_invoice_id) {
+      const { data: si, error: siErr } = await scopeToCompany(sb.from('sales_invoices').select('id, invoice_number, invoice_date, total_sen').eq('id', found.note.sales_invoice_id), c).maybeSingle();
+      if (siErr) return c.json({ error: 'load_failed', reason: siErr.message }, 500);
+      const s = si as Row | null;
+      credit.closedInvoice = s ? { id: String(s.id), number: String(s.invoice_number), date: s.invoice_date ?? null, totalSen: Number(s.total_sen ?? 0) } : null;
+    }
   }
   return c.json({ note: numbered.rows[0], lines: (Array.isArray(lines) ? lines : []) as Row[], ...credit });
 };
@@ -240,6 +349,22 @@ export const createCreditNoteHandler = async (c: any): Promise<Response> => {
   const noteDate = dateOrNull(body.noteDate) ?? todayMyt();
   const sb = c.get('supabase');
   const roles = await resolveRoles(sb, co.companyId);
+
+  /* From a delivery return (backlog A1): a customer's note, its customer and
+     invoice the return's own, each line one of the return's lines. */
+  const deliveryReturnId = String(body.deliveryReturnId ?? '').trim() || null;
+  let fromReturn: ReturnCredit | null = null;
+  if (deliveryReturnId) {
+    if (kind !== 'CN') return c.json({ error: 'return_not_this_kind', message: 'Only a customer credit note answers a delivery return.' }, 400);
+    const checked = await checkedReturn(c, co.companyId, deliveryReturnId, built.lines, null);
+    if ('resp' in checked) return checked.resp;
+    fromReturn = checked.value;
+    body.soDocNo = fromReturn.soDocNo ?? '';
+    body.salesInvoiceId = fromReturn.invoice?.id ?? '';
+    if (!String(body.sourceDocNo ?? '').trim()) body.sourceDocNo = fromReturn.ret.return_number;
+  } else if (built.lines.some((l) => l.returnItemId)) {
+    return c.json({ error: 'return_required', message: 'A line names a delivery-return line, but the note names no delivery return.' }, 400);
+  }
 
   /* The party, by kind. */
   let party: NoteParty;
@@ -306,8 +431,18 @@ export const createCreditNoteHandler = async (c: any): Promise<Response> => {
      credit off that invoice, as much as it owes. Checked before anything is
      written. */
   let plan: CreditTarget[] = [];
-  if (body.allocations !== undefined && kind !== 'SCN' && kind !== 'OCN' && parseTargets(body.allocations).length > 0) {
-    return c.json({ error: 'invoice_not_this_kind', message: 'Only a supplier or other-debtor credit note knocks off an invoice or a bill.' }, 400);
+  if (body.allocations !== undefined && kind === 'DN' && parseTargets(body.allocations).length > 0) {
+    return c.json({ error: 'invoice_not_this_kind', message: 'A debit note knocks nothing off.' }, 400);
+  }
+  /* A customer's note knocks off the customer's sales invoices (2026-11-03),
+     planned on the draft — never another party's documents. */
+  if (kind === 'CN' && body.allocations !== undefined) {
+    plan = parseTargets(body.allocations);
+    if (plan.some((t) => t.kind !== 'SI')) {
+      return c.json({ error: 'invoice_not_this_kind', message: "A customer's credit note knocks off the customer's sales invoices." }, 400);
+    }
+    const checked = await checkKnockOff(sb, { companyId: co.companyId, label: 'This note', party: customerParty({ code: party.code, name: party.name }), totalSen: built.total, posted: false, targets: plan, current: new Map() });
+    if (!checked.ok) return c.json({ error: checked.refusal.error, message: checked.refusal.message }, checked.refusal.status);
   }
   /* An other debtor's note knocks off the debtor's bills the same way, planned on the draft. */
   if (kind === 'OCN' && debtorId && body.allocations !== undefined) {
@@ -335,6 +470,7 @@ export const createCreditNoteHandler = async (c: any): Promise<Response> => {
     if (!checked.ok) return c.json({ error: checked.refusal.error, message: checked.refusal.message }, checked.refusal.status);
   }
 
+  writesFromHere(c);
   const raised = await insertCreditNote(sb, {
     companyId: co.companyId,
     docPrefix: companyDocPrefix(c),
@@ -346,15 +482,19 @@ export const createCreditNoteHandler = async (c: any): Promise<Response> => {
     salesInvoiceId,
     apInvoiceId,
     purchaseInvoiceId,
+    deliveryReturnId: fromReturn ? fromReturn.ret.id : null,
     sourceDocNo: String(body.sourceDocNo ?? '').trim() || null,
     noteDate,
     reason: String(body.reason ?? '').trim() || null,
     notes: String(body.notes ?? '').trim() || null,
-    lines: lines.map((l) => ({ description: l.description, code: l.code, amountSen: l.amountSen, projectId: l.projectId })),
+    lines: lines.map((l) => ({ description: l.description, code: l.code, amountSen: l.amountSen, projectId: l.projectId, returnItemId: l.returnItemId, qty: l.qty })),
     knockOffApInvoiceIds: plan.filter((t) => t.kind === 'API').map((t) => t.id),
     createdBy: who(c),
   });
-  if (!raised.ok) return c.json({ error: 'save_failed', reason: raised.reason }, 500);
+  if (!raised.ok) {
+    if (overReturnFromDb(raised.reason)) return c.json({ error: 'over_return_credit', message: 'Another credit note took these returned units first — open the return again to see what is left.' }, 409);
+    return c.json({ error: 'save_failed', reason: raised.reason }, 500);
+  }
   if (plan.length > 0) {
     /* The note stands either way — a second Save would raise it twice. */
     const written = await writePlan(sb, { companyId: co.companyId, noteId: String(raised.note.id), targets: plan, actor: who(c) });
@@ -394,8 +534,14 @@ export const updateCreditNoteHandler = async (c: any): Promise<Response> => {
   let plan: CreditTarget[] | null = null;
   const party: CreditParty | null = partyOfNote(note);
   if (body.allocations !== undefined) {
-    if (!party) return c.json({ error: 'invoice_not_this_kind', message: 'Only a supplier or other-debtor credit note knocks off an invoice or a bill.' }, 400);
+    if (!party) return c.json({ error: 'invoice_not_this_kind', message: 'A debit note knocks nothing off.' }, 400);
     plan = parseTargets(body.allocations);
+    /* A draft close-out (its posting refused at birth) takes no plan either. */
+    if (plan.length > 0) {
+      const paper = await depositPaperBlock(sb, co.companyId, note);
+      if (!paper.ok) return c.json({ error: 'load_failed', reason: paper.reason }, 500);
+      if (paper.refusal) return c.json({ error: paper.refusal.error, message: paper.refusal.message }, 409);
+    }
     const checked = await checkKnockOff(sb, {
       companyId: co.companyId, label: String(note.note_number), party, totalSen: newTotal, posted: false, targets: plan, current: new Map(),
     });
@@ -413,6 +559,12 @@ export const updateCreditNoteHandler = async (c: any): Promise<Response> => {
   if (body.reason !== undefined) patch.reason = String(body.reason ?? '').trim() || null;
   if (body.notes !== undefined) patch.notes = String(body.notes ?? '').trim() || null;
   if (body.sourceDocNo !== undefined) patch.source_doc_no = String(body.sourceDocNo ?? '').trim() || null;
+  if (built && note.delivery_return_id) {
+    const checked = await checkedReturn(c, co.companyId, String(note.delivery_return_id), built.lines, String(note.id));
+    if ('resp' in checked) return checked.resp;
+  } else if (built && built.lines.some((l) => l.returnItemId)) {
+    return c.json({ error: 'return_required', message: `${note.note_number} answers no delivery return — its lines cannot name return lines.` }, 400);
+  }
   if (built) {
     if (note.kind === 'OCN' && built.lines.some((l) => !l.code)) {
       return c.json({ error: 'account_required', message: 'Each line of an other-debtor credit note names its account (e.g. 520-0000 DISCOUNT ALLOWED).' }, 400);
@@ -442,9 +594,12 @@ export const updateCreditNoteHandler = async (c: any): Promise<Response> => {
     if (delErr) return c.json({ error: 'save_failed', reason: delErr.message }, 500);
     const { error: insErr } = await sb.from('acc_credit_note_lines').insert(lines.map((l, i) => ({
       company_id: co.companyId, note_id: note.id, line_no: i + 1, description: l.description, account_code: l.code, amount_sen: l.amountSen,
-      project_id: l.projectId,
+      project_id: l.projectId, delivery_return_item_id: l.returnItemId, qty: l.returnItemId ? l.qty : null,
     })));
-    if (insErr) return c.json({ error: 'save_failed', reason: insErr.message }, 500);
+    if (insErr) {
+      if (overReturnFromDb(insErr.message)) return c.json({ error: 'over_return_credit', message: 'Another credit note took these returned units first — open the return again to see what is left.' }, 409);
+      return c.json({ error: 'save_failed', reason: insErr.message }, 500);
+    }
     patch.total_sen = built.total;
   }
   const { data: saved, error: upErr } = await sb.from('acc_credit_notes').update(patch).eq('company_id', co.companyId).eq('id', note.id).select(HEADER).single();
@@ -475,7 +630,7 @@ export const postCreditNoteHandler = async (c: any): Promise<Response> => {
      的欠款; 2026-10-02 the ticks): each planned invoice (an other debtor's: bill)
      takes its credit now — as much as it still owes; what it cannot take stays
      with the supplier or the debtor. The post stands whatever this says. */
-  if ((note.kind !== 'SCN' && note.kind !== 'OCN') || posted.status !== 'posted') return c.json({ ok: true, jeNo: posted.jeNo, status: posted.status });
+  if ((note.kind !== 'SCN' && note.kind !== 'OCN' && note.kind !== 'CN') || posted.status !== 'posted') return c.json({ ok: true, jeNo: posted.jeNo, status: posted.status });
   const done = await carryOutPlan(c.get('supabase'), { companyId: co.companyId, note: { ...note, status: 'POSTED' } });
   if (!done.ok) {
     return c.json({ ok: true, jeNo: posted.jeNo, status: posted.status, applied: [], notApplied: `The knock-off did not run (${done.reason}) — open the note and save its ticks again.` });
@@ -522,13 +677,17 @@ export const applyCreditNoteHandler = async (c: any): Promise<Response> => {
 
 /* ── Knock off like an AP Payment (owner 2026-10-02) ───────────────────────── */
 
-/** GET /knock-off?supplierId= | ?debtorId= — a new note's table: the supplier's
-    invoices still owing, or the other debtor's bills. */
+/** GET /knock-off?supplierId= | ?debtorId= | ?so= | ?customer= — a new note's
+    table: the supplier's invoices still owing, the other debtor's bills, or the
+    customer's sales invoices — the customer the note will carry: the sales
+    order's (?so=), else the name typed (?customer=). */
 export const supplierKnockOffHandler = async (c: any): Promise<Response> => {
   const co = requireActiveCompanyId(c);
   if (!co.ok) return c.json(co.refusal, 409);
   const supplierId = String(c.req.query('supplierId') ?? '').trim();
   const debtorId = String(c.req.query('debtorId') ?? '').trim();
+  const so = String(c.req.query('so') ?? '').trim();
+  const customer = String(c.req.query('customer') ?? '').trim();
   let party: CreditParty;
   if (debtorId) {
     const deb = await loadDebtor(c, debtorId);
@@ -538,6 +697,10 @@ export const supplierKnockOffHandler = async (c: any): Promise<Response> => {
     const sup = await loadSupplier(c, supplierId);
     if ('resp' in sup) return sup.resp;
     party = supplierParty(sup.supplier.id);
+  } else if (so || customer) {
+    const who = await resolveCustomer(c, so ? { soDocNo: so } : { partyName: customer });
+    if ('resp' in who) return who.resp;
+    party = customerParty({ code: who.party.code, name: who.party.name });
   } else {
     return c.json({ rows: [] });
   }
@@ -556,6 +719,10 @@ export const creditNoteKnockOffHandler = async (c: any): Promise<Response> => {
   const totalSen = Number(note.total_sen ?? 0);
   const party = partyOfNote(note);
   if (!party) return c.json({ rows: [], totalSen, takenSen: 0, leftSen: totalSen, posted: note.status === 'POSTED' });
+  /* A note answering a deposit invoice has no credit on the customer to knock off — it says why. */
+  const paper = await depositPaperBlock(c.get('supabase'), co.companyId, note);
+  if (!paper.ok) return c.json({ error: 'load_failed', reason: paper.reason }, 500);
+  if (paper.refusal) return c.json({ rows: [], totalSen, takenSen: 0, leftSen: 0, posted: note.status === 'POSTED', refusal: paper.refusal.message });
   const rows = await knockOffRows(c.get('supabase'), co.companyId, { party, note });
   if (!rows.ok) return c.json({ error: 'load_failed', reason: rows.reason }, 500);
   const takenSen = rows.rows.reduce((s, r) => s + r.noteSen, 0);
@@ -574,10 +741,15 @@ export const setCreditNoteAllocationsHandler = async (c: any): Promise<Response>
   const may = note.status === 'POSTED'
     ? hasHouzsPerm(c, 'scm.payment_voucher.post')
     : hasHouzsPerm(c, 'scm.payment_voucher.create') || hasHouzsPerm(c, 'scm.payment_voucher.write');
-  if (!may) return c.json(NO_PERM('knock off a supplier\'s invoice'), 403);
+  if (!may) return c.json(NO_PERM(note.kind === 'CN' ? 'knock off a customer\'s invoice' : note.kind === 'OCN' ? 'knock off a debtor\'s bill' : 'knock off a supplier\'s invoice'), 403);
   let body: any;
   try { body = await c.req.json(); } catch { return c.json({ error: 'invalid_json' }, 400); }
+  if (note.status === 'POSTED') {
+    const refused = await knockOffAuditRefusal(c, co.companyId, note, 'UPDATE');
+    if (refused) return refused;
+  }
   const set = await setNoteKnockOff(c.get('supabase'), { companyId: co.companyId, note, targets: parseTargets(body?.targets), actor: who(c) });
+  await recordKnockOffAudit(c, co.companyId, note, 'UPDATE', set.moved ?? [], set.ok ? {} : { note: `Stopped part-way: ${set.refusal.message}` });
   if (!set.ok) return c.json({ error: set.refusal.error, message: set.refusal.message }, set.refusal.status);
   return c.json({ ok: true, short: set.short });
 };
@@ -590,8 +762,11 @@ export const removeCreditNoteAllocationHandler = async (c: any): Promise<Respons
   const found = await loadNote(c, c.req.param('id'));
   if ('resp' in found) return found.resp;
   if (found.note.status !== 'POSTED') return c.json({ error: 'note_not_posted', message: `${found.note.note_number} is ${String(found.note.status).toLowerCase()}.` }, 409);
+  const refused = await knockOffAuditRefusal(c, co.companyId, found.note, 'UPDATE');
+  if (refused) return refused;
   const back = await removeAllocation(c.get('supabase'), { companyId: co.companyId, note: found.note, allocationId: c.req.param('allocationId') });
   if (!back.ok) return c.json({ error: back.refusal.error, message: back.refusal.message }, back.refusal.status);
+  await recordKnockOffAudit(c, co.companyId, found.note, 'UPDATE', [back.moved]);
   return c.json({ ok: true });
 };
 
@@ -604,13 +779,39 @@ export const cancelCreditNoteHandler = async (c: any): Promise<Response> => {
   const note = found.note;
   if (note.opening === true) return c.json(openingDocumentRefusal(String(note.note_number)), 409);
   if (note.status === 'CANCELLED') return c.json({ ok: true, already: true });
+  const refused = await knockOffAuditRefusal(c, co.companyId, note, 'CANCEL');
+  if (refused) return refused;
+  const statusBefore = String(note.status);
+  const applied = await noteApplications(c.get('supabase'), co.companyId, String(note.id));
+  if (!applied.ok) return c.json({ error: 'load_failed', reason: applied.reason }, 500);
   const cancelled = await cancelCreditNote(c.get('supabase'), { companyId: co.companyId, note, actor: who(c) });
   if (!cancelled.ok) {
     if (cancelled.status === 'save_failed') return c.json({ error: 'save_failed', reason: cancelled.reason }, 500);
     if (cancelled.status === 'settle_failed' || cancelled.status === 'load_failed') return c.json({ error: cancelled.status, message: cancelled.reason }, 500);
     return c.json({ error: 'reverse_failed', status: cancelled.status, reason: cancelled.reason }, 500);
   }
+  if (cancelled.status === 'cancelled') await recordKnockOffAudit(c, co.companyId, note, 'CANCEL', applied.moves, { status: { from: statusBefore, to: 'CANCELLED' } });
   return c.json({ ok: true });
+};
+
+/** GET /from-return/:returnId — a new customer note's starting point from a
+    delivery return (backlog A1): the customer's order, the invoice that billed
+    most of the lines, each returned line priced off that billing with the
+    units still uncredited, and the notes already raised from it. */
+export const creditNoteFromReturnHandler = async (c: any): Promise<Response> => {
+  const co = requireActiveCompanyId(c);
+  if (!co.ok) return c.json(co.refusal, 409);
+  const loaded = await loadReturnCredit(c.get('supabase'), co.companyId, c.req.param('returnId'), null);
+  if (!loaded.ok) return loaded.status === 404 ? c.json({ error: 'not_found', message: loaded.reason }, 404) : c.json({ error: 'load_failed', reason: loaded.reason }, 500);
+  const r = loaded.value;
+  return c.json({
+    deliveryReturn: { id: r.ret.id, returnNumber: r.ret.return_number, status: r.ret.status, doDocNo: r.ret.do_doc_no, customer: r.ret.debtor_name },
+    soDocNo: r.soDocNo,
+    invoice: r.invoice ? { id: r.invoice.id, number: r.invoice.invoice_number } : null,
+    lines: r.lines.map((l) => ({ ...l, capSen: l.unitSen === null ? null : Math.round(l.unitSen * l.remainingQty) })),
+    notes: r.notes.map((n) => ({ id: n.id, number: n.note_number, status: n.status, totalSen: n.total_sen })),
+    state: r.state,
+  });
 };
 
 export const creditNotes = new Hono();
@@ -619,10 +820,15 @@ export const creditNotes = new Hono();
    scoped client. */
 creditNotes.use('*', supabaseAuth);
 creditNotes.get('/', listCreditNotesHandler);
-creditNotes.post('/', createCreditNoteHandler);
+/* Every refusal of a create comes before its first write (insertCreditNote), so the
+   per-mount Idempotency-Key is released on each and a corrected Save goes through. */
+creditNotes.post('/', noWriteUntilMarked, createCreditNoteHandler);
 creditNotes.post('/scan', scanSupplierCreditNoteHandler);
+creditNotes.post('/scan/enqueue', enqueueCreditNoteScanHandler);
+creditNotes.get('/scan/jobs', pollCreditNoteScanHandler);
 /* Before /:id, or 'knock-off' would be read as a note id. */
 creditNotes.get('/knock-off', supplierKnockOffHandler);
+creditNotes.get('/from-return/:returnId', creditNoteFromReturnHandler);
 creditNotes.get('/:id', creditNoteDetailHandler);
 creditNotes.patch('/:id', updateCreditNoteHandler);
 creditNotes.post('/:id/post', postCreditNoteHandler);

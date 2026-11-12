@@ -9,9 +9,10 @@
 //           ({co}DraftOR-YYMM-NNN) — the salesperson can hand something over;
 //   FORMAL  the moment the money is CONFIRMED — which mints the channel
 //           number: cash {co}COR-YYMM-NNN immediately (钱当场在手), card when
-//           merchant recon confirms that payment, transfer by a manual
-//           confirm; ANY draft can be formalised by hand after a human
-//           verified the money (客户催收据).
+//           merchant recon confirms that payment, transfer when bank recon
+//           matches its line on the statement (owner 2026-11-09: 这个不是我
+//           bank recon了就confirm 了？); ANY draft can be formalised by hand
+//           after a human verified the money (客户催收据).
 //   CANCELLED a formal receipt whose payment changed or was removed (owner
 //           2026-10-29: 收据跟着付款改或作废). Kept on file, its number never
 //           reused; the payment's live receipt is a new row. A DRAFT is never
@@ -30,9 +31,12 @@
 // ----------------------------------------------------------------------------
 
 import { companyCodeById, docMonthTag, mintMonthlyDocNo } from '../scm/lib/doc-no';
+import { chunkIn } from '../scm/lib/paginate-all';
 import { docPrefixForCode } from '../scm/lib/companyScope';
 import { fmtSen } from '../scm/shared/format';
 import { resolveRoles } from './rules';
+import { moveReceipts, transferMoveFor } from './receipt-rebank';
+import type { RebankTx } from './rebank-transaction';
 
 export const CASH_SERIES_LETTER = 'C';
 /** A receipt kept on file but no longer the payment's — see the header. Every
@@ -80,6 +84,87 @@ export async function channelLetterFor(
   return { ok: true, letter: (data as { letter?: string } | null)?.letter ?? null };
 }
 
+/** Who a receipt is from — RECEIVED FROM on its print (owner 2026-11-09: 为甚没有name
+    这些): the order's customer name, phone and address; an invoice payment's, its
+    invoice's name with its order's phone and address. Keyed `${payment_source}:${doc_no}`.
+    Best-effort: a read that fails leaves the map short — a receipt prints without them
+    rather than not at all. */
+export type ReceiptParty = { name: string | null; phone: string | null; addressLines: string[] };
+
+const textOf = (v: unknown): string | null => {
+  const s = String(v ?? '').trim();
+  return s === '' ? null : s;
+};
+
+export async function loadReceiptParties(
+  sb: any,
+  companyId: number,
+  receipts: ReadonlyArray<{ payment_source?: unknown; doc_no?: unknown }>,
+): Promise<Map<string, ReceiptParty>> {
+  const out = new Map<string, ReceiptParty>();
+  const soDocs = new Set<string>();
+  const siIds = new Set<string>();
+  for (const r of receipts) {
+    const doc = textOf(r.doc_no);
+    if (!doc) continue;
+    if (String(r.payment_source ?? '') === 'SIPAY') siIds.add(doc); else soDocs.add(doc);
+  }
+  try {
+    const invoices = new Map<string, { name: string | null; soDocNo: string | null }>();
+    if (siIds.size > 0) {
+      const si = await chunkIn<Record<string, unknown>>([...siIds], (batch, lo, hi) => sb.from('sales_invoices')
+        .select('id, debtor_name, so_doc_no').eq('company_id', companyId).in('id', batch).order('id').range(lo, hi));
+      if (si.error) throw new Error(`invoices: ${si.error.message}`);
+      for (const r of si.data) {
+        const soDocNo = textOf(r.so_doc_no);
+        invoices.set(String(r.id), { name: textOf(r.debtor_name), soDocNo });
+        if (soDocNo) soDocs.add(soDocNo);
+      }
+    }
+    const orders = new Map<string, ReceiptParty>();
+    if (soDocs.size > 0) {
+      const so = await chunkIn<Record<string, unknown>>([...soDocs], (batch, lo, hi) => sb.from('mfg_sales_orders')
+        .select('doc_no, debtor_name, phone, address1, address2, city, postcode, customer_state') // debtor_name — docs/bugs/0655
+        .eq('company_id', companyId).in('doc_no', batch).order('doc_no').range(lo, hi));
+      if (so.error) throw new Error(`orders: ${so.error.message}`);
+      for (const r of so.data) {
+        const town = [textOf(r.postcode), textOf(r.city)].filter(Boolean).join(' ');
+        orders.set(String(r.doc_no), {
+          name: textOf(r.debtor_name),
+          phone: textOf(r.phone),
+          addressLines: [textOf(r.address1), textOf(r.address2), textOf(town), textOf(r.customer_state)].filter((x): x is string => x !== null),
+        });
+      }
+    }
+    for (const r of receipts) {
+      const doc = textOf(r.doc_no);
+      if (!doc) continue;
+      if (String(r.payment_source ?? '') === 'SIPAY') {
+        const inv = invoices.get(doc);
+        if (!inv) continue;
+        const o = inv.soDocNo ? orders.get(inv.soDocNo) : undefined;
+        out.set(`SIPAY:${doc}`, { name: inv.name ?? o?.name ?? null, phone: o?.phone ?? null, addressLines: o?.addressLines ?? [] });
+      } else {
+        const o = orders.get(doc);
+        if (o) out.set(`SOPAY:${doc}`, o);
+      }
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[receipts] customer details not read:', e);
+  }
+  return out;
+}
+
+/** A receipt as its print reads it: its own name, else its party's; the party's phone and address lines. */
+export function withReceiptParty<T extends { payment_source?: unknown; doc_no?: unknown; customer_name?: unknown }>(
+  r: T,
+  parties: Map<string, ReceiptParty>,
+): T & { customer_name: string | null; phone: string | null; address_lines: string[] } {
+  const p = parties.get(`${String(r.payment_source ?? '')}:${String(r.doc_no ?? '')}`);
+  return { ...r, customer_name: textOf(r.customer_name) ?? p?.name ?? null, phone: p?.phone ?? null, address_lines: p?.addressLines ?? [] };
+}
+
 /**
  * Create the DRAFT receipt for one recorded payment — idempotent on the
  * payment key (a retry or a second caller finds the existing row). A CASH
@@ -98,6 +183,11 @@ export async function createReceiptForPayment(
     return { ok: true, id: cur.id, orNumber: cur.or_number, status: cur.status };
   }
 
+  /* The customer's name: the writer's, else the order's (an invoice payment's, its
+     invoice's) — no writer passes one (owner 2026-11-09: 为甚没有name 这些). */
+  const customerName = String(p.customerName ?? '').trim()
+    || (await loadReceiptParties(sb, p.companyId, [{ payment_source: p.source, doc_no: p.docNo }])).get(`${p.source}:${p.docNo ?? ''}`)?.name
+    || null;
   const prefix = docPrefixForCode(p.companyCode);
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const draftNo = await mintMonthlyDocNo(sb, 'acc_official_receipts', 'or_number', `${prefix}DraftOR-${docMonthTag(p.paidAt)}`);
@@ -108,7 +198,7 @@ export async function createReceiptForPayment(
       payment_source: p.source,
       payment_id: p.paymentId,
       doc_no: p.docNo,
-      customer_name: p.customerName ?? null,
+      customer_name: customerName,
       method: p.method,
       amount_sen: p.amountSen,
       paid_at: p.paidAt,
@@ -121,6 +211,7 @@ export async function createReceiptForPayment(
         const f = await formaliseReceipt(sb, {
           companyId: p.companyId, companyCode: p.companyCode, receiptId: id,
           accountCode: roles.CASH, actor: p.createdBy ?? null,
+          rebankTx: null, // cash: never a transfer, never moves
         });
         if (f.ok) return { ok: true, id, orNumber: f.orNumber, status: 'FORMAL' };
         /* The cash formalisation failing must not lose the receipt — it stays
@@ -152,14 +243,16 @@ export async function createReceiptForPayment(
  */
 export async function formaliseReceipt(
   sb: any,
-  input: { companyId: number; companyCode: string; receiptId: number; accountCode: string; actor: string | null },
+  /* `rebankTx`: the transaction a transfer's bank move runs in (acc/rebank-transaction.ts);
+     null = the old two-step move. Only a transfer confirmed into another bank moves. */
+  input: { companyId: number; companyCode: string; receiptId: number; accountCode: string; actor: string | null; rebankTx: RebankTx | null },
 ): Promise<{ ok: true; orNumber: string; already?: boolean } | { ok: false; status: string; reason: string }> {
   const { data: rRaw, error: rErr } = await sb.from('acc_official_receipts')
-    .select('id, or_number, status, company_id, paid_at')
+    .select('id, or_number, status, company_id, paid_at, method, payment_source, payment_id')
     .eq('id', input.receiptId).eq('company_id', input.companyId).maybeSingle();
   if (rErr) return { ok: false, status: 'load_failed', reason: rErr.message };
   if (!rRaw) return { ok: false, status: 'not_found', reason: `receipt ${input.receiptId} not found` };
-  const r = rRaw as { id: number; or_number: string; status: string; paid_at: string | null };
+  const r = rRaw as { id: number; or_number: string; status: string; paid_at: string | null; method: string | null; payment_source: string | null; payment_id: string | null };
   if (r.status === 'FORMAL') return { ok: true, orNumber: r.or_number, already: true };
   if (r.status === CANCELLED) {
     return { ok: false, status: 'cancelled', reason: `${r.or_number} was cancelled — its payment changed or was removed. Confirm the payment's current receipt instead.` };
@@ -173,6 +266,33 @@ export async function formaliseReceipt(
       status: 'bank_letter_missing',
       reason: `${input.accountCode} has no series letter yet — set one on the Voucher numbering card (Reconciliation setup), then confirm again.`,
     };
+  }
+
+  /* THE MONEY GOES WHERE THE RECEIPT SAYS (Conts #476). A transfer was booked
+     on the default bank when it was recorded; confirmed into another bank, its
+     entry moves there first — reversed on its own date, booked again on the
+     chosen bank — or that bank's reconciliation never shows the money. A move
+     the bank side forbids (matched on a statement, a closed month) refuses the
+     confirm, so the receipt never names a bank the books disagree with. */
+  if (r.method === 'transfer' && (r.payment_source === 'SOPAY' || r.payment_source === 'SIPAY') && r.payment_id) {
+    const item = { source: r.payment_source, paymentId: r.payment_id } as const;
+    const plan = await transferMoveFor(sb, input.companyId, item, input.accountCode);
+    if (!plan.ok) return { ok: false, status: 'load_failed', reason: plan.reason };
+    if (plan.move?.blocked) {
+      return {
+        ok: false,
+        status: 'payment_reconciled',
+        reason: `${r.or_number}'s payment is booked on ${plan.move.fromAccount} and cannot move to ${input.accountCode}: ${plan.move.blocked}.`,
+      };
+    }
+    if (plan.move) {
+      const moved = await moveReceipts(sb, input.companyId, [item], input.accountCode, input.rebankTx);
+      if (!moved.ok) return { ok: false, status: 'load_failed', reason: moved.reason };
+      const out = moved.results.at(0);
+      if (!out || out.status !== 'moved') {
+        return { ok: false, status: 'journal_not_moved', reason: `${r.or_number}'s payment entry did not move to ${input.accountCode}: ${out?.reason ?? 'no result'}` };
+      }
+    }
   }
 
   const digits = await digitsOf(sb, input.companyId);
@@ -373,6 +493,7 @@ export async function followPaymentEdit(
   if (made.status !== 'FORMAL' && (r.method ?? '') === (p.next.method ?? '') && r.channel_account_code) {
     const f = await formaliseReceipt(sb, {
       companyId: p.companyId, companyCode, receiptId: made.id, accountCode: r.channel_account_code, actor: p.actor,
+      rebankTx: null, // no env on the payment-edit path yet: a move here is still two-step (tasks/TODO.md)
     });
     if (f.ok) to = f.orNumber;
     // eslint-disable-next-line no-console
@@ -409,6 +530,53 @@ export async function followPaymentRemoval(
 }
 
 /**
+ * Money matched in bank reconciliation → the receipts of the customer payments
+ * the matched entries hold turn FORMAL on that bank (owner 2026-11-09: 这个不是
+ * 我bank recon了就confirm 了？ — a transfer's money is confirmed by its line on
+ * the bank statement, as a card's is by its merchant line). A customer payment's
+ * entry is source SOPAY / SIPAY with the payment's id; its leg on this bank names
+ * it. BEST-EFFORT like the card path: a match never fails over a receipt — a read
+ * that fails, a missing letter or an absent receipt leaves the draft for Confirm
+ * money, and nothing is thrown. Payments are confirmed in the order the entries
+ * were matched.
+ */
+export async function formaliseReceiptsForBankMatch(
+  sb: any,
+  companyId: number,
+  accountCode: string,
+  jeNos: string[],
+  actor: string | null,
+): Promise<Array<{ paymentId: string; outcome: string }>> {
+  if (jeNos.length === 0) return [];
+  try {
+    const { data, error } = await sb.from('v_gl_entries')
+      .select('je_no, source_type, source_doc_no')
+      .eq('company_id', companyId).eq('account_code', accountCode).in('je_no', jeNos);
+    if (error) return [];
+    const legs = (Array.isArray(data) ? data : []) as Array<{ je_no: string; source_type: string | null; source_doc_no: string | null }>;
+    const seen = new Set<string>();
+    const payments: Array<{ source: string; id: string }> = [];
+    for (const je of jeNos) {
+      for (const g of legs) {
+        const source = String(g.source_type ?? '');
+        const id = String(g.source_doc_no ?? '');
+        if (g.je_no !== je || (source !== 'SOPAY' && source !== 'SIPAY') || !id || seen.has(`${source}:${id}`)) continue;
+        seen.add(`${source}:${id}`);
+        payments.push({ source, id });
+      }
+    }
+    if (payments.length === 0) return [];
+    const code = await companyCodeById(sb, companyId);
+    if (!code) return [];
+    return await formaliseReceiptsForSettlement(sb, companyId, code, payments, accountCode, actor);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[receipts] bank match formalise skipped:', e);
+    return [];
+  }
+}
+
+/**
  * Card money confirmed by merchant reconciliation → the payments' receipts
  * turn FORMAL on the acquirer's payout bank. BEST-EFFORT by design: the
  * settlement confirm must never fail over a receipt (the fee entry is the
@@ -434,7 +602,7 @@ export async function formaliseReceiptsForSettlement(
     const r = data as { id: number; status: string } | null;
     if (!r) { out.push({ paymentId: p.id, outcome: 'no_receipt' }); continue; }
     if (r.status === 'FORMAL') { out.push({ paymentId: p.id, outcome: 'already_formal' }); continue; }
-    const f = await formaliseReceipt(sb, { companyId, companyCode, receiptId: r.id, accountCode: bankAccountCode, actor });
+    const f = await formaliseReceipt(sb, { companyId, companyCode, receiptId: r.id, accountCode: bankAccountCode, actor, rebankTx: null }); // card money: never a transfer, never moves
     out.push({ paymentId: p.id, outcome: f.ok ? 'formalised' : f.status });
   }
   return out;

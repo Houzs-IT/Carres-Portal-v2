@@ -1,5 +1,7 @@
 # STOCK / WAREHOUSE — MASTER
 
+> **Replaced by Houzs engine page 11 Nov 2026.** The Carres Stock / Warehouse pages were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+
 **Shared-template adoption — owner acceptance2026-10-01 / Warehouse adoption not verified:**
 follow UI MASTER **§6.0 (the accepted SO-derived listing template, owner acceptance 2026-10-01)**, integrated by
 [PR1838](https://github.com/wenwei4046/Carres-Portal-v2/pull/1838), main `c926e3f76`. Read the current

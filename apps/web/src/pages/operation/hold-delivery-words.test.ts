@@ -35,9 +35,7 @@ const NETS_WORDS = ["Confirmed date", "Time window", "Save Delivery Arrangement"
 
 const PAYMENT_SURFACES = [
   "apps/web/src/pages/operation/delivery-monitor.ts",
-  "apps/web/src/pages/operation/OperationDelivery.tsx",
   "apps/web/src/pages/operation/components/MonitorTwoLines.tsx",
-  "apps/web/src/pages/operation/DeliveryOrderPage.tsx",
   "apps/web/src/pages/partner/PartnerArrangePage.tsx",
   "apps/web/src/pages/public/DeliveryLinkPage.tsx",
   "apps/api/src/routes/partner/deliveries.ts",

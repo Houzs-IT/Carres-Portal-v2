@@ -127,7 +127,7 @@ import { Forbidden } from "./Forbidden";
 import { PrintPreviewModal, usePrintPreview } from "../components/scm-v2/PrintPreviewModal";
 import { defaultBrandingForCompany, HOUZS_COMPANY_CODE } from "../lib/branding";
 import { resolutionRoute, isStageActive, assrSubStatus, assrSubStatusAddsInfo, assrSubStatusLabel, ASSR_STAGES, ASSR_SUB_STATUSES } from "../vendor/scm/lib/assr/stages";
-import { ASSR_ISSUE_CATEGORIES, ASSR_NOTE_AUDIENCES, assrNoteIsCustomerVisible, assrMergedPoText, type AssrNoteAudience } from "../vendor/scm/lib/assr/case-fields";
+import { ASSR_ISSUE_CATEGORIES, ASSR_NOTE_AUDIENCES, assrNoteIsCustomerVisible, assrMergedPoText, missingCaseFields, type AssrNoteAudience } from "../vendor/scm/lib/assr/case-fields";
 import { AssrOrderPoLine } from "../components/AssrOrderPoLine";
 import { ASSR_STAGE_LABEL } from "../vendor/scm/lib/assr-stage-labels";
 import { ANOTHER_RETURN_HINT } from "../vendor/scm/lib/assr/returns";
@@ -148,6 +148,8 @@ import {
   splitCategories,
   toggleCategory,
 } from "../lib/assrProductCategories";
+import { todayMyt } from "../vendor/scm/lib/dates";
+import { FormTouchScope, useFormGuard } from "../hooks/useLeaveGuard";
 
 type StageFilter = "ALL" | AssrStage;
 
@@ -175,7 +177,6 @@ const RESOLUTION_OPTIONS = [
 ] as const;
 
 const PRIORITY_OPTIONS = ["low", "normal", "high", "urgent"] as const;
-
 
 const NCR_OPTIONS = [
   "material_defect",
@@ -1610,7 +1611,7 @@ function CaseCard({ c, onOpen }: { c: AssrCase; onOpen: (id: number) => void }) 
 // calendar's visual language (blank adjacent cells, prominent today,
 // wheel-to-navigate).
 
-function CasesCalendarView({
+export function CasesCalendarView({
   filters,
   onOpen,
 }: {
@@ -1638,9 +1639,8 @@ function CasesCalendarView({
     if (/^\d{4}-\d{2}$/.test(monthStr)) {
       return new Date(Number(monthStr.slice(0, 4)), Number(monthStr.slice(5, 7)) - 1, 1);
     }
-    const d = new Date();
-    d.setDate(1);
-    return d;
+    const [y, m] = todayMyt().split("-").map(Number);
+    return new Date(y, m - 1, 1);
   }, [monthStr]);
 
   const setAnchor = (d: Date) =>
@@ -1731,7 +1731,7 @@ function CasesCalendarView({
     d.setDate(gridStart.getDate() + i);
     cells.push({ date: d, iso: isoLocal(d), inMonth: d.getMonth() === anchor.getMonth() });
   }
-  const today = isoLocal(new Date());
+  const today = todayMyt();
   const monthLabel = anchor.toLocaleDateString("en-GB", { month: "2-digit", year: "numeric" });
 
   // Wheel over the grid steps months (throttled, non-passive).
@@ -2458,6 +2458,7 @@ function CreatePanel({
   toast: ReturnType<typeof useToast>;
 }) {
   const { can } = useAuth();
+  const { touched: formTouched, markTouched, allowLeave, guardedBack: guardedClose } = useFormGuard(onClose);
   const [docNo, setDocNo] = useState("");
   // Typeahead state: search local SO mirror by partial DocNo /
   // reference / customer name so staff don't have to remember the
@@ -2499,6 +2500,7 @@ function CreatePanel({
   // any other string → either a canonical category or a custom label.
   const [issueCategory, setIssueCategory] = useState<string>("");
   const [customCategory, setCustomCategory] = useState("");
+  const stillNeeded = missingCaseFields([["SO number", docNo], ["issue description", issue], ["issue category", issueCategory === OTHER_SENTINEL ? customCategory : issueCategory]]);
   const [lookingUp, setLookingUp] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<{ name?: string; phone?: string; location?: string } | null>(null);
@@ -2532,7 +2534,6 @@ function CreatePanel({
   );
   const productCategoryOptions =
     productCategoriesQ.data?.data.map((r) => r.name) ?? [];
-
 
   const MAX_FILES = 5;
   const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -2747,7 +2748,7 @@ function CreatePanel({
         toast.success(`Created ${res.assr_no}`);
       }
 
-      onCreated(res.id);
+      allowLeave(); onCreated(res.id);
     } catch (e: any) {
       // Duplicate-open-case guard (owner 2026-07-22) — the server returns 409
       // with { error: 'duplicate_open_case', message, existing:[{id, items,
@@ -2789,7 +2790,7 @@ function CreatePanel({
   }
 
   return (
-    <Panel open onClose={onClose} title="New Service Case" width={560} centered>
+    <FormTouchScope onTouch={markTouched}><Panel open onClose={onClose} title="New Service Case" width={560} centered dirty={formTouched} onAttemptClose={guardedClose}>
       <PanelSection title="Sales Order">
         <div className="relative flex gap-2">
           <input
@@ -2832,7 +2833,7 @@ function CreatePanel({
                   )}
                   {s.ref && <span className="rounded bg-bg px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">ref: {s.ref}</span>}
                   {(s.case_count ?? 0) > 0 && (
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    <span className="rounded bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300">
                       {s.case_count} case{(s.case_count ?? 0) > 1 ? "s" : ""}
                     </span>
                   )}
@@ -3155,16 +3156,11 @@ function CreatePanel({
             #842): block Create until a category resolves — the disabled gate
             below mirrors submit()'s resolve logic, so "Other…" also requires
             the custom label. FE gate; server still accepts a null category. */}
+        {stillNeeded.length > 0 && <div role="status" className="mb-2 text-xs text-red-700 dark:text-red-300">Still needed: {stillNeeded.join(", ")}</div>}
         <Button
           variant="primary"
           onClick={submit}
-          disabled={
-            submitting ||
-            !docNo.trim() ||
-            !issue.trim() ||
-            !issueCategory ||
-            (issueCategory === OTHER_SENTINEL && !customCategory.trim())
-          }
+          disabled={submitting || stillNeeded.length > 0}
         >
           {uploadProgress
             ? `Uploading ${uploadProgress.done}/${uploadProgress.total}…`
@@ -3173,7 +3169,7 @@ function CreatePanel({
             : "Create Case"}
         </Button>
       </div>
-    </Panel>
+    </Panel></FormTouchScope>
   );
 }
 
@@ -3290,6 +3286,7 @@ function DetailContent({
   const ncrOptions = (ncrCategoriesQ.data?.data ?? []).map((r) => r.slug);
   const [note, setNote] = useState("");
   const [noteFormOpen, setNoteFormOpen] = useState(false);
+  const [isPostingNote, setIsPostingNote] = useState(false);
   // Mig 064 / 0108 — note posting picks an audience bucket. Default
   // 'service' (internal); only 'customer' is portal-visible.
   // (internal team comms) since most notes are operational. Switch to
@@ -3366,14 +3363,21 @@ function DetailContent({
   useStageAutoAdvance({ c, logistics, transition, dialog });
 
   async function addNote() {
-    if (!note.trim()) return;
-    await api.post(`/api/assr/${id}/notes`, {
-      note: note.trim(),
-      category: noteCategory,
-    });
-    setNote("");
-    setNoteFormOpen(false);
-    detail.reload();
+    if (!note.trim() || isPostingNote) return;
+    setIsPostingNote(true);
+    try {
+      await api.post(`/api/assr/${id}/notes`, {
+        note: note.trim(),
+        category: noteCategory,
+      });
+      setNote("");
+      setNoteFormOpen(false);
+      detail.reload();
+    } catch (error: unknown) {
+      toast.error(`Note not posted: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsPostingNote(false);
+    }
   }
 
   // Keep a mistargeted drop from navigating the SPA to the file, and
@@ -4726,7 +4730,7 @@ function DetailContent({
               placeholder="Unassigned — search to assign"
             />
             {c.assigned_to == null && (
-              <div className="mt-1.5 rounded-md border border-dashed border-amber-500/60 bg-amber-50/60 px-2 py-1 text-[11px] font-semibold text-amber-800">
+              <div className="mt-1.5 rounded-md border border-dashed border-amber-500/60 bg-amber-50/60 px-2 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
                 Needs an assignee
               </div>
             )}
@@ -4918,10 +4922,10 @@ function DetailContent({
                   </button>
                   <button
                     onClick={addNote}
-                    disabled={!note.trim()}
+                    disabled={!note.trim() || isPostingNote}
                     className="ml-auto rounded-md bg-accent px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-white disabled:opacity-50"
                   >
-                    Post note
+                    {isPostingNote ? "Posting…" : "Post note"}
                   </button>
                 </div>
               </div>
@@ -5225,7 +5229,7 @@ function DetailContent({
                           <span
                             className={cn(
                               "rounded px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-wider",
-                              actorRole === "customer" && "bg-amber-100 text-amber-800",
+                              actorRole === "customer" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300",
                               actorRole === "supplier" && "bg-primary/10 text-primary",
                               actorRole === "sales" && "bg-accent-soft text-accent",
                               actorRole === "service" && "bg-bg text-ink-secondary",
@@ -5601,7 +5605,7 @@ function StageRow({
       className={cn(
         "border-b border-border-subtle last:border-b-0",
         // Nico 2026-07-09 — CURRENT stage highlight swapped from amber
-        // (bg-amber-50 + accent shadow + accent text) to petrol; matches
+        // (bg-amber-50 dark:bg-amber-950/40 + accent shadow + accent text) to petrol; matches
         // the Stage funnel dot flip below and the "amber = SLA warning
         // only" convention.
         state === "current" && "bg-primary/5 shadow-[inset_3px_0_0_0_theme(colors.primary.DEFAULT)]",
@@ -5874,7 +5878,7 @@ function StatusSummaryBar({
         ? `${slaHours}h left`
         : "—",
       sub: c.deadline_at ? `Due ${formatDate(c.deadline_at)}` : `${priorityName || "Normal"} tier`,
-      valColor: slaBreached ? "text-err" : slaSoon ? "text-amber-700" : "text-ink",
+      valColor: slaBreached ? "text-err" : slaSoon ? "text-amber-700 dark:text-amber-300" : "text-ink",
       dotColor: slaBreached ? "bg-err" : slaSoon ? "bg-amber-500" : "bg-synced",
     },
     {
@@ -6748,7 +6752,7 @@ function LogisticsRow({
           "ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold",
           l.status === "completed" && "bg-synced/10 text-synced",
           l.status === "scheduled" && "bg-accent/10 text-accent",
-          l.status === "pending" && "bg-amber-500/10 text-amber-700",
+          l.status === "pending" && "bg-amber-500/10 text-amber-700 dark:text-amber-300",
           l.status === "cancelled" && "bg-ink-muted/10 text-ink-muted"
         )}>
           {l.status}
@@ -6845,7 +6849,6 @@ const PRINT_ENTITIES = {
   both: "Both",
 } as const;
 type PrintEntity = keyof typeof PRINT_ENTITIES;
-
 
 function PrintMenu({
   caseId,
@@ -7153,7 +7156,7 @@ function LeadTimePill({
     pct >= 1
       ? "bg-err/10 text-err"
       : pct >= 0.5
-      ? "bg-amber-500/10 text-amber-700"
+      ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
       : "bg-synced/10 text-synced";
 
   const priorityName =
@@ -7867,7 +7870,7 @@ function ClosePrompt({
         <button
           key={n}
           onClick={() => onChange(value === n ? 0 : n)}
-          className="rounded p-0.5 transition-colors hover:bg-amber-100"
+          className="rounded p-0.5 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/40"
         >
           <Star
             size={20}

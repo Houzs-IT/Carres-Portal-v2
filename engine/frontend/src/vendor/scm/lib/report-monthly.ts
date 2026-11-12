@@ -15,15 +15,18 @@
 // left empty where a column never printed the line.
 // ----------------------------------------------------------------------------
 
-import type { LaidNode } from './report-layout';
+import type { LaidNode, SettleDeposit } from './report-layout';
 import { flattenLaid } from './report-layout';
-import { balanceParts, type RpColumn } from './rp-report-queries';
+import { guardFormula } from '../../../lib/csv';
+import { AUTOCOUNT_LINE_ID, AUTOCOUNT_LINE_LABEL, balanceParts, withAutoCountLine, type RpColumn, type RpReport } from './rp-report-queries';
 
 /** One line of a report as one column printed it. */
 export type FlatLine = {
   id: string;
   label: string;
   kind: 'block' | 'category' | 'row' | 'unassigned' | 'total' | 'net' | 'memo';
+  /** A memo line whose figures open entries of their own (the Cash Flow's AutoCount line). */
+  drill?: boolean;
   depth: number;
   amountSen: number;
   pct: number | null;
@@ -33,10 +36,18 @@ export type FlatLine = {
   caption?: string;
   /** A group's own name for its Total line (the layout's totalLabel); else "Total <label>". */
   totalLabel?: string;
+  /** The Cash Flow: the figure split into Settlement and Deposit (absent = not split). */
+  sd?: SettleDeposit;
 };
 
-export type MonthlyCell = { amountSen: number; pct: number | null };
-export type MonthlyLine = Omit<FlatLine, 'amountSen' | 'pct'> & { cells: Partial<Record<string, MonthlyCell>> };
+export type MonthlyCell = { amountSen: number; pct: number | null; sd?: SettleDeposit };
+export type MonthlyLine = Omit<FlatLine, 'amountSen' | 'pct' | 'sd'> & {
+  cells: Partial<Record<string, MonthlyCell>>;
+  /** Cells that run across more than one column, by the column they start in (the Cash
+      Flow's Settlement / Deposit view: a line not split prints one figure across a
+      month's two columns). The columns a cell covers print nothing of their own. */
+  spans?: Partial<Record<string, number>>;
+};
 
 export type MonthColumn = { key: string; label: string; from: string; to: string; cumulative: boolean };
 
@@ -90,6 +101,7 @@ export const treeLines = (nodes: LaidNode[], depth = 1): FlatLine[] =>
     id: node.id, label: node.label, kind: node.kind === 'account' ? 'row' : node.kind === 'subtotal' ? 'net' : node.kind, depth: d, amountSen: node.amountSen, pct: node.pct,
     ...(node.code ? { code: node.code } : {}),
     ...(node.totalLabel ? { totalLabel: node.totalLabel } : {}),
+    ...(node.sd ? { sd: node.sd } : {}),
   }));
 
 export const fixedLine = (id: string, label: string, kind: FlatLine['kind'], amountSen: number, pct: number | null): FlatLine =>
@@ -110,12 +122,12 @@ export function mergeColumns(columns: Array<{ key: string; lines: FlatLine[] }>)
     for (const l of col.lines) {
       let line = at.get(l.id);
       if (!line) {
-        line = { id: l.id, label: l.label, kind: l.kind, depth: l.depth, cells: {}, ...(l.code ? { code: l.code } : {}), ...(l.caption ? { caption: l.caption } : {}), ...(l.totalLabel ? { totalLabel: l.totalLabel } : {}) };
+        line = { id: l.id, label: l.label, kind: l.kind, depth: l.depth, cells: {}, ...(l.drill ? { drill: true } : {}), ...(l.code ? { code: l.code } : {}), ...(l.caption ? { caption: l.caption } : {}), ...(l.totalLabel ? { totalLabel: l.totalLabel } : {}) };
         at.set(l.id, line);
         const after = prevId ? out.findIndex((x) => x.id === prevId) : -1;
         out.splice(after + 1, 0, line);
       }
-      line.cells[col.key] = { amountSen: l.amountSen, pct: l.pct };
+      line.cells[col.key] = { amountSen: l.amountSen, pct: l.pct, ...(l.sd ? { sd: l.sd } : {}) };
       prevId = l.id;
     }
   }
@@ -214,6 +226,7 @@ type RpLike = {
   opening: Record<string, number>;
   layout: { tree: LaidNode[]; inSen: number; outSen: number };
   totals: { openingTotalSen: number; receiptsTotalSen: number; paymentsTotalSen: number; closingTotalSen: number; closing: Record<string, number> };
+  autoCount?: RpReport['autoCount'];
 };
 
 /** The Cash Flow as lines, the Total column only: each top category as a
@@ -223,11 +236,13 @@ type RpLike = {
 export const rpLines = (r: RpLike): FlatLine[] => {
   const t = r.totals;
   const out: FlatLine[] = [];
+  /* A side's total and a running subtotal carry the Settlement / Deposit pair where the server split it. */
+  const withSd = (l: FlatLine, n: LaidNode): FlatLine => (n.sd ? { ...l, sd: n.sd } : l);
   for (const n of r.layout.tree) {
-    if (n.kind === 'subtotal') { out.push(fixedLine(n.id, n.label, 'net', n.amountSen, null)); continue; }
+    if (n.kind === 'subtotal') { out.push(withSd(fixedLine(n.id, n.label, 'net', n.amountSen, null), n)); continue; }
     out.push(fixedLine(`blk:${n.id}`, n.label, 'block', 0, null));
     out.push(...treeLines(n.children));
-    out.push(fixedLine(`tot:${n.id}`, n.totalLabel ?? `Total ${n.label}`, 'total', n.amountSen, n.pct));
+    out.push(withSd(fixedLine(`tot:${n.id}`, n.totalLabel ?? `Total ${n.label}`, 'total', n.amountSen, n.pct), n));
   }
   out.push(fixedLine('net:surplus', 'Cash surplus / (deficit)', 'net', t.receiptsTotalSen - t.paymentsTotalSen, pctOfBase(t.receiptsTotalSen - t.paymentsTotalSen, t.receiptsTotalSen)));
   /* Each balance in two parts, the banks and the card money not yet in the bank (owner 2026-11-05). */
@@ -237,12 +252,15 @@ export const rpLines = (r: RpLike): FlatLine[] => {
   out.push(...parts('bal:opening', r.opening, t.openingTotalSen));
   out.push(fixedLine('bal:closing', 'Balance c/f', 'net', t.closingTotalSen, null));
   out.push(...parts('bal:closing', t.closing, t.closingTotalSen));
-  return out;
+  return withAutoCountLine(r, out, (depth, sen): FlatLine => ({ id: AUTOCOUNT_LINE_ID, label: AUTOCOUNT_LINE_LABEL, kind: 'memo', depth, amountSen: sen, pct: null, drill: true }));
 };
 
 /* ── The CSV ─────────────────────────────────────────────────────────────── */
 
-const csvCell = (s: string): string => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+const csvCell = (raw: string): string => {
+  const s = guardFormula(raw);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
 
 /** The monthly table as CSV — the same lines and columns the screen shows,
     amounts or %, indented by depth. */

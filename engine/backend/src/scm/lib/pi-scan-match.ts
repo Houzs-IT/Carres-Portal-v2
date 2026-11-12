@@ -35,6 +35,38 @@ export function normalizeDocRef(s: string | null | undefined): string {
 /** Does a scanned reference identify our document number? Exact after
  *  normalization, or one is a suffix of the other (our "HCPO010070" ends with
  *  the supplier's "PO010070"). Empty scanned ref never matches. */
+/* HOOKKA INV-2610-097 prints "EX-HC-PO-2609-151": an exchange (replacement) for
+   HC-PO-2609-151. The mark goes, so the reference anchors to the order it replaces. */
+const EXCHANGE_MARK = /^(?:EXCH|EX)(?:\s*-\s*|\s+)(?=[A-Z0-9])/i;
+const printedRefs = (printed: string | null | undefined): string[] =>
+  (printed ?? '').split(/[,;&\n]|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+
+/** Each D.O. or PO an invoice names: it may print several in one field. An
+ *  exchange mark ("EX-", "EX ", "EXCH-") is dropped, leaving the order it replaces. */
+export function docRefsOf(printed: string | null | undefined): string[] {
+  return printedRefs(printed).map((s) => s.replace(EXCHANGE_MARK, '').trim()).filter(Boolean);
+}
+
+/** The references the invoice marks as exchange, without the mark. */
+export function exchangeRefsOf(printed: string | null | undefined): string[] {
+  return printedRefs(printed).filter((s) => EXCHANGE_MARK.test(s)).map((s) => s.replace(EXCHANGE_MARK, '').trim()).filter(Boolean);
+}
+
+/** The PO refs for a sentence, and what the invoice's exchange mark means. */
+export function poRefsNote(poNo: string | null | undefined): { refs: string; exchange: string | null } {
+  const refs = docRefsOf(poNo);
+  const ex = exchangeRefsOf(poNo);
+  return {
+    refs: refs.length > 0 ? refs.join(', ') : (poNo ?? ''),
+    exchange: ex.length > 0 ? `The invoice marks ${ex.join(', ')} as exchange (EX): replacement goods for those orders.` : null,
+  };
+}
+
+/** A row printed at RM 0: a replacement or a free gift, nothing to bill. */
+export function isFreePrice(unitPrice: number | null | undefined, lineTotal: number | null | undefined): boolean {
+  return unitPrice === 0 || (unitPrice == null && lineTotal === 0);
+}
+
 export function docRefMatches(scanned: string | null | undefined, ours: string | null | undefined): boolean {
   const a = normalizeDocRef(scanned);
   const b = normalizeDocRef(ours);
@@ -49,6 +81,20 @@ export function docRefMatches(scanned: string | null | undefined, ours: string |
 /** Normalize an item code / article number for equality matching. */
 export function normalizeCode(s: string | null | undefined): string {
   return (s ?? '').toUpperCase().trim().replace(/\s+/g, ' ');
+}
+
+/** The size a code ends with, "(Q)" in "DIVAN-(Q)"; null when it names none. */
+export function sizeTag(code: string | null | undefined): string | null {
+  const m = /\(([^()]+)\)\s*$/.exec(normalizeCode(code));
+  return m ? m[1]! : null;
+}
+
+/** A learned or bound code may stand in for the printed one only when it does not name
+ *  another size: a printed queen is never billed against a king. */
+export function sameSize(printed: string | null | undefined, ours: string | null | undefined): boolean {
+  const a = sizeTag(printed);
+  const b = sizeTag(ours);
+  return a == null || b == null || a === b;
 }
 
 /** A candidate outstanding GRN line the matcher can bill. */
@@ -149,9 +195,11 @@ export function matchInvoiceLinesToGrnLines(
     }
     const skuCode = normalizeCode(line.articleNo) || normalizeCode(line.itemCode);
     const mapped = skuCode ? bindingBySku.get(skuCode) : undefined;
-    if (mapped) candidateCodes.add(normalizeCode(mapped));
+    if (mapped && sameSize(skuCode, mapped)) candidateCodes.add(normalizeCode(mapped));
 
-    const matches = [...candidateCodes].flatMap((c) => byCode.get(c) ?? []);
+    // A row printed at RM 0 never bills a receipt line that costs money (INV-2610-097).
+    const free = isFreePrice(line.unitPrice, line.lineTotal);
+    const matches = [...candidateCodes].flatMap((c) => byCode.get(c) ?? []).filter((g) => !free || g.unitPriceSen === 0);
     if (matches.length === 0) {
       unmatched.push({
         invoiceLineIndex, itemCode: line.itemCode, articleNo: line.articleNo,

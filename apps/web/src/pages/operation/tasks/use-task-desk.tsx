@@ -27,14 +27,12 @@ import { qk } from "@/lib/queries";
 import { useOpenWorkSet, type WorkRow } from "../use-open-work";
 import { TASK_CARD_WORDS, taskCard, type TaskCard } from "./task-cards";
 import { isSimulatedWalk, useTasksHost, type WorkPanelHost } from "./tasks-host";
-import type { PoWindowFacts } from "./tasks-model";
 
 type Result = { text: string; taskId: string; stay: boolean };
 
-export function useTaskDesk({ order, factsOf, onLeave }: {
+export function useTaskDesk({ order, onLeave }: {
   /** The open work of the list the task is opened from, in the list's order. */
   order: readonly TaskCard[];
-  factsOf: (row: WorkRow) => PoWindowFacts | null;
   /** Leaves the whole surface (the Tasks panel's own close). */
   onLeave?: () => void;
 }) {
@@ -139,7 +137,7 @@ export function useTaskDesk({ order, factsOf, onLeave }: {
   }), [guard, onLeave, closeTask, taskId, setDirty, simulated, queryClient, cardOrder]);
 
   /* The opened task as its list card words it: one title, one set of facts. */
-  const opened = useMemo(() => (task ? { row: task, card: taskCard(task, factsOf(task)), result: (words: string) => host.result(words) } : null), [task, factsOf, host]);
+  const opened = useMemo(() => (task ? { row: task, card: taskCard(task), result: (words: string) => host.result(words) } : null), [task, host]);
 
   const pending = useTasksHost((s) => s.pending);
   const subject = useTasksHost((s) => s.subject);

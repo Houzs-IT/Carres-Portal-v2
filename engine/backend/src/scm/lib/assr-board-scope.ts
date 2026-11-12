@@ -68,6 +68,23 @@ export const ASSR_CONFIRMED_COL = {
   customer_pickup: 'sched_pickup_date', inspection: 'sched_inspection_date', delivery: 'sched_delivery_date',
 } as const;
 
+/** The date Logistics stamps when it marks a leg DELIVERED on the board (owner
+ *  2026-11-06), independent of case closure — a board mark records THAT leg only
+ *  and never closes the case. The pickup leg reuses the existing actual_pickup_at;
+ *  inspection and delivery got their own columns (mig 20261105T0900). assrBoardLegs
+ *  reads these so a marked leg shows DELIVERED while the case stays open. */
+export const ASSR_ACTUAL_COL = {
+  customer_pickup: 'actual_pickup_at', inspection: 'actual_inspection_at', delivery: 'actual_delivery_at',
+} as const;
+
+/** The date Logistics stamps when it CANCELS a leg on the board (owner 2026-11-06):
+ *  that leg's trip was called off. A cancelled leg is DROPPED from the board
+ *  (assrBoardLegs skips it) and recorded; like Delivered it is leg-only and never
+ *  closes the case. */
+export const ASSR_CANCELLED_COL = {
+  customer_pickup: 'pickup_cancelled_at', inspection: 'inspection_cancelled_at', delivery: 'delivery_cancelled_at',
+} as const;
+
 /** The Time Slot a Service Case keeps per leg (HC-0194), typed on the board. */
 export const ASSR_LEG_TIME_COL = {
   customer_pickup: 'pickup_time_range', inspection: 'inspection_time_range', delivery: 'delivery_time_range',
@@ -93,6 +110,18 @@ export const ASSR_LEG_REMARK_COL = {
 const PAST_PICKUP = PAST_PICKUP_STAGES;
 const PAST_INSPECTION = new Set(['pending_supplier_pickup', ...PAST_PICKUP_STAGES]);
 
+/** A leg still has an upcoming visit: a scheduled date (confirmed, else requested)
+ *  of today or later with no actual completion yet. Such a leg is NOT done however
+ *  far the case stage has moved, so the stage-past-this-leg shortcuts below must not
+ *  mark it Delivered or lock its writes (owner 2026-11-10: a re-inspection booked
+ *  after the case reached Pending Delivery/Service showed Delivered and could not be
+ *  given a driver). Dates are 'YYYY-MM-DD' (or a timestamp whose first 10 chars are),
+ *  compared lexically to todayMyt(); an empty `today` disables the check (a caller
+ *  without board time keeps the legacy stage-only behaviour). */
+function legUpcoming(effectiveDate: string | null | undefined, actualAt: string | null | undefined, today: string): boolean {
+  return !actualAt && today !== '' && effectiveDate != null && effectiveDate.slice(0, 10) >= today;
+}
+
 /** A case is done when it carries a closed / archived stamp, a terminal stage,
  *  or (cases from before the stamp existed) the status "Closed". Only the stamps
  *  were read until 2026-10-26, so 56 old Closed cases showed as pending jobs. */
@@ -104,9 +133,9 @@ export function assrCaseClosed(a: { closed_at: string | null; archived_at: strin
 
 export type AssrBoardCase = {
   stage: string | null;
-  pickup_by: string | null; pickup_pic: string | null; customer_pickup_at: string | null; actual_pickup_at: string | null; sched_pickup_date: string | null;
-  inspection_by: string | null; inspection_visit_at: string | null; sched_inspection_date: string | null;
-  delivery_by: string | null; do_date: string | null; sched_delivery_date: string | null;
+  pickup_by: string | null; pickup_pic: string | null; customer_pickup_at: string | null; actual_pickup_at: string | null; sched_pickup_date: string | null; pickup_cancelled_at: string | null;
+  inspection_by: string | null; inspection_visit_at: string | null; sched_inspection_date: string | null; actual_inspection_at: string | null; inspection_cancelled_at: string | null;
+  delivery_by: string | null; do_date: string | null; sched_delivery_date: string | null; actual_delivery_at: string | null; delivery_cancelled_at: string | null;
 };
 export type AssrBoardLeg = {
   jobKind: 'customer_pickup' | 'delivery' | 'inspection';
@@ -122,9 +151,12 @@ export type AssrBoardLeg = {
  *    -> Pending Delivery, and that date shows back on the case.
  *  - a leg the case has moved past (picked up, inspected, case closed) is done:
  *    Delivered, never left in Pending Delivery. */
-export function assrBoardLegs(a: AssrBoardCase, caseClosed: boolean): AssrBoardLeg[] {
+export function assrBoardLegs(a: AssrBoardCase, caseClosed: boolean, today = ''): AssrBoardLeg[] {
   const legs: AssrBoardLeg[] = [];
-  const add = (jobKind: AssrBoardLeg['jobKind'], req: string | null | undefined, conf: string | null | undefined, done: boolean) => {
+  // `cancelled` drops the leg off the board entirely (owner 2026-11-06): a cancelled
+  // trip is called off, so it is not shown at all — never left as a pending row.
+  const add = (jobKind: AssrBoardLeg['jobKind'], req: string | null | undefined, conf: string | null | undefined, done: boolean, cancelled: boolean) => {
+    if (cancelled) return;
     const requested = req ?? null; const confirmed = conf ?? null;
     if (done) { if (requested || confirmed) legs.push({ jobKind, requested, confirmed, state: 'DELIVERED' }); return; }
     legs.push({ jobKind, requested, confirmed, state: confirmed ? 'PENDING_DELIVERY' : 'PENDING_SCHEDULE' });
@@ -132,15 +164,21 @@ export function assrBoardLegs(a: AssrBoardCase, caseClosed: boolean): AssrBoardL
   const pickupDated = Boolean(a.customer_pickup_at || a.sched_pickup_date);
   const pickupOwn = a.pickup_by === 'customer' || (a.pickup_by == null && (pickupDated || a.pickup_pic === 'Logistic'));
   if (pickupOwn && (pickupDated || a.stage === 'pending_supplier_pickup')) {
-    add('customer_pickup', a.customer_pickup_at, a.sched_pickup_date, caseClosed || Boolean(a.actual_pickup_at) || PAST_PICKUP.has(a.stage ?? ''));
+    add('customer_pickup', a.customer_pickup_at, a.sched_pickup_date, caseClosed || Boolean(a.actual_pickup_at) || PAST_PICKUP.has(a.stage ?? ''), Boolean(a.pickup_cancelled_at));
   }
   if (a.inspection_by === 'own' && (a.inspection_visit_at || a.sched_inspection_date)) {
-    add('inspection', a.inspection_visit_at, a.sched_inspection_date, caseClosed || PAST_INSPECTION.has(a.stage ?? ''));
+    // An inspection still scheduled for today or later (no actual visit yet) stays a
+    // live PENDING leg even past the inspection stage — else a re-inspection booked
+    // after the case moved to Pending Delivery/Service shows Delivered (owner 2026-11-10).
+    const inspUpcoming = legUpcoming(a.sched_inspection_date ?? a.inspection_visit_at, a.actual_inspection_at, today);
+    add('inspection', a.inspection_visit_at, a.sched_inspection_date, caseClosed || Boolean(a.actual_inspection_at) || (PAST_INSPECTION.has(a.stage ?? '') && !inspUpcoming), Boolean(a.inspection_cancelled_at));
   }
   const deliveryDated = Boolean(a.do_date || a.sched_delivery_date);
   const deliveryOwn = a.delivery_by === 'own' || (a.delivery_by == null && deliveryDated);
   if (deliveryOwn && (deliveryDated || a.stage === 'pending_delivery_service')) {
-    add('delivery', a.do_date, a.sched_delivery_date, caseClosed);
+    // Delivered once the case closes OR Logistics marked it Delivered on the board
+    // (actual_delivery_at); a board mark does NOT close the case (owner 2026-11-05).
+    add('delivery', a.do_date, a.sched_delivery_date, caseClosed || Boolean(a.actual_delivery_at), Boolean(a.delivery_cancelled_at));
   }
   return legs;
 }
@@ -169,6 +207,11 @@ export function assrBoardUnionSql(c: CompanyScopeCtx, recentClosedSince: string)
               assr_cases.pickup_by     AS pickup_by,
               assr_cases.pickup_pic    AS pickup_pic,
               assr_cases.actual_pickup_at AS actual_pickup_at,
+              assr_cases.actual_inspection_at AS actual_inspection_at,
+              assr_cases.actual_delivery_at AS actual_delivery_at,
+              assr_cases.pickup_cancelled_at AS pickup_cancelled_at,
+              assr_cases.inspection_cancelled_at AS inspection_cancelled_at,
+              assr_cases.delivery_cancelled_at AS delivery_cancelled_at,
               assr_cases.sched_pickup_date AS sched_pickup_date,
               assr_cases.sched_inspection_date AS sched_inspection_date,
               assr_cases.sched_delivery_date AS sched_delivery_date,
@@ -184,14 +227,23 @@ export function assrBoardUnionSql(c: CompanyScopeCtx, recentClosedSince: string)
               assr_cases.pickup_message_status AS pickup_message_status,
               assr_cases.inspection_message_status AS inspection_message_status,
               assr_cases.addr1 AS addr1, assr_cases.addr2 AS addr2, assr_cases.addr3 AS addr3, assr_cases.addr4 AS addr4,
-              so.customer_state AS so_state, so.postcode AS so_postcode, so.customer_country AS so_country
+              so.customer_state AS so_state, so.postcode AS so_postcode, so.customer_country AS so_country,
+              so.ref AS so_ref_src, so.customer_so_no AS so_custso_src, dos.do_nos AS related_do_nos
          FROM assr_cases
          LEFT JOIN LATERAL (
-              SELECT o.customer_state, o.postcode, o.customer_country
+              SELECT o.customer_state, o.postcode, o.customer_country, o.ref, o.customer_so_no, o.doc_no AS order_doc_no
                 FROM scm.mfg_sales_orders o
                WHERE o.doc_no = assr_cases.doc_no OR o.linked_ac_docno = assr_cases.doc_no
                ORDER BY (o.doc_no = assr_cases.doc_no) DESC
                LIMIT 1) so ON TRUE
+         LEFT JOIN LATERAL (
+              -- The original order's delivery orders (DO No. column) + its Ref No., back-filled
+              -- onto the Service-Case row (owner 2026-11-11). Keyed on the RESOLVED order doc_no
+              -- (so.order_doc_no), falling back to the case's own doc_no when no order matched;
+              -- an old case whose order predates the ERP matches neither and stays blank.
+              SELECT string_agg(dd.do_number, ' | ' ORDER BY dd.do_number) AS do_nos
+                FROM scm.delivery_orders dd
+               WHERE dd.so_doc_no = COALESCE(so.order_doc_no, assr_cases.doc_no)) dos ON TRUE
         WHERE (assr_cases.customer_pickup_at IS NOT NULL OR assr_cases.do_date IS NOT NULL
                OR assr_cases.sched_pickup_date IS NOT NULL OR assr_cases.sched_delivery_date IS NOT NULL
                OR (assr_cases.inspection_visit_at IS NOT NULL AND assr_cases.inspection_by = 'own')
@@ -228,7 +280,7 @@ export function assrBoardLocation(
  *  on the board is one they cannot write to, and it 404s) and `assrLegOpen`
  *  then asks only about the named job. Archived cases stay locked. */
 export function assrLegGuardSql(c: CompanyScopeCtx): string {
-  return `SELECT id, assr_no, company_id, stage, actual_pickup_at, closed_at, status FROM assr_cases
+  return `SELECT id, assr_no, company_id, stage, actual_pickup_at, closed_at, status, sched_inspection_date, inspection_visit_at, actual_inspection_at FROM assr_cases
         WHERE id = ? AND archived_at IS NULL${assrCompanySql(c)}`;
 }
 
@@ -238,11 +290,18 @@ export function assrLegGuardSql(c: CompanyScopeCtx): string {
  *  the terminal stage, which any job can set); delivery is the job whose POD
  *  closes the case. */
 export function assrLegOpen(
-  a: { stage: string | null; actual_pickup_at: string | null; closed_at: string | null; status: string | null },
+  a: { stage: string | null; actual_pickup_at: string | null; closed_at: string | null; status: string | null;
+       sched_inspection_date?: string | null; inspection_visit_at?: string | null; actual_inspection_at?: string | null },
   jobKind: AssrBoardLeg['jobKind'],
+  today = '',
 ): boolean {
   const stage = a.stage ?? '';
   if (jobKind === 'customer_pickup') return !a.actual_pickup_at;
-  if (jobKind === 'inspection') return !(PAST_INSPECTION.has(stage) && !(ASSR_TERMINAL_STAGES as readonly string[]).includes(stage));
+  if (jobKind === 'inspection') {
+    // An inspection still scheduled for today or later stays writable even past its
+    // stage, so a re-inspection can still be given a date / driver (owner 2026-11-10).
+    if (legUpcoming(a.sched_inspection_date ?? a.inspection_visit_at, a.actual_inspection_at, today)) return true;
+    return !(PAST_INSPECTION.has(stage) && !(ASSR_TERMINAL_STAGES as readonly string[]).includes(stage));
+  }
   return !assrCaseClosed({ closed_at: a.closed_at, archived_at: null, stage, status: a.status });
 }

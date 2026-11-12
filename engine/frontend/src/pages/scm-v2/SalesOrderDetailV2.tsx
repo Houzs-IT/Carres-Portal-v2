@@ -17,6 +17,7 @@
 // The old ledger-style SalesOrderDetail.tsx stays in the tree; App.tsx route
 // swap on /scm/sales-orders/:docNo decides which one users see.
 
+import { SoDeliveryIssuesCard } from "../../components/scm-v2/DeliveryIssuesCard";
 import { lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { coverageStateOf } from "../../components/coverage-state";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -1152,7 +1153,7 @@ function SalesOrderDetailV2ReadOnly() {
 
       {/* ─── Desktop sticky header (hidden on phone) ────────────────── */}
       {/* Nick 2026-07-09 — "这个圈起来的需要 pin 起来".
-          TopNavbar (components/TopNavbar.tsx) sits sticky top-0 z-30 h-12
+          TopNavbar (components/TopNavbar.tsx) sits sticky top-0 z-40 h-12
           inside the SAME <main class="overflow-y-auto"> that scrolls this
           page — so a naive top-0 here parks the SO title BEHIND the top
           nav. z-20 stacks above the section cards while staying below the
@@ -1619,6 +1620,8 @@ function SalesOrderDetailV2ReadOnly() {
                   <OrderSlipPhoto imageKey={slipImageKey} maxWidth={320} />
                 </AsideCard>
               )}
+
+              <SoDeliveryIssuesCard docNo={salesOrder.doc_no} />
 
               <AsideCard title="Key dates">
                 <KeyDateRow k="SO date" v={fmtDate(salesOrder.so_date)} />

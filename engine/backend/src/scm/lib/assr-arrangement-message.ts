@@ -27,6 +27,7 @@ import { normDate } from '../../services/agents/schedule-reconcile';
 import { fmtDate } from '../shared/format';
 import { normalizePhone } from '../shared/phone';
 import { ASSR_CONFIRMED_COL, ASSR_STATUS_PICK_SOURCE } from './assr-board-scope';
+import { chunkIn, inList } from './paginate-all';
 import { KIND_AFTER_STATUS, KIND_AUTOMATION, kindAttributes, templateDate, type DriverInfoInput } from './delivery-message-kinds';
 import { buildDeliveryFollowUp, chatCallbackUrl, postConnectContact } from '../../services/connect';
 
@@ -141,8 +142,8 @@ export async function sendAssrArrangement(
       String(row.customer_name ?? ''),
       // ref_1 stays the case number (assrNo): the flow's amend confirmation and
       // the Confirm/Amend callback both key on it. The case number ALSO rides in
-      // assr_no (extra) so the template shows it from the dedicated ASSR No field,
-      // matching the Service Case Received ack; the Sales Order rides in ref_2.
+      // assr_no (extra) so the template shows it from the dedicated ASSR No field;
+      // the Sales Order rides in ref_2.
       [{ ref: assrNo, orderRef: '', branding: '', deliveryDate: templateDate(date), balanceSen: null }],
       null,
       {
@@ -323,14 +324,20 @@ export function assrChatStateFromLog(rows: LogRow[]): Map<string, AssrChatState>
  *  the board caller treats that as "no state", never as a broken board. */
 export async function loadAssrChatState(sb: AnySchemaClient, rowKeys: string[]): Promise<Map<string, AssrChatState>> {
   if (rowKeys.length === 0) return new Map();
-  const { data, error } = await sb.from('wa_message_log')
-    .select('doc_no, source, success, payload, created_at')
-    .in('doc_no', rowKeys)
-    .in('source', ['delivery-planning', 'chat-callback', ASSR_STATUS_PICK_SOURCE])
-    .order('created_at', { ascending: false })
-    .limit(2000);
+  /* chunkIn, not one read capped at 1,000 rows: the newest rows of busy cases
+     crowded out the rest, and a case whose last WhatsApp event fell past them
+     read as having none. Newest first within each batch; a key lives in one. */
+  const { data, error, truncated } = await chunkIn<LogRow>(rowKeys, (part, from, to) =>
+    sb.from('wa_message_log')
+      .select('doc_no, source, success, payload, created_at')
+      .filter('doc_no', 'in', inList(part))
+      .in('source', ['delivery-planning', 'chat-callback', ASSR_STATUS_PICK_SOURCE])
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to));
   if (error) throw new Error(error.message);
-  return assrChatStateFromLog((data ?? []) as LogRow[]);
+  if (truncated) throw new Error('wa_message_log: too many rows to read in full');
+  return assrChatStateFromLog(data);
 }
 
 /** Put each open ASSR leg row's WhatsApp state onto the board row, in place.

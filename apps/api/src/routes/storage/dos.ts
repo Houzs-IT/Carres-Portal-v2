@@ -81,22 +81,6 @@ const signUploadSchema = z
     }
   });
 
-// Order-level DO uploads (operation → customer final delivery). Path prefix
-// `order-<order_uuid>/...` keeps these distinct from PO-level files at
-// `<po_id>/...`. Bucket + RLS unchanged from PO uploads — operation +
-// principal short-circuit both read and write; the partner branch's
-// purchase_orders lookup fails for the `order-*` prefix so partner reads are
-// correctly denied for order DOs. Migration 0087 (Loo 2026-05-11).
-const signOrderUploadSchema = z.object({
-  order_id:   z.string().uuid(),
-  do_number:  z.string().min(3).max(50),
-  mime_type:  z.enum(ALLOWED_MIMES),
-  size_bytes: z.number().int().positive().max(MAX_SIZE),
-  // 0151 — `kind: "signature"` names the file order-<id>/<uuid>-signature.<ext>
-  // (the captured customer e-signature PNG) instead of the DO-number scheme.
-  kind:       z.enum(["do", "signature"]).default("do"),
-});
-
 function extForMime(mime: string): string {
   if (mime === "application/pdf") return "pdf";
   if (mime === "image/jpeg") return "jpg";
@@ -191,55 +175,6 @@ dosRouter.post("/sign-upload", async (c) => {
 
   // F11 — USER JWT, never service_role. Storage RLS (migration 0042) gates
   // writes; we just defer to it.
-  const sb = userClient(c.env, auth.jwt);
-  const { data, error } = await sb.storage
-    .from("delivery-orders")
-    .createSignedUploadUrl(path);
-  if (error) throw new HTTPException(500, { message: error.message });
-
-  return c.json({ token: data.token, path: data.path });
-});
-
-// ----------------------------------------------------------------------------
-// POST /api/storage/dos/sign-order-upload — order-level DO upload (operation
-// final-delivery flow, migration 0087 Loo 2026-05-11).
-//
-// Same bucket (`delivery-orders`), different path prefix: `order-<order_id>`
-// instead of `<po_id>`. Partner role is intentionally excluded — the partner
-// uploads POD via `/api/partner/pod/sign-upload` to a different bucket
-// (`proof-of-delivery`); the final order-level DO is operation' artefact.
-// ----------------------------------------------------------------------------
-dosRouter.post("/sign-order-upload", async (c) => {
-  const auth = c.var.auth;
-  if (!["operation", "principal"].includes(auth.role)) {
-    throw new HTTPException(403, {
-      message: "operation or principal role required",
-    });
-  }
-
-  const raw = await c.req.json().catch(() => ({}));
-  const parsed = signOrderUploadSchema.safeParse(raw);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    return c.json(
-      {
-        error: "invalid_input",
-        code: "invalid_param",
-        message: issue?.message ?? "invalid input",
-        field: issue?.path.join(".") ?? "unknown",
-      },
-      422,
-    );
-  }
-
-  const { order_id, do_number, mime_type, kind } = parsed.data;
-  const safeDo = do_number.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const ext = extForMime(mime_type);
-  const slug = kind === "signature" ? "signature" : safeDo;
-  const path = `order-${order_id}/${crypto.randomUUID()}-${slug}.${ext}`;
-
-  // USER JWT — Storage RLS (0042 + 0084 operation/principal short-circuit)
-  // gates writes; this endpoint only enforces caller role + path shape.
   const sb = userClient(c.env, auth.jwt);
   const { data, error } = await sb.storage
     .from("delivery-orders")

@@ -1,13 +1,15 @@
 import { env } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { documentEmailHtml, inviteEmailHtml, resetEmailHtml, sendEmail } from "../src/services/email";
 import { buildDeliveryOrderEmail, type DoEmailRow } from "../src/scm/lib/do-email";
 import {
   base64DecodedBytes,
   buildPurchaseOrderEmail,
   isSendableEmail,
+  poReplyTo,
   poSendRefusalForStatus,
   validatePoAttachment,
+  poEmailDocNo,
   type PoEmailRow,
 } from "../src/scm/lib/po-email";
 import { createOutboundFetchMock } from "./outboundFetchMock";
@@ -231,6 +233,7 @@ describe("customer channel gating", () => {
 const poRow = (over: Partial<PoEmailRow> = {}): PoEmailRow => ({
   id: "22222222-2222-2222-2222-222222222222",
   po_number: "PO-2607-014",
+  revision: 1,
   status: "SUBMITTED",
   total_sen: 1234500,
   currency: "MYR",
@@ -244,9 +247,21 @@ const poRow = (over: Partial<PoEmailRow> = {}): PoEmailRow => ({
 const base64OfBytes = (bytes: number): string => "A".repeat(Math.ceil(bytes / 3) * 4);
 
 describe("purchase order email builder", () => {
+  test("a revised PO carries its _R mark in the subject, the body and the attachment name", () => {
+    const row = poRow({ revision: 2 });
+    const msg = buildPurchaseOrderEmail(row, "Houzs Century")!;
+    expect(msg.subject).toBe("Houzs Century — Purchase Order PO-2607-014_R1");
+    expect(msg.html).toContain("PO-2607-014_R1");
+    expect(poEmailDocNo(row)).toBe("PO-2607-014_R1");
+    expect(poEmailDocNo(poRow())).toBe("PO-2607-014");
+    const att = validatePoAttachment(base64OfBytes(30_000), poEmailDocNo(row));
+    expect(att.ok && att.attachment?.filename).toBe("PO-2607-014_R1.pdf");
+  });
+
   test("renders the PO number, supplier, date and total", () => {
     const msg = buildPurchaseOrderEmail(poRow(), "Houzs Century")!;
     expect(msg.to).toBe("sales@kilangkayu.com");
+    expect(msg.cc).toEqual([]);
     expect(msg.subject).toBe("Houzs Century — Purchase Order PO-2607-014");
     expect(msg.html).toContain("PO-2607-014");
     expect(msg.html).toContain("Kilang Kayu Sdn Bhd");
@@ -262,6 +277,31 @@ describe("purchase order email builder", () => {
     expect(buildPurchaseOrderEmail(poRow({ supplier: { name: "X", email: null } }), "Houzs")).toBeNull();
     expect(buildPurchaseOrderEmail(poRow({ supplier: { name: "X", email: "   " } }), "Houzs")).toBeNull();
     expect(buildPurchaseOrderEmail(poRow({ supplier: null }), "Houzs")).toBeNull();
+  });
+
+  /* Owner 2026-11-09 — Email 2 / Email 3. To = Email, Cc = the other two, only
+     valid ones, each once whatever the case; Email blank -> the first valid
+     of the others is To. */
+  test("Email 2 and Email 3 go as Cc", () => {
+    const msg = buildPurchaseOrderEmail(poRow({ supplier: { name: "K", email: "a@k.com", email2: "b@k.com", email3: "c@k.com" } }), "Houzs")!;
+    expect(msg.to).toBe("a@k.com");
+    expect(msg.cc).toEqual(["b@k.com", "c@k.com"]);
+  });
+
+  test("a repeat (any case) and an invalid Email 2/3 are left off the Cc", () => {
+    const msg = buildPurchaseOrderEmail(poRow({ supplier: { name: "K", email: "a@k.com", email2: " A@K.COM ", email3: "a@b" } }), "Houzs")!;
+    expect(msg.to).toBe("a@k.com");
+    expect(msg.cc).toEqual([]);
+  });
+
+  test("Email blank: the first valid of Email 2 / Email 3 is To", () => {
+    const msg = buildPurchaseOrderEmail(poRow({ supplier: { name: "K", email: "", email2: "not valid", email3: "c@k.com" } }), "Houzs")!;
+    expect(msg.to).toBe("c@k.com");
+    expect(msg.cc).toEqual([]);
+  });
+
+  test("an invalid main Email still refuses, even with a valid Email 2", () => {
+    expect(buildPurchaseOrderEmail(poRow({ supplier: { name: "K", email: "a@b", email2: "b@k.com" } }), "Houzs")).toBeNull();
   });
 
   test("a supplier name carrying markup is escaped, not interpolated raw", () => {
@@ -410,5 +450,36 @@ describe("attachment-bearing sends are not retried body-only", () => {
       `SELECT status FROM email_outbox WHERE to_address = 'supplier2@example.com'`,
     ).first<{ status: string }>();
     expect(row?.status).toBe("pending");
+  });
+});
+
+describe("PO email Reply-To is the purchaser who sent it", () => {
+  test("the sender's address becomes the Reply-To", () => {
+    expect(poReplyTo({ email: "  buyer@houzscentury.com " })).toBe("buyer@houzscentury.com");
+  });
+
+  test("no usable sender address leaves the Reply-To to sendEmail's default", () => {
+    for (const sender of [undefined, null, {}, { email: null }, { email: "" }, { email: "not-an-address" }]) {
+      expect(poReplyTo(sender)).toBeNull();
+    }
+  });
+
+  test("the Reply-To reaches the provider payload", async () => {
+    await env.DB.exec(`DELETE FROM app_settings WHERE key='email.purchase_order'`);
+    await env.DB.prepare(`INSERT INTO app_settings (key, value) VALUES ('email.purchase_order', '{"value":true}')`).run();
+    outbound.replyOnce("https://api.resend.com/emails", "POST", 200, { id: "re_1" });
+
+    const res = await sendEmail(liveEnv, {
+      to: "supplier3@example.com",
+      subject: "Purchase Order PO-3",
+      html: "<p>x</p>",
+      purpose: "purchase_order",
+      replyTo: poReplyTo({ email: "buyer@houzscentury.com" }),
+    });
+    expect(res.status).toBe("sent");
+
+    const [input, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+    const sent = await new Request(input, init).json() as { reply_to?: string };
+    expect(sent.reply_to).toBe("buyer@houzscentury.com");
   });
 });

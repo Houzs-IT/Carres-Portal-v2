@@ -15,6 +15,7 @@
 // The customer auto-resolve (upsert_customer_by_name_phone) is retained — it's
 // a simple, isolated stamp on the header.
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { normalizePhone } from '../shared/phone';
@@ -70,6 +71,7 @@ import { collectProcessingGateProblems, validationFailedBody } from '../shared/s
 import { soDatePairCascadeColumns, soDatePairRefusal } from '../shared/so-processing-date';
 import { validateItemCodes, unknownItemCodeResponse } from '../lib/validate-item-codes';
 import { paginateAll, chunkIn } from '../lib/paginate-all';
+import { moneySkipsCancelled, NOT_CANCELLED_OR } from '../lib/list-money-cancelled';
 import { mintMonthlyDocNo, insertWithDocNoRetry } from '../lib/doc-no';
 import { scopeToCompany, activeCompanyId, stampCompany, companyDocPrefix,
   requireActiveCompanyId, scopeToCompanyId, NOT_THIS_COMPANY } from '../lib/companyScope';
@@ -192,13 +194,10 @@ async function loadActiveSofaCombos(sb: any): Promise<SofaComboRow[]> {
    matches two rows, so `.maybeSingle()` errors (PGRST116) into the discarded
    `error` and the field silently stops deriving at all. */
 
-const nextDocNo = async (sb: any, c: any): Promise<string> => {
+export const nextDocNo = async (sb: any, c: any): Promise<string> => {
   // Format: CS-YYMM-NNN. max(suffix)+1 (NEVER count+1) so a deleted mid-month
   // row can't make the counter re-mint a surviving number forever — see doc-no.ts.
-  const yymm = (() => {
-    const d = new Date();
-    return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, 'consignment_sales_orders', 'doc_no', `${p}CS-${yymm}`);
 };
@@ -287,11 +286,12 @@ consignmentOrders.get('/', async (c) => {
       let mq = sb.from('consignment_sales_orders').select('local_total_sen, balance_sen, paid_sen');
       if (scopeIds) mq = mq.in('salesperson_id', scopeIds);
       if (status) mq = mq.eq('status', status);
+      if (moneySkipsCancelled(status)) mq = mq.or(NOT_CANCELLED_OR); // G16: a cancelled order is no revenue
       if (debtor) mq = mq.ilike('debtor_name', `%${debtor}%`);
       if (qText) { const s = escapeForOr(qText); if (s) mq = mq.or(`doc_no.ilike.%${s}%,debtor_name.ilike.%${s}%`); }
       if (outstanding) mq = mq.gt('balance_sen', 0);
       mq = scopeToCompany(mq, c);
-      return mq.range(mfrom, mto);
+      return mq.order('doc_no').range(mfrom, mto);
     });
     if (moneyRes.error) return c.json({ error: 'load_failed', reason: moneyRes.error.message }, 500);
     let revenueSen = 0, outstandingSen = 0, paidSen = 0;

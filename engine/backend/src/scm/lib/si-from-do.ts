@@ -21,7 +21,9 @@
 // core needs them and a lib may not import a route.
 // ----------------------------------------------------------------------------
 
+import { yymmFor } from '../../services/documentRefs';
 import { normalizePhone, buildVariantSummary, isServiceLine } from '../shared';
+import { lineDiscountShare } from '../shared/line-discount-share';
 import { scopeToCompanyIdOrOpen } from './companyScope';
 import { mintMonthlyDocNo, insertWithDocNoRetry } from './doc-no';
 import { todayMyt } from './my-time';
@@ -43,8 +45,7 @@ type Db = any;
 
 /** The next invoice number under a company's prefix: {prefix}SI-YYMM-NNN. */
 export const nextSiNumber = async (sb: Db, prefix: string): Promise<string> => {
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   return mintMonthlyDocNo(sb, 'sales_invoices', 'invoice_number', `${prefix}SI-${yymm}`);
 };
 
@@ -494,7 +495,8 @@ export async function createSalesInvoiceFromDoLines(sb: Db, input: SiFromDoInput
     uom: line.uom,
     qty: pickQtyById.get(line.doItemId)!,
     unitPriceSen: line.unitPriceSen,
-    discountSen: line.discountSen,
+    // This invoice's share of the DO line's discount, not all of it.
+    discountSen: lineDiscountShare(line.discountSen, line.delivered, line.delivered - line.remaining, pickQtyById.get(line.doItemId)!),
     unitCostSen: line.unitCostSen,
     variants: line.variants,
     lineDeliveryDate: line.lineDeliveryDate,

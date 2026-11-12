@@ -90,7 +90,7 @@ const BILLS: Record<string, unknown> = {
   b1: {
     bill: { id: 'b1', bill_number: 'HC-ODB-2609-001', bill_date: '2026-09-05', total_sen: 50000, received_sen: 20000, status: 'POSTED', notes: '转租九月', created_at: '2026-09-05T02:00:00Z',
       lines: [{ id: 'l1', line_no: 1, description: '转租', credit_account_code: '700-0000', amount_sen: 50000 }] },
-    debtor: { id: 'd1', name: 'AHMAD BIN ALI', phone: '012-345', notes: null, is_active: true, outstanding_sen: 30000, address1: '12 Jalan Satu' },
+    debtor: { id: 'd1', name: 'AHMAD BIN ALI', code: '305-A001', phone: '012-345', notes: null, is_active: true, outstanding_sen: 30000, address1: '12 Jalan Satu' },
     /* What came in on it (read c8): a receipt, and an other debtor's credit note. */
     receipts: [{ id: 'r1', number: 'HC-ODR-2609-004', date: '2026-09-28', status: 'POSTED', submittedAt: '2026-09-28T01:00:00Z', checkedAt: '2026-09-28T02:00:00Z', approvedAt: '2026-09-28T03:00:00Z', amountSen: 20000 }],
     creditNotes: [{ id: 'n1', number: 'HC-OCN-2610-001', date: '2026-10-10', status: 'POSTED', reason: 'Rental discount', amountSen: 3000, appliedSen: 3000 }],
@@ -107,8 +107,14 @@ const BILLS: Record<string, unknown> = {
     debtor: { id: 'd1', name: 'AHMAD BIN ALI', phone: '012-345', notes: null, is_active: true, outstanding_sen: 80000 },
   },
 };
+/* The notes on the sales invoice (owner 2026-11-03): a close-out of its deposit invoice, and a knock-off. */
+const SI_NOTES = { value: [
+  { id: 'cn-close', number: 'HC-CN-2609-010', date: '2026-09-03', what: 'Closes deposit invoice HC-DI-2609-002', amountSen: 20000, closesDeposit: true },
+  { id: 'cn-1', number: 'HC-CN-2609-011', date: '2026-09-10', what: 'Scratched headboard', amountSen: 30000, closesDeposit: false },
+] };
 vi.mock('../../../vendor/scm/lib/ar-invoice-queries', () => ({
   useArBillDetail: (id: string | null) => ({ data: id ? BILLS[id] : undefined, isLoading: false, error: null }),
+  useSalesInvoiceCreditNotes: (id: string | null) => ({ data: id === 'si-1' ? { creditNotes: SI_NOTES.value } : undefined, isLoading: false, isError: false, error: null }),
 }));
 const billPdf = vi.fn(async (_d: unknown, _o: unknown) => {});
 vi.mock('../../../vendor/scm/lib/debtor-bill-pdf', () => ({ generateDebtorBillPdf: (d: unknown, o: unknown) => billPdf(d, o) }));
@@ -155,7 +161,7 @@ vi.mock('../../../vendor/scm/lib/event-queries', async (importOriginal) => ({
 const SI_DETAIL = {
   salesInvoice: {
     id: 'si-1', invoice_number: 'HC-SI-2609-001', debtor_name: 'TAN AH KOW', debtor_code: '300-C001', status: 'SENT', currency: 'MYR',
-    invoice_date: '2026-09-03', due_date: '2026-09-30', so_doc_no: 'HC-SO-2609-004', total_sen: 440000, paid_sen: 40000, so_deposit_applied_sen: 20000,
+    invoice_date: '2026-09-03', due_date: '2026-09-30', so_doc_no: 'HC-SO-2609-004', total_sen: 440000, paid_sen: 40000, so_deposit_applied_sen: 20000, credit_notes_sen: 30000,
     subtotal_sen: 440000, discount_sen: 0, tax_sen: 0, notes: null, address1: '8 Jalan Dua',
   },
   items: [{ item_code: 'BED-1', description: 'Bedroom set', qty: 1, unit_price_sen: 440000, line_total_sen: 440000 }],
@@ -212,6 +218,13 @@ const setAmount = (scope: HTMLElement, label: string, rm: string) => {
   fireEvent.change(box, { target: { value: rm } });
   fireEvent.blur(box);
 };
+
+describe("a debtor bill's party", () => {
+  test("names the debtor's account code under the address", () => {
+    openBill('b1');
+    expect(screen.getByText('Account 305-A001')).toBeTruthy();
+  });
+});
 
 describe('a deposit invoice, as a page', () => {
   test('its customer, order, payment and journal; the Books line is the journal\'s own accounts; Print prints the sheet', async () => {
@@ -410,6 +423,16 @@ describe('an other debtor\'s bill, as a page', () => {
 });
 
 describe('a sales invoice, read from Sales', () => {
+  test('no credit note knocks it off — the section says so', () => {
+    SI_NOTES.value = [];
+    open('/scm/ar-invoices/sales/si-1', '/scm/ar-invoices/sales/:id', <SalesInvoiceDoc />);
+    expect(within(screen.getByRole('region', { name: 'Credit notes' })).getByText('No credit note knocks this invoice off.')).toBeTruthy();
+    SI_NOTES.value = [
+      { id: 'cn-close', number: 'HC-CN-2609-010', date: '2026-09-03', what: 'Closes deposit invoice HC-DI-2609-002', amountSen: 20000, closesDeposit: true },
+      { id: 'cn-1', number: 'HC-CN-2609-011', date: '2026-09-10', what: 'Scratched headboard', amountSen: 30000, closesDeposit: false },
+    ];
+  });
+
   test('who it bills, its dates and order, the deposit applied, paid and outstanding; its lines; the page as it prints; Open in Sales', async () => {
     open('/scm/ar-invoices/sales/si-1', '/scm/ar-invoices/sales/:id', <SalesInvoiceDoc />);
     expect(screen.getByRole('heading', { level: 1, name: 'HC-SI-2609-001' })).toBeTruthy();
@@ -418,8 +441,14 @@ describe('a sales invoice, read from Sales', () => {
     expect(screen.getByText('8 Jalan Dua')).toBeTruthy();
     expect(fact('Sales order').querySelector('a')!.getAttribute('href')).toBe('/scm/sales-orders/HC-SO-2609-004');
     expect(fact('Deposit applied').textContent).toBe('RM 200.00');
+    expect(fact('Credit notes').textContent).toBe('RM 300.00');
     expect(fact('Paid').textContent).toBe('RM 400.00');
-    expect(fact('Outstanding').textContent).toBe('RM 3,800.00');
+    expect(fact('Outstanding').textContent).toBe('RM 3,500.00');
+    /* Its notes: the close-out says what it closed (the deposit lowered the invoice), the knock-off why. */
+    const notes = screen.getByRole('region', { name: 'Credit notes' });
+    expect(within(notes).getByText('Closes deposit invoice HC-DI-2609-002')).toBeTruthy();
+    expect(within(notes).getByText('Scratched headboard')).toBeTruthy();
+    expect(within(notes).getByRole('link', { name: 'HC-CN-2609-011' }).getAttribute('href')).toBe('/scm/credit-notes/cn-1');
     expect(within(screen.getByRole('region', { name: 'Lines' })).getByText('Bedroom set')).toBeTruthy();
     await waitFor(() => expect(screen.getByTitle('Sales invoice HC-SI-2609-001 as printed').getAttribute('src')).toBe('blob:paper'));
     expect(siBlob.mock.calls[0]).toEqual([SI_DETAIL.salesInvoice, SI_DETAIL.items]);

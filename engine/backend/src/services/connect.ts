@@ -25,7 +25,9 @@ export const CONNECT_DELIVERY_AUTOMATION = 'New Delivery Follow-up';
 /** The Connect automation fired when a Service Case (ASSR) is created, matched
  *  BY NAME — must equal the automation's name in chat.houzscentury.com exactly.
  *  Its flow sends the button-less template hc_service_case_received (params
- *  full_name + ref_1 = the case/ASSR number) acknowledging the request. */
+ *  full_name + ref_1 = the SO/order ref + assr_no) acknowledging the request.
+ *  Re-enabled 2026-11-11 (owner), gated: only a case whose order has a DO is
+ *  acknowledged — the gate lives in assrConnectAck.ts, not here. */
 export const CONNECT_SERVICE_CASE_AUTOMATION = 'Service Case Received';
 
 /** The Connect automation fired for the weekly Service Case status update,
@@ -298,7 +300,7 @@ export function buildServiceCaseReceived(
 }
 
 /** Build the /api/webhooks/erp body for the weekly Service Case status update.
- *  Button-less like the ack: no callback_url, no conversation reset — just the
+ *  Button-less: no callback_url, no conversation reset — just the
  *  customer name, the case number (assr_no, the dedicated field) and the current
  *  status as a customer-facing line (case_status). */
 export function buildServiceCaseStatus(

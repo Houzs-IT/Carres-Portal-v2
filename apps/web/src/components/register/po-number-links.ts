@@ -41,12 +41,4 @@ export function poNumberLinksText(links: readonly PoNumberLink[]): string {
   return links.map((po) => po.display).join(", ");
 }
 
-/** Both forms of every number, so a search for the stored or the printed one finds the row. */
-export function poNumberLinksSearch(links: readonly PoNumberLink[]): string {
-  return links.map((po) => `${po.poId} ${documentDisplayNumber(po.poId)} ${po.display}`).join(" ");
-}
 
-/** The exact PO's page. */
-export function poObjectPath(poId: string): string {
-  return `/operation/procurement?po=${encodeURIComponent(poId)}`;
-}

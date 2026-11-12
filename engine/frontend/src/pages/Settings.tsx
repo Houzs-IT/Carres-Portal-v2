@@ -28,7 +28,7 @@ import {
   setBrandingCache,
 } from "../lib/branding";
 import type { SyncStatusResponse, Paginated, ExecutionLog } from "../types";
-import { CARRES_AUTOCOUNT } from "../carres/navOnly";
+import { CARRES_AUTOCOUNT } from "../carres/navOnly"; // Carres: no AutoCount, no Sync tab
 import { correlatedFetch } from "../lib/requestCorrelation";
 import { DocumentTypesTab } from "./settings/DocumentTypesTab";
 
@@ -47,7 +47,7 @@ export function Settings() {
 
   const raw = params.get("tab") as SettingsTab | null;
   const active: SettingsTab =
-    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw) && (CARRES_AUTOCOUNT || raw !== "sync")
+    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw) && (CARRES_AUTOCOUNT || raw !== "sync") // Carres
       ? raw
       : "connection";
 
@@ -57,11 +57,12 @@ export function Settings() {
     setParams(p, { replace: true });
   }
 
+  // Carres: /api/sync/* is not served by the Carres engine, so never ask for it.
   const status = useQuery<SyncStatusResponse>("/api/sync/status", () => api.get("/api/sync/status"), [], { enabled: CARRES_AUTOCOUNT });
 
   const tabs: TabOption<SettingsTab>[] = [
     { value: "connection", label: "Connection" },
-    ...(CARRES_AUTOCOUNT ? [{ value: "sync" as const, label: "Sync" }] : []),
+    ...(CARRES_AUTOCOUNT ? [{ value: "sync" as const, label: "Sync" }] : []), // Carres
     { value: "email", label: "Email" },
     { value: "branding", label: "Branding" },
     { value: "documents", label: "Documents" },
@@ -74,7 +75,7 @@ export function Settings() {
   > = {
     connection: {
       title: "Connection",
-      description: CARRES_AUTOCOUNT ? "Verify the Worker can reach the AutoCount middleware." : "Check that the screens can reach the server.",
+      description: "Verify the Worker can reach the AutoCount middleware.",
     },
     sync: {
       title: "Sync",
@@ -714,7 +715,7 @@ function LogoSlot({
             src={url}
             alt={copy.label}
             className={`h-12 max-w-[160px] shrink-0 rounded-sm object-contain px-2 ${
-              variant === "print" ? "bg-white" : "bg-sidebar"
+              variant === "print" ? "bg-surface" : "bg-sidebar"
             }`}
           />
         ) : (

@@ -15,6 +15,7 @@ import { X } from 'lucide-react';
 import { Button } from '@2990s/design-system';
 import { AddLineButton } from '../../vendor/scm/components/AddLineButton';
 import type { Account } from '../../vendor/scm/lib/accounting-queries';
+import { aiReadStageNote } from '../../vendor/scm/lib/ai-read-job';
 import { useExtractBills, fileToBase64, PV_FILE_ACCEPT, type BillExtraction, type ExtractedBill, type VendorMemory, type PvFilePayload } from '../../vendor/scm/lib/payment-voucher-queries';
 import { docFileMime } from '../../vendor/scm/lib/doc-file-mime';
 import { AccountSelect } from '../../vendor/scm/components/AccountSelect';
@@ -270,7 +271,7 @@ export const ApInvoiceForm = ({
     setScanNote('Reading the bill…');
     try {
       const files = await Promise.all([...list].map(async (f) => ({ name: f.name, mime: docFileMime(f), dataBase64: await fileToBase64(f) })));
-      const res = await extract.mutateAsync([{ files }]);
+      const res = await extract.mutateAsync({ bills: [{ files }], onStage: (_i, stage) => { setScanNote(aiReadStageNote(stage, 'the bill')); } });
       const bill = res.bills.at(0);
       if (!bill) { setScanNote('The bill could not be read.'); return; }
       if (!bill.ok) { setScanNote(bill.reason); return; }
@@ -348,7 +349,7 @@ export const ApInvoiceForm = ({
         {mode !== 'edit' && v.officialDocOwed && (
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Remark — what to follow up (optional)</span>
-            <input className={styles.fieldInput} value={v.officialDocNote ?? ''} onChange={(e) => set({ officialDocNote: e.target.value })} maxLength={500}
+            <input data-upper className={styles.fieldInput} value={v.officialDocNote ?? ''} onChange={(e) => set({ officialDocNote: e.target.value })} maxLength={500}
               aria-label="Official invoice remark" placeholder="e.g. Proforma only — ask for the tax invoice" />
           </label>
         )}
@@ -365,7 +366,7 @@ export const ApInvoiceForm = ({
       <BillMatchesNote matches={sameBill.data?.matches} />
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Description</span>
-        <input className={styles.fieldInput} value={v.description} onChange={(e) => set({ description: e.target.value })} aria-label="AP invoice description"
+        <input data-upper className={styles.fieldInput} value={v.description} onChange={(e) => set({ description: e.target.value })} aria-label="AP invoice description"
           placeholder="What this bill is for — shows on the list and prints on the listing" />
       </label>
 
@@ -400,7 +401,7 @@ export const ApInvoiceForm = ({
                   onChange={(code) => patchLine(l.rid, { debitAccountCode: code })} placeholder="— account this line charges —" />
               </td>
               <td style={td}>
-                <input className={styles.fieldInput} style={{ width: '100%' }} placeholder="Description" value={l.description} aria-label={`line ${l.rid} description`}
+                <input data-upper className={styles.fieldInput} style={{ width: '100%' }} placeholder="Description" value={l.description} aria-label={`line ${l.rid} description`}
                   onChange={(e) => patchLine(l.rid, { description: e.target.value })} />
               </td>
               <td style={td}>
@@ -431,7 +432,7 @@ export const ApInvoiceForm = ({
               <AddLineButton variant="ghost" onClick={() => addLine(true)} />
               <span style={{ ...soft, marginLeft: 'var(--space-3)' }}>Insert adds a line · Enter on an amount moves down</span>
             </td>
-            <td style={{ ...td, ...right, fontWeight: 700, color: belowPaid ? 'var(--c-festive-b, #B8331F)' : undefined }}>Total {fmtSen(total)}</td>
+            <td style={{ ...td, ...right, fontWeight: 700, color: belowPaid ? 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' : undefined }}>Total {fmtSen(total)}</td>
             <td />
             <td />
           </tr>
@@ -439,7 +440,7 @@ export const ApInvoiceForm = ({
       </table>
 
       <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end', alignItems: 'center' }}>
-        {belowPaid && <span style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, #B8331F)' }}>The total cannot fall below the {fmtSen(paidSen)} already paid.</span>}
+        {belowPaid && <span style={{ fontSize: 'var(--fs-12)', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>The total cannot fall below the {fmtSen(paidSen)} already paid.</span>}
         <span style={{ fontSize: 'var(--fs-12)', color: 'var(--fg-muted)' }}>{SAVE_HOTKEY_HINT}</span>
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
         <Button variant={canPost && mode !== 'edit' ? 'secondary' : 'primary'} size="sm" onClick={() => void onSubmit(toSubmit(v), pendingFiles)} disabled={saving || !ready}>

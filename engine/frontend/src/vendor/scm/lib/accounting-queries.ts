@@ -7,6 +7,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authedFetch } from './authed-fetch';
+import { idempotentInit } from '../../../lib/idempotency';
 import { writeFailedAs } from './mutation-error';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
 import type { DebtorPartyColumns, DebtorPartyValues } from './debtor-party';
@@ -40,9 +41,10 @@ export type Account = {
 };
 
 /* The CONTROL specials — AR (SDC), AP + customer deposits (SCC), stock (SBS).
-   ONE frontend home on purpose; the server's requireLeafAccount holds the
-   enforcing copy (a browser cannot import the Worker's), and this one only
-   decides what the pickers and the Chart page SHOW. */
+   ONE frontend home on purpose; the server's whyNotPostable in
+   backend/src/scm/routes/accounting-chart.ts is the enforcing rule (a browser
+   cannot import the Worker's), and this one only decides what the pickers and
+   the Chart page SHOW. */
 export const isControlSpecial = (special: string | null | undefined): boolean =>
   special === 'SDC' || special === 'SCC' || special === 'SBS';
 /* 父户不记账, one home for the screens (docs/bugs/0693). A header is any
@@ -57,7 +59,9 @@ export const leafAccounts = (all: Account[]): Account[] => {
   return all.filter((a) => a.is_active && !parents.has(a.account_code));
 };
 /** What a hand-picked line may debit or credit: a leaf that is not a CONTROL
-    account (AR / AP + deposits / stock post through their modules — 由模块过账). */
+    account (AR / AP + deposits / stock post through their modules — 由模块过账).
+    Display mirror of the server's whyNotPostable; a control ROLE held by a
+    non-special account is refused there, not hidden here. */
 export const postableAccounts = (all: Account[]): Account[] =>
   leafAccounts(all).filter((a) => !isControlSpecial(a.special_type));
 /* The section vocabulary in render order — served by the API (its one home
@@ -521,11 +525,12 @@ export const useCancelDebtorBill = () => {
 export const useCreateDebtorReceipt = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ debtorId, ...body }: {
-      debtorId: string; receiptDate?: string; bankAccountCode: string; notes?: string; postNow?: boolean;
+    /* `idempotencyKey`: one per opened form (lib/idempotency.ts), so a double press books one receipt. */
+    mutationFn: ({ debtorId, idempotencyKey, ...body }: {
+      debtorId: string; idempotencyKey: string | null; receiptDate?: string; bankAccountCode: string; notes?: string; postNow?: boolean;
       allocations: Array<{ billId: string; amountSen: number }>;
     }) => authedFetch<{ ok: boolean; receipt: { id?: string; receiptNumber: string; totalSen?: number }; posted?: boolean; jeNo?: string }>(
-      `/other-debtors/${debtorId}/receipts`, { method: 'POST', body: JSON.stringify(body) },
+      `/other-debtors/${debtorId}/receipts`, idempotentInit(idempotencyKey ?? undefined, { method: 'POST', body: JSON.stringify(body) }),
     ),
     onSuccess: () => { invalidateDebtors(qc); void qc.invalidateQueries({ queryKey: ['receipts'] }); },
   });
@@ -574,6 +579,8 @@ export const useVoidDebtorReceipt = () => {
 export type ReceiptRow = {
   kind: 'GENERAL' | 'DEBTOR' | 'CUSTOMER';
   id: string; number: string; date: string; payer: string;
+  /** DEBTOR rows: the debtor's account code (for the search). */
+  payerCode?: string | null;
   moneyAccount: string; totalSen: number; status: string;
   debtorId?: string; notes?: string | null;
   /** CUSTOMER rows: the order's raw reference pair (resolve with soRefOfCamelStamp). */
@@ -596,11 +603,12 @@ export const useReceipts = (month?: string, kind?: ReceiptRow['kind']) => {
 export const useCreateReceipt = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      payerName: string; receiptDate?: string; bankAccountCode: string; notes?: string;
+    /* `idempotencyKey`: one per opened form (lib/idempotency.ts), so a double press books one receipt. */
+    mutationFn: ({ idempotencyKey, ...body }: {
+      idempotencyKey: string | null; payerName: string; receiptDate?: string; bankAccountCode: string; notes?: string;
       lines: Array<{ description?: string; creditAccountCode: string; amountSen: number }>;
     }) => authedFetch<{ ok: boolean; receipt: { id?: string; receiptNumber: string; totalSen: number } }>(
-      `/receipts`, { method: 'POST', body: JSON.stringify(body) },
+      `/receipts`, idempotentInit(idempotencyKey ?? undefined, { method: 'POST', body: JSON.stringify(body) }),
     ),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['receipts'] }); },
   });

@@ -54,6 +54,7 @@ import {
   useUpdateMfgDeliveryOrderStatus,
 } from '../../vendor/scm/lib/delivery-order-queries';
 import { PageHeader } from '../../components/Layout';
+import { classifyLoadFailure } from '../../lib/loadFailure';
 import {
   doScanStep,
   doScanBlockReason,
@@ -93,14 +94,22 @@ export const DoLoadScan = () => {
   const verdict = useMemo(() => {
     if (!id) return { tone: 'warn' as const, title: 'No delivery order in this link', body: 'The QR did not carry a delivery order. Re-print the DO and scan the code on the new copy.' };
     if (detailQ.isLoading) return null;
-    if (detailQ.isError || !doRow) return { tone: 'warn' as const, title: 'Delivery order not found', body: 'This link does not match a delivery order in the company you are signed into. Check the company switcher, or re-print the DO.' };
+    if (detailQ.isError || !doRow) {
+      /* Only a real 404 (or an empty answer) means the paper points nowhere.
+         A timeout on a weak dock signal used to say "re-print the DO" too. */
+      const f = classifyLoadFailure(detailQ.isError ? detailQ.error : null);
+      if (f.kind === 'load-failed') {
+        return { tone: 'warn' as const, retry: true, title: 'Could not load the delivery order', body: `${f.reason} This is a connection problem, not a problem with the paper, so do not re-print the DO. Check the signal and press Retry.` };
+      }
+      return { tone: 'warn' as const, title: 'Delivery order not found', body: 'This link does not match a delivery order in the company you are signed into. Check the company switcher, or re-print the DO.' };
+    }
     if (written) return { tone: 'ok' as const, title: `${doRow.do_number} updated`, body: doScanConfirmation(written) };
     if (blockReason) {
       const tone = onHold === true ? ('hold' as const) : ('warn' as const);
       return { tone, title: `${doRow.do_number}`, body: blockReason };
     }
     return null; // a rung is available — show the action
-  }, [id, detailQ.isLoading, detailQ.isError, doRow, written, blockReason, onHold]);
+  }, [id, detailQ.isLoading, detailQ.isError, detailQ.error, doRow, written, blockReason, onHold]);
 
   return (
     <div className="mx-auto w-full max-w-md space-y-4 p-4">
@@ -126,8 +135,8 @@ export const DoLoadScan = () => {
       {verdict && (
         <div className={`flex items-start gap-3 rounded-md border px-4 py-4 text-sm ${
           verdict.tone === 'ok'
-            ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-            : 'border-amber-300 bg-amber-50 text-amber-900'
+            ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300'
+            : 'border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300'
         }`}>
           {verdict.tone === 'ok' ? <CheckCircle2 size={20} className="mt-0.5 shrink-0" />
             : verdict.tone === 'hold' ? <PauseCircle size={20} className="mt-0.5 shrink-0" />
@@ -135,6 +144,11 @@ export const DoLoadScan = () => {
           <div>
             <div className="font-semibold">{verdict.title}</div>
             <div>{verdict.body}</div>
+            {'retry' in verdict && verdict.retry && (
+              <Button variant="secondary" className="mt-3" disabled={detailQ.isFetching} onClick={() => void detailQ.refetch()}>
+                {detailQ.isFetching ? 'Retrying…' : 'Retry'}
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -156,7 +170,7 @@ export const DoLoadScan = () => {
           </Button>
           <p className="text-xs text-ink-secondary">{step.note}</p>
           {updateStatus.isError && (
-            <div className="rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+            <div className="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-900 dark:text-red-300">
               {updateStatus.error instanceof Error ? updateStatus.error.message : 'Could not save — try again or tell the dispatcher.'}
             </div>
           )}

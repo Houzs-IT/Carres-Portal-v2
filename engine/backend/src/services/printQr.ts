@@ -16,6 +16,7 @@
 import qrcode from "qrcode-generator";
 import type { Env } from "../types";
 import { issueStaffToken } from "./caseTracking";
+import { enginePublicUrl } from "./email";
 
 /**
  * Render a QR code as an inline SVG string.
@@ -76,6 +77,6 @@ export async function getOrIssueCustomerPortalToken(
  * preview environment.
  */
 export function customerPortalUrlFor(env: Env, token: string): string {
-  const origin = (env as any).PUBLIC_APP_URL || "https://erp.houzscentury.com";
-  return `${String(origin).replace(/\/$/, "")}/portal/case/${token}`;
+  // Carres: /portal/case/<token> is an engine page, so the QR opens the engine site, not the Carres portal.
+  return enginePublicUrl(env, `/portal/case/${token}`);
 }

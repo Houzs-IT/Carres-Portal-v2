@@ -12,8 +12,8 @@ import pg from "pg";
  *          time is storable.
  *   0671 · PO / GRN Duty rotate monthly (PO A / GRN B → PO B / GRN C → PO C /
  *          GRN A), the newcomer waits a month for PO only, a manager's month is
- *          never overwritten, planning is idempotent; Saturday on-call keeps its
- *          own window and dated rota, edited only by a Staff & Duties editor.
+ *          never overwritten, planning is idempotent. (The Saturday on-call
+ *          cases left with their objects, dropped by migration 0775.)
  *
  * Everything runs inside ONE transaction that is rolled back at the end; each
  * case runs in its own savepoint. PREREQUISITE — a throwaway local cluster:
@@ -40,7 +40,7 @@ const U = {
 
 type J = Record<string, unknown>;
 
-describe.skipIf(!URL)("leave feeds cover, PO/GRN rotate monthly, Saturday on-call (real PostgreSQL, 0670/0671)", () => {
+describe.skipIf(!URL)("leave feeds cover, PO/GRN rotate monthly (real PostgreSQL, 0670)", () => {
   let db: pg.Client;
   let today = "";
   let tomorrow = "";
@@ -482,48 +482,6 @@ describe.skipIf(!URL)("leave feeds cover, PO/GRN rotate monthly, Saturday on-cal
       expect(await attempt("select public.workspace_plan_duty_rota($1::date)", [m])).toBe("ok");
       await as(U.jess);
       expect(await attempt("select public.workspace_plan_duty_rota($1::date)", [await monthAhead(-1)])).toBe("past_month");
-    });
-  });
-
-  // ── 0671 · Saturday on-call ─────────────────────────────────────────────
-  it("Saturday on-call: 9:00 AM to 6:00 PM by default, editable by an editor with history", async () => {
-    await scoped(async () => {
-      await as(U.b);
-      const read = (await one("select public.workspace_saturday_on_call_read(4) as r")).r as J;
-      expect(read.window).toMatchObject({ starts_at: "09:00", ends_at: "18:00" });
-      expect(read.can_edit).toBe(false);
-      expect(read.people).toEqual([]);
-      const rev = (read.window as J).revision;
-      expect(await attempt("select public.workspace_saturday_on_call_save_window('09:00', '17:00', $1)", [rev])).toBe("not_settings_editor");
-      await as(U.jess);
-      expect(await attempt("select public.workspace_saturday_on_call_save_window('18:00', '09:00', $1)", [rev])).toBe("invalid_window");
-      const saved = (await one("select public.workspace_saturday_on_call_save_window('10:00', '17:00', $1) as r", [rev])).r as J;
-      expect(saved.starts_at).toBe("10:00:00");
-      expect(await attempt("select public.workspace_saturday_on_call_save_window('09:00', '18:00', $1)", [rev])).toBe("settings_changed");
-      expect((await one("select count(*)::int as n from workspace_saturday_on_call_window_changes where changed_by = $1", [U.jess])).n).toBe(1);
-    });
-  });
-
-  it("Saturday on-call: a dated person and cover, a leave flag, never a Duty or a moved Task", async () => {
-    await scoped(async () => {
-      await as(U.jess);
-      const read = (await one("select public.workspace_saturday_on_call_read(4) as r")).r as J;
-      const sat = ((read.saturdays as J[])[1]).saturday as string;
-      expect(await attempt("select public.workspace_saturday_on_call_set(($1::date - 1), $2)", [sat, U.a])).toBe("not_saturday");
-      expect(await attempt("select public.workspace_saturday_on_call_set($1::date, $2, $2)", [sat, U.a])).toBe("cover_is_person");
-      expect(await attempt("select public.workspace_saturday_on_call_set($1::date, $2)", [sat, U.hr])).toBe("invalid_person");
-      expect(await attempt("select public.workspace_saturday_on_call_set($1::date, $2, $3)", [sat, U.a, U.b])).toBe("ok");
-      await as(U.a);
-      await q("select public.staff_leave_submit('planned', $1::date, $1::date)", [sat]);
-      expect(await attempt("select public.workspace_saturday_on_call_set($1::date, $2)", [sat, U.b])).toBe("not_settings_editor");
-      await as(U.jess);
-      const after = (await one("select public.workspace_saturday_on_call_read(4) as r")).r as J;
-      const day = (after.saturdays as J[]).find((d) => d.saturday === sat)!;
-      expect(day).toMatchObject({ person_id: U.a, person_on_leave: true, cover_person_id: U.b, cover_on_leave: false });
-      expect((after.people as J[]).map((p) => p.id)).toEqual(expect.arrayContaining([U.a, U.b, U.c, U.jess]));
-      // Not a Duty: nothing in the Duty records, and the PO answer is unchanged.
-      expect((await one("select count(*)::int as n from workspace_duty_assignments where holder_id = $1 and effective_from = $2::date", [U.a, sat])).n).toBe(0);
-      expect((await resolve("po_duty")).actor_user_id).toBe(U.a);
     });
   });
 });

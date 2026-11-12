@@ -52,12 +52,12 @@ const RULES: Rule[] = [
   // ── Money on the document ────────────────────────────────────────────────
   {
     group: COLUMN_GROUPS.amounts,
-    any: /\b(net|gross|fee|merchant|acquirer|statement|method|symbol|inclusive|others?|amount|total|subtotal|tax|discount|disc|paid|balance|deposit|refund|refunded|credit|debit|price|rate|currency|curr|value|revenue|sales|income|outstanding|owed|payment|billed|invoice|invoiced|rental|rent|due|overdue|aging|age|bucket|finances|account|merchandise|mattress|sofa|bedframe|accessories|specials|salary|basic|ot pay|absence|advance|penalty|statutory|epf|socso|eis|pcb|ot x|allowances?|backpay)\b|_sen\b|\(rm\)/,
+    any: /\b(net|gross|fee|merchant|acquirer|statement|method|symbol|inclusive|others?|amount|total|subtotal|tax|discount|disc|paid|balance|deposit|refund|refunded|credit|debit|price|rate|currency|curr|value|revenue|sales|income|outstanding|owed|payment|billed|invoice|invoiced|rental|rent|due|overdue|aging|age|bucket|finances|account|merchandise|mattress|sofa|bedframe|accessories|specials|salary|basic|ot pay|absence|advance|penalty|statutory|epf|socso|eis|pcb|ot x|allowances?|backpay|charges|cash)\b|_sen\b|\(rm\)/,
   },
   // ── Getting it made, moved and delivered ─────────────────────────────────
   {
     group: COLUMN_GROUPS.logistics,
-    any: /\bm3\b|\b(mileage|insurance|puspakom|downtime|problem|drops|stops|dos|volume|sets|dispose|disposal|inspection|services?|duration|transfer|ctn|etd|vessel|voyage|port|slot|replacement|consignment|card|delivery|deliveries|deliver|delivered|dispatch|shipout|carrier|tracking|eta|arrival|arrives|departure|driver|helper|lorry|vehicle|plate|fleet|registration|trip|route|zone|warehouse|whse|rack|shelf|venue|location|transport|pickup|pickups|scheduled|unscheduled|sched|processing date|collected|setup|dismantle|lift booking|do|transfer to|transfer from|stock status|expected|earliest|latest|when|time|days left|work days|repair days|utilisation|covers|areas|radius)\b/,
+    any: /\bm3\b|\b(mileage|insurance|puspakom|downtime|problem|drops|stops|dos|volume|sets|dispose|disposal|inspection|services?|duration|transfer|ctn|etd|vessel|voyage|port|slot|replacement|consignment|card|delivery|deliveries|deliver|delivered|dispatch|shipout|carrier|tracking|eta|arrival|arrives|departure|driver|helper|lorry|vehicle|plate|fleet|registration|trip|route|zone|warehouse|whse|rack|shelf|venue|location|transport|pickup|pickups|scheduled|unscheduled|sched|processing date|collected|setup|dismantle|lift booking|do|transfer to|transfer from|stock status|expected|earliest|latest|when|time|days left|work days|repair days|utilisation|covers|areas|radius|km|gps|google|drive|on-site|building type)\b/,
   },
   // ── What there is, and how much of it ────────────────────────────────────
   {
@@ -67,7 +67,7 @@ const RULES: Rule[] = [
   // ── Who it is for, and how to reach them ─────────────────────────────────
   {
     group: COLUMN_GROUPS.party,
-    any: /\b(customer|debtor|supplier|creditor|party|payee|contact|phone|email|address|city|postcode|state|country|website|house type|building type|customer type|referral)\b/,
+    any: /\b(customer|debtor|supplier|creditor|party|payee|contact|phone|email|address|city|postcode|state|country|website|house type|building type|customer type|referral|bank)\b/,
   },
   // ── Staff, roles, the org ────────────────────────────────────────────────
   {
@@ -77,7 +77,7 @@ const RULES: Rule[] = [
   // ── The document itself ──────────────────────────────────────────────────
   {
     group: COLUMN_GROUPS.basic,
-    any: /\b(journal|je|ledger|entries|result|what|done|posted|registered|requested|consumed at|reopened|period|rev|file|line|document|parent|delta|actual|where it is|avg resolution|completion|doc|no\.?|number|ref|reference|date|dates|status|stage|type|kind|code|name|title|label|description|remark|remarks|note|notes|reason|created|updated|company|brand|branding|project|category|group|series|source|progress|priority|rating|active|enabled|default|id|photo|photos|lines|case|cases|closed|breached|follow up|message|emailed|expires|scope|from|to|check|accepted|gaps|main|actions|history|metrics|maintenance|calendar|month|custom|all)\b/,
+    any: /\b(journal|je|ledger|entries|result|what|done|posted|registered|requested|consumed at|reopened|period|rev|file|line|document|parent|delta|actual|where it is|avg resolution|completion|doc|no\.?|number|ref|reference|date|dates|status|stage|type|kind|code|name|title|label|description|purpose|remark|remarks|note|notes|reason|created|updated|company|brand|branding|project|category|group|series|source|progress|priority|rating|active|enabled|default|id|photo|photos|lines|case|cases|closed|breached|follow up|message|emailed|expires|scope|from|to|check|accepted|gaps|main|actions|history|metrics|maintenance|calendar|month|custom|all)\b/,
   },
 ];
 

@@ -127,13 +127,15 @@ async function buildProjectOverview(c: Context<{ Bindings: Env; Variables: Varia
      the bills read from the chat with collectReport, as the event page does
      (the saved bills table holds only part of them), every bill opened as an
      order under this event = daily. Events of the last 180 days. */
-  const recent = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
+  const recent = todayMyt(-180);
   const recentIds = new Set(projects.filter((p) => String(p.start_date ?? p.end_date ?? "").slice(0, 10) >= recent).map((p) => p.id));
   // company-scope: chat notes of this company's projects (activeCompanySql on p.company_id).
   const noteRows = await c.env.DB.prepare(
-    `SELECT a.id, a.project_id, a.note, a.created_at, u.email AS author_email, ps.name AS author_position
+    `SELECT a.id, a.project_id, a.note, a.created_at, u.email AS author_email, ps.name AS author_position, r.name AS author_role
        FROM project_activity a JOIN projects p ON p.id = a.project_id
-       LEFT JOIN users u ON u.id = a.user_id LEFT JOIN positions ps ON ps.id = u.position_id
+       LEFT JOIN users u ON u.id = a.user_id
+       LEFT JOIN positions ps ON ps.id = u.position_id
+       LEFT JOIN roles r ON r.id = u.role_id
       WHERE a.action = 'note' AND a.archived_at IS NULL AND substr(COALESCE(p.start_date, p.end_date), 1, 10) >= ?${activeCompanySql(c, "p.company_id")}`,
   ).bind(recent).all<NoteRow & { project_id: number }>();
   const notesOf = new Map<number, NoteRow[]>();
@@ -170,7 +172,7 @@ async function buildProjectOverview(c: Context<{ Bindings: Env; Variables: Varia
   const report = new Map<number, { bills: number; billsSen: number; opened: number; openedSen: number; otherEvent: number }>();
   if (withBills.length > 0) {
     const starts = withBills.map((p) => String(p.start_date ?? "").slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
-    const from = new Date(Date.parse(`${starts[0] ?? new Date().toISOString().slice(0, 10)}T00:00:00Z`) - 30 * 86400000).toISOString().slice(0, 10);
+    const from = new Date(Date.parse(`${starts[0] ?? todayMyt()}T00:00:00Z`) - 30 * 86400000).toISOString().slice(0, 10);
     const orders = await paginateAll<OrderRow>((f, t) => scopeToCompany(c.get("supabase").from("mfg_sales_orders")
       .select("doc_no, project_id, status, customer_so_no, ref, salesperson_id, local_total_sen, total_revenue_sen")
       .neq("status", "CANCELLED").gte("so_date", from), c).order("doc_no").range(f, t));

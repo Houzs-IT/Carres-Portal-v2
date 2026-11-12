@@ -169,21 +169,6 @@ describe("Slice 2 — the reserve doors complete the gate and the system issues"
     expect((t.orders as any).is).toHaveBeenCalledWith("do_number", null);
   });
 
-  it("/reserve-item behaves the same — one shared hook, not a second engine", async () => {
-    const t = tables();
-    const sb = makeSb(t);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.mocked(userClient).mockReturnValue(sb as any);
-    const res = await post(await makeJwt("operation"), "/reserve-item", {
-      itemId: ITEM_ID,
-      ref: "SO-1234",
-      reason: "sales_urgent",
-    });
-    expect(res.status).toBe(200);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((t.orders as any).update).toHaveBeenCalled();
-  });
-
   it("a non-SO ref (a loan, a partner) never touches the orders table", async () => {
     const t = tables();
     const sb = makeSb(t);

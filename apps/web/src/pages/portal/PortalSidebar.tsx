@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import MIcon from "@/components/carres/MIcon";
-import ReportProblemModal from "@/pages/operation/components/ReportProblemModal";
 import { useAuth } from "@/lib/auth";
 import { useNavCapabilities } from "./nav-capabilities";
 import NavBadge from "@/components/NavBadge";
@@ -22,7 +21,14 @@ import {
   type PortalNavGroup,
   type PortalNavItem,
   type PortalSection,
+  HOUZS_ICON_SECTIONS,
+  ENGINE_HUBS,
+  hubSectionFor,
+  roleMayOpenEngineRow,
+  ENGINE_SETTINGS_HREF,
+  IT_SUPPORT_HREF,
 } from "./portal-nav";
+import { useEngineBadges } from "./engine-badges";
 import {
   moduleChildBlocks,
   activePageGroup,
@@ -149,7 +155,6 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
       if (compactForCanvas) canvasRailOpen = value;
       return value;
     });
-  const [reporting, setReporting] = useState(false);
   // Only the Sales Order detail's own compact rail starts shut again on each page or width change.
   useEffect(() => { if (!compactForCanvas) setDetailExpanded(false); }, [location.pathname, narrowDetail, compactForCanvas]);
   const autoDetail = isSalesOrderDetail && narrowDetail;
@@ -176,14 +181,18 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
 
   // Badge counts — operation area only. `enabled` keeps a finance-only user
   // from hitting /api/operation/badges (it would 403).
-  const opVisible = groups.some((g) => g.area === "operation");
+  // `hr` stands in Operations for the System rows only and has no Operations badges to read.
+  const opVisible = groups.some((g) => g.area === "operation") && (role === "operation" || role === "principal");
   const principalVisible = groups.some((g) => g.area === "principal");
   const badgesQ = useOperationBadges({ enabled: opVisible });
   const lpRejected = badgesQ.data?.lpRejected ?? 0;
+  // Houzs's own menu counts, from the engine frame (engine-badges.ts).
+  const engineCounts = useEngineBadges((s) => s.counts);
   const badgeCount: Record<string, number> = {
     orders: (badgesQ.data?.orders ?? 0) + lpRejected,
     procurement: badgesQ.data?.procurement ?? 0,
     "service-notes": badgesQ.data?.serviceNotes ?? 0,
+    ...engineCounts,
   };
   const markSeen = useMarkOperationBadgeSeen();
 
@@ -241,8 +250,6 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   // `path` (orders) OR an item's `activeFor` path matcher. Used to suppress the
   // tab-key match for every OTHER item while a path section is showing.
   function onPathSection(group: PortalNavGroup): boolean {
-    // Settings is a routed destination even though it has no permanent menu row.
-    if (group.area === "operation" && location.pathname.startsWith("/operation/settings")) return true;
     return group.items.some((it) => {
       if (it.path && location.pathname.startsWith(it.path)) return true;
       return (
@@ -275,8 +282,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     }
 
     if (item.path) {
-      // operation path-driven section (orders / procurement)
-      return location.pathname.startsWith(item.path);
+      // Whole segments: `/operation/sc/stock` must not light on `/operation/sc/stock-adjustments`,
+      // nor Delivery Planning on Last Mile Delivery (Driver). Same rule as portal-nav activeItem.
+      const p = location.pathname;
+      return p === item.path || p.startsWith(item.path.endsWith("/") ? item.path : `${item.path}/`);
     }
     // tab-driven: a path-driven section is active → no tab item is.
     if (onPathSection(group)) return false;
@@ -289,7 +298,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     return rowMatchesTab(group, item, current, location.search);
   }
 
-  const homeHref = groups[0] ? areaDefaultHref(groups[0]) : "/";
+  /* Home is the first area whose ordinary rows this role sees: `finance` stands in Operations for the Houzs
+     Finance rows only, so its home stays its own Finance area. */
+  const homeGroup = groups.find((g) => !g.itemRoles || (role != null && g.itemRoles.includes(role))) ?? groups[0];
+  const homeHref = homeGroup ? areaDefaultHref(homeGroup) : "/";
   const activeGroup = groups.find((g) => g.area === activeArea) ?? groups[0];
 
   /* ── THE ACCORDION ──────────────────────────────────────────────────────
@@ -304,10 +316,13 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
    * it was made at, so it expires the moment the operator navigates. Without
    * that stamp, opening Purchasing and then jumping to a Warehouse page would
    * leave Purchasing open and hide the row you had just moved to. */
+  // On a Houzs hub page its module is the open one (portal-nav ENGINE_HUBS).
+  const hubAt = hubSectionFor(location.pathname);
+  const hubModuleSection: PortalSection | null = hubAt && hubAt !== "supply-chain" ? hubAt : null;
   const activeModuleSection: PortalSection | null = activeGroup
     ? (navBlocks(activeGroup, role, caps).find(
         (b) => b.kind === "module" && b.pages.some((p) => isItemActive(activeGroup, p)),
-      ) as Extract<NavBlock, { kind: "module" }> | undefined)?.module.section ?? null
+      ) as Extract<NavBlock, { kind: "module" }> | undefined)?.module.section ?? hubModuleSection
     : null;
 
   const here = `${location.pathname}${location.search}`;
@@ -356,6 +371,12 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     }
     // Opening one module shuts the others: there is one open module.
     setOverride({ at: here, section: block.module.section });
+    /* A Houzs module opens its hub page, as Houzs's row does (portal-nav ENGINE_HUBS). */
+    const hubKey = group.area === "operation" ? ENGINE_HUBS[block.module.section] : undefined;
+    if (hubKey) {
+      navigate(`/operation/sc/${hubKey}`);
+      return;
+    }
     /* A module whose row only opens its pages stays where you are (the data
      * says which: `handleOnly`). Every other module also GOES to its first
      * live page, because clicking it is how you get there. An all-unbuilt
@@ -466,6 +487,10 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
             ref={active ? (activeRowRef as Ref<HTMLAnchorElement>) : undefined}
             className={`${PAGE} ${active ? PAGE_ON : PAGE_REST}`}
           >
+            {/* The Houzs areas: each page wears Houzs's own icon, as in Houzs's menu. */}
+            {group.area === "operation" && child.section && HOUZS_ICON_SECTIONS.has(child.section) && (
+              <child.icon size={16} strokeWidth={1.5} aria-hidden data-testid={`houzs-icon-${child.key}`} className={`shrink-0 ${active ? "" : "text-c-tab"}`} />
+            )}
             <span className={WRAP}>{child.label}</span>
             {child.badge && <NavBadge count={badgeCount[child.badge] ?? 0} label={child.label} />}
           </Link>
@@ -585,9 +610,11 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     row: NonNullable<ReturnType<typeof menuGroups>[number]["row"]>,
     blocks: NavBlock[],
   ) {
+    const sections = new Set(blocks.map((b) => (b.kind === "plain" ? b.item.section : b.module.section)));
+    const hubHere = hubSectionFor(location.pathname);
     const holds = blocks.some((b) =>
       b.kind === "plain" ? isItemActive(group, b.item) : b.pages.some((p) => isItemActive(group, p)),
-    );
+    ) || (hubHere !== null && (hubHere === row.key || sections.has(hubHere as PortalSection)));
     const open = foldByHand?.at === here ? foldByHand.open : holds;
     return (
       <div key={row.key} className="flex flex-col gap-[3px]">
@@ -595,7 +622,12 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           type="button"
           data-testid={`nav-fold-${row.key}`}
           aria-expanded={open}
-          onClick={() => setFoldByHand({ at: here, open: !open })}
+          onClick={() => {
+            /* Supply Chain opens Houzs's /scm hub and Finance its To do, as Houzs's rows do; a second click folds it. */
+            const hubKey = !open ? ENGINE_HUBS[row.key as "supply-chain" | "finance"] : undefined;
+            if (hubKey) navigate(`/operation/sc/${hubKey}`);
+            else setFoldByHand({ at: here, open: !open });
+          }}
           className={`${ROW} ${holds && !open ? ROW_ON : ROW_REST}`}
         >
           {rowIcon(row.mIcon, row.icon, holds && !open)}
@@ -621,16 +653,20 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   );
 
   /* Settings — the ONE Settings entry sits at the bottom of the menu (Layout
-   * Standard §2). Finance keeps its own Settings page; People has none. */
+   * Standard §2). Outside Finance it opens Houzs's own Settings (owner, 11 Nov 2026; the Carres Settings
+   * workspace is removed). Finance keeps its own Settings page. */
   const settingsHref = location.pathname.startsWith("/finance")
     ? "/finance/settings"
     : role === "operation" || role === "principal"
-      ? "/operation/settings"
+      ? ENGINE_SETTINGS_HREF
       : role === "finance"
         ? "/finance/settings"
         : null;
   const onSettings =
-    location.pathname.startsWith("/operation/settings") || location.pathname.startsWith("/finance/settings");
+    location.pathname === ENGINE_SETTINGS_HREF || location.pathname.startsWith("/finance/settings");
+  /* Report a problem to IT opens Houzs's IT Support page (owner, 11 Nov 2026), for every role that may open it. */
+  const itSupport = roleMayOpenEngineRow(role, "it-support");
+  const onItSupport = location.pathname === IT_SUPPORT_HREF;
   const roleWord: Record<string, string> = {
     operation: "Operations",
     principal: "Principal",
@@ -764,18 +800,18 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
             {!collapsed && <span>Settings</span>}
           </Link>
         )}
-        <button
-          type="button"
-          onClick={() => setReporting(true)}
-          data-testid="nav-report-problem"
-          title="Report a problem to IT"
-          aria-label={collapsed ? "Report a problem to IT" : undefined}
-          className={`${ROW} ${collapsed ? "justify-center" : ""} ${ROW_REST}`}
-        >
-          <MIcon name="support_agent" size={MODULE_ICON} className="text-c-tab" />
-          {!collapsed && <span>Report a problem to IT</span>}
-        </button>
-        <ReportProblemModal open={reporting} onClose={() => setReporting(false)} />
+        {itSupport && (
+          <Link
+            to={IT_SUPPORT_HREF}
+            data-testid="nav-report-problem"
+            title="Report a problem to IT"
+            aria-label={collapsed ? "Report a problem to IT" : undefined}
+            className={`${ROW} ${collapsed ? "justify-center" : ""} ${ROW_REST}`}
+          >
+            <MIcon name="support_agent" size={MODULE_ICON} className={onItSupport ? undefined : "text-c-tab"} />
+            {!collapsed && <span>Report a problem to IT</span>}
+          </Link>
+        )}
         <Link
           to="/me"
           title={`${displayName} · Profile · Sign out`}

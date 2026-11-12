@@ -133,7 +133,7 @@ function workResponse(items: OperationWorkItem[]): OperationWorkResponse {
     // Mon 14 Sep — a working day, so the focus day is generatedOn itself.
     generatedOn: "2026-09-14",
     closureReceipt: null,
-    sources: (["orders", "purchasing", "receiving", "delivery", "payment", "issue_tracker", "workspace"] as const).map((key) => ({
+    sources: (["orders", "payment", "workspace"] as const).map((key) => ({
       key,
       state: "healthy",
       observedAt: "2026-09-13T01:00:00.000Z",
@@ -236,7 +236,7 @@ describe("one cache key per read — the keys", () => {
 
   it("every `/api/ops/tasks` reader in the web app caches under TASKS_KEY and nothing else caches under it", () => {
     const src = (p: string) => readFileSync(resolve(__dirname, p), "utf8");
-    for (const file of ["components/GlobalTopBar.tsx", "OperationOrdersControl.tsx"]) {
+    for (const file of ["components/GlobalTopBar.tsx"]) {
       const text = src(file);
       expect(text).toMatch(/queryKey:\s*TASKS_KEY,\s*\n\s*queryFn:\s*\(\)\s*=>\s*apiFetch\("\/api\/ops\/tasks"\)/);
       expect(text).not.toMatch(/\["operation",\s*"work"\]/);
@@ -298,16 +298,16 @@ describe("one cache key per read — both mounting orders, real QueryClient", ()
   it("names incomplete source health instead of claiming My Work is clear", async () => {
     const response = workResponse([]);
     response.complete = false;
-    response.sources = response.sources.map((source) => source.key === "delivery"
-      ? { ...source, state: "failed", errorLabel: "Delivery could not be loaded" }
+    response.sources = response.sources.map((source) => source.key === "payment"
+      ? { ...source, state: "failed", errorLabel: "Payment could not be loaded" }
       : source);
     state.work = response;
     mount(client(), <TasksPanel />);
     const panel = await screen.findByTestId("my-work-panel");
     await waitFor(() => expect(panel).toHaveTextContent("My Work could not be refreshed"));
     // Source words, never the raw feed key (HF-3).
-    expect(panel).toHaveTextContent("Could not refresh Delivery");
-    expect(panel).not.toHaveTextContent("delivery");
+    expect(panel).toHaveTextContent("Could not refresh Payment");
+    expect(panel).not.toHaveTextContent(/payment/);
     expect(panel).not.toHaveTextContent("No work due now");
     expect(within(panel).getByRole("link", { name: "Open My Work" })).toBeInTheDocument();
   });
@@ -360,10 +360,10 @@ describe("one cache key per read — both mounting orders, real QueryClient", ()
     mount(qc, <PaymentMonitor />);
     const timing = await screen.findByTestId("monitor-timing-1302");
     const exception = await within(timing).findByTestId("monitor-owner-unassigned");
-    // Owner ruling 2026-09-26: a manager assigns in Settings → Staff & Duties.
+    // Owner ruling 2026-09-26: a manager assigns in Settings.
     expect(exception).toHaveTextContent("Not assigned");
-    expect(exception).toHaveAccessibleName("Nobody assigned to this order · Manager assigns in Settings → Staff & Duties");
-    expect(exception).toHaveAttribute("href", "/operation/settings/staff-duties");
+    expect(exception).toHaveAccessibleName("Nobody assigned to this order · Manager assigns in Settings");
+    expect(exception).toHaveAttribute("href", "/operation/sc/settings");
     expect(timing).toHaveTextContent("Payment should have been received");
     expect(timing).toHaveTextContent("Ask customer to pay");
     expect(screen.queryByTestId("monitor-owner-avatar")).not.toBeInTheDocument();

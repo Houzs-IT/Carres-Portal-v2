@@ -1,5 +1,7 @@
 # ORDERS — MASTER
 
+> **Replaced by Houzs engine page 11 Nov 2026.** The Carres Sales Order register and object pages under `/operation/orders` (the menu's Sales Orders row opens the engine's Sales Orders) were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+
 
 ## Sales Order label correction · owner3Nov2026
 

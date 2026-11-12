@@ -62,7 +62,7 @@ export interface TaskHead {
   /** A Material Symbols name. */
   moduleIcon: string;
   page: string;
-  /** `null` for a purchase batch: it is named by its time, never by a key. */
+  /** `null` for an internal task: its name is its title. */
   record: string | null;
   /** Who does the task now. */
   owner: string | null;
@@ -71,13 +71,12 @@ export interface TaskHead {
 }
 
 export function taskHead(row: WorkRow, card: TaskCard): TaskHead {
-  const isBatch = row.source.object.kind === "po_window";
   return {
     title: card.title,
     moduleIcon: TASK_MODULE_SYMBOL[row.module],
-    page: isBatch ? "SO Batch Purchase" : TASK_MODULE_WORD[row.module],
+    page: TASK_MODULE_WORD[row.module],
     /* An internal task's name is its title: there is no record to repeat. */
-    record: isBatch || row.source.object.kind === INTERNAL_TASK_KIND ? null : row.source.object.label,
+    record: row.source.object.kind === INTERNAL_TASK_KIND ? null : row.source.object.label,
     owner: row.source.owner.acting?.name ?? null,
     destination: row.destination,
   };
@@ -89,13 +88,11 @@ export function taskHead(row: WorkRow, card: TaskCard): TaskHead {
  */
 export function taskFacts(row: WorkRow, card: TaskCard, extra: readonly TaskViewFact[] = []): TaskViewFact[] {
   const recordLabel = recordWord(row.source.object.kind, row.module);
-  const isBatch = row.source.object.kind === "po_window";
   const facts: TaskViewFact[] = card.rows
-    .filter((fact) => isBatch || fact.label !== recordLabel)
+    .filter((fact) => fact.label !== recordLabel)
     .map((fact) => ({ key: fact.label, icon: fact.icon, label: fact.label, value: fact.value, warn: fact.warn }));
   const channel = workLifecycleOrToDo(row.source).channel;
-  /* A purchase batch names its suppliers in its title; `2 suppliers` adds nothing. */
-  if (row.recipient && !isBatch && !extra.some((fact) => fact.key === "contact")) {
+  if (row.recipient && !extra.some((fact) => fact.key === "contact")) {
     const contact: TaskViewFact = {
       key: "contact", icon: "forum", label: W.contact,
       value: channel ? `${row.recipient} · ${CHANNEL_WORD[channel]}` : row.recipient,

@@ -49,8 +49,6 @@ import { fmtDate } from "@/lib/fmt-date";
 // register above it owns all three, and wrapping a disclosure in ListPageShell
 // would draw a second page chrome inside one table cell.
 import { Fragment, type ReactNode } from "react";
-import Button from "@/components/kit/Button";
-import CPopover from "@/components/carres/CPopover";
 import { REGISTER_FIELD_WIDTH } from "@/components/register/register-field-widths";
 import { OverflowText } from "@/components/register/DataGrid";
 import { GOODS_ABSENCE_WORDS, lineClass } from "@carres/shared";
@@ -1312,18 +1310,3 @@ export default function GoodsMiniTable({
   );
 }
 
-export function UnitEvidence({ ids, unverified, mismatch, singleLineCodes = false }: { ids: string[]; unverified: string[]; mismatch: boolean; singleLineCodes?: boolean }) {
-  if (ids.length === 0 && unverified.length === 0 && mismatch) return <p className="text-meta text-kit-amber-11">Unit ID count exceeds order quantity</p>;
-  if (ids.length === 0 && unverified.length === 0) return <span data-absence="true" className="text-kit-slate-11">Not allocated</span>;
-  if (ids.length === 1 && unverified.length === 0 && !mismatch) return <span className={singleLineCodes ? "block max-w-full overflow-x-auto whitespace-nowrap" : undefined} tabIndex={singleLineCodes ? 0 : undefined} title={singleLineCodes ? ids[0] : undefined}>{ids[0]}</span>;
-  return <div>
-    <CPopover label="Unit ID" trigger={<Button size="sm" variant="ghost">Unit ID ({ids.length + unverified.length})</Button>}>
-      <div className="max-h-64 overflow-y-auto text-body">
-        {ids.map((id) => <div className={singleLineCodes ? "whitespace-nowrap" : undefined} key={id}>{id}</div>)}
-        {unverified.length > 0 && <><p className="text-kit-amber-11">Unit ID link not verified</p>{unverified.map((id) => <div className={singleLineCodes ? "whitespace-nowrap" : undefined} key={id}>{id}</div>)}</>}
-      </div>
-    </CPopover>
-    {mismatch && <p className="text-meta text-kit-amber-11">Unit ID count exceeds order quantity</p>}
-    {unverified.length > 0 && <p className="text-meta text-kit-amber-11">Unit ID link not verified</p>}
-  </div>;
-}

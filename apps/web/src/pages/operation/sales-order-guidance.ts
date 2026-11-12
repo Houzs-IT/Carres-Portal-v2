@@ -53,23 +53,6 @@ export interface SalesOrderGuidance {
 export const DATE_TO_BE_CONFIRMED_CELL = "To be confirmed";
 export const DATE_TO_BE_CONFIRMED_FULL = "Delivery date to be confirmed";
 
-/** The customer answered `not yet`. NOT work to do — no action clause, and no
- *  warning colour: nothing here is wrong or late. */
-export function deliveryDateToBeConfirmedGuidance(input: {
-  customer: string;
-  salesperson?: string | null;
-  phone?: string | null;
-}): { fact: string; detail: string } {
-  const owner = input.salesperson?.trim() || "Sales";
-  const phone = input.phone?.trim() || "Phone not recorded";
-  return {
-    fact: DATE_TO_BE_CONFIRMED_CELL,
-    detail:
-      `${DATE_TO_BE_CONFIRMED_FULL}\n` +
-      `${input.customer} · ${phone} · ${owner}\n` +
-      "The customer has been asked and has not fixed a date yet.",
-  };
-}
 
 export function missingDeliveryDateGuidance(input: {
   so: number;

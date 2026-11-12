@@ -9,7 +9,10 @@ import { fmtTime } from '@2990s/shared';
 import { Link } from 'react-router-dom';
 import { fmtSen } from '../../vendor/shared/format';
 import { PageHeader } from '../../components/Layout';
-import { LiveTripMap, type LiveMarker } from '../../vendor/scm/components/LiveTripMap';
+import { useMemo } from 'react';
+import { LiveTripMap, type LiveMarker, type LiveTrail } from '../../vendor/scm/components/LiveTripMap';
+import { useLorryRoadTracks } from '../../vendor/scm/lib/lorry-road-track';
+import { todayMY } from '../../vendor/shared/format';
 import { useLorryKmCost, useLorryPositions, type LorryKmCost, type LorryPosition } from '../../vendor/scm/lib/lorries-queries';
 
 /* Three missed polls = stale. */
@@ -39,11 +42,19 @@ function KmCostCells({ kc }: { kc: LorryKmCost | undefined }) {
   );
 }
 
-export function LorryLiveMap() {
+/** `embedded`: shown inside Coverage & Fleet or Fleet Health (owner 2026-11-08), which carry their own header. */
+export function LorryLiveMap({ embedded }: { embedded: boolean }) {
   const q = useLorryPositions();
   const positions = q.data ?? [];
   const kmCost = new Map((useLorryKmCost().data ?? []).map((k) => [k.lorry_id, k]));
   const mapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+  /* Each lorry's path today along the roads; a lorry whose path has not loaded shows its pin only. */
+  const roads = useLorryRoadTracks(mapsKey ? positions.map((p) => p.lorry_id) : [], todayMY());
+  const roadsKey = roads.map((r) => r.dataUpdatedAt).join(',');
+  const trails: LiveTrail[] = useMemo(
+    () => roads.flatMap((r, i) => (r.data && positions[i] ? [{ key: positions[i].lorry_id, path: r.data.path }] : [])),
+    [roadsKey, positions],
+  );
 
   const markers: LiveMarker[] = positions.map((p) => ({
     location: {
@@ -61,17 +72,21 @@ export function LorryLiveMap() {
 
   return (
     <div>
-      <PageHeader
-        dense
-        eyebrow="Delivery · TMS"
-        title="Lorry Live Map"
-        description="Velocity trackers, updated every 5 min. Lorries with no tracker, or no position in 24 h, are not shown."
-      />
-      <div className="space-y-4 p-4">
+      {embedded ? (
+        <p className="text-[13px] text-ink-muted">Velocity trackers, updated every 5 min. Grey line: where each lorry drove today, along the roads. Lorries with no tracker, or no position in 24 h, are not shown.</p>
+      ) : (
+        <PageHeader
+          dense
+          eyebrow="Delivery · TMS"
+          title="Lorry Live Map"
+          description="Velocity trackers, updated every 5 min. Grey line: where each lorry drove today, along the roads. Lorries with no tracker, or no position in 24 h, are not shown."
+        />
+      )}
+      <div className={embedded ? 'space-y-4 pt-3' : 'space-y-4 p-4'}>
         {q.isLoading ? (
           <p className="text-[13px] text-ink-muted">Loading positions…</p>
         ) : q.isError ? (
-          <p className="text-[13px] text-red-600">Could not load positions. Refresh to try again.</p>
+          <p className="text-[13px] text-red-600 dark:text-red-300">Could not load positions. Refresh to try again.</p>
         ) : positions.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border bg-surface-dim px-4 py-6 text-center text-[13px] text-ink-muted">
             No lorry positions in the last 24 hours.
@@ -79,7 +94,7 @@ export function LorryLiveMap() {
         ) : (
           <>
             {mapsKey ? (
-              <LiveTripMap apiKey={mapsKey} markers={markers} height={420} />
+              <LiveTripMap apiKey={mapsKey} markers={markers} trails={trails} height={420} />
             ) : (
               <p className="text-[12px] text-ink-muted">Map key not configured; the table below still lists every position.</p>
             )}
@@ -100,7 +115,7 @@ export function LorryLiveMap() {
                   {positions.map((p) => (
                     <tr key={p.lorry_id} className="border-t border-border">
                       <td className="px-3 py-2 font-semibold text-ink">{p.plate}</td>
-                      <td className={isStale(p) ? 'px-3 py-2 text-amber-600' : 'px-3 py-2 text-ink-secondary'}>
+                      <td className={isStale(p) ? 'px-3 py-2 text-amber-600 dark:text-amber-300' : 'px-3 py-2 text-ink-secondary'}>
                         {ago(p.recorded_at)}
                         <span className="ml-1 text-ink-muted">({fmtTime(p.recorded_at)})</span>
                       </td>

@@ -22,6 +22,7 @@
 //   pc_order_no; receive_items→pc_order_item_id.
 // Numbering: PCR-YYMM-NNN.
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { supabaseAuth } from '../middleware/auth';
@@ -46,6 +47,7 @@ import { todayMyt } from '../lib/my-time';
 import { changedLockedCols, identityLockedRefusal } from '../shared/header-inherited-lock';
 import { PCR_LOCK_COLS, PCR_LOCK_LABELS } from '../shared/document-policy';
 import { enrichLinesWithFabricSupplierCode } from '../lib/fabric-supplier-code';
+import { stockBucketKeyResolver } from '../lib/stock-bucket-key';
 
 export const purchaseConsignmentReceives = new Hono<{ Bindings: Env; Variables: Variables }>();
 purchaseConsignmentReceives.use('*', supabaseAuth);
@@ -191,10 +193,14 @@ async function resyncReceiveInventory(sb: any, receiveId: string, performedBy: s
     const histCost = zeroPricedCodes.length
       ? await loadKnownPurchaseCostSen(sb, zeroPricedCodes, (header as { company_id?: number | null }).company_id ?? null)
       : new Map<string, number>();
+    /* SKU category + canonical key, written as the stocked bucket's own string
+       when canonically equal (lib/stock-bucket-key.ts). */
+    const keyOf = await stockBucketKeyResolver(sb, (header as { company_id?: number | null }).company_id ?? null,
+      ((lines ?? []) as Array<{ item_code: string; item_group: string | null; variants: unknown }>).map((it) => ({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: warehouseId })));
     for (const it of ((lines ?? []) as Array<{ item_code: string; material_name: string | null; qty_accepted: number | null; unit_price_sen: number | null; item_group: string | null; variants: unknown }>)) {
       const qty = Number(it.qty_accepted ?? 0);
       if (qty <= 0) continue;
-      const vk = computeVariantKey(it.item_group, (it.variants as VariantAttrs | null) ?? null);
+      const vk = keyOf({ item_code: it.item_code, item_group: it.item_group ?? null, variants: it.variants ?? null, warehouse_id: warehouseId });
       const lineCost = Number(it.unit_price_sen ?? 0);
       const unitCost = resolvePcReceiveUnitCostSen(
         lineCost,
@@ -302,8 +308,7 @@ const ITEM =
 const nextNumber = async (sb: any, prefix: string, table: string, col: string, c: any): Promise<string> => {
   // <PREFIX>-YYMM-NNN. max(suffix)+1 (NEVER count+1) so a deleted mid-month row
   // can't make the counter re-mint a surviving number forever — see doc-no.ts.
-  const d = new Date();
-  const yymm = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const yymm = yymmFor();
   const p = companyDocPrefix(c);
   return mintMonthlyDocNo(sb, table, col, `${p}${prefix}-${yymm}`);
 };

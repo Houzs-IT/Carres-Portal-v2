@@ -46,7 +46,7 @@ vi.mock("../../vendor/scm/lib/purchase-invoice-queries", async (importOriginal) 
     isPlaceholderData: false,
     error: null,
   }),
-  useEnrichedPiListRows: (rows: unknown[]) => rows,
+  useEnrichedPiListRows: (rows: unknown[]) => ({ rows, mrp: { meta: null, refresh: () => {}, refreshing: false } }),
   usePurchaseInvoiceDetail: () => ({ data: undefined, isLoading: false, error: null }),
   useCancelPurchaseInvoice: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePostPurchaseInvoice: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -180,5 +180,19 @@ describe("Purchase Invoices list: the one Export", () => {
     fireEvent.click(screen.getByRole("button", { name: "Export" }));
     await waitFor(() => expect(h.notify).toHaveBeenCalled());
     expect(h.written).toHaveLength(0);
+  });
+});
+
+describe("Purchase Invoices list: the PO No column (owner 2026-11-10)", () => {
+  it("an invoice billing two POs shows both, read off its lines, not only the header's first", async () => {
+    h.rows = [pi("p-9", "HC-PI-000259", [line("l-9")], {
+      purchase_order: { id: "po-125", po_number: "HC-PO-2610-125" },
+      po_price_summary: {
+        linesDiffering: 0, totalDiffSen: 0, comparableLines: 2, lines: 2, poAmountSen: 0,
+        poNumbers: ["HC-PO-2610-125", "HC-PO-2610-202"],
+      },
+    })];
+    mount("/scm/purchase-invoices");
+    expect(await screen.findByText("HC-PO-2610-125, HC-PO-2610-202")).toBeTruthy();
   });
 });

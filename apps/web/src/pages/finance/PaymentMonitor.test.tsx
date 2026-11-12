@@ -257,7 +257,7 @@ describe("Payment Monitor — the listing", () => {
     expect(late).toHaveTextContent("Ask customer to pay");
   });
 
-  it("nobody assigned to the order is a visible exception with the manager's Staff & Duties door — never Delivery Duty", () => {
+  it("nobody assigned to the order is a visible exception with the manager's Settings door — never Delivery Duty", () => {
     state.work.data = { items: [{
       id: "payment:i3:payment.collect_customer_balance", module: "payment",
       ruleKey: "payment.collect_customer_balance",
@@ -272,9 +272,9 @@ describe("Payment Monitor — the listing", () => {
     const late = screen.getByTestId("monitor-timing-1302");
     const door = within(late).getByTestId("monitor-owner-unassigned");
     expect(door.textContent).toBe("Not assigned");
-    expect(door).toHaveAccessibleName("Nobody assigned to this order · Manager assigns in Settings → Staff & Duties");
-    expect(door).toHaveAttribute("title", "Nobody assigned to this order · Manager assigns in Settings → Staff & Duties");
-    expect(door).toHaveAttribute("href", "/operation/settings/staff-duties");
+    expect(door).toHaveAccessibleName("Nobody assigned to this order · Manager assigns in Settings");
+    expect(door).toHaveAttribute("title", "Nobody assigned to this order · Manager assigns in Settings");
+    expect(door).toHaveAttribute("href", "/operation/sc/settings");
     expect(late).not.toHaveTextContent(/Delivery Duty|Payment Duty|Nobody is assigned|Sales Orders → Team/);
     expect(late).toHaveTextContent("Ask customer to pay");
     expect(screen.queryByTestId("monitor-owner-avatar")).not.toBeInTheDocument();

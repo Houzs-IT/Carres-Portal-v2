@@ -62,7 +62,6 @@ export const SECTION_TOP_GAP = 8;
  * that re-measures is a line that moves when a table loads.
  */
 export const CONNECT_AT_TABLE_HEADER = "13px";
-export const CONNECT_AT_DISCLOSURE = "18px";
 
 export interface ConnectedSection {
   key: string;

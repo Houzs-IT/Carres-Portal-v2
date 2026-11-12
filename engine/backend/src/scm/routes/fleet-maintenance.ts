@@ -574,7 +574,7 @@ fleetMaintenance.get("/dashboard", requireHouzsPerm("fleet.read"), async (c) => 
 
   const nowIso = new Date().toISOString();
   const [lorriesR, whR, driversR, vaultR, maintR, svcR, plansR, mileageR, breakdownR, woR, woPartsR] = await Promise.all([
-    inHouseLorries(sb, "id, plate, type, is_internal, warehouse_id, active, model, road_tax_expiry, insurance_expiry, puspakom_expiry, notes").order("plate"),
+    inHouseLorries(sb, "id, plate, type, is_internal, warehouse_id, active, model, road_tax_expiry, insurance_expiry, puspakom_expiry, notes, length_ft, width_ft, height_ft").order("plate"),
     sb.from("warehouses").select("id, code, name"),
     sb.from("drivers").select("vehicle, name").eq("active", true),
     sb.from("lorry_compliance_documents").select("*"),
@@ -725,7 +725,7 @@ fleetMaintenance.get("/dashboard", requireHouzsPerm("fleet.read"), async (c) => 
       driverName: driverByPlate.get(normPlate(l.plate)) ?? null,
       vehicleType: l.type,
       model: l.model,
-      mileageKm: currentMileageKm,
+      mileageKm: currentMileageKm, lengthFt: l.length_ft ?? null, widthFt: l.width_ft ?? null, heightFt: l.height_ft ?? null,
       mileageDate: mileage?.reading_date ?? null,
       mileageSource: mileage ? "reading" : svc?.odometer_km != null ? "service" : null,
       mileageFlagged: mileage?.flagged ?? false,
@@ -805,7 +805,7 @@ function openProblemFor(status: string, breakdowns: BreakdownRow[], openWos: Wor
 
 // ── GET /vehicles/:id — one lorry + full compliance history + windows ────────
 fleetMaintenance.get("/vehicles/:id", requireHouzsPerm("fleet.read"), async (c) => {
-  const id = c.req.param("id");
+  const id = c.req.param("id"); // company-scope: unified fleet (owner 2026-09-02, bugs/0620), see the UNIFIED FLEET note above inHouseLorries.
   const sb = c.get("supabase");
   const today = todayMyt();
 
@@ -1215,7 +1215,7 @@ fleetMaintenance.get("/compliance-attachments/:key{.+}", requireHouzsPerm("fleet
 // duplicates. next_due_* is never written (it is derived); only the raw interval
 // + last-done facts are stored.
 fleetMaintenance.post("/vehicles/:id/plans", requireHouzsPerm("fleet.write"), async (c) => {
-  const lorryId = c.req.param("id");
+  const lorryId = c.req.param("id"); // company-scope: unified fleet (owner 2026-09-02, bugs/0620), see the UNIFIED FLEET note above inHouseLorries.
   const sb = c.get("supabase");
 
   let body: Record<string, unknown>;
@@ -1324,7 +1324,7 @@ fleetMaintenance.patch("/plans/:planId", requireHouzsPerm("fleet.write"), async 
 // REJECTED; an abnormal one-day jump is ACCEPTED but flagged for review. GPS
 // distance is never written as the odometer.
 fleetMaintenance.post("/vehicles/:id/mileage", requireHouzsPerm("fleet.write"), async (c) => {
-  const lorryId = c.req.param("id");
+  const lorryId = c.req.param("id"); // company-scope: unified fleet (owner 2026-09-02, bugs/0620), see the UNIFIED FLEET note above inHouseLorries.
   const sb = c.get("supabase");
 
   let body: Record<string, unknown>;
@@ -1409,7 +1409,7 @@ async function lorryExists(sb: Variables["supabase"], lorryId: string): Promise<
 // the affected trip(s), suggest replacement lorries / 3PL, and notify the
 // reporter's reporting line through the EXISTING announcements mechanism.
 fleetMaintenance.post("/vehicles/:id/breakdowns", requireHouzsPerm("fleet.write"), async (c) => {
-  const lorryId = c.req.param("id");
+  const lorryId = c.req.param("id"); // company-scope: unified fleet (owner 2026-09-02, bugs/0620), see the UNIFIED FLEET note above inHouseLorries.
   const sb = c.get("supabase");
 
   let body: Record<string, unknown>;

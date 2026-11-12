@@ -187,10 +187,10 @@ describe("Operation Work wire contract", () => {
   it("rejects complete when any requested source is not current", () => {
     const sources = operationWorkSourceKeySchema.options.map((key) => ({
       key,
-      state: key === "receiving" ? "failed" as const : "healthy" as const,
+      state: key === "payment" ? "failed" as const : "healthy" as const,
       observedAt: item.observedAt,
       lastSuccessfulAt: item.observedAt,
-      errorLabel: key === "receiving" ? "Could not refresh Receiving" : null,
+      errorLabel: key === "payment" ? "Could not refresh Payment" : null,
     }));
     expect(operationWorkResponseSchema.safeParse({
       contractVersion: 2,
@@ -204,6 +204,9 @@ describe("Operation Work wire contract", () => {
   });
 
   it("requires health for every admitted response source", () => {
+    /* A source the feed no longer reads (Purchasing, Receiving, Delivery, Issue Tracker: Houzs work since
+       11 Nov 2026) is refused, not passed through. */
+    expect(operationWorkSourceKeySchema.safeParse("purchasing").success).toBe(false);
     const response = operationWorkResponseSchema.parse({
       contractVersion: 2,
       complete: false,
@@ -213,15 +216,11 @@ describe("Operation Work wire contract", () => {
       closureReceipt: null,
       sources: [
         { key: "orders", state: "healthy", observedAt: item.observedAt, lastSuccessfulAt: item.observedAt, errorLabel: null },
-        { key: "purchasing", state: "healthy", observedAt: item.observedAt, lastSuccessfulAt: item.observedAt, errorLabel: null },
-        { key: "receiving", state: "failed", observedAt: null, lastSuccessfulAt: null, errorLabel: "Could not refresh Receiving" },
-        { key: "delivery", state: "healthy", observedAt: item.observedAt, lastSuccessfulAt: item.observedAt, errorLabel: null },
-        { key: "payment", state: "healthy", observedAt: item.observedAt, lastSuccessfulAt: item.observedAt, errorLabel: null },
-        { key: "issue_tracker", state: "healthy", observedAt: item.observedAt, lastSuccessfulAt: item.observedAt, errorLabel: null },
+        { key: "payment", state: "failed", observedAt: null, lastSuccessfulAt: null, errorLabel: "Could not refresh Payment" },
         { key: "workspace", state: "healthy", observedAt: item.observedAt, lastSuccessfulAt: item.observedAt, errorLabel: null },
       ],
     });
-    expect(response.sources).toHaveLength(7);
+    expect(response.sources).toHaveLength(3);
     expect(response.complete).toBe(false);
   });
 

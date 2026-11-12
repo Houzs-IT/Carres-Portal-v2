@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -59,41 +58,6 @@ describe("no banned word reaches the screen (C12 · portal-wide)", () => {
     });
   });
 
-  describe("the order drawer", () => {
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "components", "OrderDetailDrawer.tsx"),
-      { minStrings: 800, expectString: "Logistics" },
-    );
-  });
-
-  /**
-   * SO BATCH PURCHASE (CARD-2026-08-22-purchasing-02). `OperationToOrder.tsx`
-   * is a thin orchestrator now — it owns data and mode and spells almost no
-   * words — so the scan follows the WORDS to the two files that hold them. A
-   * floor left on the orchestrator would pass vacuously forever.
-   */
-  describe("SO Batch Purchase", () => {
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "so-batch", "SoBatchRegister.tsx"),
-      /* Card 02-B — `Not counted yet` left with the retired Stock column; the
-         coverage absence is the string the file is now known to contain. */
-      { minStrings: 40, expectString: "Not ordered yet" },
-    );
-    /* The By sales order view's words live in its model file (13 Oct 2026). */
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "so-batch", "by-sales-order.ts"),
-      { minStrings: 20, expectString: "Stock you can use" },
-    );
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "so-batch", "SoBatchIssueWorkspace.tsx"),
-      { minStrings: 20, expectString: "Goods must arrive" },
-    );
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "components", "PoIssueEvidence.tsx"),
-      { minStrings: 20, expectString: "PO sent to supplier" },
-    );
-  });
-
   /**
    * Added when layer ③ landed (2026-08-05). The Claims TABLE is scanned by the
    * Purchasing lane suite; the PANEL inside its expanded row never was, and the
@@ -102,12 +66,6 @@ describe("no banned word reaches the screen (C12 · portal-wide)", () => {
    * for the customer. A guard that stops at the page and not at the panel is the
    * same hole this file exists to close, one level down.
    */
-  describe("the claim panel", () => {
-    itSaysNoBannedWord(
-      join(PAGES, "operation", "components", "SupplierClaimPanel.tsx"),
-      { minStrings: 40, expectString: "Record supplier reply" },
-    );
-  });
 });
 
 /**
@@ -129,28 +87,6 @@ describe("the scanner reads what a human reads", () => {
     // fail on variable names and be deleted by the next chat.
     const found = visibleStrings("<div>Hello {chasedAgo(at)}</div>");
     expect(found.filter((s) => /chasedAgo/.test(s))).toEqual([]);
-  });
-
-  it("does not report a banned word out of a code block — measured on the real drawer", () => {
-    // The regression this pins is a REAL one, caught during C12 and thrown
-    // away rather than shipped. The obvious fix for the interpolation hole is
-    // to blank every `{…}` in the file and then match `>([^<>]+)<`. It was
-    // written, run, and measured: with the braces gone a capture runs straight
-    // through code, and it reported FOUR false positives in this one file —
-    // `logistic: chasePartnerName,` (an object property, tripping the
-    // `logistic` rule) and three `pending` variable declarations.
-    //
-    // A guard that flags variable names is a guard the next chat deletes, so
-    // the shipped matcher keeps braces as boundaries. This asserts it on the
-    // real 7,000-line file, not on a fixture: a contrived two-liner cannot
-    // reproduce the shapes that actually broke it.
-    const drawer = readFileSync(
-      join(PAGES, "operation", "components", "OrderDetailDrawer.tsx"),
-      "utf8",
-    );
-    const found = visibleStrings(drawer);
-    expect(found.filter((s) => /logistic: chasePartnerName/.test(s))).toEqual([]);
-    expect(found.filter((s) => /^const \[pending/.test(s))).toEqual([]);
   });
 
   it("still reads text inside a conditional child element", () => {

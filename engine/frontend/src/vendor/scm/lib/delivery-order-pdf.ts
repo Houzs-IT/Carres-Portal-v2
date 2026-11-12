@@ -35,6 +35,7 @@ import {
   ensurePdfCjkFont,
   fmtDocDate,
   safeName,
+  warehousePrintName,
   type PdfAction,
 } from './pdf-common';
 import {
@@ -63,6 +64,8 @@ import {
   type PdfPhotoImage,
 } from './pdf-item-photos';
 import { fetchDoItemPhotoBlob } from './sales-order-queries';
+import { PDF_COMPRESS } from './pdf-options';
+import { shortRackLabels } from './rack-label';
 
 type DoHeader = {
   /* Row id — the photo proxy route is keyed by it. Optional so the
@@ -112,6 +115,10 @@ type DoHeader = {
   /* The delivery window keyed on the Delivery Planning board. Drivers work from
      this paper, so it prints beside the date. Absent ⇒ the row is omitted. */
   time_range?: string | null;
+  /* The ship-from warehouse, from the DO detail GET. Absent on the Consignment
+     Note reuse, so the row is omitted there. */
+  warehouse_name?: string | null;
+  warehouse_code?: string | null;
 };
 
 type DoItem = {
@@ -132,6 +139,9 @@ type DoItem = {
      stored on. Both optional / possibly empty → the cell shows a dash. */
   source_pos?: string[] | null;
   racks?: string[] | null;
+  /* 'locked' = the PO / rack this line was stamped with when it shipped;
+     'worked_out' = re-derived from stock records (an unstamped, older DO). */
+  source_state?: 'locked' | 'worked_out' | null;
   /* Line reference photos (R2 keys, delivery_order_items.photo_urls — carried
      from the SO line, mig 20260828T0746). Optional so the Consignment Note
      reuse stays valid. When present the row's first description line gains
@@ -141,6 +151,16 @@ type DoItem = {
 };
 
 type Doc = import('jspdf').jsPDF;
+
+/** Printed under the table when any Source PO / Rack cell was worked out. */
+export const WORKED_OUT_NOTE = '* Source PO / Rack worked out from stock records, not locked at dispatch.';
+
+/** A Source PO or Rack cell: one value per line, a dash when empty, and a
+ *  trailing " *" when the value was worked out rather than locked at dispatch. */
+export function pickingCell(vals: string[] | null | undefined, state: DoItem['source_state']): string {
+  if (!vals || vals.length === 0) return '—';
+  return state === 'worked_out' ? `${vals.join('\n')} *` : vals.join('\n');
+}
 
 // ── Page geometry ────────────────────────────────────────────────────────────
 /* jsPDF 'letter': 8.5 x 11 in. The 9.5 x 11 continuous form is 8.5 in between
@@ -501,6 +521,7 @@ function drawInfoPanel(doc: Doc, top: number, header: DoHeader): number {
     ...(header.time_range && header.time_range.trim()
       ? [{ label: 'Time Slot', value: header.time_range.trim(), bold: true }]
       : []),
+    ...(warehousePrintName(header) ? [{ label: 'Warehouse', value: warehousePrintName(header) }] : []),
     // Who is bringing it, and in what. Printed only once the run is assigned —
     // a dashed "Driver —" on an unassigned DO is noise on the driver's sheet.
     ...(header.driver_name ? [{ label: 'Driver', value: header.driver_name }] : []),
@@ -558,6 +579,13 @@ const SIG_TITLE_TOP = FOOTER_RULE_Y - 6 - SIG_FIELD_ROW * 2 - 2 - pt(S.sigTitle)
 const SIG_BOX_TOP = SIG_TITLE_TOP - SIG_BOX_H;
 /** Content must end above this or the closing block takes a fresh page. */
 const CLOSING_TOP = SIG_BOX_TOP - 4;
+/* The item photos stop above the closing, so the last photos and the signature
+   share a page: photos allowed down to the footer rule left a page holding only
+   the signature. */
+export const DO_PHOTOS_PAGE_BOTTOM = CLOSING_TOP;
+export function doClosingNeedsNewPage(contentEndY: number): boolean {
+  return contentEndY > CLOSING_TOP;
+}
 
 /** Signature blocks + footer, pinned to the bottom of the page they close. */
 function drawClosing(doc: Doc, header: DoHeader, pageOf: { page: number; total: number }): void {
@@ -679,8 +707,6 @@ export async function renderDeliveryOrderInto(
   const fabric = await loadCustomerFabricMaps(items);
   // DO is QUANTITY-only (Owner 2026-06-26) — a delivery doc shows quantity /
   // volume, not money. The unit_price_sen still flows to the Sales Invoice.
-  const listCell = (vals?: string[] | null): string =>
-    vals && vals.length > 0 ? vals.join('\n') : EM_DASH;
   const descOf = (it: DoItem): string => {
     const composed = [it.description, docVariantLine(it, fabric.ext, fabric.desc)]
       .filter((s): s is string => Boolean(s));
@@ -698,7 +724,7 @@ export async function renderDeliveryOrderInto(
     // rail rather than jittering at the tenth row.
     const seq = String(idx + 1).padStart(2, '0');
     return showPicking
-      ? [seq, it.item_code, descOf(it), listCell(it.source_pos), listCell(it.racks), String(it.qty), m3Of(it)]
+      ? [seq, it.item_code, descOf(it), pickingCell(it.source_pos, it.source_state), pickingCell(shortRackLabels(it.racks), it.source_state), String(it.qty), m3Of(it)]
       : [seq, it.item_code, descOf(it), String(it.qty), m3Of(it)];
   });
 
@@ -723,8 +749,8 @@ export async function renderDeliveryOrderInto(
         0: { cellWidth: pct(6), fontStyle: 'bold' as const },
         1: { cellWidth: pct(19), ...idCol },
         2: { cellWidth: 'auto' as const, fontStyle: 'bold' as const },
-        3: { cellWidth: pct(22), ...idCol },
-        4: { cellWidth: pct(7) },
+        3: { cellWidth: pct(20), ...idCol },
+        4: { cellWidth: pct(9) },
         5: { cellWidth: pct(6), halign: 'right' as const, fontStyle: 'bold' as const },
         6: { cellWidth: pct(11), halign: 'right' as const },
       }
@@ -808,12 +834,18 @@ export async function renderDeliveryOrderInto(
      block draws in jsPDF's built-in helvetica, the same face as the rest of
      this sheet. Absent entirely when no photo actually fetched. */
   let finalY = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? panelBottom);
+  if (showPicking && rows.some((r) => String(r[3]).endsWith(' *') || String(r[4]).endsWith(' *'))) {
+    font(doc, S.body, 'normal');
+    setInk(doc, T.ink);
+    doc.text(WORKED_OUT_NOTE, M, baselineOf(finalY + 2, S.body));
+    finalY += 6;
+  }
   if (photoImages.size > 0) {
     const photoRes = drawItemPhotosBlock(doc, photoGroups, photoImages, {
       margin: M,
       contentW: CONTENT_W,
       startY: finalY + 6,
-      pageBottom: FOOTER_RULE_Y - 6, // the items table's own bottom rail
+      pageBottom: DO_PHOTOS_PAGE_BOTTOM,
       pageTop: M,
       side: null,
       onNewPage: null,
@@ -822,7 +854,7 @@ export async function renderDeliveryOrderInto(
   }
 
   // ── Closing: signature + footer, pinned to the bottom ──────────────
-  if (finalY > CLOSING_TOP) doc.addPage();
+  if (doClosingNeedsNewPage(finalY)) doc.addPage();
 
   const pageCount = doc.getNumberOfPages();
   const total = pageCount - startPage + 1;
@@ -843,7 +875,7 @@ export async function generateDeliveryOrderPdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: DO_PAGE_FORMAT });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: DO_PAGE_FORMAT });
   await renderDeliveryOrderInto(doc, autoTable, header, items, opts);
   deliverPdf(doc, `${header.do_number}-${safeName(header.debtor_name || 'customer')}.pdf`, opts?.action);
 }
@@ -856,7 +888,7 @@ export async function generateCombinedDeliveryOrderPdf(
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
-  const doc = new jsPDF({ unit: 'mm', format: DO_PAGE_FORMAT });
+  const doc = new jsPDF({ ...PDF_COMPRESS, unit: 'mm', format: DO_PAGE_FORMAT });
   for (let i = 0; i < docs.length; i += 1) {
     if (i > 0) doc.addPage();
     await renderDeliveryOrderInto(doc, autoTable, docs[i]!.header, docs[i]!.items, opts);

@@ -49,7 +49,7 @@ const item: OperationWorkItem = {
   tone: "warning", locked: false, broken: false,
 };
 
-const SOURCES = ["orders", "purchasing", "receiving", "delivery", "payment", "issue_tracker", "workspace"] as const;
+const SOURCES = ["orders", "payment", "workspace"] as const;
 function feed(items: OperationWorkItem[]): OperationWorkResponse {
   return composeOperationWorkResponse(
     SOURCES.map((key) => ({
@@ -219,7 +219,7 @@ function completedRow(occurrenceId: string, extra: Partial<WorkOccurrenceEvent> 
 
 describe("Completed read — the ledger's completions with their Work date, document, time and person", () => {
   it("returns action_on, object_label, completion time and who recorded it, by name", async () => {
-    const { ledger } = memoryLedger([completedRow("orders:order-9:ask_delivery_date")]);
+    const { ledger } = memoryLedger([completedRow("orders:order-9:resolve_payment_exception")]);
     const a = new Hono<AppEnv>();
     a.use("*", async (c, next) => {
       c.set("auth", { id: ME, email: "sha@carres.test", role: "operation", dealerId: null, supplierId: null, partnerId: null, outletId: null, warehouseId: null, jwt: "jwt" } as never);
@@ -231,9 +231,9 @@ describe("Completed read — the ledger's completions with their Work date, docu
     }), ledger));
     const body = await (await a.request("/api/operation/work")).json() as OperationWorkResponse;
     expect(body.completed).toEqual([{
-      occurrenceId: "orders:order-9:ask_delivery_date",
+      occurrenceId: "orders:order-9:resolve_payment_exception",
       module: "orders",
-      ruleKey: "ask_delivery_date",
+      ruleKey: "resolve_payment_exception",
       actionOn: "2026-09-16",
       objectLabel: "SO-1318",
       completedAt: "2026-09-16T03:00:00.000Z",
@@ -243,18 +243,29 @@ describe("Completed read — the ledger's completions with their Work date, docu
   });
 
   it("keeps a completion the module recorded without a person, and never invents one", async () => {
-    const { ledger } = memoryLedger([completedRow("orders:order-9:ask_delivery_date", { actorId: null })]);
+    const { ledger } = memoryLedger([completedRow("orders:order-9:resolve_payment_exception", { actorId: null })]);
     const body = await (await app([item], ledger).request("/api/operation/work")).json() as OperationWorkResponse;
     expect(body.completed?.[0]?.completedBy).toBeNull();
   });
 
   it("reads the recent window only (60 days before the feed's date)", async () => {
     const { ledger } = memoryLedger([
-      completedRow("orders:order-8:ask_delivery_date", { at: "2026-07-01T03:00:00.000Z" }),
-      completedRow("orders:order-9:ask_delivery_date", { at: "2026-07-20T03:00:00.000Z" }),
+      completedRow("orders:order-8:resolve_payment_exception", { at: "2026-07-01T03:00:00.000Z" }),
+      completedRow("orders:order-9:resolve_payment_exception", { at: "2026-07-20T03:00:00.000Z" }),
     ]);
     const body = await (await app([item], ledger).request("/api/operation/work")).json() as OperationWorkResponse;
-    expect(body.completed?.map((c) => c.occurrenceId)).toEqual(["orders:order-9:ask_delivery_date"]);
+    expect(body.completed?.map((c) => c.occurrenceId)).toEqual(["orders:order-9:resolve_payment_exception"]);
+  });
+
+  it("lists no Done row for work the Houzs engine runs now (Purchasing, Delivery, other Sales Order rules)", async () => {
+    const { ledger } = memoryLedger([
+      completedRow("orders:order-7:ask_delivery_date"),
+      completedRow("purchasing:PO-1:purchasing.po_window"),
+      completedRow("delivery:order-6:assign_logistics"),
+      completedRow("orders:order-9:resolve_payment_exception"),
+    ]);
+    const body = await (await app([item], ledger).request("/api/operation/work")).json() as OperationWorkResponse;
+    expect(body.completed?.map((c) => c.occurrenceId)).toEqual(["orders:order-9:resolve_payment_exception"]);
   });
 
   it("a completed ledger that cannot be read fails the read (no fake Completed count)", async () => {

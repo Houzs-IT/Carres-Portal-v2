@@ -29,13 +29,11 @@ describe("compact module card authority", () => {
     expect(missing).toEqual([]);
   });
 
-  it("every Delivery word used by the /ui example is in that section, and retired words are gone", () => {
+  it("every Delivery card word is in that section", () => {
     for (const w of ["Customer", "Date not confirmed", "Date confirmed", "Not assigned", "Ready", "Service", "Morning", "Afternoon",
       "Choose the contact result.", "Choose the confirmed date.", "Choose the time.", "Choose the company.", "Customer date not recorded · Try again"]) {
       expect(section, w).toContain(w);
     }
-    const example = read("apps/web/src/pages/dev/CompactCardExample.tsx").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    expect(example).not.toMatch(/No logistics picked|Confirmed Delivery ▾|No confirmed date|<td>—<\/td>/);
   });
 
   it("the words the owner banned never appear in the component", () => {

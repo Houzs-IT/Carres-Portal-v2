@@ -1,0 +1,80 @@
+name: Mail Sync (Gmail IMAP -> engine)
+
+# Houzs's mail sync (houzs-erp .github/workflows/mail-sync.yml), run for the Carres engine: pulls new mail from the
+# company Gmail (Google Workspace) mailboxes into the engine's Mail Center
+# (https://carres-scm-engine.wwch.workers.dev/api/mail-center/inbound). Read-only on the mailbox; the engine dedups by
+# Message-ID so re-runs never duplicate. No MX change required. See engine/mail-sync/README.md.
+#
+# Carres: until the repository secrets MAIL_INBOUND_SECRET and IMAP_ACCOUNTS are set, every run stops at the first
+# step with a notice and passes, so the 5-minute schedule does not fail before the owner sets them. The same
+# MAIL_INBOUND_SECRET must also be set on the carres-scm-engine Worker (the engine answers 503 until it is).
+#
+# NOTE: scheduled runs only fire from the repo's DEFAULT branch. To test on a feature branch first, use
+# "Run workflow" (workflow_dispatch) and pick the branch.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # every 5 minutes
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "Import ALL history (first run) instead of just recent"
+        type: boolean
+        default: false
+      since_days:
+        description: "Incremental look-back window in days (ignored if backfill)"
+        default: "3"
+
+permissions:
+  contents: read
+
+# Never let two syncs overlap (a slow backfill + a cron tick).
+concurrency:
+  group: mail-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check the secrets are set
+        id: secrets
+        env:
+          MAIL_INBOUND_SECRET: ${{ secrets.MAIL_INBOUND_SECRET }}
+          IMAP_ACCOUNTS: ${{ secrets.IMAP_ACCOUNTS }}
+        run: |
+          if [ -z "$MAIL_INBOUND_SECRET" ] || [ -z "$IMAP_ACCOUNTS" ]; then
+            echo "::notice title=Mail sync skipped::MAIL_INBOUND_SECRET and IMAP_ACCOUNTS are not both set as repository secrets yet. Nothing to do (see engine/mail-sync/README.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: "20"
+      - name: Install deps
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: engine/mail-sync
+        run: npm ci --no-audit --no-fund
+      - name: Sync
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: engine/mail-sync
+        env:
+          # The engine inbound endpoint. Set repo variable MAIL_INBOUND_URL to override.
+          MAIL_INBOUND_URL: ${{ vars.MAIL_INBOUND_URL || 'https://carres-scm-engine.wwch.workers.dev/api/mail-center/inbound' }}
+          # Must equal the carres-scm-engine Worker's MAIL_INBOUND_SECRET (Cloudflare secret).
+          MAIL_INBOUND_SECRET: ${{ secrets.MAIL_INBOUND_SECRET }}
+          # JSON array of every mailbox account to pull, each its own Google account + App Password (NOT the normal
+          # password), e.g. [{"user":"hello@carresofficial.com","password":"abcd efgh ijkl mnop"}]
+          IMAP_ACCOUNTS: ${{ secrets.IMAP_ACCOUNTS }}
+          # Optional overrides (script defaults: imap.gmail.com:993, INBOX).
+          IMAP_HOST: ${{ vars.IMAP_HOST }}
+          IMAP_PORT: ${{ vars.IMAP_PORT }}
+          IMAP_MAILBOX: ${{ vars.IMAP_MAILBOX }}
+          BACKFILL: ${{ inputs.backfill }}
+          SINCE_DAYS: ${{ inputs.since_days }}
+        run: npm run sync

@@ -73,7 +73,8 @@ import {
 } from "../db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { activeCompanyId, activeCompanySql, requireActiveCompanyId } from "../scm/lib/companyScope";
-import { refuseForeignChild, refuseForeignProject } from "./lib/project-company-gate";
+import { refuseForeignAttachmentKey, refuseForeignChild, refuseForeignProject } from "./lib/project-company-gate";
+import { calendarCrewScope } from "./lib/calendar-visibility";
 
 /* The context the extracted handlers below receive. They are exported so the
    route tests can drive them directly; the shape is exactly what app.get/post
@@ -1753,6 +1754,7 @@ app.get(
     }
     // Return items + sections together so the editor renders one
     // round-trip. mig 050: section_id + requires_review on items.
+    // company-scope: gated by findTemplateInCompany above (template_id is ours); see the comment on why the children are keyed on it alone.
     const items = await c.env.DB.prepare(
       `SELECT id, seq, title, description, required_perm, role_label, crew_visible,
               due_offset_days, section_id, requires_review
@@ -1762,6 +1764,7 @@ app.get(
     )
       .bind(id)
       .all();
+    // company-scope: same findTemplateInCompany gate as the items read above.
     const sections = await c.env.DB.prepare(
       `SELECT id, name, sort_order, display_mode
          FROM project_checklist_template_sections
@@ -1992,7 +1995,7 @@ app.get("/analytics/profitability", requirePageAccess("projects.finances"), asyn
   const binds: any[] = [];
   if (scope === "started") {
     where.push("substr(p.start_date, 1, 10) <= ?");
-    binds.push(new Date().toISOString().slice(0, 10));
+    binds.push(todayMyt());
   } else if (scope === "completed") {
     where.push("p.stage = 'completed'");
   }
@@ -2026,6 +2029,7 @@ app.get("/analytics/profitability", requirePageAccess("projects.finances"), asyn
   }
   const whereSql = where.join(" AND ");
 
+  // company-scope: the statement below ends `WHERE ${whereSql}${coSql}` (coSql = p.company_id); every finance-line subquery is keyed to that p.id.
   // Sum income and cost per project via a single query. Keep
   // project_finance as the rollup source — it's already kept in
   // sync by the ledger write path, and it's 1:1 with projects so
@@ -2240,7 +2244,7 @@ app.get("/analytics/profitability/drill", requirePageAccess("projects.finances")
   const binds: any[] = [];
   if (scope === "started") {
     where.push("substr(p.start_date, 1, 10) <= ?");
-    binds.push(new Date().toISOString().slice(0, 10));
+    binds.push(todayMyt());
   } else if (scope === "completed") {
     where.push("p.stage = 'completed'");
   }
@@ -3445,11 +3449,13 @@ app.post("/:id/payment", requirePermission("projects.write"), async (c) => {
   }>();
   if (!body.status) return c.json({ error: "status required" }, 400);
   // Read the prior status so the activity entry shows the transition.
+  // Company scope: another company's project is "not found" before anything moves.
   const prior = await c.env.DB.prepare(
-    `SELECT payment_status FROM projects WHERE id = ?`
+    `SELECT payment_status FROM projects WHERE id = ?${activeCompanySql(c)}`
   )
     .bind(id)
     .first<{ payment_status: string | null }>();
+  if (!prior) return c.json({ error: "Not found" }, 404);
   try {
     await setPaymentStatus(
       c.env,
@@ -3687,7 +3693,7 @@ app.post("/checklist/:itemId/status", requireAnyPermission(["projects.write", "p
     return c.json({ error: "invalid status" }, 400);
   }
   const item = await c.env.DB.prepare(
-    `SELECT required_perm, role_label FROM project_checklist WHERE id = ?`
+    `SELECT required_perm, role_label FROM project_checklist WHERE id = ?${activeCompanySql(c)}`
   )
     .bind(itemId)
     .first<{ required_perm: string | null; role_label: string | null }>();
@@ -3772,7 +3778,7 @@ app.post("/checklist/:itemId/review", requireAnyPermission(["projects.write", "p
   const body = await c.req.json<{ action?: string; reason?: string; note?: string }>();
   const action = body.action as "submit" | "reject" | "amend" | "approve" | "comment";
   const item = await c.env.DB.prepare(
-    `SELECT required_perm, role_label FROM project_checklist WHERE id = ?`
+    `SELECT required_perm, role_label FROM project_checklist WHERE id = ?${activeCompanySql(c)}`
   )
     .bind(itemId)
     .first<{ required_perm: string | null; role_label: string | null }>();
@@ -3867,17 +3873,20 @@ app.post("/:id/sections", requirePermission("projects.write"), async (c) => {
   if (order == null) {
     const max = await c.env.DB.prepare(
       `SELECT COALESCE(MAX(sort_order), 0) AS s
-         FROM project_checklist_sections WHERE project_id = ?`
+         FROM project_checklist_sections WHERE project_id = ?${activeCompanySql(c)}`
     )
       .bind(id)
       .first<{ s: number }>();
     order = (max?.s ?? 0) + 10;
   }
+  // Stamp the company: refuseForeignProject above proved the project is in the
+  // active company, and the section/task gates read the CHILD's own company_id.
+  const sectionCo = activeCompanyId(c);
   const r = await c.env.DB.prepare(
-    `INSERT INTO project_checklist_sections (project_id, name, sort_order)
-     VALUES (?, ?, ?)`
+    `INSERT INTO project_checklist_sections (project_id, name, sort_order${sectionCo != null ? ", company_id" : ""})
+     VALUES (?, ?, ?${sectionCo != null ? ", ?" : ""})`
   )
-    .bind(id, name, order)
+    .bind(id, name, order, ...(sectionCo != null ? [sectionCo] : []))
     .run();
   return c.json({ id: r.meta.last_row_id, name, sort_order: order }, 201);
 });
@@ -3911,7 +3920,7 @@ app.patch("/sections/:sectionId", requirePermission("projects.write"), async (c)
   if (sets.length === 0) return c.json({ error: "No fields to update" }, 400);
   binds.push(sectionId);
   await c.env.DB.prepare(
-    `UPDATE project_checklist_sections SET ${sets.join(", ")} WHERE id = ?`
+    `UPDATE project_checklist_sections SET ${sets.join(", ")} WHERE id = ?${activeCompanySql(c)}`
   )
     .bind(...binds)
     .run();
@@ -3925,10 +3934,15 @@ app.delete("/sections/:sectionId", requirePermission("projects.write"), async (c
   // project_checklist.section_id was ON DELETE SET NULL, but the D1->PG load
   // dropped it to NO ACTION — so a bare delete throws once the section still has
   // tasks. Null them first so tasks fall back to "Uncategorised".
-  await c.env.DB.prepare(`UPDATE project_checklist SET section_id = NULL WHERE section_id = ?`)
+  // The task rows are matched through the SECTION's company, not their own:
+  // every task in our section must lose the link or the delete below fails.
+  await c.env.DB.prepare(
+    `UPDATE project_checklist SET section_id = NULL
+      WHERE section_id IN (SELECT id FROM project_checklist_sections WHERE id = ?${activeCompanySql(c)})`,
+  )
     .bind(sectionId)
     .run();
-  await c.env.DB.prepare(`DELETE FROM project_checklist_sections WHERE id = ?`)
+  await c.env.DB.prepare(`DELETE FROM project_checklist_sections WHERE id = ?${activeCompanySql(c)}`)
     .bind(sectionId)
     .run();
   return c.json({ ok: true });
@@ -3951,7 +3965,7 @@ app.put("/:id/sections/reorder", requirePermission("projects.write"), async (c) 
       .prepare(
         `UPDATE project_checklist_sections
             SET sort_order = ?
-          WHERE id = ? AND project_id = ?`
+          WHERE id = ? AND project_id = ?${activeCompanySql(c)}`
       )
       .bind((idx + 1) * 10, sectionId, id)
   );
@@ -3986,7 +4000,7 @@ app.put(
     const user = c.get("user");
     const granted = user?.permissions_set ?? user?.permissions;
     const item = await c.env.DB.prepare(
-      `SELECT title, required_perm, role_label, status, review_status FROM project_checklist WHERE id = ?`
+      `SELECT title, required_perm, role_label, status, review_status FROM project_checklist WHERE id = ?${activeCompanySql(c)}`
     )
       .bind(itemId)
       .first<{ title: string | null; required_perm: string | null; role_label: string | null; status: string | null; review_status: string | null }>();
@@ -4031,23 +4045,30 @@ app.put(
       `image/${ext === "jpg" ? "jpeg" : ext}`;
     const key = taskAttachmentKey(itemId, ext);
     await c.env.POD_BUCKET.put(key, body, { httpMetadata: { contentType } });
+    // Stamp the company (refuseForeignChild above proved the task is ours): the
+    // delete/caption gates read the attachment's OWN company_id.
+    const attachCo = activeCompanyId(c);
+    const coCol = attachCo != null ? ", company_id" : "";
+    const coVal = attachCo != null ? ", ?" : "";
+    const coBind = attachCo != null ? [attachCo] : [];
     const r = await c.env.DB.prepare(
       `INSERT INTO project_checklist_attachments
-         (item_id, r2_key, file_name, content_type, size_bytes, uploaded_by, caption)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+         (item_id, r2_key, file_name, content_type, size_bytes, uploaded_by, caption${coCol})
+       VALUES (?, ?, ?, ?, ?, ?, ?${coVal})`
     )
-      .bind(itemId, key, fileName, contentType, body.byteLength, user?.id ?? null, caption)
+      .bind(itemId, key, fileName, contentType, body.byteLength, user?.id ?? null, caption, ...coBind)
       .run();
     // Per-item history — record the upload as a comment so the task history
     // panel shows "Uploaded X.pdf · Sim · 06/08 10:34" alongside approve/reject.
     // Owner 2026-07-20: without this, the reviewer sees the Approve button reappear
     // after a re-upload with no explanation of WHY, then wonders "no new file
     // was uploaded but why approval reappear?". The comment closes that gap.
+    // coCol / coVal stamp company_id here too, from the same resolved company.
     await c.env.DB.prepare(
-      `INSERT INTO project_checklist_comments (item_id, kind, body, user_id)
-       VALUES (?, 'upload', ?, ?)`
+      `INSERT INTO project_checklist_comments (item_id, kind, body, user_id${coCol})
+       VALUES (?, 'upload', ?, ?${coVal})`
     )
-      .bind(itemId, fileName, user?.id ?? null)
+      .bind(itemId, fileName, user?.id ?? null, ...coBind)
       .run();
     // SERVER-side auto-submit (owner 2026-08-21, docs/bugs/0490): uploading to
     // a gated document IS the submission. Desktop called /review submit after
@@ -4068,7 +4089,7 @@ app.put(
     await autoTickChecklistOnUpload(c.env, item, itemId, user?.id ?? 0);
     // Audit trail — log the upload to the project activity feed.
     const owner = await c.env.DB.prepare(
-      `SELECT project_id, title FROM project_checklist WHERE id = ?`
+      `SELECT project_id, title FROM project_checklist WHERE id = ?${activeCompanySql(c)}`
     )
       .bind(itemId)
       .first<{ project_id: number; title: string }>();
@@ -4133,7 +4154,7 @@ app.delete(
         `SELECT pc.role_label
            FROM project_checklist_attachments a
            JOIN project_checklist pc ON pc.id = a.item_id
-          WHERE a.id = ?`
+          WHERE a.id = ?${activeCompanySql(c, "a.company_id")}`
       )
         .bind(attId)
         .first<{ role_label: string | null }>();
@@ -4148,7 +4169,7 @@ app.delete(
     // Fetch item_id + filename BEFORE archiving so we can log the removal to
     // the per-item history panel (owner 2026-07-20 — see the upload sibling).
     const rmMeta = await c.env.DB.prepare(
-      `SELECT item_id, file_name FROM project_checklist_attachments WHERE id = ?`
+      `SELECT item_id, file_name FROM project_checklist_attachments WHERE id = ?${activeCompanySql(c)}`
     )
       .bind(attId)
       .first<{ item_id: number; file_name: string }>();
@@ -4157,16 +4178,17 @@ app.delete(
     await c.env.DB.prepare(
       `UPDATE project_checklist_attachments
           SET archived_at = datetime('now')
-        WHERE id = ?`
+        WHERE id = ?${activeCompanySql(c)}`
     )
       .bind(attId)
       .run();
     if (rmMeta) {
+      const rmCo = activeCompanyId(c);
       await c.env.DB.prepare(
-        `INSERT INTO project_checklist_comments (item_id, kind, body, user_id)
-         VALUES (?, 'remove', ?, ?)`
+        `INSERT INTO project_checklist_comments (item_id, kind, body, user_id${rmCo != null ? ", company_id" : ""})
+         VALUES (?, 'remove', ?, ?${rmCo != null ? ", ?" : ""})`
       )
-        .bind(rmMeta.item_id, rmMeta.file_name, user?.id ?? null)
+        .bind(rmMeta.item_id, rmMeta.file_name, user?.id ?? null, ...(rmCo != null ? [rmCo] : []))
         .run();
     }
     return c.json({ ok: true });
@@ -4191,7 +4213,7 @@ app.patch(
       `SELECT pc.role_label, pc.title
          FROM project_checklist_attachments a
          JOIN project_checklist pc ON pc.id = a.item_id
-        WHERE a.id = ?`
+        WHERE a.id = ?${activeCompanySql(c, "a.company_id")}`
     )
       .bind(attId)
       .first<{ role_label: string | null; title: string | null }>();
@@ -4210,7 +4232,7 @@ app.patch(
     const caption =
       typeof body.caption === "string" ? body.caption.slice(0, 2000) : null;
     await c.env.DB.prepare(
-      `UPDATE project_checklist_attachments SET caption = ? WHERE id = ?`
+      `UPDATE project_checklist_attachments SET caption = ? WHERE id = ?${activeCompanySql(c)}`
     )
       .bind(caption, attId)
       .run();
@@ -4274,7 +4296,7 @@ app.post(
          FROM project_checklist_attachments a
          JOIN project_checklist pc ON pc.id = a.item_id
          JOIN projects p ON p.id = pc.project_id
-        WHERE a.id = ? AND a.archived_at IS NULL`
+        WHERE a.id = ? AND a.archived_at IS NULL${activeCompanySql(c, "p.company_id")}`
     )
       .bind(attId)
       .first<{ id: number; state: string | null }>();
@@ -4777,10 +4799,10 @@ app.put("/:id/attachments", requirePermission("projects.write"), async (c) => {
   return c.json({ id: r.meta.last_row_id, key }, 201);
 });
 
-// Stream the asset. Auth middleware already gated the request. {.+}
-// captures the slash-containing key.
+// Stream the asset. {.+} captures the slash-containing key; the key gate refuses other modules' objects and other companies' projects.
 app.get("/attachments/:key{.+}", async (c) => {
   const key = c.req.param("key");
+  { const foreign = await refuseForeignAttachmentKey(c, key); if (foreign) return foreign; }
   const obj = await c.env.POD_BUCKET.get(key);
   if (!obj) return c.json({ error: "Not found" }, 404);
   return new Response(obj.body as ReadableStream, {
@@ -4855,90 +4877,9 @@ app.get("/calendar/events", requirePageAccess("projects.calendar"), async (c) =>
   const to = c.req.query("to");
   if (!from || !to) return c.json({ error: "from & to required (YYYY-MM-DD)" }, 400);
 
-  const user = c.get("user");
-
-  /* ── Venue-assignment scoping (owner rule, 2026-07) ─────────────────────
-     A non-admin caller sees ONLY the venues/projects they are ASSIGNED to:
-       · PIC arm    — project's PIC (COALESCE(pic_id, created_by) for legacy
-                      pre-039 rows) is them. scope_to_pic roles KEEP their
-                      existing desktop behavior unchanged: PIC in
-                      [self, manager] AND the department brand allow-list
-                      (services/projectAcl.ts).
-       · Attendee arm — they are on the project's Sales Attending list
-                      (project_sales_attendees → sales_reps.user_id, mig 087
-                      — the same linkage the SO venue auto-fill uses).
-     Admins (`*` wildcard) see everything, unchanged. Previously only
-     scope_to_pic roles were filtered — every other non-admin saw ALL
-     venue events; that lane is now assignment-scoped too. */
-  const granted = user?.permissions_set ?? user?.permissions ?? [];
-  const isAdmin = !!user && hasPermission(granted, "*");
-  /* PIC/brand row-level visibility ACL removed (owner decision 2026-08-19):
-     every non-crew caller now sees the WHOLE (company-scoped) calendar. The
-     only remaining scoped lane is CREW (helpers / storekeepers / drivers), who
-     still see just the events they are crewed on. */
-  /* Owner 2026-07-21: helpers/storekeepers are crew-scoped — their calendar
-     shows only events they're crewed on, so they drop out of the unscoped
-     see-all lane and get a crew-assignment arm instead. */
-  /* Owner 2026-07-23: DRIVERS join the crew lane ON THE CALENDAR — "sales,
-     driver and helper only can see event that assigned to them". This
-     reverses the 2026-07-21 "drivers stay see-all" carve-out for this route
-     only; the projects LIST keeps its own lanes. Same no-write guard as
-     isCrewScopedUser so an admin holding the Driver position isn't caged. */
-  const isScopedDriver =
-    !!user &&
-    !isAdmin &&
-    !hasPermission(granted, "projects.write") &&
-    ((user.position_name ?? "").trim().toLowerCase() === "driver" ||
-      /^drivers?$/i.test(((user as { role_name?: string | null }).role_name ?? "").trim()));
-  const crewScoped = isCrewScopedUser(user) || isScopedDriver;
-  // Every authenticated non-crew caller sees the whole company calendar now
-  // (PIC/brand ACL removed 2026-08-19). Only crew stay scoped, to the events
-  // they are crewed on (OR their sales-attendee arm).
-  const seeAll = !!user && !crewScoped;
-  const assignArms: string[] = [];
-  const scopeBinds: any[] = [];
-  if (!seeAll) {
-    if (crewScoped && user?.id) {
-      // Crew arm — FK slots + per-lorry crew JSON exact-name containment
-      // (same match listProjects' assigned_user arm uses).
-      const idArms = [
-        "p.setup_driver_user_id = ?", "p.dismantle_driver_user_id = ?",
-        "p.setup_helper_1_id = ?", "p.setup_helper_2_id = ?",
-        "p.dismantle_helper_1_id = ?", "p.dismantle_helper_2_id = ?",
-      ];
-      let arm = idArms.join(" OR ");
-      for (const _ of idArms) scopeBinds.push(user.id);
-      const nm = (user.name ?? "").trim().toLowerCase();
-      if (nm) {
-        arm += " OR lower(COALESCE(p.setup_crew,'')) LIKE ? OR lower(COALESCE(p.dismantle_crew,'')) LIKE ?";
-        scopeBinds.push(`%"${nm}"%`, `%"${nm}"%`);
-      }
-      assignArms.push(`(${arm})`);
-    }
-    if (user?.id) {
-      // A crew member who is also on a project's Sales Attending list still
-      // sees that event (attendee arm, mig 087).
-      assignArms.push(
-        `EXISTS (SELECT 1 FROM project_sales_attendees psa` +
-        ` JOIN sales_reps sr ON sr.id = psa.sales_rep_id` +
-        ` WHERE psa.project_id = p.id AND sr.user_id = ?)`
-      );
-      scopeBinds.push(user.id);
-    }
-  }
-  // Non-admin with no resolvable arms (no session id) → fail closed.
-  /* Owner 2026-07-23 — scoped staff (sales reps, drivers, helpers,
-     storekeepers) see ONLY events assigned to them, whatever the status.
-     This REVERSES the short-lived 2026-07-22 carve-out that showed every
-     pending/cancelled fair to every viewer — the owner clarified the
-     original ask meant the opposite: those rows must NOT appear for scoped
-     staff unless the event is theirs. Assigned pending/cancelled events
-     still show (the arms don't filter on status). */
-  const scopeWhere = seeAll
-    ? ""
-    : assignArms.length
-      ? ` AND (${assignArms.join(" OR ")})`
-      : ` AND 1 = 0`;
+  // Crew scoping (drivers/helpers/storekeepers see only their events) is
+  // shared with the all-dates search: routes/lib/calendar-visibility.ts.
+  const { scopeWhere, scopeBinds } = calendarCrewScope(c);
   // Multi-company: the calendar follows the active company ("" when the
   // context is unresolved). Inlined fragment so the positional binds above
   // stay untouched.
@@ -5090,7 +5031,7 @@ app.post("/import/csv", requirePermission("projects.manage"), async (c) => {
         const sets = Object.keys(boothPatch).map((k) => `${k} = ?`).join(", ");
         const vals = Object.values(boothPatch);
         await c.env.DB.prepare(
-          `UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = ?`
+          `UPDATE projects SET ${sets}, updated_at = datetime('now') WHERE id = ?${activeCompanySql(c)}`
         )
           .bind(...vals, result.id)
           .run();

@@ -11,6 +11,7 @@
 // here is a labelled placeholder). The page keeps the scm.transportation.last_mile
 // gate (applied on the route) and the real Google-Maps panel.
 // ----------------------------------------------------------------------------
+import { fmtDrive, fmtKm, legLabelsByRef, useRoadDay } from '../../vendor/scm/lib/lorry-routes-queries';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Printer, Truck, Map as MapIcon, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -26,7 +27,10 @@ import { useDeliveryGeo } from '../../vendor/scm/lib/delivery-geo-queries';
 import {
   pinsFromGeoPoints, geoTotals, zoneSummary, type MapFocus, type MapLatLng,
 } from '../../vendor/scm/lib/delivery-map-model';
-import { useDeliveryPlanning, type PlanningOrder } from '../../vendor/scm/lib/delivery-planning-queries';
+import { type PlanningOrder } from '../../vendor/scm/lib/delivery-planning-queries';
+import { useBandedBoard, bandOfDay } from '../../vendor/scm/lib/delivery-board-bands';
+import { useBoardRefresh } from '../../vendor/scm/lib/board-change-poll';
+import { BoardLoadStatus } from '../../vendor/scm/components/BoardLoadStatus';
 import { lastMileSideOf, lastMileListSideOf, isAssignedNoTripRow, isLastMileJobRow, isEastMalaysiaOrSingaporeStop } from '../../vendor/scm/lib/last-mile';
 import { regionTabsFrom } from '../../vendor/scm/components/DeliveryPlanningBoard';
 import { useDrivers } from '../../vendor/scm/lib/drivers-queries';
@@ -88,12 +92,14 @@ export function FleetDay() {
   // ── Feeds ────────────────────────────────────────────────────────────────
   const query = useFleetDay({ date, warehouseId: warehouseId || null });
   const trips = useMemo(() => query.data?.trips ?? [], [query.data]);
-  const board = useDeliveryPlanning({ region: 'ALL', state: 'ALL' });
+  // The board in date bands: the band holding this day first, the rest after (delivery-board-bands.ts).
+  const board = useBandedBoard({ state: 'ALL', first: bandOfDay(date, todayMY()) });
+  const boardRefresh = useBoardRefresh({ changeFeed: false, countsState: null });
   const boardOrders = useMemo<PlanningOrder[]>(
-    () => (board.data?.orders ?? []).filter(
+    () => board.orders.filter(
       (o) => !isEastMalaysiaOrSingaporeStop({ region: o.region, state: o.customer_state, country: o.customer_country }),
     ),
-    [board.data],
+    [board.orders],
   );
   const { data: drivers = [] } = useDrivers();
   const { data: helpers = [] } = useHelpers();
@@ -128,8 +134,8 @@ export function FleetDay() {
     date, new Date(),
   ), [lorryRows, progressMap, date]);
   const dayDocs = useMemo(
-    () => lorryRows.map((o) => docRowVM(o, statusByRef.get(o.so_doc_no) ?? 'scheduled', clock)),
-    [lorryRows, statusByRef, clock],
+    () => lorryRows.map((o) => { const j = jobRefOf(o); return docRowVM(o, statusByRef.get(o.so_doc_no) ?? 'scheduled', clock, j ? progressMap.get(jobKey(j)) ?? null : null); }),
+    [lorryRows, statusByRef, clock, progressMap],
   );
   const driversById = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
   const colors = useMemo(() => assignRouteColors(trips.map((t) => t.id)), [trips]);
@@ -191,8 +197,8 @@ export function FleetDay() {
   }, [filteredDocs, runForDoc]);
 
   const regionTabs = useMemo(
-    () => regionTabsFrom(board.data?.regions).filter((t) => t.key !== 'EM').map((t) => ({ key: t.key, label: t.label })),
-    [board.data?.regions],
+    () => regionTabsFrom(board.regions).filter((t) => t.key !== 'EM').map((t) => ({ key: t.key, label: t.label })),
+    [board.regions],
   );
   const salespeople = useMemo(() => {
     const m = new Map<string, string>();
@@ -232,10 +238,24 @@ export function FleetDay() {
   // lorry's run as its own numbered, coloured route — not the per-trip dots — and
   // surfaces every drop it could not locate instead of silently dropping it.
   const lorryRoutes = useMemo(
-    () => buildLorryRoutes(runs, pointByRef, depotLL, colorForPlate),
-    [runs, pointByRef, depotLL, colorForPlate],
+    () => buildLorryRoutes(runs, pointByRef, depotLL, (k) => { const h = geo.data?.lorryDepots?.[k.replace(/[^A-Z0-9]/g, "")]; return h ? { lat: h.lat, lng: h.lng } : null; }, colorForPlate),
+    [runs, pointByRef, depotLL, geo.data?.lorryDepots, colorForPlate],
   );
-  const panelRoutes = lorryRoutes.routes;
+  /* Each lorry's run by road, from its home and back (owner 2026-11-08), worked out on
+     the server for the whole day; the board's region filter does not change it. */
+  const roadDay = useRoadDay(date);
+  const roadLabelOf = (plate: string): string | null => {
+    const id = runByPlate.get(platekey(plate))?.lorryId;
+    const f = id ? roadDay.data?.get(id) : undefined;
+    return f ? `${fmtKm(f.distanceM)} · ${fmtDrive(f.durationS)}` : null;
+  };
+  const roadTotal = (() => {
+    const figs = [...(roadDay.data?.values() ?? [])];
+    return figs.length ? `All lorries, Google: ${fmtKm(figs.reduce((a, f) => a + f.distanceM, 0))} · ${fmtDrive(figs.reduce((a, f) => a + f.durationS, 0))}` : null;
+  })();
+  const legByRef = useMemo(() => legLabelsByRef(roadDay.data?.values() ?? []), [roadDay.data]);
+  const mapNoByRef = useMemo(() => new Map(lorryRoutes.routes.flatMap((r) => r.stops.map((st) => [st.ref, st.order] as const))), [lorryRoutes.routes]);
+  const panelRoutes = lorryRoutes.routes.map((r) => ({ ...r, roadLabel: roadLabelOf(r.title) }));
   // The board's own drops that could not be placed (surfaced, never dropped),
   // then any server-ungeocoded order not already named.
   const mapUnlocated = useMemo(() => {
@@ -286,6 +306,7 @@ export function FleetDay() {
     <LorryCard
       key={r.trip?.id ?? `lorry:${platekey(r.plate)}`}
       run={r}
+      routeColor={colorForPlate(platekey(r.plate))}
       visibleDocs={active ? (filteredByCard.get(platekey(r.plate)) ?? []) : r.docs}
       filtersActive={active}
       searchActive={filters.query.trim().length >= 2}
@@ -293,6 +314,9 @@ export function FleetDay() {
       focused={focusedPlate === platekey(r.plate)}
       selectedKey={selected?.key ?? null}
       remarkKeys={remarkKeys}
+      road={roadLabelOf(r.plate)}
+      legByRef={legByRef}
+      mapNoByRef={mapNoByRef}
       onFocus={() => toggleFocus(platekey(r.plate))}
       onOpenDoc={(d) => setSelected(d)}
       onCrew={() => setCrewRun(r)}
@@ -336,8 +360,9 @@ export function FleetDay() {
       </div>
 
       {mapOpen && (
+        <div className="mt-4 lg:mt-0 lg:w-[40%] lg:flex-none">
         <DeliveryMapPanel
-          className="mt-4 lg:mt-0 lg:w-[40%] lg:flex-none"
+          className=""
           title="Day map"
           onClose={() => setMapOpen(false)}
           pins={mapPins}
@@ -360,6 +385,8 @@ export function FleetDay() {
           vehicles={vehicles}
           onVehicleClick={(v) => { if (v.lorryId) navigate(`/fleet-health/${v.lorryId}`); }}
         />
+        {roadTotal && <p className="mt-2 text-right text-[12.5px] font-semibold text-ink-secondary">{roadTotal}</p>}
+        </div>
       )}
     </div>
   );
@@ -413,9 +440,10 @@ export function FleetDay() {
         />
       )}
 
-      {board.error && (
+      <BoardLoadStatus updatedAt={board.updatedAt} bands={board} onRefresh={boardRefresh.refreshNow} />
+      {board.failed && board.parts.length === 0 && (
         <p className="rounded-md border border-err/40 bg-err-bg p-4 text-[13px] text-err">
-          Could not load the day's orders. {board.error instanceof Error ? board.error.message : ''}
+          Could not load the day's orders. {board.failed.error instanceof Error ? board.failed.error.message : ''}
         </p>
       )}
 

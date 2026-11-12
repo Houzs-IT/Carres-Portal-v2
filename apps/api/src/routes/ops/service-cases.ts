@@ -1,53 +1,13 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import {
-  caseReturnRateFrom,
-  caseSupplierReturnRates,
-  warehouseReceiptTotals,
-  type CaseReceivedQty,
-  CASE_EVIDENCE_BUCKET,
-  caseEvidenceExtension,
-  caseEvidenceGapMessage,
-  caseEvidenceGaps,
-  caseEvidenceMimeFits,
-  caseEvidenceSlot,
-  caseEvidenceUploadedSchema,
-  caseNumbersMonths,
-  casePriorityFor,
-  caseSlaClock,
-  caseSlaRecordProblem,
-  caseSlaWorkingDay,
-  caseStepDefinition,
-  caseStepDone,
-  computeCaseNumbers,
-  createServiceCaseInputSchema,
-  mayPickCaseOwner,
-  myHolidaySet,
-  recordCaseSlaInputSchema,
-  recordCaseStepInputSchema,
-  signCaseEvidenceUploadInputSchema,
-  updateServiceCaseInputSchema,
-  serviceSettingsPatchSchema,
-  servicePickItemCreateSchema,
-  servicePickItemPatchSchema,
-  leadTimeProfileCreateSchema,
-  leadTimeTargetAmendSchema,
-  type CaseEvidenceUploaded,
-  type CaseFollowUpInput,
-  type CaseNumbersCase,
-  type CaseProgressEntry,
-  type CaseSlaEvent,
-  type CaseWantKey,
-} from "@carres/shared";
+import { caseReturnRateFrom, caseSupplierReturnRates, warehouseReceiptTotals, type CaseReceivedQty, CASE_EVIDENCE_BUCKET, caseEvidenceExtension, caseEvidenceMimeFits, caseEvidenceSlot, caseEvidenceUploadedSchema, caseNumbersMonths, caseSlaClock, caseSlaRecordProblem, caseSlaWorkingDay, caseStepDefinition, caseStepDone, computeCaseNumbers, mayPickCaseOwner, myHolidaySet, recordCaseSlaInputSchema, recordCaseStepInputSchema, signCaseEvidenceUploadInputSchema, updateServiceCaseInputSchema, serviceSettingsPatchSchema, servicePickItemCreateSchema, servicePickItemPatchSchema, leadTimeProfileCreateSchema, leadTimeTargetAmendSchema, type CaseEvidenceUploaded, type CaseFollowUpInput, type CaseNumbersCase, type CaseProgressEntry, type CaseSlaEvent, type CaseWantKey } from "@carres/shared";
 import { requireOperationOrPrincipal } from "../../lib/auth-guards";
 import { requireSettingsEditor } from "../../lib/settings-editor";
 import { adminClient, userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
 import { parseBody } from "../../lib/route-helpers";
 import { todayIsoMYT } from "../../lib/delivery-order-issue";
-import serviceCaseRemedyRouter from "./service-case-remedy";
 import { issueSurveyToken, sendCompletionSurvey, surveyLink } from "../../lib/service-survey";
-import { refuseWhenOldCasesOff } from "../../lib/old-order-flows";
 
 /**
  * Service Cases (SC) — migration 0210. The case / 病历 parent layer above
@@ -73,7 +33,6 @@ import { refuseWhenOldCasesOff } from "../../lib/old-order-flows";
  */
 
 const scRouter = new Hono<AppEnv>();
-scRouter.route("/:id/remedy", serviceCaseRemedyRouter);
 
 /**
  * J2 adds `orders(so)` to the embed: order_id is the permanent link key but it
@@ -612,194 +571,6 @@ function followUpInput(r: {
     supplierName:  sup?.name ?? null,
   };
 }
-
-/**
- * Which factory a case is about, from the SKU it named. Resolved SERVER-side and
- * snapshotted (S1's law) — the client never says which supplier a complaint
- * belongs to, and a case filed today keeps its answer if the catalog is
- * re-pointed tomorrow.
- *
- * A failure here is not a failure of the case: the follow-up degrades to "the
- * supplier" (COPY-STANDARD allows the role word where no name is stored) rather
- * than refusing a complaint over a catalog lookup.
- */
-async function resolveSupplierId(
-  sb: ReturnType<typeof userClient>,
-  sku: string | undefined,
-): Promise<string | null> {
-  if (!sku) return null;
-  const { data, error } = await sb
-    .from("product_skus")
-    .select("supplier_id")
-    .eq("sku", sku)
-    .limit(1);
-  if (error) return null;
-  return (data?.[0]?.supplier_id as string | null) ?? null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET / — list (filter ?state=ongoing|closed, derived from status.is_closed)
-// ─────────────────────────────────────────────────────────────────────────────
-scRouter.get("/", requireOperationOrPrincipal, async (c) => {
-  const sb    = userClient(c.env, c.var.auth.jwt);
-  const state = c.req.query("state"); // 'ongoing' | 'closed' | undefined
-  // J2 — the order drawer asks "which cases belong to THIS order". Filtered in
-  // the database on the indexed FK rather than by fetching every case and
-  // discarding it in the browser.
-  const orderId = (c.req.query("orderId") ?? "").trim();
-
-  let q = sb
-    .from("service_cases")
-    .select(CASE_SELECT)
-    .order("opened_at", { ascending: false })
-    .order("case_no",   { ascending: false });
-
-  if (orderId) q = q.eq("order_id", orderId);
-  // 0762 — Houzs assr.ts:1140: the list hides archived cases unless the Archived
-  // filter asks for them. The order drawer (orderId) still sees every case.
-  else if (c.req.query("archived") === "1") q = q.not("archived_at", "is", null);
-  else q = q.is("archived_at", null);
-
-  const { data, error } = await q;
-
-  if (error) throw new HTTPException(500, { message: error.message });
-
-  let rows = (data ?? []).map(shapeCase);
-  // 0711 My Cases — Weisiang's decision (WhatsApp 2026-10-22), Houzs
-  // assrVisibility: what I and my downline own, raised, or are the SO PIC of.
-  // The database decides who "my team" is (my_service_case_ids).
-  // Follows Houzs backend/src/services/assrVisibility.ts:214 (myCasesPredicateSql)
-  // per Weisiang's ruling (2026-10-22): clear Carres rules, implement Houzs.
-  if (c.req.query("mine") === "1") {
-    const { data: mine, error: mineErr } = await sb.rpc("my_service_case_ids");
-    if (mineErr) throw new HTTPException(500, { message: mineErr.message });
-    const ids = new Set((mine ?? []) as string[]);
-    rows = rows.filter((r) => ids.has(r.id));
-  }
-  if (state === "closed")  rows = rows.filter((r) => r.statusIsClosed);
-  if (state === "ongoing") rows = rows.filter((r) => !r.statusIsClosed);
-
-  return c.json({ items: rows, total: rows.length });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// POST / — create (auto case_no)
-// ─────────────────────────────────────────────────────────────────────────────
-scRouter.post("/", refuseWhenOldCasesOff, requireOperationOrPrincipal, async (c) => {
-  const parsed = await parseBody(c, createServiceCaseInputSchema);
-  const sb     = userClient(c.env, c.var.auth.jwt);
-
-  // ── S2 · no evidence, no case ─────────────────────────────────────────────
-  // The disabled Submit button is the courtesy; THIS is the rule. A client that
-  // skips the button, an old cached bundle, or a future caller all meet the same
-  // refusal, and it is computed from the same shared checklist the wizard draws.
-  const evidence = parsed.evidence ?? [];
-
-  // Every path must sit under the draft the client claims — a case can never be
-  // filed with another draft's (or another case's) files.
-  if (evidence.length > 0) {
-    if (!parsed.draftId) {
-      return c.json(
-        {
-          error: "invalid_input",
-          code: "missing_draft_id",
-          message: "Evidence was sent without the draft it was uploaded against.",
-        },
-        422,
-      );
-    }
-    const prefix = evidencePrefix("draft", parsed.draftId);
-    if (evidence.some((f) => !f.path.startsWith(prefix))) {
-      return c.json(
-        {
-          error: "invalid_input",
-          code: "evidence_path_mismatch",
-          message: "An evidence file does not belong to this case.",
-        },
-        422,
-      );
-    }
-  }
-
-  // The checklist gate. Only a case that NAMES an issue type is gated: the edit
-  // modal still files prose-only cases with no issue question asked, and S1
-  // deliberately kept that path alive.
-  if (parsed.issueType) {
-    const gaps = caseEvidenceGaps(parsed.issueType, parsed.reportedBy ?? null, evidence);
-    if (gaps.length > 0) {
-      return c.json(
-        {
-          error: "invalid_input",
-          code: "evidence_missing",
-          // Rule 6 — the error gives the fix, by name.
-          message: `Cannot open the case yet. Take these first: ${caseEvidenceGapMessage(gaps)}`,
-          missing: gaps,
-        },
-        422,
-      );
-    }
-  }
-
-  // S3 — which factory this is about, so the follow-up can name it.
-  const supplierId = await resolveSupplierId(sb, parsed.productSku);
-
-  // 0711 — nobody picked an owner yet: the Service settings default stands in
-  // until the Sales Order PIC picks (Houzs default assignee).
-  const { data: settings } = await sb
-    .from("service_settings")
-    .select("default_owner_user_id")
-    .maybeSingle();
-
-  const { data: caseNo, error: seqErr } = await sb.rpc("next_case_no");
-  if (seqErr || !caseNo) {
-    throw new HTTPException(500, { message: seqErr?.message ?? "Failed to generate case number" });
-  }
-
-  const { data: row, error: insErr } = await sb
-    .from("service_cases")
-    .insert({
-      case_no:          caseNo,
-      order_id:         parsed.orderId         ?? null,
-      ref_no:           parsed.refNo           ?? null,
-      customer_name:    parsed.customerName,
-      customer_phone:   parsed.customerPhone   ?? null,
-      customer_address: parsed.customerAddress ?? null,
-      case_type_id:     parsed.caseTypeId      ?? null,
-      status_id:        parsed.statusId        ?? null,
-      what_happened:    parsed.whatHappened    ?? null,
-      carres_action:    parsed.carresAction    ?? null,
-      what_affected:    parsed.whatAffected    ?? null,
-      incurred_charges: parsed.incurredCharges ?? null,
-      opened_at:        parsed.openedAt        ?? todayIsoMYT(),
-      created_by:       c.var.auth.id,
-
-      // S1 (0285) — the guided intake's answers. 0711 (Weisiang's decision,
-      // WhatsApp 2026-10-22): priority is no longer generated; a new case
-      // starts from `usable` and staff edit it afterwards.
-      priority:         casePriorityFor(parsed.usable),
-      owner_user_id:    (settings as { default_owner_user_id?: string | null } | null)?.default_owner_user_id ?? null,
-      reported_by:      parsed.reportedBy      ?? null,
-      order_line_id:    parsed.orderLineId     ?? null,
-      product_sku:      parsed.productSku      ?? null,
-      product_category: parsed.productCategory ?? null,
-      issue_type:       parsed.issueType       ?? null,
-      usable:           parsed.usable          ?? null,
-      customer_wants:   parsed.customerWants   ?? [],
-
-      // S2 (0289) — the evidence, stamped server-side.
-      evidence:         stampEvidence(evidence, c.var.auth.id, c.var.auth.role),
-
-      // S3 (0293) — the factory the follow-up will call, resolved from the SKU
-      // and snapshotted. `progress` is NOT here and must never be: a case is
-      // born with nothing done, and the ledger has exactly one writer.
-      supplier_id:      supplierId,
-    })
-    .select("id, case_no")
-    .single();
-
-  if (insErr || !row) throw new HTTPException(500, { message: insErr?.message ?? "Insert failed" });
-  return c.json({ id: row.id, caseNo: row.case_no }, 201);
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /:id — detail

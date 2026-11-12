@@ -28,7 +28,6 @@ import { isMissingRelationError } from "../../lib/optional-relation";
 import { skuCategories } from "../../lib/sku-categories";
 import { adminClient, userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
-import { repairOrderReturnWorkCompletion } from "../../lib/repair-order-work";
 
 /**
  * /api/operation/warehouse-receipts — the ops half of R6.
@@ -58,9 +57,6 @@ const warehouseReceiptsRouter = new Hono<AppEnv>();
 warehouseReceiptsRouter.post(
   "/arrival/:sourceId",
   requireOperation,
-  // A repair-return receipt is the fact that ends the RO's return follow-up
-  // (Purchasing §9.7 · §10); every other arrival source observes nothing.
-  repairOrderReturnWorkCompletion(),
   async (c) => {
     const id = z.string().uuid().safeParse(c.req.param("sourceId"));
     if (!id.success) return c.json({ message: "Invalid source" }, 422);

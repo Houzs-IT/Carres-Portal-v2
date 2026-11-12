@@ -78,7 +78,8 @@ const HEX_RE = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g;
 // Directories/files where a raw hex is legitimate (no Tailwind at that layer).
 const HEX_ALLOW = [/(^|\/)index\.css$/, /design-standard/, /\/lib\/pdf\//, /\/pages\/print\//];
 // Pages that HAVE adopted the shell and must keep it (grows as pages migrate).
-const MUST_USE_SHELL = ["pages/operation/OperationOrdersControl.tsx"];
+// The page that first adopted the shell (OperationOrdersControl) was removed on 11 Nov 2026.
+const MUST_USE_SHELL = [];
 // PageHeader stays accepted for the pages that already use it; it is retired, and
 // components/retired-components.test.ts blocks any NEW importer (UI MASTER §0).
 const SHELL_IMPORT_RE = /from\s+["']@\/components\/(ListPageShell|PageHeader|kit\/PageShell)["']/;
@@ -242,10 +243,6 @@ const KIT_FILES = new Set([
   // is gone, and the exemption died with the code it described.
   "apps/web/src/pages/dev/UiShowcase.tsx",
   "apps/web/src/components/SectionPanel.tsx",
-  "apps/web/src/pages/operation/components/OrderDetailDrawer.tsx",
-  "apps/web/src/pages/operation/components/StockPickerGrid.tsx",
-  "apps/web/src/pages/operation/components/RouteJourneyBar.tsx",
-  "apps/web/src/pages/operation/components/OrderControlPanel.tsx",
 ]);
 const ICON_SIZES = new Set([14, 16, 18]); // SIZING LAW: 14 pill/inline · 16 default UI · 18 top-bar (stroke 2)
 // SIZING LAW (MASTER SPEC §3, final 2026-07-18): 13 body · 12 caption/meta/pill

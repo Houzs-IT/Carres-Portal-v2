@@ -7,6 +7,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { api } from "../api/client";
+import { fmtDateTime } from "../vendor/shared/format";
 import { useNotify } from "../vendor/scm/components/NotifyDialog";
 import { parseDefectCaption } from "../pages/projects/defectRemark";
 
@@ -31,7 +32,7 @@ function DefectThumb({ r2Key, contentType }: { r2Key?: string | null; contentTyp
     return () => { live = false; if (made) URL.revokeObjectURL(made); };
   }, [r2Key, isImage]);
   if (!r2Key || !isImage) return null;
-  const box: CSSProperties = { width: 72, height: 58, borderRadius: 7, border: "1px solid #EEF0F3", overflow: "hidden", flex: "none" };
+  const box: CSSProperties = { width: 72, height: 58, borderRadius: 7, border: "1px solid var(--hz-c-border-subtle)", overflow: "hidden", flex: "none" };
   return url
     ? <img src={url} alt="" style={{ ...box, objectFit: "cover", display: "block" }} />
     : <div className="ph" style={box} />;
@@ -111,7 +112,8 @@ export function DefectFileActions({
       setSaving(false);
     }
   };
-  const ts = (v: string) => String(v || "").slice(0, 16).replace("T", " ");
+  // Malaysian clock in the house format; slicing the stored string printed UTC.
+  const ts = (v: string) => fmtDateTime(v);
   // Wide (B2) button styling — big half-width outline buttons under the
   // full-width photo, per the owner's picked mockup.
   const wideBtn: CSSProperties | undefined = wide
@@ -121,9 +123,9 @@ export function DefectFileActions({
     <div style={{ paddingLeft: wide ? 0 : 2 }}>
       {wide ? (
         (model || reason) && (
-          <div style={{ background: "#faf9f5", borderLeft: "3px solid #D64F20", borderRadius: 7, padding: "7px 10px", fontSize: 11.5, lineHeight: 1.45, color: "#4B5563", marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {model && <div><b style={{ color: "#D64F20" }}>Model:</b> {model}</div>}
-            {reason && <div><b style={{ color: "#D64F20" }}>Reason:</b> {reason}</div>}
+          <div style={{ background: "var(--hz-dk-surface-2, #faf9f5)", borderLeft: "3px solid #D64F20", borderRadius: 7, padding: "7px 10px", fontSize: 11.5, lineHeight: 1.45, color: "var(--hz-c-ink-secondary)", marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {model && <div><b style={{ color: "var(--hz-c-accent)" }}>Model:</b> {model}</div>}
+            {reason && <div><b style={{ color: "var(--hz-c-accent)" }}>Reason:</b> {reason}</div>}
           </div>
         )
       ) : (
@@ -141,13 +143,13 @@ export function DefectFileActions({
       )}
       {isFresh && ctx.canReview && (
         <div style={{ display: "flex", gap: 6, marginTop: wide ? 8 : 2 }}>
-          <button className="tinybtn" disabled={saving} style={{ ...wideBtn, background: draft === "done" ? "#e2f0e9" : "#fff", borderColor: "#bcdcd7", color: "#2f8a5b", fontWeight: draft === "done" ? 800 : 700 }} onClick={() => setDraft("done")}>Done</button>
-          <button className="tinybtn" disabled={saving} style={{ ...wideBtn, background: draft === "replace" ? "#f7e3e3" : "#fff", borderColor: "#e6bcbc", color: "#b4362f", fontWeight: draft === "replace" ? 800 : 700 }} onClick={() => setDraft("replace")}>Replace</button>
+          <button className="tinybtn" disabled={saving} style={{ ...wideBtn, background: draft === "done" ? "var(--hz-c-synced-bg)" : "var(--hz-c-surface)", borderColor: "#bcdcd7", color: "var(--hz-c-synced)", fontWeight: draft === "done" ? 800 : 700 }} onClick={() => setDraft("done")}>Done</button>
+          <button className="tinybtn" disabled={saving} style={{ ...wideBtn, background: draft === "replace" ? "#f7e3e3" : "var(--hz-c-surface)", borderColor: "#e6bcbc", color: "#b4362f", fontWeight: draft === "replace" ? 800 : 700 }} onClick={() => setDraft("replace")}>Replace</button>
         </div>
       )}
       {isEscalated && ctx.canPurchase && (
         <div style={{ display: "flex", gap: 6, marginTop: wide ? 8 : 2 }}>
-          <button className="tinybtn" disabled={saving} style={{ ...wideBtn, background: draft === "done" ? "#e2f0e9" : "#fff", borderColor: "#bcdcd7", color: "#2f8a5b", fontWeight: draft === "done" ? 800 : 700 }} onClick={() => setDraft("done")}>Done</button>
+          <button className="tinybtn" disabled={saving} style={{ ...wideBtn, background: draft === "done" ? "var(--hz-c-synced-bg)" : "var(--hz-c-surface)", borderColor: "#bcdcd7", color: "var(--hz-c-synced)", fontWeight: draft === "done" ? 800 : 700 }} onClick={() => setDraft("done")}>Done</button>
         </div>
       )}
       {draft && (
@@ -165,8 +167,8 @@ export function DefectFileActions({
             <div key={a.id}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                 <span style={{ width: 6, height: 6, borderRadius: 3, background: a.status === "done" ? "#2f8a5b" : a.status === "replace" ? "#b4362f" : "#c9971f", flex: "none" }} />
-                <span className="rbadge" style={{ background: a.status === "done" ? "#e2f0e9" : a.status === "replace" ? "#f7e3e3" : "#f6efd9", color: a.status === "done" ? "#2f8a5b" : a.status === "replace" ? "#b4362f" : "#6e4d12" }}>{a.status === "done" ? "Done" : a.status === "replace" ? "Replace" : "Ongoing"}</span>
-                <span style={{ fontSize: 10.5, color: "#9aa093" }}>{a.user_name || "—"} · {ts(a.created_at)}</span>
+                <span className="rbadge" style={{ background: a.status === "done" ? "var(--hz-c-synced-bg)" : a.status === "replace" ? "#f7e3e3" : "var(--hz-c-warning-bg)", color: a.status === "done" ? "var(--hz-c-synced)" : a.status === "replace" ? "#b4362f" : "var(--hz-c-warning-text)" }}>{a.status === "done" ? "Done" : a.status === "replace" ? "Replace" : "Ongoing"}</span>
+                <span style={{ fontSize: 10.5, color: "var(--hz-c-ink-soft)" }}>{a.user_name || "—"} · {ts(a.created_at)}</span>
               </div>
               {a.remark && <div style={{ fontSize: 11.5, color: "#6b6f63", marginLeft: 12, marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.remark}</div>}
             </div>

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../types";
 import { verifyAndIssueCustomerToken } from "../services/caseTracking";
 import { checkRateLimit, clientIp } from "../middleware/rateLimit";
+import { getBranding } from "../services/branding";
 
 // Public tracking form endpoint. Unauthenticated — mounted before the
 // /api/* auth gate. Validates (case number, phone) against assr_cases
@@ -39,6 +40,21 @@ app.post("/", async (c) => {
   }
 
   return c.json({ token: res.token, assr_no: res.assr_no });
+});
+
+// Carres: the company contact the public pages show (customer portal footer, privacy page), read from
+// Settings > Branding. Only what is already printed on customer documents; blank fields stay blank.
+app.get("/company", async (c) => {
+  const b = await getBranding(c.env);
+  c.header("Cache-Control", "public, max-age=300");
+  return c.json({
+    companyName: b.companyName,
+    registrationNo: b.registrationNo,
+    address: b.address,
+    postcode: b.postcode,
+    phone: b.csPhone || b.phone,
+    email: b.csEmail || b.email,
+  });
 });
 
 export default app;

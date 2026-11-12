@@ -5,8 +5,10 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authedFetch } from './authed-fetch';
+import { idempotentInit } from '../../../lib/idempotency';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
 import { fetchDocFileBlobUrl, type PvFile, type PvFilePayload } from './payment-voucher-queries';
+import { runOneAiRead, type AiReadStage } from './ai-read-job';
 
 export type NoteKind = 'CN' | 'DN' | 'SCN' | 'OCN';
 export type NoteStatus = 'DRAFT' | 'POSTED' | 'CANCELLED';
@@ -20,6 +22,8 @@ export type CreditNote = {
   supplier_id: string | null;
   /** An other-debtor note's debtor (Other Debtors registry). */
   debtor_id?: string | null;
+  /** That debtor's account code, read off the registry for the screens and the print (party_code stays blank: it goes to the journal). */
+  debtor_code?: string | null;
   so_doc_no: string | null; sales_invoice_id: string | null;
   ap_invoice_id: string | null; purchase_invoice_id: string | null; source_doc_no: string | null;
   /** The final invoice's number when the note answers one — read for the print (docs/bugs/0834). */
@@ -32,15 +36,46 @@ export type CreditNote = {
   created_at: string; created_by: string | null; posted_at: string | null; cancelled_at: string | null;
   /** Part of the books' opening balance (31/08 from AutoCount) — changed on Opening Balance, not here. */
   opening?: boolean;
-  /** A posted supplier or other-debtor note on the list: what its knock-offs used, and the credit left. */
+  /** A posted supplier, other-debtor or customer note on the list: what its knock-offs used, and the credit left. */
   appliedSen?: number;
   unusedSen?: number;
+  /** A customer note that answers a deposit invoice — the final invoice's close-out, a refund's, a move's — knocks off nothing. */
+  depositPaper?: DepositPaperKind | null;
   /** A supplier note's control, by the supplier code: AP = 400, AP_OTHER = 405. */
   controlRole?: 'AP' | 'AP_OTHER';
+  /** The delivery return a customer note answers (backlog A1). */
+  delivery_return_id?: string | null;
 };
 /** project_id / projectId: the event the line's money is for (owner 2026-10-22). */
-export type CreditNoteLine = { id: string; line_no: number; description: string | null; account_code: string; amount_sen: number; project_id?: number | null };
-export type CreditNoteLineInput = { description?: string | null; accountCode?: string | null; amountSen: number; projectId?: number | null };
+export type CreditNoteLine = {
+  id: string; line_no: number; description: string | null; account_code: string; amount_sen: number; project_id?: number | null;
+  /** The delivery-return line it credits and its units (backlog A1). */
+  delivery_return_item_id?: string | null; qty?: number | null;
+};
+export type CreditNoteLineInput = { description?: string | null; accountCode?: string | null; amountSen: number; projectId?: number | null; deliveryReturnItemId?: string; qty?: number };
+
+/** GET /credit-notes/from-return/:id — a new customer note's starting point from a delivery return. */
+export type ReturnCreditLine = {
+  returnItemId: string; itemCode: string | null; description: string | null;
+  qtyReturned: number; creditedQty: number; remainingQty: number;
+  /** Per-unit credit off the invoice (unrounded); null = never invoiced. */
+  unitSen: number | null; invoiceIds: string[]; capSen: number | null;
+};
+export type ReturnCreditPrefill = {
+  deliveryReturn: { id: string; returnNumber: string; status: string; doDocNo: string | null; customer: string | null };
+  soDocNo: string | null;
+  invoice: { id: string; number: string } | null;
+  lines: ReturnCreditLine[];
+  notes: Array<{ id: string; number: string; status: NoteStatus; totalSen: number }>;
+  state: 'NOT_INVOICED' | 'AWAITING' | 'DRAFTED' | 'ISSUED';
+};
+export const useCreditNoteFromReturn = (returnId: string | null) => useQuery({
+  queryKey: [KEY, 'from-return', returnId],
+  enabled: returnId != null && returnId !== '',
+  queryFn: () => authedFetch<ReturnCreditPrefill>(`/credit-notes/from-return/${encodeURIComponent(String(returnId))}`),
+  staleTime: 0,
+  retry: retryUnlessClientError,
+});
 export type CreditNoteCreate = {
   kind: NoteKind; noteDate: string; reason?: string | null; sourceDocNo?: string | null; notes?: string | null;
   soDocNo?: string | null; salesInvoiceId?: string | null; partyName?: string | null; partyCode?: string | null;
@@ -81,9 +116,15 @@ export type ScnScan = {
 
 const KEY = 'credit-notes';
 /* An other-debtor note moves the debtor's bills, so the debtor side's lists
-   (Other Debtors, AR Invoices and its bill pop-out) are read again too. */
+   (Other Debtors, AR Invoices and its bill pop-out) are read again too; a
+   customer's knocks off sales invoices, so Sales' list and invoice and the
+   Outstanding page are too (2026-11-03). */
 const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
-  for (const key of [KEY, 'journal-entries', 'gl-entries', 'other-debtors', 'other-debtor-detail', 'ar-invoices', 'ar-bill', 'finance-todo']) {
+  for (const key of [
+    KEY, 'journal-entries', 'gl-entries', 'other-debtors', 'other-debtor-detail', 'ar-invoices', 'ar-bill', 'finance-todo',
+    'sales-invoices', 'sales-invoices-paged', 'sales-invoice-detail', 'outstanding', 'outstanding-summary',
+    'delivery-return-detail', 'delivery-returns',
+  ]) {
     void qc.invalidateQueries({ queryKey: [key] });
   }
 };
@@ -99,12 +140,17 @@ export const useCreditNotes = (side: NoteSide, kind: NoteKind | 'ALL', status: N
 });
 
 /** What a credit comes off: a supplier's purchase invoice (PI) or AP invoice
-    (API), an other debtor's bill (ODB). */
-export type CreditDocKind = 'PI' | 'API' | 'ODB';
+    (API), an other debtor's bill (ODB), a customer's sales invoice (SI). */
+export type CreditDocKind = 'PI' | 'API' | 'ODB' | 'SI';
+/** Why a customer note knocks off nothing: it closed a deposit invoice at the
+    final invoice, or took a deposit back for a refund or a move. */
+export type DepositPaperKind = 'closes' | 'refund' | 'move';
 /* A supplier note's credit coming off the supplier's invoices (2026-10-01,
    Supplier CN part 2) — an other-debtor note's off the debtor's bills. */
 export type CreditAllocation = {
   id: string; kind: CreditDocKind; docId: string; number: string | null;
+  /** The document's own date and total — the note's print (KNOCKED OFF AGAINST). */
+  docDate?: string | null; docTotalSen?: number | null;
   amountSen: number; appliedSen: number; createdAt: string | null; createdBy: string | null;
 };
 /* Knock off like an AP Payment (owner 2026-10-02: CN 的方式应该是类似 ap payment 这样
@@ -119,11 +165,19 @@ export type KnockOffRow = {
   status: string;
 };
 export type KnockOffTarget = { kind: CreditDocKind; id: string; amountSen: number };
-export type NoteKnockOff = { rows: KnockOffRow[]; totalSen: number; takenSen: number; leftSen: number; posted: boolean };
+export type NoteKnockOff = {
+  rows: KnockOffRow[]; totalSen: number; takenSen: number; leftSen: number; posted: boolean;
+  /** Why a deposit paper has no table (the server's sentence). */
+  refusal?: string;
+};
 export type CreditNoteDetail = {
   note: CreditNote; lines: CreditNoteLine[];
-  /** A supplier or other-debtor note only: where its credit went, and what is left. */
+  /** A supplier, other-debtor or customer note: where its credit went, and what is left. */
   allocations?: CreditAllocation[]; appliedSen?: number; leftSen?: number;
+  /** A customer note answering a deposit invoice, and which. */
+  depositPaper?: { kind: DepositPaperKind; di: string | null } | null;
+  /** A close-out's final invoice — what its print says it was knocked off against. */
+  closedInvoice?: { id: string; number: string; date: string | null; totalSen: number } | null;
 };
 
 export const useCreditNoteDetail = (id: string | null) => useQuery({
@@ -137,8 +191,12 @@ export const useCreditNoteDetail = (id: string | null) => useQuery({
 export const useCreateCreditNote = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: CreditNoteCreate) =>
-      authedFetch<{ ok: boolean; note: CreditNote }>('/credit-notes', { method: 'POST', body: JSON.stringify(body) }),
+    /* `idempotencyKey`: one per form (useIdempotencyKey), so a double press, or
+       Save & post again after the post half failed, answers the SAME note
+       instead of raising a second credit. The route releases the key on every
+       refusal (noWriteUntilMarked), so a corrected Save still goes through. */
+    mutationFn: ({ idempotencyKey, ...body }: CreditNoteCreate & { idempotencyKey: string | null }) =>
+      authedFetch<{ ok: boolean; note: CreditNote }>('/credit-notes', idempotentInit(idempotencyKey ?? undefined, { method: 'POST', body: JSON.stringify(body) })),
     onSuccess: () => invalidate(qc),
   });
 };
@@ -165,10 +223,10 @@ export const usePostCreditNote = () => {
 };
 
 /** Read a supplier credit note (its pages) — POST /credit-notes/scan. */
-export const useScanSupplierCreditNote = () => useMutation({
-  mutationFn: (files: PvFilePayload[]) => authedFetch<ScnScan>('/credit-notes/scan', {
-    method: 'POST', body: JSON.stringify({ files: files.map((f) => ({ name: f.name, mime: f.mime, dataBase64: f.dataBase64 })) }),
-  }),
+export const useScanSupplierCreditNote = (onStage: ((stage: AiReadStage) => void) | null = null) => useMutation({
+  mutationFn: (files: PvFilePayload[]) => runOneAiRead<ScnScan>('/credit-notes/scan', {
+    files: files.map((f) => ({ name: f.name, mime: f.mime, dataBase64: f.dataBase64 })),
+  }, onStage),
 });
 
 /* The note's paper (2026-10-01, mig 20261001T2355): the scanned credit note and
@@ -213,14 +271,21 @@ export const useCreditNoteKnockOff = (noteId: string | null) => useQuery({
   retry: retryUnlessClientError,
 });
 
-/** Whose documents a note knocks off: a supplier's invoices, an other debtor's bills. */
-export type KnockOffParty = { who: 'supplier' | 'debtor'; id: string };
+/** Whose documents a note knocks off: a supplier's invoices, an other debtor's
+    bills, a customer's sales invoices — the customer by the sales order typed,
+    else the name (`id`: the order number or the name). */
+export type KnockOffParty = { who: 'supplier' | 'debtor' | 'customer'; id: string; by?: 'so' | 'name' };
+
+const knockOffQuery = (p: KnockOffParty): string => {
+  const param = p.who === 'debtor' ? 'debtorId' : p.who === 'supplier' ? 'supplierId' : p.by === 'name' ? 'customer' : 'so';
+  return `${param}=${encodeURIComponent(p.id)}`;
+};
 
 /** A new note's knock-off table — the party's invoices (or bills) still owing. */
 export const usePartyKnockOff = (party: KnockOffParty | null) => useQuery({
-  queryKey: [KEY, 'knock-off', party?.who, party?.id],
+  queryKey: [KEY, 'knock-off', party?.who, party?.by ?? '', party?.id],
   enabled: !!party?.id,
-  queryFn: () => authedFetch<{ rows: KnockOffRow[] }>(`/credit-notes/knock-off?${party?.who === 'debtor' ? 'debtorId' : 'supplierId'}=${encodeURIComponent(party?.id ?? '')}`),
+  queryFn: () => authedFetch<{ rows: KnockOffRow[] }>(`/credit-notes/knock-off?${party ? knockOffQuery(party) : ''}`),
   staleTime: 0,
   retry: retryUnlessClientError,
 });

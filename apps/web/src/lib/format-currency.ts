@@ -13,8 +13,3 @@ import { fmtMoney } from "@carres/shared";
 
 export { fmtMoney as rm };
 
-export function rmCompact(n: number): string {
-  if (Math.abs(n) >= 1_000_000) return `RM ${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000)     return `RM ${(n / 1_000).toFixed(1)}k`;
-  return fmtMoney(n);
-}

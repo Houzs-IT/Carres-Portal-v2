@@ -138,15 +138,12 @@ describe("Sales final submit is the Sales → Purchasing handoff", () => {
     expect(thankYou).not.toContain("until it's proceeded");
   });
 
-  it("shows the actual handoff in SO Batch Purchase, not planned production start", () => {
+  it("carries the actual handoff, not planned production start, to the purchase-demand read", () => {
     const contract = read("packages/shared/src/so-batch-purchase.ts");
     const demandRead = read("apps/api/src/lib/purchase-demand-read.ts");
-    /* The By sales order list draws the column (kit list since 13 Oct 2026). */
-    const register = read("apps/web/src/pages/operation/so-batch/SoBatchBySalesOrder.tsx");
+    /* The SO Batch Purchase page that drew it was removed on 11 Nov 2026 (the Houzs engine replaces it). */
     expect(contract).toContain("proceededAt");
     expect(demandRead).toContain("proceeded_at");
-    expect(register).toContain("order.proceededAt");
-    expect(register).not.toMatch(/proceedDate|proceed_date/);
     expect(contract).not.toMatch(/orders\.proceed_date[^\n]*Operations received/i);
   });
 });

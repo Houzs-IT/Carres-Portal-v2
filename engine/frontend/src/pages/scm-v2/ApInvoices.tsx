@@ -43,8 +43,9 @@
 // ----------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { newIdempotencyKey } from '../../lib/idempotency';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, FileText, Plus, Printer } from 'lucide-react';
+import { Camera, Copy, FileText, Plus, Printer } from 'lucide-react';
 import { Button } from '@2990s/design-system';
 import { useAccounts, postableAccounts, type Account } from '../../vendor/scm/lib/accounting-queries';
 import { useSuppliers } from '../../vendor/scm/lib/suppliers-queries';
@@ -55,6 +56,7 @@ import {
 } from '../../vendor/scm/lib/ap-invoice-queries';
 import { fileToBase64, PV_FILE_ACCEPT, useExtractRequestBill, type PvFilePayload, type BillExtraction, type ExtractedBill, type VendorMemory } from '../../vendor/scm/lib/payment-voucher-queries';
 import { useCancelCreditNote, usePostCreditNote, useScanSupplierCreditNote, type ScnScan } from '../../vendor/scm/lib/credit-note-queries';
+import { aiReadStageNote, type AiReadStage } from '../../vendor/scm/lib/ai-read-job';
 import { docFileMime } from '../../vendor/scm/lib/doc-file-mime';
 import { NoteForm, emptyForm as emptyNoteForm, fromScan, type FormValues as NoteFormValues } from './CreditNotes';
 import { useOpenDocInTab } from '../../lib/openDocInTab';
@@ -169,7 +171,8 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
   const [noteForm, setNoteForm] = useState<{ mode: 'new' | 'edit'; id?: string; values: NoteFormValues; scan?: ScnScan; files?: File[] } | null>(null);
   const postNote = usePostCreditNote();
   const cancelNote = useCancelCreditNote();
-  const scnScan = useScanSupplierCreditNote();
+  const [scnStage, setScnStage] = useState<AiReadStage | null>(null);
+  const scnScan = useScanSupplierCreditNote(setScnStage);
   const scnInput = useRef<HTMLInputElement>(null);
   const scanCreditNote = async (picked: File[]) => {
     if (picked.length === 0) return;
@@ -179,6 +182,8 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
       setNoteForm({ mode: 'new', values: fromScan(read), scan: read, files: picked });
     } catch (e) {
       void notify({ title: 'The credit note was not read', body: e instanceof Error ? e.message : 'Something went wrong.', tone: 'error' });
+    } finally {
+      setScnStage(null);
     }
   };
 
@@ -208,7 +213,8 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const fromRequest = searchParams.get('fromRequest');
   const requestQ = usePaymentRequest(fromRequest);
-  const extractRequest = useExtractRequestBill();
+  const [requestStage, setRequestStage] = useState<AiReadStage | null>(null);
+  const extractRequest = useExtractRequestBill(setRequestStage);
   const requestTaken = useRef<string | null>(null);
   const [readingRequest, setReadingRequest] = useState<string | null>(null);
   useEffect(() => {
@@ -252,6 +258,9 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingForm, detail, detailId]);
 
+  /* One Idempotency-Key per OPENED form (each setForm is a new object): a second
+     press of the same bill answers the first one; the next bill gets its own. */
+  const createKey = useMemo(() => (form ? newIdempotencyKey() : null), [form]);
   const submitForm = async (values: ApFormSubmit, pendingFiles: PvFilePayload[], opts?: { post?: boolean }) => {
     if (!form) return;
     /* Save & post: today's confirm first, so a "no" saves nothing. */
@@ -272,7 +281,7 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
         return;
       }
       const body = form.request ? { ...values, paymentRequestId: form.request.id } : values;
-      const res = await create.mutateAsync(form.docKind === 'DN' ? { ...body, docKind: 'DN' } : body);
+      const res = await create.mutateAsync({ ...(form.docKind === 'DN' ? { ...body, docKind: 'DN' as const } : body), idempotencyKey: createKey });
       if (form.request) {
         setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('fromRequest'); return next; }, { replace: true });
       }
@@ -446,8 +455,14 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
       {!debitNotes && <PageHeader
         eyebrow="Finance · Money out"
         title="Supplier bills"
-        actions={canCreate ? (
+        actions={canCreate || canPost || canCancel ? (
           <span style={{ display: 'inline-flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* The bills booked twice before the server refused it: whoever can
+                cancel a bill reviews them, not only whoever can raise one. */}
+            <Button variant="secondary" size="sm" onClick={() => navigate('/scm/ap-invoices/duplicates')}>
+              <Copy {...ICON} /> Duplicate supplier bills
+            </Button>
+            {canCreate && <>
             {/* The pile: many supplier bills at once, read and split one AP
                 invoice each (owner 2026-09-08: scan bill 的按钮可以直接做在
                 + new ap invoice 附近吗). */}
@@ -460,7 +475,7 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
             <input ref={scnInput} type="file" multiple accept={PV_FILE_ACCEPT} style={{ display: 'none' }} aria-label="Supplier credit note pages"
               onChange={(e) => { const picked = [...(e.target.files ?? [])]; e.target.value = ''; void scanCreditNote(picked); }} />
             <Button variant="secondary" size="sm" onClick={() => scnInput.current?.click()} disabled={scnScan.isPending}>
-              <FileText {...ICON} /> {scnScan.isPending ? 'Reading the credit note…' : 'Scan credit note'}
+              <FileText {...ICON} /> {scnScan.isPending ? (scnStage ? aiReadStageNote(scnStage, 'the credit note') : 'Sending the credit note…') : 'Scan credit note'}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setNoteForm({ mode: 'new', values: emptyNoteForm('SCN') })}>
               <Plus {...ICON} /> New credit note
@@ -468,11 +483,12 @@ export const ApInvoices = ({ docKind }: { docKind?: 'DN' } = {}) => {
             <Button variant="primary" size="sm" onClick={openNew}>
               <Plus {...ICON} /> New AP bill
             </Button>
+            </>}
           </span>
         ) : undefined}
       />}
 
-      {readingRequest && <div style={soft} role="status">Reading the bill on {readingRequest}…</div>}
+      {readingRequest && <div style={soft} role="status">{requestStage === 'queued' ? `Queued — the bill on ${readingRequest} is waiting for the reader…` : `Reading the bill on ${readingRequest}…`}</div>}
       {!debitNotes && (
         <SupplierBillsList
           apRows={listQ.data?.rows ?? null}

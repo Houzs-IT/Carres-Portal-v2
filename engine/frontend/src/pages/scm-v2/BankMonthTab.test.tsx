@@ -296,7 +296,9 @@ describe('what is still to decide, on the month', () => {
     await waitFor(() => expect(state.autoMatch).toHaveBeenCalledTimes(2));
     /* One call per file of the month, in the order the files cover it. */
     expect(state.autoMatch.mock.calls.map((c) => c[0])).toEqual([1, 3]);
-    expect(await screen.findByText(/3 matched by amount and name — JE-1, JE-2, JE-3; 1 pair the bank reversed left out/)).toBeTruthy();
+    expect(await screen.findByText(/3 matched — JE-1, JE-2, JE-3; 1 pair the bank reversed left out/)).toBeTruthy();
+    /* The voucher a line names is the rule too (owner 2026-11-10). */
+    expect(screen.getByText(/carry a voucher's number/)).toBeTruthy();
   });
 
   test('a file the server refuses is named, and the others still run', async () => {
@@ -306,7 +308,7 @@ describe('what is still to decide, on the month', () => {
       .mockResolvedValueOnce({ ok: true, matched: 1, jeNos: ['JE-3'], contraPairs: 0 });
     openMonth();
     fireEvent.click(screen.getByText('Match the obvious ones now'));
-    expect(await screen.findByText(/1 matched by amount and name — JE-3/)).toBeTruthy();
+    expect(await screen.findByText(/1 matched — JE-3/)).toBeTruthy();
     expect(screen.getByText(/d01\.csv: .*closed by Chew/)).toBeTruthy();
   });
 
@@ -826,6 +828,15 @@ describe('the month in six tabs', () => {
     fireEvent.click(tabOf('Not on the bank yet'));
     expect(screen.getByText('Offered under To match')).toBeTruthy();
     expect(screen.getByText('Earlier month · 2026/08')).toBeTruthy();
+  });
+
+  /* Owner 2026-11-10 (2990 October): 我希望这里也可以点开so, 点开后也可以返回这里. */
+  test("an order in an entry's document opens the whole order; the receipt stays text", () => {
+    setUp({ lines: [MATCHED] });
+    state.entries = [{ jeNo: 'JE-2609-0093', entryDate: '2026-09-07', sourceType: 'SOPAY', sourceDocNo: 'p-1', debitSen: 210000, creditSen: 0, reference: '2990-DraftOR-2609-019 · 2990-SO-2609-016', who: 'Kum Chee Meng' }];
+    show('/scm/bank-recon?account=310-0020&month=2026-09&tab=not-on-bank');
+    expect(screen.getByRole('link', { name: '2990-SO-2609-016' }).getAttribute('href')).toBe('/scm/sales-orders/2990-SO-2609-016');
+    expect(screen.queryByRole('link', { name: '2990-DraftOR-2609-019' })).toBeNull();
   });
 
   test('the walk opens the tab it names', () => {

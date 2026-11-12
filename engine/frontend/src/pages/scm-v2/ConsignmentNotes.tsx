@@ -28,7 +28,7 @@ import { useNotify } from '../../vendor/scm/components/NotifyDialog';
 import { formatPhone } from '@2990s/shared/phone';
 import { buildVariantSummary, fmtDateOrDash, fmtQty, fmtSen } from '@2990s/shared';
 import {
-  useConsignmentNotesPaged, useUpdateConsignmentNoteStatus, useConsignmentNoteDetail,
+  useConsignmentNotesPaged, fetchConsignmentNotesExportRows, useUpdateConsignmentNoteStatus, useConsignmentNoteDetail,
 } from '../../vendor/scm/lib/consignment-note-queries';
 import { SearchProgress } from '../../components/SearchProgress';
 import { ListPager } from '../../components/ListPager';
@@ -171,7 +171,7 @@ const buildCnDrilldownColumns = (canFinance: boolean): GridColumn<CnItem>[] => [
   },
   {
     key: 'item_code', label: 'Item Code', width: 130,
-    accessor: (it) => <span style={{ fontWeight: 700, color: '#1B1B39' }}>{it.item_code ?? '—'}</span>,
+    accessor: (it) => <span style={{ fontWeight: 700, color: 'var(--hz-c-primary)' }}>{it.item_code ?? '—'}</span>,
     searchValue: (it) => it.item_code ?? '',
     sortFn: (a, b) => (a.item_code ?? '').localeCompare(b.item_code ?? ''),
   },
@@ -215,7 +215,7 @@ const buildCnDrilldownColumns = (canFinance: boolean): GridColumn<CnItem>[] => [
   },
   {
     key: 'total', label: 'Total', width: 100, align: 'right',
-    accessor: (it) => <span style={{ fontWeight: 700, color: '#1B1B39' }}>{fmtSen(cnLineTotalOf(it))}</span>,
+    accessor: (it) => <span style={{ fontWeight: 700, color: 'var(--hz-c-primary)' }}>{fmtSen(cnLineTotalOf(it))}</span>,
     exportValue: (it) => cnLineTotalOf(it) / 100,
     exportFormat: 'money',
     searchValue: (it) => String(cnLineTotalOf(it)),
@@ -262,7 +262,7 @@ const ExpandedCnLines = ({ id, canFinance }: { id: string; canFinance: boolean }
   }
   if (q.error) {
     return (
-      <div style={{ padding: '8px 12px', fontSize: 'var(--fs-11)', color: 'var(--c-festive-b, #B8331F)' }}>
+      <div style={{ padding: '8px 12px', fontSize: 'var(--fs-11)', color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))' }}>
         Failed to load lines: {q.error instanceof Error ? q.error.message : String(q.error)}
       </div>
     );
@@ -301,7 +301,7 @@ const ExpandedCnLines = ({ id, canFinance }: { id: string; canFinance: boolean }
           fontFamily: 'var(--font-button)', fontSize: 'var(--fs-10)',
           letterSpacing: '0.06em', textTransform: 'uppercase',
         }}>Subtotal</span>
-        <span>Total <strong style={{ color: '#1B1B39' }}>{fmtSen(totalSen)}</strong></span>
+        <span>Total <strong style={{ color: 'var(--hz-c-primary)' }}>{fmtSen(totalSen)}</strong></span>
         {canFinance && <span>Line Cost <strong style={{ color: 'var(--c-ink)' }}>{fmtSen(costSen)}</strong></span>}
         {canFinance && <span>Margin <strong style={{ color: marginColor }}>{fmtSen(marginSen)}</strong></span>}
       </div>
@@ -577,6 +577,17 @@ export const ConsignmentNotes = () => {
      the DataGrid's own per-column funnel filters + grouping now operate on the
      LOADED PAGE only (documented reduction). The KPI tiles below stay FULL-SET
      via `aggregates`, so page-scoped funnels never distort the headline money. */
+  const exportLines = {
+    fetchRows: () => fetchConsignmentNotesExportRows<CnRow>({
+      status: statusChip === 'all' ? undefined : statusChip,
+      q: debouncedSearch.trim() || undefined,
+    }),
+    linesOf: () => [],
+    sheetName: 'Consignment Notes',
+    onError: (e: Error) => {
+      void notify({ title: 'Export failed', body: e.message || 'The export could not be completed.', tone: 'error' });
+    },
+  };
   const rows = useMemo<CnRow[]>(() => (data?.deliveryOrders ?? []) as CnRow[], [data]);
   const total = data?.total ?? 0;
 
@@ -724,8 +735,8 @@ export const ConsignmentNotes = () => {
             placeholder="Search note no / customer…"
             style={{
               height: 32, padding: '0 12px 0 30px', width: 288,
-              borderRadius: 6, border: '1px solid #E5E7EB',
-              background: '#ffffff', color: 'var(--c-ink)', fontSize: 12,
+              borderRadius: 6, border: '1px solid var(--hz-c-border)',
+              background: 'var(--hz-c-surface)', color: 'var(--c-ink)', fontSize: 12,
             }}
           />
           <SearchProgress active={searchTransition.isSearching} className="ml-2" />
@@ -737,6 +748,7 @@ export const ConsignmentNotes = () => {
         columns={COLUMNS}
         storageKey={STORAGE_KEY}
         exportName="Consignment Notes"
+        exportLines={exportLines}
         searchPlaceholder="Search note no, customer, reference…"
         rowKey={(r) => r.id}
         getRowClassName={(r) => cancelledRowClass(r.status)}
@@ -806,7 +818,7 @@ const buildColumns = (staffById: Map<string, string>, canFinance: boolean): Grid
   {
     key: 'do_number', label: 'Note No.', width: 150, sortable: true,
     accessor: (r) => (
-      <span style={{ fontWeight: 700, color: '#1B1B39', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(r.status)}>{r.do_number}</span>
+      <span style={{ fontWeight: 700, color: 'var(--hz-c-primary)', fontVariantNumeric: 'tabular-nums' }} className={cancelledDocNoClass(r.status)}>{r.do_number}</span>
     ),
     searchValue: (r) => `${r.do_number} ${r.status ?? ''}`,
     filterValue: (r) => r.do_number,

@@ -51,7 +51,8 @@
 // ----------------------------------------------------------------------------
 
 import { doCountsAsDelivered } from '../shared/do-shipped-states';
-import { computeVariantKey, isServiceLine, effectiveSoDelivery, type VariantAttrs } from '../shared';
+import { HARD_BOUND_COMPANY_ID, variantTrackedCompany } from './binding-mode';
+import { canonicalVariantKey, computeVariantKey, isServiceLine, effectiveSoDelivery, type VariantAttrs } from '../shared';
 import { summariseReadiness } from './so-readiness';
 import { loadSofaBatchStock, findCoveringBatch, claimSofaBatch } from './sofa-set-coverage';
 import { paginateAll, chunkIn } from './paginate-all';
@@ -59,10 +60,13 @@ import { recordSoAudit } from './so-audit';
 import { advanceSoGeneration } from './so-generation';
 import { enqueueStockAllocationRecompute } from './stock-allocation-queue';
 import { SO_TERMINAL_STATES_PGREST } from '../shared/so-terminal-states';
+import { sofaSetKey } from '../shared/sofa-set-identity';
 import { SO_PROCESSING_DATE_COLUMN } from '../shared/so-processing-date';
 import { liveStatusForProcessingDate } from '../shared/so-proceeded-status';
 import { loadNonSellingWarehouses, warehouseCanPromise } from './non-selling-warehouse';
 import { pgrestIn } from './pgrest-in-list';
+import { timed } from '../../lib/step-timing';
+import { isDocumentHeld } from './document-hold';
 
 /* Only the variant-bearing categories run bound. Owner 2026-08-10:
    "SOFA 和 BEDFRAME 因为有变体的问题,所以要走 Convert to PO 的那个模式.
@@ -114,7 +118,7 @@ export function isHardBoundLine(
    pools. When company-1 stock has grown variants and the migrated blanks have
    washed out, the owner's stated plan is to switch this company to the pooled
    model too — that switch is THIS constant. */
-export const HARD_BOUND_COMPANY_ID = 1;
+export { HARD_BOUND_COMPANY_ID } from './binding-mode';
 
 export type AllocationResult = {
   ok: boolean;
@@ -197,7 +201,7 @@ export async function recomputeSoStockAllocation(
   sb: any,
   scopeToDocNo?: string,
 ): Promise<AllocationResult> {
-  const result = await runSoStockAllocation(sb, scopeToDocNo);
+  const result = await timed(scopeToDocNo ? 'alloc-recompute-scoped' : 'alloc-recompute', () => runSoStockAllocation(sb, scopeToDocNo));
   const finished = result.ok
     && result.reason !== 'another_recompute_in_progress'
     && !(result.deferredDocNos && result.deferredDocNos.length > 0);
@@ -278,9 +282,9 @@ async function runSoStockAllocation(
        nothing the JS sort does not already decide. */
     // Page through — PostgREST's default 1000-row cap would truncate the active
     // SO set, silently DROPPING orders from allocation (their lines never flip).
-    const { data: orderRows, error: orderError } = await paginateAll<{ doc_no: string; status: string; created_at: string; customer_delivery_date: string | null; amended_delivery_date: string | null; company_id: number | null; processing_date: string | null }>((from, to) => sb
+    const { data: orderRows, error: orderError } = await paginateAll<{ doc_no: string; status: string; on_hold: boolean | null; created_at: string; customer_delivery_date: string | null; amended_delivery_date: string | null; company_id: number | null; processing_date: string | null }>((from, to) => sb
       .from('mfg_sales_orders')
-      .select(`doc_no, status, created_at, customer_delivery_date, amended_delivery_date, company_id, ${SO_PROCESSING_DATE_COLUMN}`)
+      .select(`doc_no, status, created_at, customer_delivery_date, amended_delivery_date, company_id, on_hold, ${SO_PROCESSING_DATE_COLUMN}`)
       /* The live-SO lens. ONE declaration, in shared/so-terminal-states.ts —
          eight audit scripts and mrp.ts used to re-type this same six-status
          set under four different names, each promising in a comment to track
@@ -292,7 +296,7 @@ async function runSoStockAllocation(
       .range(from, to));
     if (orderError) throw new Error(`allocation order load failed: ${orderError.message}`);
     const orders = (orderRows ?? []) as Array<{
-      doc_no: string; status: string; created_at: string;
+      doc_no: string; status: string; on_hold: boolean | null; created_at: string;
       customer_delivery_date: string | null; amended_delivery_date: string | null;
       company_id: number | null;
       processing_date: string | null;
@@ -360,8 +364,13 @@ async function runSoStockAllocation(
        replicates whatever 2990 sends, including a stamp, through applyMap. Both
        end for good with the column; see "RETIRING THE SECOND STORAGE" in
        shared/so-processing-date.ts. */
+    /* A HELD order is gated the same way (sister review P3 follow-up): the hold
+       never writes status, so the terminal-state lens above cannot see it, and
+       MRP already drops held demand with the same `isDocumentHeld` reader. Its
+       stock goes back to the queue on the next sweep; releasing the hold
+       enqueues a sweep that gives it back if it is still there. */
     const allocGated = new Set(
-      orders.filter((o) => !o[SO_PROCESSING_DATE_COLUMN]).map((o) => o.doc_no),
+      orders.filter((o) => !o[SO_PROCESSING_DATE_COLUMN] || isDocumentHeld(o)).map((o) => o.doc_no),
     );
     /* Which company each document belongs to — the pooled walk needs it to
        enforce HARD_BOUND_COMPANY_ID's exclusivity (see the constant's note). */
@@ -611,7 +620,12 @@ async function runSoStockAllocation(
         });
         continue;
       }
-      const bucket = `${whId ?? WH_NONE}::${l.item_code}::${variant_key}`;
+      /* A variant-tracked company (binding-mode.ts) matches the canonical form on
+         both sides (here and the balance map below): a bucket written as
+         `...|totalheight=24"` or `legheight=default` is the same goods as this
+         line keyed without them. Company 1 keeps the exact string. */
+      const bucketVk = variantTrackedCompany(companyByDoc.get(l.doc_no) || null) ? canonicalVariantKey(variant_key) : variant_key;
+      const bucket = `${whId ?? WH_NONE}::${l.item_code}::${bucketVk}`;
       needs.push({
         id: l.id, doc_no: l.doc_no, bucket, whId,
         need: remaining, current: l.stock_status,
@@ -669,13 +683,13 @@ async function runSoStockAllocation(
     }).filter(Boolean))];
     // chunkIn — itemCodes can exceed 1000 and balances can exceed the 1000-row
     // cap; batch + page so on-hand isn't understated → lines wrongly PENDING.
-    const { data: balRows, error: balanceError } = await chunkIn<{ warehouse_id: string; item_code: string; variant_key: string | null; qty: number }>(itemCodes, (batch, from, to) => pgrestIn(sb
+    const { data: balRows, error: balanceError } = await chunkIn<{ warehouse_id: string; item_code: string; variant_key: string | null; qty: number; company_id: number | null }>(itemCodes, (batch, from, to) => pgrestIn(sb
       .from('inventory_balances')
-      .select('warehouse_id, item_code, variant_key, qty'), 'item_code', batch)
+      .select('warehouse_id, item_code, variant_key, qty, company_id'), 'item_code', batch)
       .range(from, to));
     if (balanceError) throw new Error(`allocation balance load failed: ${balanceError.message}`);
     const onHandByBucket = new Map<string, number>();
-    for (const r of (balRows ?? []) as Array<{ warehouse_id: string; item_code: string; variant_key: string | null; qty: number }>) {
+    for (const r of (balRows ?? []) as Array<{ warehouse_id: string; item_code: string; variant_key: string | null; qty: number; company_id?: number | null }>) {
       /* Display / showroom / service stock never enters the pool. This is the
          BELT — the decisive gate is per LINE, at the walk below, because BOUND
          MODE and the sofa matcher never read this map at all. Both are kept:
@@ -683,7 +697,7 @@ async function runSoStockAllocation(
          a bucket key is built, which is the failure the per-line gate cannot
          see. */
       if (!warehouseCanPromise(r.warehouse_id, nonSellingIds)) continue;
-      const v = r.variant_key ?? '';
+      const v = variantTrackedCompany(r.company_id ?? null) ? canonicalVariantKey(r.variant_key) : (r.variant_key ?? '');
       const qty = Number(r.qty ?? 0);
       const whKey = `${r.warehouse_id}::${r.item_code}::${v}`;
       onHandByBucket.set(whKey, (onHandByBucket.get(whKey) ?? 0) + qty);
@@ -853,10 +867,10 @@ async function runSoStockAllocation(
     if (sofaLineRecs.length > 0) {
       const sofaStock = await loadSofaBatchStock(sb, sofaLineRecs.map((s) => s.item_code));
 
-      // Group sofa lines into per-SO sets (within a warehouse).
-      const setLines = new Map<string, SofaLineRec[]>(); // key = `${wh}|${docNo}`
+      // Group sofa lines into per-SO, per-model sets (within a warehouse).
+      const setLines = new Map<string, SofaLineRec[]>(); // key = `${wh}|${docNo}|${model}`
       for (const s of sofaLineRecs) {
-        const key = `${s.whId ?? WH_NONE}|${s.doc_no}`;
+        const key = `${s.whId ?? WH_NONE}|${sofaSetKey(s.doc_no, s.item_code)}`;
         const arr = setLines.get(key) ?? [];
         arr.push(s); setLines.set(key, arr);
       }
@@ -1069,6 +1083,10 @@ async function runSoStockAllocation(
     for (const docNo of touchedDocs) {
       const order = orderByDoc.get(docNo);
       if (!order) continue;
+      /* A held order's header is left where it is. Its lines gave their stock
+         back above, but a hold never moves status (document-hold.ts), so the
+         readiness move waits for the release, whose sweep re-judges it. */
+      if (isDocumentHeld(order)) continue;
       const docLines = lines.filter((l) => l.doc_no === docNo);
       /* Re-evaluate readiness using the live target status. B2C semantics: an SO
          is ship-able when every MAIN product line (sofa/bedframe/mattress) is

@@ -15,13 +15,13 @@ import UpdatePassword from "@/pages/UpdatePassword";
 import Me from "@/pages/Me";
 import DealerApp from "@/pages/dealer/DealerApp";
 import PrincipalApp from "@/pages/principal/PrincipalApp";
-import RequestFlowOperationApp from "@/pages/operation/RequestFlowOperationApp";
+import OperationApp from "@/pages/operation/OperationApp";
 import PartnerApp from "@/pages/partner/PartnerApp";
 import FinanceApp from "@/pages/finance/FinanceApp";
 import SupplierApp from "@/pages/supplier/SupplierApp";
 import WarehouseApp from "@/pages/warehouse/WarehouseApp";
 import BDApp from "@/pages/bd/BDApp";
-import HrApp from "@/pages/hr/HrApp";
+import { retiredRedirect } from "@/pages/portal/portal-nav";
 import PickupEventPrintPage from "@/pages/print/PickupEventPrintPage";
 import ServiceNotePrintPage from "@/pages/print/ServiceNotePrintPage";
 import ServiceCasePrintPage from "@/pages/print/ServiceCasePrintPage";
@@ -62,9 +62,16 @@ function HomeRedirect() {
   // coming to its own warehouse.
   if (role === "warehouse") return <Navigate to="/warehouse" replace />;
   if (role === "bd") return <Navigate to="/bd" replace />;
-  if (role === "hr") return <Navigate to="/hr" replace />;
+  // The Carres HR area is removed (owner, 11 Nov 2026): HR staff open Houzs's Team, in Operations.
+  if (role === "hr") return <Navigate to="/operation/sc/hub-team" replace />;
   if (role === "dealer" || role === "salesperson" || role === "showroom") return <Navigate to="/dealer" replace />;
   return <Navigate to="/me" replace />;
+}
+
+/** An old HR address: the Team hub (portal-nav retiredRedirect). */
+function HrRetired() {
+  const location = useLocation();
+  return <Navigate to={retiredRedirect(location.pathname, location.search) ?? "/operation/sc/hub-team"} replace />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -142,8 +149,11 @@ export default function App() {
                   alongside operation so the merged PortalSidebar's Operations
                   area is reachable by the boss. DB twin: migration 0189 widens
                   is_operation(); API twin: requireOperation admits principal. */}
-              <RequireRole roles={["operation", "principal"]}>
-                <RequestFlowOperationApp />
+              {/* `hr` for the System rows only (Team, Mail Center, IT Support; owner 11 Nov 2026):
+                  OperationApp sends it to the Team hub from every other address. */}
+              {/* `finance` for the Houzs Finance rows only (owner 11 Nov 2026). */}
+              <RequireRole roles={["operation", "principal", "hr", "finance"]}>
+                <OperationApp />
               </RequireRole>
             </RequireAuth>
           }
@@ -207,18 +217,8 @@ export default function App() {
             </RequireAuth>
           }
         />
-        <Route
-          path="/hr/*"
-          element={
-            <RequireAuth>
-              {/* 0244/0245 — HR commission portal. Principal admitted like the
-                  other internal areas (boss-sees-all invariant). */}
-              <RequireRole roles={["hr", "principal"]}>
-                <HrApp />
-              </RequireRole>
-            </RequireAuth>
-          }
-        />
+        {/* The Carres HR area is removed (owner, 11 Nov 2026): its old addresses open Houzs's Team. */}
+        <Route path="/hr/*" element={<HrRetired />} />
         {/* Task 13 (2026-05-15) — pickup-event DO reprint landing.
          *  Role-agnostic URL pattern; the server endpoint
          *  (`/api/pickup-events/:id/print`) gates per-role via RLS. */}

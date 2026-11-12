@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
-import { PORTAL_MODULES, PORTAL_NAV, navBlocks, navItemHref, visibleItems } from "./portal-nav";
+import { PORTAL_MODULES, PORTAL_NAV, engineAddressFor, engineFor, navBlocks, navItemHref, roleMayOpenEngineRow, visibleItems } from "./portal-nav";
 
 /**
  * ⭐ THE FINANCE MODULES — the Houzs tree (Weisiang, WhatsApp 2026-11-01;
@@ -143,15 +143,8 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
     const opsReports = PORTAL_NAV.filter((g) => g.area !== "finance").flatMap((g) =>
       g.items.filter((it) => it.section === "Reports").map((it) => `${g.area}:${it.key}`),
     );
-    expect(opsReports).toEqual([
-      "operation:purchasing-report",
-      "operation:receiving-report",
-      "operation:delivery-report",
-      "operation:delivery-return-lines",
-      "operation:sales-order-lines",
-      "operation:delivery-order-lines",
-      "operation:sales-invoice-lines",
-    ]);
+    // The Operations report (Sales invoice lines) left the menu on 11 Nov 2026 (owner).
+    expect(opsReports).toEqual([]);
     const financeKeys = new Set(FINANCE.items.map((it) => it.key));
     for (const key of opsReports) expect(financeKeys.has(key.split(":")[1]!), key).toBe(false);
   });
@@ -160,7 +153,9 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
 /**
  * ⭐ THE ONE SHARED-MENU ENTRY CHEW APPROVED (2026-10-03, Finance MASTER §3.3):
  * Payment Requests shows to the Operation staff the boss allows — by a grant,
- * not a role — and opens the page in Finance. Nobody else of Operation sees it.
+ * not a role — and opens Houzs's own Payment Requests (owner, 11 Nov 2026: the
+ * Houzs pages are the system), with the same count as Finance > Money out.
+ * Nobody else of Operation sees it.
  */
 describe("Payment Requests in the Operations rail", () => {
   const OPERATIONS = PORTAL_NAV.find((g) => g.area === "operation")!;
@@ -171,9 +166,12 @@ describe("Payment Requests in the Operations rail", () => {
     expect(keys(new Set(["payment-requester"] as const))).toContain("payment-requests");
   });
 
-  it("opens the Finance page and sits under Workspace", () => {
+  it("opens Houzs's Payment Requests with its count, and sits under Workspace", () => {
     const item = OPERATIONS.items.find((i) => i.key === "payment-requests")!;
-    expect(navItemHref(OPERATIONS, item)).toBe("/finance/payment-requests");
+    expect(navItemHref(OPERATIONS, item)).toBe("/operation/sc/payment-requests");
+    expect(engineFor("/operation/sc/payment-requests")).toBe("/scm/payment-requests");
+    expect(engineFor("/operation/sc/payment-requests")).toBe(engineFor("/operation/sc/fin-payment-requests"));
+    expect(item.badge).toBe("payment-requests-waiting");
     // Back under Workspace, as in Houzs (Weisiang, 2026-11-01).
     expect(item.section).toBe("Workspace");
     expect(item.needs).toBe("payment-requester");
@@ -187,24 +185,43 @@ describe("Payment Requests in the Operations rail", () => {
 
 /**
  * 0687 (Chew 2026-10-12, Finance MASTER §3.3, 「hr & BD 也到能申请」): the HR
- * staff Finance or the boss allows see Payment Requests on their own rail.
+ * staff Finance or the boss allows see Payment Requests. The Carres HR area is
+ * removed (owner, 11 Nov 2026), so HR finds it in Operations' Workspace, the
+ * one other Operations place it stands in beside the System rows.
  */
-describe("Payment Requests on the HR rail", () => {
-  const HR = PORTAL_NAV.find((g) => g.area === "hr")!;
+describe("Payment Requests for HR staff", () => {
+  const OPS = PORTAL_NAV.find((g) => g.area === "operation")!;
   const GRANT = new Set(["payment-requester"] as const);
-  const keys = (role: "hr" | "principal", caps?: ReadonlySet<"payment-requester">) => visibleItems(HR, role, caps).map((i) => i.key);
+  const keys = (role: "hr" | "principal", caps?: ReadonlySet<"payment-requester">) => visibleItems(OPS, role, caps).map((i) => i.key);
 
-  it("shows to HR staff with the grant, and to no one else on this rail", () => {
+  it("shows to HR staff with the grant, and not without it", () => {
     expect(keys("hr")).not.toContain("payment-requests");
     expect(keys("hr", GRANT)).toContain("payment-requests");
-    // The boss already has it under Operations; one row is enough.
-    expect(keys("principal", GRANT)).not.toContain("payment-requests");
   });
 
-  it("opens the Finance page, last on the rail", () => {
-    const item = HR.items.find((i) => i.key === "payment-requests")!;
-    expect(navItemHref(HR, item)).toBe("/finance/payment-requests");
-    expect(keys("hr", GRANT).at(-1)).toBe("payment-requests");
+  it("opens Houzs's Payment Requests, which HR may open though it does not see the Houzs Finance rows", () => {
+    const item = OPS.items.find((i) => i.key === "payment-requests")!;
+    expect(navItemHref(OPS, item)).toBe("/operation/sc/payment-requests");
+    expect(roleMayOpenEngineRow("hr", "payment-requests")).toBe(true);
+    expect(roleMayOpenEngineRow("hr", "fin-payment-requests")).toBe(false);
+  });
+
+  it("a record opened from the Workspace door keeps the door's address, so HR is never sent to the Finance row", () => {
+    const record = "/scm/payment-requests/prq-1";
+    expect(engineAddressFor(record, "payment-requests")).toBe(`/operation/sc/payment-requests?at=${encodeURIComponent(record)}`);
+    expect(engineAddressFor(record, "fin-payment-requests")).toBe(`/operation/sc/fin-payment-requests?at=${encodeURIComponent(record)}`);
+    // With no door to keep, the Finance row is the page's row (the door is a shortcut, never lit by a frame move).
+    expect(engineAddressFor(record)).toBe(`/operation/sc/fin-payment-requests?at=${encodeURIComponent(record)}`);
+    // A module row is not a door: it does not hold another module's page.
+    expect(engineAddressFor("/scm/purchase-orders", "hub-scm")).toBe("/operation/sc/purchase-orders");
+  });
+
+  it("is the only row HR sees outside the System rows", () => {
     expect(keys("hr", GRANT).filter((k) => k !== "payment-requests")).toEqual(keys("hr"));
+    expect(keys("hr")).toEqual([
+      "team-directory", "team-org-chart", "team-departments", "team-mailboxes", "team-roles",
+      "mail-center", "announcements", "system-health", "ai-usage",
+      "change-log", "assistant", "agent-console", "it-support", "ocr",
+    ]);
   });
 });

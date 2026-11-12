@@ -155,7 +155,12 @@ const WINANSI_ABOVE_LATIN1 = new Set([
    would refuse to print over its own punctuation. Folded to ASCII for paper;
    the screen keeps the symbols. Applied to a whole cell, a customer's own
    arrow folds the same way, which is a faithful print, not a corruption. */
-const PAPER_FOLDS: ReadonlyArray<[RegExp, string]> = [[/→/g, '->'], [/←/g, '<-'], [/−/g, '-'], [/≈/g, '~']];
+/* Spaces and marks pasted from Word or a website (HC-PO-2611-134 held a U+2006): they
+   look like nothing, so nobody can find them to remove, and neither font carries them. */
+const PAPER_FOLDS: ReadonlyArray<[RegExp, string]> = [
+  [/→/g, '->'], [/←/g, '<-'], [/−/g, '-'], [/≈/g, '~'],
+  [/[ -   　]/g, ' '], [/[​-‏⁠﻿]/g, ''],
+];
 export const paperText = (s: string): string => PAPER_FOLDS.reduce((acc, [re, to]) => acc.replace(re, to), s);
 
 /** Hanzi proper (vs. CJK punctuation) — picks which subset a document needs. */
@@ -191,8 +196,8 @@ const CJK_FETCH_FAILED =
 /* Not worded as "Chinese": the same guard catches anything helvetica can't
    paint that the subset doesn't carry either — a traditional 陳, a rare given
    name, an emoji someone pasted into a remark. */
-const CJK_GLYPH_MISSING =
-  'This document has a character we cannot print yet, so the PDF was not created.';
+const glyphMissing = (cps: readonly number[]): string =>
+  `This document has a character we cannot print yet (${cps.slice(0, 5).map((cp) => `"${String.fromCodePoint(cp)}" U+${cp.toString(16).toUpperCase()}`).join(', ')}), so the PDF was not created. Remove it from the document and try again.`;
 
 /* Scans the text as it will be PAINTED: the fold shim below turns these
    symbols into ASCII at draw time, so an "→" in a line remark (BUG-28,
@@ -338,7 +343,7 @@ export async function ensurePdfCjkFont(
     | Record<number, number>
     | undefined;
   const missing = [...needed].filter((cp) => codeMap?.[cp] === undefined);
-  if (missing.length > 0) throw new Error(CJK_GLYPH_MISSING);
+  if (missing.length > 0) throw new Error(glyphMissing(missing));
 
   if (!docShimmed.has(doc)) {
     /* The generators ask for 'helvetica' by name in ~50 places, and
@@ -422,6 +427,12 @@ export const amountInWordsMyr = (centi: number | null | undefined): string => {
   const senPart = sen > 0 ? ` AND SEN ${intToWords(sen)}` : '';
   return `RINGGIT MALAYSIA ${intToWords(rm)}${senPart} ONLY`;
 };
+
+/* The warehouse a DO ships from / a GRN received into (Conts-ERP #717): its
+   name, else its code label; null when the document recorded none, so the row
+   is omitted rather than dashed. */
+export const warehousePrintName = (h: { warehouse_name?: string | null; warehouse_code?: string | null }): string | null =>
+  (h.warehouse_name ?? '').trim() || (h.warehouse_code ?? '').trim() || null;
 
 export const fmtRm = (centi: number | null, currency = 'MYR'): string => fmtMoneySen(centi, currency);
 
@@ -618,7 +629,7 @@ export function drawInfoColumns(
   doc: import('jspdf').jsPDF,
   startY: number,
   left: { title: string; rows: Array<[string, string | null | undefined]> },
-  right: { title: string; rows: Array<[string, string | null | undefined]> },
+  right: { title: string; rows: Array<[string, string | ReadonlyArray<string> | null | undefined]> },
   marginX = 14,
 ): number {
   const pageW = doc.internal.pageSize.getWidth();
@@ -627,6 +638,7 @@ export function drawInfoColumns(
   const leftW = midX - margin - 6;
   const gutter = 20;
   const rValX = midX + 33;
+  const rValW = pageW - margin - rValX;
   const lh = 4;
 
   doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
@@ -652,12 +664,28 @@ export function drawInfoColumns(
     }
   }
   for (const [label, value] of right.rows) {
+    /* An array is a value the caller has already broken into lines (a PI's
+       PO list); each element prints on its own line under the first. */
+    if (Array.isArray(value)) {
+      const parts = value.map((p) => p.trim()).filter(Boolean);
+      if (!parts.length) continue;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(110); doc.text(label, midX, ry); doc.setTextColor(0);
+      parts.forEach((p, i) => {
+        const wrapped = doc.splitTextToSize(`${i === 0 ? ':' : ' '} ${p}`, rValW) as string[];
+        doc.text(wrapped, rValX, ry);
+        ry += Math.max(1, wrapped.length) * lh;
+      });
+      continue;
+    }
     const v = (value ?? '').toString().trim();
     if (!v) continue;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(110); doc.text(label, midX, ry); doc.setTextColor(0);
-    doc.text(`: ${v}`, rValX, ry);
-    ry += lh;
+    /* Wrapped inside the right margin: a long project or reference ran past the page edge (Conts #743). */
+    const wrapped = doc.splitTextToSize(`: ${v}`, rValW) as string[];
+    doc.text(wrapped, rValX, ry);
+    ry += Math.max(1, wrapped.length) * lh;
   }
   return Math.max(ly, ry) + 4;
 }
@@ -703,6 +731,12 @@ export function drawSignatureBoxes(
 // Control characters plus the Windows reserved set. Nothing else is removed.
 // eslint-disable-next-line no-control-regex
 const ILLEGAL_IN_FILENAME = /[\x00-\x1f\x7f<>:"/\\|?*]+/g;
+/* "Page x of y" counted within ONE document. A batch print renders many
+   documents into one file; counting the file's pages made the second invoice's
+   first page read "Page 3 of 7". */
+export const docPageLabel = (page: number, startPage: number, pageCount: number): string =>
+  `Page ${page - startPage + 1} of ${pageCount - startPage + 1}`;
+
 export const safeName = (s: string, maxLen = 32): string => {
   const cleaned = (s || '')
     .replace(ILLEGAL_IN_FILENAME, ' ')
@@ -815,7 +849,6 @@ function openPdfViewerOverlay(blob: Blob, filename: string, opts: { print?: bool
   bar.appendChild(name);
 
   const iframe = document.createElement('iframe');
-  iframe.src = blobUrl;
   iframe.title = title;
   iframe.style.cssText = 'flex:1;width:100%;border:0;display:block;background:#525659';
 
@@ -862,9 +895,19 @@ function openPdfViewerOverlay(blob: Blob, filename: string, opts: { print?: bool
   });
   document.addEventListener('keydown', onKey, true);
 
-  if (opts.print) {
-    iframe.addEventListener('load', () => { window.setTimeout(printFrame, PRINT_SETTLE_MS); });
-  }
+  /* The browser's own Save takes its name from the address: a blob saves as a
+     GUID (owner 2026-11-06), the worker's path saves as the document. An iframe
+     with no src fires load too, so print listens only once the real one is set. */
+  void (async () => {
+    let path: string | null = null;
+    try {
+      path = await putPrintPreview(blob, filename);
+    } catch {
+      // Any storage/worker failure just means the blob, as in the preview tab.
+    }
+    if (opts.print) iframe.addEventListener('load', () => { window.setTimeout(printFrame, PRINT_SETTLE_MS); }, { once: true });
+    iframe.src = path ?? blobUrl;
+  })();
 
   panel.appendChild(bar);
   panel.appendChild(iframe);

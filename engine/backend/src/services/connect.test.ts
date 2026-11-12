@@ -283,7 +283,9 @@ describe('buildDeliveryFollowUp', () => {
 });
 
 describe('buildServiceCaseReceived', () => {
-  it('maps name → full_name, SO → ref_1, case number → its own assr_no field, fires the automation by name', () => {
+  // Re-enabled on create 2026-11-11 (owner), gated on the order having a DO — the
+  // gate is in assrConnectAck (see assrConnectAck.test.ts); this builder is pure.
+  it('maps name -> full_name, SO -> ref_1, case number -> its own assr_no field, fires the automation by name', () => {
     const contact = buildServiceCaseReceived('+60123', 'Wong', 'HC-SO-013133', 'ASSR/2610-038');
     expect(contact).toEqual({
       phone: '+60123',

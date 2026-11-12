@@ -65,6 +65,8 @@ export type MapRoute = {
    *  in the legend as "VQE9058 5/8". Absent on the Date/Time proposal routes. */
   delivered?: number | null;
   total?: number | null;
+  /** Last Mile: the run by road, home and back ("86.4 km · 3 h 10 min"); absent elsewhere. */
+  roadLabel?: string | null;
 };
 
 /** Trip focus (owner rule: click a trip card / polyline → dim the others, zoom
@@ -80,6 +82,8 @@ const ZONE_COLOR_INDEX: Record<string, number> = {
   KL: 0, PJ: 1, KLANG: 2, KAJANG: 3, RAWANG: 4, PUCHONG: 5,
   NS: 6, MELAKA: 7, JOHOR: 8, PENANG: 9, KEDAH: 0, PERAK: 3,
   PAHANG: 6, EAST: 8,
+  /* East Malaysia: zones for the 3PL rate cards (owner 2026-11-11). */
+  SABAH: 1, SARAWAK: 4, LABUAN: 7,
 };
 const FALLBACK_PIN_COLOR = '#64748b'; // slate — no zone AND no region resolved
 
@@ -430,6 +434,7 @@ export type MapLegendRow = {
    *  route does not carry them (Date/Time proposal routes). */
   delivered: number | null;
   total: number | null;
+  roadLabel: string | null;
   /** First window's start → last window's end ("09:40 → 12:55"; ETA offsets
    *  read "+30m → +2h 5m"). Null when no stop carries a window — never a
    *  fabricated clock. */
@@ -461,6 +466,7 @@ export function legendFromRoutes(routes: readonly MapRoute[]): MapLegendRow[] {
       stopCount: r.allRefs.length,
       delivered: r.delivered ?? null,
       total: r.total ?? null,
+      roadLabel: r.roadLabel ?? null,
       timeRange,
       stops: r.stops.map((s) => ({ ref: s.ref, order: s.order, windowLabel: s.windowLabel })),
     };

@@ -40,6 +40,7 @@
 // purchase-consignment-order.md, and docs/hard-delete-inventory.md.
 // ----------------------------------------------------------------------------
 
+import { yymmFor } from '../../services/documentRefs';
 import { Hono } from 'hono';
 import { buildVariantSummary } from '../shared';
 import {
@@ -211,7 +212,7 @@ purchaseConsignmentOrders.get('/:id', async (c) => {
   const [headerRes, itemsRes] = await Promise.all([
     scopeToCompany(supabase
       .from('purchase_consignment_orders')
-      .select(`${HEADER_COLS}, supplier:suppliers(id, code, name, contact_person, phone, email, address)`)
+      .select(`${HEADER_COLS}, supplier:suppliers(id, code, name, contact_person, phone, email, email2, email3, address)`)
       .eq('id', id), c)
       .maybeSingle(),
     supabase.from('purchase_consignment_order_items').select(ITEM_COLS).eq('purchase_consignment_order_id', id).order('created_at'),
@@ -359,10 +360,7 @@ purchaseConsignmentOrders.post('/', async (c) => {
   const supabase = c.get('supabase');
   const user = c.get('user');
 
-  const yymm = (() => {
-    const d = new Date();
-    return `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}`;
-  })();
+  const yymm = yymmFor();
 
   // Minted inside insertWithDocNoRetry below so a concurrent-create collision
   // (23505 on pc_number) re-derives the next free number instead of 500ing.

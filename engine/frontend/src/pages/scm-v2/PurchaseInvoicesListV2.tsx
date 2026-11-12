@@ -29,6 +29,7 @@ import { transferFromLabel } from '../../lib/convertScope';
 import { PrintPreviewBatchModal, usePrintPreview } from "../../components/scm-v2/PrintPreviewModal";
 import type { PdfAction } from "../../vendor/scm/lib/pdf-common";
 import { PageHeader } from "../../components/Layout";
+import { MrpAsOf } from "../../components/MrpAsOf";
 import { StatCard } from "../../components/StatCard";
 import { FilterPills } from "../../components/FilterPills";
 import { DataTable, type Column } from "../../components/DataTable";
@@ -52,7 +53,10 @@ import { SearchScopeHint } from "../../components/SearchScopeHint";
 import { useDebouncedSearchTerm, useSearchResultTransition } from "../../hooks/useServerSearch";
 import { useSuppliers } from "../../vendor/scm/lib/suppliers-queries";
 import { useServerColumnFunnels, funnelValues } from "../../hooks/useServerColumnFunnels";
+import { conditionDateRange } from "../../components/dataTableConditionFilters";
 import { poPriceMarker, usePiListPoPriceMap } from "../../vendor/scm/lib/pi-list-po-price";
+import { PoNumberList } from "../../vendor/scm/components/PoNumberList";
+import { PI_PO_SHOWN, piPoNumbers } from "../../vendor/scm/lib/pi-header-pos";
 import {
   usePurchaseInvoicesPaged,
   useEnrichedPiListRows,
@@ -78,6 +82,8 @@ import { StatusWithHold, rowIsHeld, type HoldFields } from "../../vendor/scm/com
 import { usePrintDocument } from "../../components/scm-v2/PrintChainProvider";
 import { purchaseInvoicePrintChain } from "../../lib/printChain";
 import { OVERDUE_CLASS, isPastDue } from "../../lib/tableHighlight";
+import { todayMyt } from "../../vendor/scm/lib/dates";
+import { supplierEmailList } from "../../vendor/shared/supplier-emails";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -411,7 +417,7 @@ function DetailDrawer({
                 </div>
                 <RowKV k="Contact" v={row.supplier?.contact_person || "—"} />
                 <RowKV k="Phone" v={row.supplier?.phone || "—"} />
-                <RowKV k="Email" v={row.supplier?.email || "—"} />
+                <RowKV k="Email" v={supplierEmailList(row.supplier).join(", ") || "—"} />
                 <RowKV k="Address" v={row.supplier?.address || "—"} />
               </div>
 
@@ -625,7 +631,7 @@ export function PurchaseInvoicesListV2() {
   const supplierNames = useMemo(() => [...new Set((suppliersQ.data ?? []).map((s) => s.name).filter((n): n is string => !!n))], [suppliersQ.data]);
   const supplierCodes = useMemo(() => [...new Set((suppliersQ.data ?? []).map((s) => s.code).filter((c): c is string => !!c))], [suppliersQ.data]);
   const { serverFunnels, onColFiltersChange } = useServerColumnFunnels(
-    (cf) => ({ creditorNames: funnelValues(cf, "supplier"), creditorCodes: funnelValues(cf, "supplier_code"), currencies: funnelValues(cf, "currency") }),
+    (cf) => ({ ...conditionDateRange(cf["invoice_date"]), creditorNames: funnelValues(cf, "supplier"), creditorCodes: funnelValues(cf, "supplier_code"), currencies: funnelValues(cf, "currency") }),
     () => setPageParam(0),
   );
   const { requestTerm: debouncedSearch } = useDebouncedSearchTerm(search);
@@ -635,7 +641,7 @@ export function PurchaseInvoicesListV2() {
   // `all` omits the filter.
   const apiStatus = status === "all" ? undefined : status;
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } = usePurchaseInvoicesPaged({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = usePurchaseInvoicesPaged({
     page,
     pageSize,
     status: apiStatus,
@@ -656,6 +662,7 @@ export function PurchaseInvoicesListV2() {
   // and these tiles summarise the SAME payload - so a settled-looking "RM 0.00"
   // (or the PREVIOUS term's money under a placeholder page) would outlive the
   // rows it describes. Same flag SearchScopeHint already uses for its count.
+  const statsFailed = Boolean(error);
   const statsPending =
     isLoading || isPlaceholderData || Boolean(error) || searchTransition.resultsAreStale;
   const cancelPi = useCancelPurchaseInvoice();
@@ -675,7 +682,7 @@ export function PurchaseInvoicesListV2() {
   // enrichment endpoint a beat later and are merged in here, so opening the list
   // no longer waits on a company-wide computeMrp (perf/pi-list-mrp-off-load).
   const serverRows = (data?.purchaseInvoices ?? []) as PiRow[];
-  const rows = useEnrichedPiListRows(serverRows, !listLoading);
+  const { rows, mrp: mrpStatus } = useEnrichedPiListRows(serverRows, !listLoading);
   /* PO price vs invoice price, per invoice (owner 2026-09-14) — a quiet marker,
      fetched a beat after the page renders, never gating anything. */
   const poPriceById = usePiListPoPriceMap(useMemo(() => serverRows.map((r) => r.id).filter(Boolean) as string[], [serverRows]), !listLoading);
@@ -839,7 +846,7 @@ export function PurchaseInvoicesListV2() {
       for (const r of chosen) bundles.push(await fetchPiBundle(r));
       if (how === "one") {
         await generateCombinedPurchaseInvoicePdf(bundles as never, {
-          fileName: `purchase-invoices-${new Date().toISOString().slice(0, 10)}.pdf`,
+          fileName: `purchase-invoices-${todayMyt()}.pdf`,
           action,
         });
       } else {
@@ -936,6 +943,8 @@ export function PurchaseInvoicesListV2() {
      picked; the export follows whatever the operator shows. */
   const lineCols = piLineColumns<PiRow>();
   const docNoOf = (r: PiRow): string => r.linked_ac_docno?.trim() || r.invoice_number;
+  const poNumbersOf = (r: PiRow): string[] =>
+    piPoNumbers((r.po_price_summary ?? poPriceById.get(String(r.id)))?.poNumbers ?? [], r.purchase_order?.po_number ?? null);
   const moneyCell = (sen: number | null | undefined) => <span className="font-money text-[13px] text-ink">{fmtRm(sen ?? 0)}</span>;
   const rateOf = (r: PiRow): number => { const n = Number(r.exchange_rate ?? 1); return Number.isFinite(n) && n > 0 ? n : 1; };
   const blankCol = (key: string, label: string): Column<PiRow, PiListLine> => ({
@@ -1008,6 +1017,21 @@ export function PurchaseInvoicesListV2() {
       key: "total", label: "Invoice Amount", exportLabel: PI_LABELS.total, width: "128px", align: "right",
       getValue: (r) => totalOf(r), exportValue: (r) => senToRinggit(totalOf(r), 2), exportFormat: "money",
       render: (r) => <span className="font-money text-[13px] font-semibold text-ink">{fmtRm(totalOf(r))}</span>,
+    },
+    /* Every PO the invoice bills, read off its lines (owner 2026-11-10); the
+       header's own FK holds only the first receipt's PO. Screen-only, like PO
+       Amount, so the default export stays AutoCount's. */
+    po_numbers: {
+      key: "po_numbers",
+      label: "PO No",
+      width: "170px",
+      disableSort: true,
+      description: "Every purchase order this invoice's lines come from.",
+      render: (r) => (
+        <span className="font-mono text-[12px] text-ink-secondary">
+          <PoNumberList poNumbers={poNumbersOf(r)} shown={PI_PO_SHOWN} />
+        </span>
+      ),
     },
     po_amount: {
       key: "po_amount",
@@ -1141,7 +1165,7 @@ export function PurchaseInvoicesListV2() {
         if (!m) return <span className="text-[12px] text-ink-muted">…</span>;
         if (m.tone === "differs") {
           return (
-            <span className="text-[12px] font-semibold" style={{ color: "#D64F20" }} title={`Net ${m.diffSen > 0 ? "+" : "−"}${fmtRm(Math.abs(m.diffSen))} against the purchase order prices. For reference only.`}>
+            <span className="text-[12px] font-semibold" style={{ color: "var(--hz-c-accent)" }} title={`Net ${m.diffSen > 0 ? "+" : "−"}${fmtRm(Math.abs(m.diffSen))} against the purchase order prices. For reference only.`}>
               {m.label}
             </span>
           );
@@ -1150,7 +1174,7 @@ export function PurchaseInvoicesListV2() {
       },
     },
   };
-  const beside: Record<string, string> = { total: "po_amount", qty: "po_price" };
+  const beside: Record<string, string> = { supplier_invoice_ref: "po_numbers", total: "po_amount", qty: "po_price" };
   const columns: Column<PiRow, PiListLine>[] = [
     ...PI_DEFAULT_COLUMN_KEYS.flatMap((k) => (beside[k] ? [byKey[k]!, byKey[beside[k]]!] : [byKey[k]!])),
     ...Object.keys(byKey).filter((k) => !(PI_DEFAULT_COLUMN_KEYS as readonly string[]).includes(k) && !Object.values(beside).includes(k)).map((k) => byKey[k]!),
@@ -1212,6 +1236,8 @@ export function PurchaseInvoicesListV2() {
           />
         </div>
 
+        <MrpAsOf status={mrpStatus} className="mb-2" />
+
         <div className="mb-5 hidden grid-cols-2 gap-3 md:grid lg:grid-cols-4">
           {/* Every tile describes the rows ON SCREEN and says so while a column
               funnel narrows them (owner 2026-08-13). The count tile switches
@@ -1219,7 +1245,7 @@ export function PurchaseInvoicesListV2() {
               and contradicts the table the moment a client-side funnel hides
               part of the page. */}
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Total PIs"
             value={(visible.filtered ? visible.rows.length : total).toLocaleString("en-MY")}
             subtitle={visible.filtered ? "Filtered · shown below" : "All matching PIs"}
@@ -1227,14 +1253,14 @@ export function PurchaseInvoicesListV2() {
             active
           />
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Billed"
             value={fmtRm(money.billed)}
             subtitle={visible.filtered ? "Filtered · sum shown below" : "Sum on this page"}
             rail="bg-accent"
           />
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Owed"
             value={fmtRm(money.owed)}
             subtitle={
@@ -1244,7 +1270,7 @@ export function PurchaseInvoicesListV2() {
             rail="bg-err"
           />
           <StatCard
-            pending={statsPending}
+            pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
             label="Paid"
             value={fmtRm(money.paid)}
             subtitle={visible.filtered ? "Cash out · filtered" : "Cash out · on this page"}

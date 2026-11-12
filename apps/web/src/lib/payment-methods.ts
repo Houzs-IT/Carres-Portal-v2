@@ -105,7 +105,6 @@ const FALLBACK: ManualMethodSpec[] = [
   ...MACHINES,
 ];
 
-export const GOVERNED_MANUAL_METHODS: readonly ManualMethodSpec[] = FALLBACK;
 
 /** Names of the words the system records itself — never a manual choice, but
  *  they appear on receipts, so a receipt row can still be read. */

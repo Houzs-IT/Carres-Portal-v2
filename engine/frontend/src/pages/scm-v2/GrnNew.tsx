@@ -58,6 +58,7 @@ import type { GrnFromPoPick } from './GrnFromPo';
 import styles from './SalesOrderDetail.module.css';
 import { useNotify } from '../../vendor/scm/components/NotifyDialog';
 import { notifyAcNotSent } from '../../vendor/scm/lib/ac-not-sent';
+import { grnCreatedOutcome } from '../../vendor/scm/lib/grn-create-outcome';
 import { PageHeader } from '../../components/Layout';
 import { resolveFxRate } from './fx-rate';
 import { computeTotalHeight, isTotalHeightCategory, isTotalHeightPart } from '../../vendor/shared/total-height';
@@ -65,6 +66,9 @@ import { DateField } from "../../vendor/scm/components/DateField";
 import { useAuth } from '../../auth/AuthContext';
 import { canPostGoodsReceipts } from '../../auth/salesAccess';
 import { afterCreatePath, sourceDocPath } from '../../lib/returnToSource';
+import { supplierEmailList } from '../../vendor/shared/supplier-emails';
+import { FormTouchScope } from '../../components/FormTouchScope';
+import { useFormTouched, useLeaveGuard } from '../../hooks/useLeaveGuard';
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -157,6 +161,8 @@ export const GrnNew = () => {
   const { user } = useAuth();
   const mayPost = canPostGoodsReceipts(user);
   const navigate = useNavigate();
+  const { touched: formTouched, markTouched } = useFormTouched();
+  const { allowLeave } = useLeaveGuard(formTouched, null);
   const notify = useNotify();
   const [params] = useSearchParams();
 
@@ -316,6 +322,8 @@ export const GrnNew = () => {
       return;
     }
     removeScmHandoff('grnFromPoPicks');
+    // Lines brought back from the picker are work the person did.
+    markTouched();
 
     // Restore the draft saved before we left for the picker (header + lines).
     const draft = readScmHandoff<GrnNewDraft>('grnNewDraft');
@@ -441,6 +449,7 @@ export const GrnNew = () => {
       setDialog({ title: 'Unable to continue', body: 'This browser could not safely store the current GRN draft. Nothing was discarded; free some browser storage and try again.' });
       return;
     }
+    allowLeave();
     navigate('/scm/grns/from-po');
   };
 
@@ -749,6 +758,7 @@ export const GrnNew = () => {
       lastCreatedIdRef.current = createRes.id;
       if (!asDraft) await post.mutateAsync(createRes.id);
       if (isReplay) {
+        allowLeave();
         setDialog({
           title: `GRN ${createRes.grnNumber} was already created`,
           body: 'This submit repeated the earlier one — the same receipt was answered again and no second GRN or stock movement was written. '
@@ -766,11 +776,9 @@ export const GrnNew = () => {
          it" and how it is worded must not be re-decided per screen
          (ac-not-sent.tsx's own header). Never blocks; the goods are received. */
       await notifyAcNotSent(notify, createRes, 'Goods receipt');
+      allowLeave();
       setDialog({
-        title: `GRN ${createRes.grnNumber} ${asDraft ? 'saved as draft' : 'created'}`,
-        body: asDraft
-          ? 'Saved as a draft — no stock moved yet. Open it and Confirm to receive the goods.'
-          : 'Received & posted — inventory + PO received qty updated.',
+        ...grnCreatedOutcome(createRes.grnNumber, asDraft, createRes),
         goTo: afterCreatePath(`/scm/grns/${createRes.id}`, backToPo),
         goLabel: backToPo ? 'Back to PO' : undefined,
       });
@@ -780,6 +788,7 @@ export const GrnNew = () => {
   };
 
   return (
+    <FormTouchScope onTouch={markTouched}>
     <div className="space-y-4">
       <PageHeader back
         eyebrow="Procurement"
@@ -980,7 +989,7 @@ export const GrnNew = () => {
             }}>
               {supplier.contact_person && <span>Contact: <strong>{supplier.contact_person}</strong></span>}
               {supplier.phone          && <span>Phone: <strong>{formatPhone(supplier.phone)}</strong></span>}
-              {supplier.email          && <span>Email: <strong>{supplier.email}</strong></span>}
+              {supplierEmailList(supplier).length > 0          && <span>Email: <strong>{supplierEmailList(supplier).join(", ")}</strong></span>}
               {supplier.payment_terms  && <span>Terms: <strong>{supplier.payment_terms}</strong></span>}
               <span>Currency: <strong>{supplier.currency ?? currency}</strong></span>
             </div>
@@ -1143,7 +1152,7 @@ export const GrnNew = () => {
                           background: 'transparent',
                           border: 'none',
                           cursor: 'pointer',
-                          color: 'var(--c-festive-b, #B8331F)',
+                          color: 'var(--c-festive-b, var(--hz-dk-festive-b, #B8331F))',
                           padding: 4,
                           display: 'inline-flex',
                         }}
@@ -1490,5 +1499,6 @@ export const GrnNew = () => {
         />
       )}
     </div>
+    </FormTouchScope>
   );
 };

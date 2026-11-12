@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { Env } from "../types";
 import {
   hashPassword,
@@ -12,17 +12,22 @@ import {
   isoIn,
   timingSafeEqualStr,
   REMEMBER_TTL_SECONDS,
+  SESSION_ORIGIN_FIELD,
+  SESSION_ORIGIN_PASSWORD_CHANGE,
+  PASSWORD_CHANGE_SESSION_TTL_SECONDS,
 } from "../services/auth";
+import { fieldPinLogin } from "./fieldPinLogin";
 import { bustUserSessions } from "../services/sessionCache";
 import { isFinanceViewer, isProductCostViewer } from "../services/pmsAccess";
 import { userCanWriteScmConfig } from "../services/positionPolicy";
 import { resolveCapabilities } from "../services/capabilities";
 import { isCostingDisplayEnabled } from "../scm/lib/costing-enabled";
-import { sendEmail, publicUrl, resetEmailHtml, inviteEmailHtml, erpProductName } from "../services/email";
+import { sendEmail, enginePublicUrl, resetEmailHtml, inviteEmailHtml, erpProductName } from "../services/email";
 import { getBrandingForCompany } from "../services/branding";
 import { defaultCompanyCodeForHost } from "../middleware/companyContext";
 import { validatePasswordStrength } from "../services/passwordStrength";
-import { verifyTotp, consumeBackupCode } from "../services/totp";
+import { consumeBackupCode } from "../services/totp";
+import { acceptTotpCode } from "../services/totpCheck";
 import { checkRateLimit, clearRateLimit, clientIp } from "../middleware/rateLimit";
 import { recordFailedLogin, recordRateLimitedOnce } from "../services/failedLogins";
 import { provisionPersonalMailbox } from "../lib/mail-provision";
@@ -45,6 +50,23 @@ const TIMING_EQUALISER_HASH =
   "BF3yX+3ocRPnH9KBKydn5A==$5iHFIc7Z3t8/vEm8jA4GuwdjcaL5/yajl4dWitx/PBU=";
 
 const RESET_TTL_SECONDS = 60 * 60; // matches the admin-initiated reset
+
+/* A member flagged to change their password (users.password_change_required_at)
+   who proves the password gets a session that can ONLY change it — never the
+   ordinary or "remember me" session, because the password just proven may be one
+   an outsider also holds (docs/staging-dump-artifact-exposure-coe.md). No pass is
+   minted: the session lives for one form, and the auth gate refuses it on both
+   paths anyway. No staffId either, so the POS does not treat it as a sign-in. */
+async function passwordChangeLoginResponse(c: Context<{ Bindings: Env }>, userId: number) {
+  const token = await createSession(
+    c.env,
+    userId,
+    SESSION_ORIGIN_PASSWORD_CHANGE,
+    PASSWORD_CHANGE_SESSION_TTL_SECONDS,
+    null,
+  );
+  return c.json({ token, user_id: userId, password_change_required: true });
+}
 const TOTP_CHALLENGE_TTL_SECONDS = 5 * 60; // window to enter the 2FA code
 
 /**
@@ -125,10 +147,16 @@ app.post("/login", async (c) => {
   }
 
   const user = await c.env.DB.prepare(
-    `SELECT id, password_hash, status, totp_enabled FROM users WHERE email = ?`
+    `SELECT id, password_hash, status, totp_enabled, password_change_required_at FROM users WHERE email = ?`
   )
     .bind(email)
-    .first<{ id: number; password_hash: string; status: string; totp_enabled: number }>();
+    .first<{
+      id: number;
+      password_hash: string;
+      status: string;
+      totp_enabled: number;
+      password_change_required_at: string | null;
+    }>();
 
   /* Two account-existence oracles used to live here, and both are closed below.
      Telling someone WHICH half of the pair was wrong hands anyone holding a list
@@ -205,6 +233,7 @@ app.post("/login", async (c) => {
   await c.env.DB.prepare(`UPDATE users SET last_login_at = datetime('now') WHERE id = ?`)
     .bind(user.id)
     .run();
+  if (user.password_change_required_at) return passwordChangeLoginResponse(c, user.id);
   const token = remember
     ? await createSession(c.env, user.id, undefined, REMEMBER_TTL_SECONDS, REMEMBER_TTL_SECONDS)
     : await createSession(c.env, user.id);
@@ -232,6 +261,14 @@ async function lookupStaffId(env: Env, userId: number): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * POST /api/auth/pin-login
+ * Public — crew sign-in with staff code + 6-digit PIN. The whole rule set
+ * (who, how many tries, what the session may reach) is in routes/fieldPinLogin.ts
+ * and services/fieldPin.ts.
+ */
+app.post("/pin-login", fieldPinLogin);
 
 /**
  * POST /api/auth/totp/login
@@ -264,16 +301,20 @@ app.post("/totp/login", async (c) => {
     recordFailedLogin(c, null, null, "totp_expired");
     return c.json({ error: "This sign-in attempt expired — start again." }, 401);
   }
-  const [userIdPart, rememberPart] = String(userIdRaw).split(":");
+  const [userIdPart, rememberPart, doorPart] = String(userIdRaw).split(":");
   const userId = parseInt(userIdPart, 10);
   const remember = rememberPart === "1";
+  // A challenge issued at the crew PIN door must end in a field session.
+  const fieldDoor = doorPart === "field";
 
   const row = await c.env.DB.prepare(
-    `SELECT totp_secret, totp_enabled, totp_backup_codes, status FROM users WHERE id = ?`,
+    `SELECT totp_secret, totp_enabled, totp_backup_codes, totp_last_step, status, password_change_required_at FROM users WHERE id = ?`,
   )
     .bind(userId)
     .first<{
+      password_change_required_at: string | null;
       totp_secret: string | null;
+      totp_last_step: number | string | null;
       totp_enabled: number;
       totp_backup_codes: string | null;
       status: string;
@@ -283,7 +324,7 @@ app.post("/totp/login", async (c) => {
     return c.json({ error: "Two-factor is not available for this account." }, 401);
   }
 
-  let ok = await verifyTotp(row.totp_secret, code);
+  let ok = await acceptTotpCode(c.env, userId, row, code);
   if (!ok && row.totp_backup_codes) {
     try {
       const remaining = await consumeBackupCode(code, JSON.parse(row.totp_backup_codes));
@@ -316,9 +357,13 @@ app.post("/totp/login", async (c) => {
   await c.env.DB.prepare(`UPDATE users SET last_login_at = datetime('now') WHERE id = ?`)
     .bind(userId)
     .run();
-  const token = remember
-    ? await createSession(c.env, userId, undefined, REMEMBER_TTL_SECONDS, REMEMBER_TTL_SECONDS)
-    : await createSession(c.env, userId);
+  // The crew PIN door never asked for the password, so the flag does not apply.
+  if (!fieldDoor && row.password_change_required_at) return passwordChangeLoginResponse(c, userId);
+  const token = fieldDoor
+    ? await createSession(c.env, userId, SESSION_ORIGIN_FIELD)
+    : remember
+      ? await createSession(c.env, userId, undefined, REMEMBER_TTL_SECONDS, REMEMBER_TTL_SECONDS)
+      : await createSession(c.env, userId);
   const sessionPass = await mintSessionPass(c.env, token, Date.now());
   // Same staffId contract as /login — the POS email path may be 2FA-gated.
   return c.json({ token, user_id: userId, staffId: await lookupStaffId(c.env, userId), ...(sessionPass ? { session_pass: sessionPass } : {}) });
@@ -415,7 +460,7 @@ app.post("/forgot-password", async (c) => {
       to: user.email,
       subject: `You're invited to ${inviteProduct}`,
       html: inviteEmailHtml({
-        link: publicUrl(c.env, `/invite/${inviteToken}`, inviteCompanyCode),
+        link: enginePublicUrl(c.env, `/invite/${inviteToken}`) /* Carres: engine page */,
         roleName: user.role_name || "a team member",
         inviterName: inviteProduct,
         expiresIn: "14 days",
@@ -474,7 +519,7 @@ app.post("/forgot-password", async (c) => {
     subject: `Reset your ${resetProduct} password`,
     html: resetEmailHtml({
       name,
-      link: publicUrl(c.env, `/reset/${token}`, resetCompanyCode),
+      link: enginePublicUrl(c.env, `/reset/${token}`) /* Carres: engine page */,
       expiresIn: "1 hour",
       requestedBy: null,
       productName: resetProduct,
@@ -705,6 +750,8 @@ app.get("/me", async (c) => {
   return c.json({
     user: {
       ...user,
+      // The SPA's AuthGate shows only the change-password screen while true.
+      password_change_required: user.session_origin === SESSION_ORIGIN_PASSWORD_CHANGE,
       project_finance_viewer: isFinanceViewer(user),
       product_cost_viewer: isProductCostViewer(user),
       // scm_config_writer: "may you WRITE SCM master data / config" — the SAME
@@ -794,8 +841,10 @@ app.post("/reset/:token", async (c) => {
   const strength = validatePasswordStrength(body.password, row.email);
   if (!strength.ok) return c.json({ error: strength.error }, 400);
   const hash = await hashPassword(body.password);
+  // A reset link proves the mailbox and replaces the password outright, so it
+  // also satisfies a pending required change.
   await c.env.DB.prepare(
-    `UPDATE users SET password_hash = ? WHERE id = ?`
+    `UPDATE users SET password_hash = ?, password_change_required_at = NULL WHERE id = ?`
   )
     .bind(hash, row.user_id)
     .run();
@@ -832,6 +881,9 @@ async function requireAuthed(c: any) {
 app.patch("/me", async (c) => {
   const auth = await requireAuthed(c);
   if ("error" in auth) return c.json({ error: auth.error }, 401);
+  if (auth.user.session_origin === SESSION_ORIGIN_PASSWORD_CHANGE) {
+    return c.json({ error: "Please choose a new password before continuing.", code: "password_change_required" }, 403);
+  }
   const body = await c.req.json<{ name?: string }>();
   const sets: string[] = [];
   const binds: any[] = [];
@@ -858,24 +910,46 @@ app.patch("/me", async (c) => {
 app.post("/me/password", async (c) => {
   const auth = await requireAuthed(c);
   if ("error" in auth) return c.json({ error: auth.error }, 401);
-  const body = await c.req.json<{ current: string; next: string }>();
+  const body = await c.req.json<{ current: string; next: string; remember?: boolean }>();
   if (!body.current || !body.next) {
     return c.json({ error: "current and next are required" }, 400);
   }
   const strength = validatePasswordStrength(body.next, auth.user.email);
   if (!strength.ok) return c.json({ error: strength.error }, 400);
   const row = await c.env.DB.prepare(
-    `SELECT password_hash FROM users WHERE id = ?`
+    `SELECT password_hash, password_change_required_at FROM users WHERE id = ?`
   )
     .bind(auth.user.id)
-    .first<{ password_hash: string }>();
+    .first<{ password_hash: string; password_change_required_at: string | null }>();
   if (!row?.password_hash) return c.json({ error: "No password on file" }, 400);
   const ok = await verifyPassword(body.current, row.password_hash);
   if (!ok) return c.json({ error: "Current password is incorrect" }, 403);
+  // A required change exists because the OLD password may be known to someone
+  // else, so keeping it would satisfy the form and fix nothing.
+  if (row.password_change_required_at && body.next === body.current) {
+    return c.json({ error: "Choose a password different from your current one." }, 400);
+  }
   const next = await hashPassword(body.next);
-  await c.env.DB.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`)
+  await c.env.DB.prepare(
+    `UPDATE users SET password_hash = ?, password_change_required_at = NULL WHERE id = ?`
+  )
     .bind(next, auth.user.id)
     .run();
+  // A restricted session must not survive the change: it was granted on the old
+  // password. End EVERY session the member holds and hand back a fresh ordinary
+  // one, so the screen they are on simply continues into the app.
+  if (auth.user.session_origin === SESSION_ORIGIN_PASSWORD_CHANGE) {
+    await bustUserSessions(c.env, auth.user.id);
+    await c.env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`)
+      .bind(auth.user.id)
+      .run();
+    const remember = body.remember === true;
+    const token = remember
+      ? await createSession(c.env, auth.user.id, undefined, REMEMBER_TTL_SECONDS, REMEMBER_TTL_SECONDS)
+      : await createSession(c.env, auth.user.id);
+    const sessionPass = await mintSessionPass(c.env, token, Date.now());
+    return c.json({ ok: true, token, ...(sessionPass ? { session_pass: sessionPass } : {}) });
+  }
   // Keep the current session alive — caller just proved they know the
   // old password. Revoke OTHER sessions on the account as a defensive
   // measure (if the old password was compromised elsewhere). Bust their

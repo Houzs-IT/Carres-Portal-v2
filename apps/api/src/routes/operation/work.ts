@@ -1,6 +1,4 @@
-import { loadCaseRemedyWork } from "../../lib/service-case-remedy-work";
 import { Hono, type Context } from "hono";
-import { sellableOf } from "./stock";
 import { HTTPException } from "hono/http-exception";
 import {
   countWorkingDays,
@@ -8,31 +6,19 @@ import {
   myHolidaySet,
   operationWorkItemFromProjection,
   OPERATION_WORK_INCLUDE_WORKSPACE,
-  projectIssueActionWork,
   operationWorkResponseSchema,
   poSupplierDeliveryDateOf,
   purchaseOrderReplyWorkItems,
   purchaseOrderArrivalCheckWorkItems,
-  demandPurposeLabelOf,
-  manualPurchaseForOf,
-  manualPurchaseLineRemainingOf,
-  manualPurchaseOrderByOf,
-  manualPurchaseStatusOf,
-  manualPurchaseSupplierSummary,
-  manualPurchaseWorkContext,
-  manualPurchaseWorkItems,
   orderActionsInDisplayOrder,
-  receivingWorkItems,
   salesOrderActionSignalsFromFacts,
   invoiceStorageSumOf,
   storageHold,
   storageObligation,
   workItemsForOrder,
   type DeliveryQueueLeads,
-  type ManualPurchaseWorkInput,
   type OrderOpenAction,
   type OrderWorkContext,
-  type ReceivingWorkSource,
   type OperationWorkItem,
   type OperationWorkResponse,
   type OperationWorkSourceHealth,
@@ -43,7 +29,6 @@ import {
   PURCHASING_OFFICE_OFF_DAYS,
   DEFAULT_OFFICE_CALENDAR,
   DEFAULT_DELIVERY_CALENDAR,
-  deliveryHolidaySet,
   deliveryWorkingDayOptions,
   type DeliveryCalendar,
   deliveryQueueLeads,
@@ -51,7 +36,6 @@ import {
   officeOwnerCalendar,
   officeWorkingDayOptions,
   personOwnerCalendar,
-  warehouseReceivingDaysLate,
   type OfficeCalendar,
   type OwnerCalendar,
   orderActionLines,
@@ -89,26 +73,15 @@ import { loadInternalTaskWork } from "../../lib/internal-task-work";
 import { loadPurchasingSettings } from "../../lib/purchasing-settings";
 import { readOfficeCalendar } from "../../lib/office-calendar";
 import { DEFAULT_DELIVERY_RULES, readDeliveryRules } from "../../lib/delivery-rules";
-import { readWarehouseReceivingSettings } from "../../lib/warehouse-receiving-calendar";
 import { readDeliveryCalendar } from "../../lib/delivery-calendar";
 import { readPersonWorkDays } from "../../lib/person-work-days";
 import { chunk } from "../../lib/purchase-demand-read";
 import { userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
 import operationOrdersRouter from "./orders";
-import operationStockRouter from "./stock";
-import manualPurchaseRouter from "./manual-purchase";
-import warehouseReceiptsRouter from "./warehouse-receipts";
-import operationPosRouter from "./pos";
-import operationSuppliersRouter from "./suppliers";
 import workspaceDutiesRouter from "./workspace-duties";
 import opsStaffRouter from "./staff";
 import financeInvoicesRouter from "../finance/invoices";
-import issuesRouter from "../ops/issues";
-import purchaseDemandsRouter from "./purchase-demands";
-import { loadRepairOrderWork } from "../../lib/repair-order-work";
-import { loadSupplierClaimWork } from "../../lib/supplier-claim-work";
-import { loadPurchaseReturnWork } from "../../lib/purchase-return-work";
 import {
   invoiceArrivalDayWord,
   invoiceNeeded,
@@ -521,50 +494,6 @@ export function projectSalesOrdersFromModuleFacts(input: {
       },
     });
   });
-}
-
-interface ManualPurchaseRegisterSource {
-  requests: Array<{
-    id: string;
-    /** `MPR250924-4827` (0546); absent on an older API. */
-    req_no?: string | null;
-    purpose: string;
-    request_version?: number | null;
-    request_context?: unknown;
-    destination_id: string | null;
-    why: string | null;
-    approval_required: boolean;
-    approved_at: string | null;
-    refused_at: string | null;
-    /** 0522 — absent on an older API: read as not withdrawn / not sent back. */
-    withdrawn_at?: string | null;
-    sent_back_at?: string | null;
-    refuse_reason: string | null;
-    for_service_case_id: string | null;
-    for_staff_user_id: string | null;
-    for_subsidiary_name: string | null;
-  }>;
-  lines: Array<{
-    request_id: string;
-    context_read_available?: boolean;
-    context_admission_current?: boolean;
-    context_to_buy?: number;
-    qty: number;
-    approved_qty: number | null;
-    issued_qty: number;
-    cancelled_at: string | null;
-    po_id: string | null;
-    po_ids?: string[];
-    active_po_ids?: string[];
-    received?: boolean;
-    supplier_id: string | null;
-    order_by: string | null;
-  }>;
-  destinations: Array<{ id: string; name: string }>;
-  suppliers: Array<{ id: string; name: string }>;
-  users: Array<{ id: string; name: string | null }>;
-  serviceCases: Array<{ id: string; case_no: string }>;
-  pos: Array<{ id: string; sent: boolean }>;
 }
 
 /** The advance arrival check's own extra facts, both already returned by the
@@ -1180,102 +1109,6 @@ async function readBackdatedPaymentRequests(c: Context<AppEnv>): Promise<Backdat
   return (data ?? []) as unknown as BackdatedPaymentRequestRow[];
 }
 
-export function receivingWorkSourceFromModuleFacts(data: {
-  receipts: Array<{
-    id: string;
-    po_id: string;
-    supplier_name: string | null;
-    status: string;
-    goods_received_at?: string;
-    submitted_at: string;
-    /** The Site that physically received, else the PO's Warehouse. */
-    actual_site_id?: string | null;
-    warehouse_id?: string | null;
-  }>;
-}): ReceivingWorkSource {
-  return {
-    submitted: data.receipts
-      .filter((row) => row.status === "submitted")
-      .map((row) => ({
-        id: row.id,
-        po_id: row.po_id,
-        supplier_name: row.supplier_name,
-        goods_received_at: row.goods_received_at,
-        submitted_at: row.submitted_at,
-        site_id: row.actual_site_id ?? row.warehouse_id ?? null,
-      })),
-  };
-}
-
-export function manualPurchaseWorkInputsFromRegister(
-  data: ManualPurchaseRegisterSource,
-): Array<ManualPurchaseWorkInput & { recipient: string | null; poIds: string[]; unsentPoId: string | null; continueInPoId: string | null }> {
-  const destination = new Map(data.destinations.map((row) => [row.id, row.name]));
-  const supplier = new Map(data.suppliers.map((row) => [row.id, row.name]));
-  const user = new Map(data.users.map((row) => [row.id, row.name]));
-  const serviceCase = new Map(data.serviceCases.map((row) => [row.id, row.case_no]));
-  const sent = new Map(data.pos.map((row) => [row.id, row.sent]));
-  return data.requests.map((request) => {
-    const lines = data.lines.filter((line) => line.request_id === request.id);
-    const live = lines.filter((line) => line.cancelled_at === null);
-    const contextual = Number(request.request_version ?? 0) > 0 || request.request_context != null;
-    if (contextual && request.approved_at != null && (live.length === 0 || live.some(line => line.context_read_available !== true || !Number.isInteger(line.context_to_buy)))) {
-      throw new Error("Manual Purchase coverage could not be loaded");
-    }
-    const poIds = [...new Set(live.flatMap((line) => line.active_po_ids ?? line.po_ids ?? (line.po_id ? [line.po_id] : [])))];
-    const supplierNames = live.map((line) =>
-      line.supplier_id ? (supplier.get(line.supplier_id) ?? "") : "",
-    );
-    return {
-      requestId: request.id,
-      reference: request.req_no ?? null,
-      context: manualPurchaseWorkContext({
-        purposeLabel: demandPurposeLabelOf(request.purpose) ?? request.purpose,
-        forText: manualPurchaseForOf({
-          purpose: request.purpose,
-          destinationName: request.destination_id
-            ? (destination.get(request.destination_id) ?? null)
-            : null,
-          serviceCaseNo: request.for_service_case_id
-            ? (serviceCase.get(request.for_service_case_id) ?? null)
-            : null,
-          staffName: request.for_staff_user_id
-            ? (user.get(request.for_staff_user_id) ?? null)
-            : null,
-          subsidiaryName: request.for_subsidiary_name,
-          why: request.why,
-        }),
-        supplierSummary: manualPurchaseSupplierSummary(supplierNames),
-      }),
-      status: manualPurchaseStatusOf({
-        approvedAt: request.approved_at,
-        refusedAt: request.refused_at,
-        withdrawnAt: request.withdrawn_at ?? null,
-        sentBackAt: request.sent_back_at ?? null,
-        refuseReason: request.refuse_reason,
-        lines: lines.map((line) => ({
-          qty: line.qty,
-          approvedQty: line.approved_qty,
-          issuedQty: line.issued_qty,
-          cancelledAt: line.cancelled_at,
-          poId: line.po_id,
-          received: line.received ?? false,
-        })),
-      }).kind,
-      remainingQty: contextual ? live.reduce((total,line) => total + (line.context_to_buy ?? 0),0) : live.reduce(
-        (total,line) => total + manualPurchaseLineRemainingOf({ qty: line.qty, approvedQty: line.approved_qty, issuedQty: line.issued_qty }), 0),
-      orderBy: manualPurchaseOrderByOf(live.map((line) => line.order_by)),
-      poIds,
-      unsentPoId: poIds.find((id) => sent.get(id) !== true) ?? null,
-      continueInPoId: contextual && request.purpose === "ready_stock" && live.some(line => line.context_admission_current === false)
-        ? live.filter(line => (line.context_to_buy ?? 0) > 0).flatMap(line => line.active_po_ids ?? line.po_ids ?? (line.po_id ? [line.po_id] : []))[0] ?? null : null,
-      hasPos: poIds.length > 0,
-      posAllSent: poIds.length > 0 && poIds.every((id) => sent.get(id) === true),
-      recipient: manualPurchaseSupplierSummary(supplierNames),
-    };
-  });
-}
-
 const ORDER_PROBLEM: Record<string, string> = {
   issue_po: "Goods not covered by a purchase order",
   confirm_ready_date: "Supplier date missing",
@@ -1354,7 +1187,9 @@ export function projectSalesOrderWork(input: {
           item.ruleKey === "check_delivery_proof")
         ? `/operation/delivery-orders/${encodeURIComponent(deliveryOrder)}`
         : `/operation?tab=delivery&view=all&open=${encodeURIComponent(input.context.orderId)}`
-      : `/operation/orders/so/${encodeURIComponent(input.context.orderId)}`;
+      /* The Carres Sales Order page is retired (Houzs runs Sales Orders, owner 11 Nov 2026): the one order
+         rule the feed still carries is money, worked in the Payments Monitor scoped to the order. */
+      : `/finance/monitor?order=${encodeURIComponent(String(input.context.so))}`;
     return operationWorkItemFromProjection(lines ? { ...item, action: lines.act } : item, {
       object: deliveryOwned
         ? {
@@ -1396,112 +1231,6 @@ export function projectSalesOrderWork(input: {
             fallbackDestination: destination,
           }
         : undefined,
-      today: input.today,
-    });
-  });
-}
-
-export function projectManualPurchaseWork(input: {
-  requests: readonly (ManualPurchaseWorkInput & { recipient?: string | null; unsentPoId?: string | null; continueInPoId?: string | null })[];
-  approver: { userId: string; name: string | null } | null;
-  poDuty: WorkspaceDutyResolution | null;
-  today: string;
-  /** The stored Office calendar (`officeWorkingDayOptions`); default Mon–Fri
-   *  with the built-in holidays. */
-  office?: WorkingDayOptions;
-}): OperationWorkItem[] {
-  const office = input.office ?? workFeedCalendarsOf().office;
-  return input.requests.flatMap((request) =>
-    manualPurchaseWorkItems(
-      request,
-      {
-        approver: input.approver,
-        poDuty: input.poDuty?.normalOwner ?? null,
-        poDutyResolution: input.poDuty,
-      },
-      input.today,
-      office,
-    ).map((item) => {
-      const approval = item.ruleKey === "manual_purchase.approve";
-      return operationWorkItemFromProjection(!approval && request.continueInPoId ? { ...item, action: "Revise quantity or Deliver To" } : item, {
-        object: {
-          kind: "manual_purchase",
-          id: request.requestId,
-          /* The document number is the reference (owner review 2026-09-25
-             item 6/7): the composed context read `Manual Purchase Request ·
-             Ready Stock · Ohana · Ohana` and overflowed the panel's button. */
-          label: request.reference ?? request.context,
-        },
-        problem: approval ? "Approval required"
-          : request.remainingQty > 0 ? "Purchase order required" : "Sending not confirmed",
-        recipient: request.recipient ?? null,
-        requiredResult: approval
-          ? "Purchase decision recorded"
-          : request.continueInPoId ? ORDER_RESULT.issue_po : "Current PO version marked as sent",
-        // Approval opens its decision; uncovered demand opens the request.
-        // Sending opens the first existing unsent PO, never a second buy.
-        destination: !approval && request.continueInPoId
-          ? `/operation/procurement?po=${encodeURIComponent(request.continueInPoId)}`
-          : !approval && request.remainingQty === 0 && request.unsentPoId
-          ? `/operation/procurement?po=${encodeURIComponent(request.unsentPoId)}`
-          : `/operation?tab=manual-purchase&mp=${encodeURIComponent(request.requestId)}${approval ? "&section=approval" : ""}`,
-        today: input.today,
-      });
-    }),
-  );
-}
-
-export function projectReceivingWork(input: {
-  source: ReceivingWorkSource;
-  duty: WorkspaceDutyResolution | null;
-  today: string;
-  /** Counted on the receiving Site's own calendar; the row names the Site. */
-  workingDaysLate: (dueIso: string, row?: ReceivingWorkSource["submitted"][number]) => number;
-}): OperationWorkItem[] {
-  const acting = input.duty?.actingPerson ?? null;
-  const projected = receivingWorkItems(
-    input.source,
-    { grnDuty: acting },
-    input.today,
-    input.workingDaysLate,
-  );
-  const supplierByPo = new Map<string, string | null>([
-    ...input.source.submitted.map((row) => [row.po_id, row.supplier_name] as const),
-  ]);
-  return projected.map((item) => {
-    const workItem: WorkItem = {
-      ruleKey: item.ruleKey,
-      module: item.module,
-      soRef: item.soRef,
-      orderId: item.orderId,
-      action: item.action,
-      ownerRule: "grn_duty",
-      ownerDutyKey: "grn_duty",
-      normalOwner: input.duty?.normalOwner ?? null,
-      activeCover: input.duty?.activeCover ?? null,
-      actingPerson: acting,
-      ownerState: input.duty?.state ?? "not_assigned",
-      ownerName: item.ownerName,
-      ownerUserId: item.ownerUserId,
-      ...(item.ownerDuty ? { ownerDuty: item.ownerDuty } : {}),
-      tone: item.tone,
-      locked: item.locked,
-      broken: item.broken,
-      dueIso: item.dueIso,
-      workingDaysLate: item.workingDaysLate,
-    };
-    const supplier = supplierByPo.get(item.poId) ?? null;
-    return operationWorkItemFromProjection(workItem, {
-      object: {
-        kind: "receiving",
-        id: item.receiptId,
-        label: item.poId,
-      },
-      // Only an actual submitted physical report reaches this projection.
-      problem: "Goods arrived · GRN not posted",
-      recipient: supplier,
-      requiredResult: "GRN posted",
-      destination: `/operation?tab=receiving&session=${encodeURIComponent(item.receiptId)}`,
       today: input.today,
     });
   });
@@ -1550,11 +1279,7 @@ type OperationWorkSourceKey = OperationWorkSourceHealth["key"];
 
 const WORK_SOURCE_LABEL: Record<OperationWorkSourceKey, string> = {
   orders: "Sales Orders",
-  purchasing: "Purchasing",
-  receiving: "Receiving",
-  delivery: "Delivery",
   payment: "Payment",
-  issue_tracker: "Issue Tracker",
   workspace: "Staff tasks",
 };
 
@@ -1924,6 +1649,23 @@ export function projectStorageCheckWork(input: {
 
 /** Reuse the existing module read routes inside the Worker. This avoids a
  * second set of table queries while keeping Work a single browser request. */
+/**
+ * WHAT THE CARRES FEED STILL CARRIES (owner, 11 Nov 2026: Houzs's pages run Supply Chain, Service,
+ * Projects, Finance, Team and Settings). The Carres task feed keeps only the work whose page is still a Carres
+ * page: customer money (Payment, done in Finance (old)), the one money blocker on a Sales Order (done in the
+ * Monitor), and the tasks one employee adds for another. Purchasing, Receiving, Delivery, the Issue Tracker,
+ * Service Case remedies and the other Sales Order rules (`issue_po`, `confirm_ready_date`, `delay_planning`,
+ * `issue_delivery_order`, `ask_delivery_date`) are worked in the Houzs engine now, so they are not projected
+ * here and a Done row of theirs is not listed either.
+ */
+export const ORDERS_FEED_RULES: ReadonlySet<string> = new Set(["resolve_payment_exception"]);
+
+/** Is this module's rule work the Carres feed carries (see ORDERS_FEED_RULES)? */
+export function carriedByCarresFeed(module: string, ruleKey: string): boolean {
+  if (module === "payment" || module === "workspace") return true;
+  return module === "orders" && ORDERS_FEED_RULES.has(ruleKey);
+}
+
 export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWorkResponse> {
   const internal = new Hono<AppEnv>();
   internal.use("*", async (child, next) => {
@@ -1931,42 +1673,15 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
     await next();
   });
   internal.route("/orders", operationOrdersRouter);
-  internal.route("/stock", operationStockRouter);
-  internal.route("/manual-purchase", manualPurchaseRouter);
-  internal.route("/warehouse-receipts", warehouseReceiptsRouter);
-  internal.route("/pos", operationPosRouter);
-  internal.route("/suppliers", operationSuppliersRouter);
   internal.route("/workspace-duties", workspaceDutiesRouter);
   internal.route("/staff", opsStaffRouter);
   internal.route("/finance-invoices", financeInvoicesRouter);
-  internal.route("/issues", issuesRouter);
-  internal.route("/purchase/demands", purchaseDemandsRouter);
 
-  const [orders, stock, manual, receipts, pos, suppliers, duties, staff, purchasingSettings,
-         invoices, outcomes, refunds, issueSource, timingRules, proofFacts,
+  const [orders, duties, staff, purchasingSettings,
+         invoices, outcomes, refunds, timingRules, proofFacts,
          officeStored, deliveryRules, kvDefaultByPartner, deliveryStored] =
     await Promise.all([
       readInternal<{ orders: SalesOrderModuleRow[] }>(internal, "/orders", c),
-      readInternal<{ skus: Array<{ sku: string; available: number }> }>(internal, "/stock", c),
-      readInternal<ManualPurchaseRegisterSource & {
-        approvers?: Array<{ id: string; name: string | null }>;
-        todayIso?: string;
-      }>(internal, "/manual-purchase", c),
-      readInternal<{ receipts: Parameters<typeof receivingWorkSourceFromModuleFacts>[0]["receipts"] }>(
-        internal,
-        "/warehouse-receipts?status=submitted",
-        c,
-      ),
-      readInternal<{ pos: PurchaseOrderArrivalSource[] }>(
-        internal,
-        "/pos?status=all",
-        c,
-      ),
-      readInternal<{ suppliers: Array<{ id: string; name: string | null }> }>(
-        internal,
-        "/suppliers",
-        c,
-      ),
       readInternal<Record<string, unknown>>(internal, "/workspace-duties", c),
       readInternal<{ staff: Array<{ user_id: string; name: string | null; email: string }> }>(
         internal,
@@ -1977,22 +1692,21 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
       readAllInvoices(internal, c),
       readCollectionOutcomes(c),
       readRefunds(c),
-      readInternal<{ actions: Parameters<typeof projectIssueActionWork>[0]["actions"] }>(internal, "/issues/work-source", c),
       readCollectionTimingRules(c),
       readProofFacts(c),
-      /* ⭐ Settings → Office, read ONCE for the whole feed; fails safe to the
-         owner defaults (Monday–Friday, the built-in holidays). */
+      /* Settings > Office, read ONCE for the whole feed; fails safe to the
+         owner defaults (Monday to Friday, the built-in holidays). */
       officeCalendarOf(c),
-      /* DEL-04 · Delivery Rules (`Assign logistics by`), fails safe to 3. */
+      /* DEL-04 Delivery Rules (`Assign logistics by`), fails safe to 3. */
       deliveryRulesOf(c),
       readPartnerKvDefaults(c),
-      /* ⭐ The Delivery calendar (Monday–Saturday + the stored Selangor
+      /* The Delivery calendar (Monday to Saturday + the stored Selangor
          holidays, else the built-in list), read ONCE for the whole feed. */
       deliveryCalendarFor(c),
     ]);
   const calendars = workFeedCalendarsOf(officeStored, deliveryStored);
-  /* The two stored Delivery leads (DEL-04 assignment · DEL-05 contact), one
-     helper so the Orders list, the Delivery board and Work read them alike. */
+  /* The two stored Delivery leads (DEL-04 assignment, DEL-05 contact), one
+     helper so the Orders list and Work read them alike. */
   const queueLeads = deliveryQueueLeads({
     logisticsCallWorkingDays: purchasingSettings.logisticsCallWorkingDays,
     assignmentLeadWorkingDays: deliveryRules.assignmentLeadWorkingDays,
@@ -2002,23 +1716,18 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
     readArrangements(c, orderIds),
     readDeliveryOrderDays(c, orderIds),
   ]);
-  const today = manual.todayIso ?? todayIsoMYT();
-  const poDuty = dutyResolution(duties, "po_duty", today);
-  const grnDuty = dutyResolution(duties, "grn_duty", today);
-  // §12 gives overpayment review to the Payment Approver, never to Payment
-  // Duty — an unassigned approver leaves the item honestly ownerless.
+  const today = todayIsoMYT();
+  // Section 12 gives overpayment review to the Payment Approver, never to Payment
+  // Duty; an unassigned approver leaves the item honestly ownerless.
   const paymentApprover = dutyResolution(duties, "payment_approver", today);
-  const issueTriageDuty = dutyResolution(duties, "issue_triage_duty", today);
-  const issueReviewApprover = dutyResolution(duties, "issue_review_approver", today);
-  // Delivery Duty — since the owner ruling of 2026-09-17 only the fallback for
+  // Delivery Duty: since the owner ruling of 2026-09-17 only the fallback for
   // an order with NO responsible Operation person (see below).
   const deliveryDuty = dutyResolution(duties, "delivery_duty", today);
   const dutyResolutions = {
-    ...(poDuty ? { po_duty: poDuty } : {}),
     ...(deliveryDuty ? { delivery_duty: deliveryDuty } : {}),
   };
   // Gate convergence (2026-09-07): the same invoices read that feeds the
-  // collection work also answers the §2 storage obligation per order.
+  // collection work also answers the section 2 storage obligation per order.
   const invoiceStorageByOrder = new Map<string, number>();
   for (const inv of invoices) {
     if (!invoiceStorageByOrder.has(inv.order_id)) {
@@ -2028,7 +1737,7 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
       );
     }
   }
-  // 0489 — which orders' collection is actionable today is the projections'
+  // 0489: which orders' collection is actionable today is the projections'
   // own admission; a probe pass learns the set, the door establishes the
   // owner for any newcomer (the person the order was dealt to) and the read
   // answers the same stable owner for every later pass.
@@ -2043,7 +1752,8 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
     [row.id, orderCollectionClockStartIso(invoicesByOrder.get(row.id) ?? [], row.id, today)]));
   const orderFacts = {
     orders: orders.orders,
-    stock: stock.skus,
+    /* Stock decides only the buying rules, which this feed no longer carries. */
+    stock: [],
     staff: staff.staff,
     dutyResolutions,
     partnerNameById: new Map((purchasingSettings.deliveryPartners ?? []).map((p) => [p.id, p.name])),
@@ -2059,8 +1769,8 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
     kvDefaultByPartner,
     clockStartByOrder,
   };
-  // Owner ruling 2026-09-17 — routine Delivery work is the order's responsible
-  // Operation person. A probe pass per order learns which orders carry a
+  // Owner ruling 2026-09-17: the order's responsible Operation person (the 0504
+  // read) is also who collects. A probe pass per order learns which orders carry a
   // `responsible_operation` item today, so the one read covers exactly them.
   const deliveryOwned = orders.orders
     .filter((row) =>
@@ -2070,7 +1780,7 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
   const ownerRows = await establishAndReadCollectionOwners(c, [...actionable], deliveryOwned, today);
   const collectionOwnerFor = (orderId: string) =>
     collectionOwnerResolution(ownerRows.get(orderId) ?? null, today);
-  /* ⭐ The responsible person's own working week (People/HR, 0678) — the
+  /* The responsible person's own working week (People/HR, 0678): the
      collection ACTION day steps back on it (Office weekdays when none is
      recorded). The probe above admitted orders on the Office calendar; the
      payment FACTS never read a person calendar. */
@@ -2086,104 +1796,15 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
     collectionOwnerFor,
     responsibleOperationFor: collectionOwnerFor,
   });
-  const manualItems = projectManualPurchaseWork({
-    requests: manualPurchaseWorkInputsFromRegister(manual),
-    approver: manual.approvers?.[0]
-      ? { userId: manual.approvers[0].id, name: manual.approvers[0].name }
-      : null,
-    poDuty,
-    today,
-    office: calendars.office,
-  });
-  const receivingSource = receivingWorkSourceFromModuleFacts({
-    receipts: receipts.receipts,
-  });
-  /* GRN lateness counts on the RECEIVING Site's own calendar (Warehouse-
-     owned hours, special dates, holiday policy) — never the Office one. A
-     Site with nothing readable or a day nobody configured falls back,
-     explicitly, to the governed Warehouse week: Sunday off + the Selangor
-     public holidays (the stored Warehouse calendar the Delivery calendar
-     reads, else the built-in list). */
-  const receivingSettings = await readWarehouseReceivingSettings(
-    userClient(c.env, c.var.auth.jwt),
-    receivingSource.submitted.map((row) => row.site_id ?? "").filter(Boolean),
-  );
-  const warehouseFallbackHolidays = deliveryHolidaySet(deliveryStored);
-  const receivingItems = projectReceivingWork({
-    source: receivingSource,
-    duty: grnDuty,
-    today,
-    workingDaysLate: (dueIso, row) =>
-      warehouseReceivingDaysLate(dueIso, today, row?.site_id ? receivingSettings.get(row.site_id) ?? null : null, warehouseFallbackHolidays),
-  });
-  const purchaseOrderItems = projectPurchaseOrderReplyWork({
-    pos: pos.pos as PurchaseOrderWorkSource[],
-    suppliers: suppliers.suppliers,
-    poDuty,
-    today,
-    office: calendars.office,
-  });
-  const arrivalCheckItems = projectPurchaseOrderArrivalCheckWork({
-    pos: pos.pos as PurchaseOrderArrivalSource[],
-    suppliers: suppliers.suppliers,
-    poDuty,
-    today,
-    office: calendars.office,
-  });
   const paymentItems = projectPaymentCollectionWork({ invoices, ownerFor: collectionOwnerFor, today, outcomes, timingRules, calendars, ownerCalendarFor });
   const storageInvoiceItems = projectStorageInvoiceWork({ invoices, today, timingRules, ownerFor: collectionOwnerFor, calendars, ownerCalendarFor });
   const overpaymentItems = projectOverpaymentReviewWork({
     invoices, refunds, approver: paymentApprover, today,
   });
   const observedAt = new Date().toISOString();
-  const issueItems = projectIssueActionWork({
-    actions: issueSource.actions,
-    dutyResolutions: {
-      ...(issueTriageDuty ? { issue_triage_duty: issueTriageDuty } : {}),
-      ...(issueReviewApprover ? { issue_review_approver: issueReviewApprover } : {}),
-      // 0589 — a Unit problem's check is GRN Duty's (Stock MASTER §6).
-      ...(grnDuty ? { grn_duty: grnDuty } : {}),
-    },
-    today,
-    observedAt,
-  });
-  // Repair Orders (Purchasing §9.7 · §10): their own projection, read inside
-  // the Purchasing source so a failed read fails that source's health.
-  /* The three Purchasing loaders count on the stored Office calendar — its
-     weekdays AND its holidays (`purchasingOfficeDays`). */
-  const officeHolidays = calendars.office;
-  const repairOrderWork = () => loadRepairOrderWork(c, { poDuty, today, observedAt, holidays: officeHolidays });
   const sourceResults = await Promise.all([
     loadWorkSource("orders", observedAt, async () =>
-      orderItems.filter((item) =>
-        item.module === "orders" &&
-        item.ruleKey !== "collect" &&
-        /* ⭐ Purchasing §5.6.1 / §5.7: buying is ONE card per PO window, never
-           one per Sales Order, and the calculated PO Delivery Date is not a
-           supplier confirmation — the Sales Order's own action ladder keeps
-           both words; Work shows the window card instead. */
-        !PURCHASING_WINDOW_OWNED.has(item.ruleKey))),
-    loadWorkSource("purchasing", observedAt, async () => [
-      ...manualItems,
-      ...(await loadCaseRemedyWork(c,today,calendars.office)),
-      ...purchaseOrderItems,
-      ...projectPurchaseOrderCancellationSendWork({pos:pos.pos as PurchaseOrderWorkSource[],suppliers:suppliers.suppliers,poDuty,today}),
-      ...arrivalCheckItems,
-      ...projectPoWindowWork({
-        read: await readInternal<SoBatchPurchaseResponse>(internal, "/purchase/demands", c),
-        suppliers: suppliers.suppliers as Parameters<typeof projectPoWindowWork>[0]["suppliers"],
-        poDuty,
-        today,
-        now: observedAt,
-        office: calendars.office,
-      }),
-      ...(await repairOrderWork()),
-      ...(await loadSupplierClaimWork(c, { poDuty, approver: dutyResolution(duties, "purchasing_approver", today), today, observedAt, holidays: officeHolidays })),
-      ...(await loadPurchaseReturnWork(c, { poDuty, today, observedAt, holidays: officeHolidays })),
-    ]),
-    loadWorkSource("receiving", observedAt, async () => receivingItems),
-    loadWorkSource("delivery", observedAt, async () =>
-      orderItems.filter((item) => item.module === "delivery")),
+      orderItems.filter((item) => carriedByCarresFeed(item.module, item.ruleKey))),
     loadWorkSource("payment", observedAt, async () => [
       ...paymentItems,
       ...storageInvoiceItems,
@@ -2192,7 +1813,6 @@ export async function loadOperationWork(c: Context<AppEnv>): Promise<OperationWo
         requests: await readBackdatedPaymentRequests(c), approver: paymentApprover, today,
       }),
     ]),
-    loadWorkSource("issue_tracker", observedAt, async () => issueItems),
     /* Tasks one employee adds for another (Workspace MASTER, Jess 2026-10-14). */
     loadWorkSource("workspace", observedAt, () => loadInternalTaskWork(c, { today, observedAt })),
   ]);
@@ -2433,6 +2053,11 @@ const REFUSAL_STATUS: Record<string, 403 | 409 | 422 | 502> = {
  * they are not read here. Each occurrence is returned on its CURRENT
  * generation identity. `null` = not an order Work admits (another status).
  */
+/** The sum of sellable over one SKU's warehouse rows. */
+function sellableOf(rows: ReadonlyArray<{ sellable: number | string | null }>): number {
+  return rows.reduce((acc, row) => acc + Number(row.sellable ?? 0), 0);
+}
+
 export async function probeOrderWork(
   c: Context<AppEnv>,
   orderId: string,
@@ -2487,132 +2112,6 @@ export async function probeOrderWork(
 }
 
 /**
- * ONE PURCHASE ORDER, ONE PROJECTOR: the same reply projector the Work feed
- * runs, over the PO register row narrowed by `poId` (so promises, sends and
- * lines are read exactly as the feed reads them). Supplier names and PO Duty
- * decide the words and WHO, never WHETHER, so they are not read here.
- */
-export async function probePurchaseOrderWork(
-  c: Context<AppEnv>,
-  poId: string,
-  ledger: WorkLedger = supabaseWorkLedger,
-): Promise<OperationWorkItem[] | null> {
-  const internal = new Hono<AppEnv>();
-  internal.use("*", async (child, next) => {
-    child.set("auth", c.var.auth);
-    await next();
-  });
-  internal.route("/pos", operationPosRouter);
-  const { pos } = await readInternal<{ pos: PurchaseOrderWorkSource[] }>(
-    internal,
-    `/pos?status=all&poId=${encodeURIComponent(poId)}`,
-    c,
-  );
-  const po = pos.find((row) => row.id === poId);
-  if (!po) return null;
-  const today = todayIsoMYT();
-  const office = workFeedCalendarsOf(await officeCalendarOf(c)).office;
-  const items = [
-    ...projectPurchaseOrderReplyWork({ pos: [po], suppliers: [], poDuty: null, today, office }),
-    ...projectPurchaseOrderCancellationSendWork({pos:[po],suppliers:[],poDuty:null,today}),
-    ...projectPurchaseOrderArrivalCheckWork({ pos: [po as PurchaseOrderArrivalSource], suppliers: [], poDuty: null, today, office }),
-  ];
-  const { currentId } = await readWorkLedger(c, ledger, items.map((item) => item.id));
-  return items.map((item) => ({ ...item, id: currentId.get(item.id) ?? item.id }));
-}
-
-/** The SO Batch read and supplier doors, read as the caller — the window
- *  probe and completion facts see exactly what the Work feed sees. */
-async function readPoWindowSource(c: Context<AppEnv>): Promise<{
-  read: SoBatchPurchaseResponse;
-  suppliers: Parameters<typeof projectPoWindowWork>[0]["suppliers"];
-}> {
-  const internal = new Hono<AppEnv>();
-  internal.use("*", async (child, next) => {
-    child.set("auth", c.var.auth);
-    await next();
-  });
-  internal.route("/purchase/demands", purchaseDemandsRouter);
-  internal.route("/suppliers", operationSuppliersRouter);
-  const [read, suppliers] = await Promise.all([
-    readInternal<SoBatchPurchaseResponse>(internal, "/purchase/demands", c),
-    readInternal<{ suppliers: Parameters<typeof projectPoWindowWork>[0]["suppliers"] }>(internal, "/suppliers", c),
-  ]);
-  return { read, suppliers: suppliers.suppliers };
-}
-
-/** One PO window's open occurrence, on its current ledger identity. */
-export async function probePoWindowWork(
-  c: Context<AppEnv>,
-  windowKey: string,
-  ledger: WorkLedger = supabaseWorkLedger,
-): Promise<OperationWorkItem[] | null> {
-  const [source, officeStored] = await Promise.all([readPoWindowSource(c), officeCalendarOf(c)]);
-  const now = new Date().toISOString();
-  const items = projectPoWindowWork({
-    ...source, poDuty: null, today: todayIsoMYT(), now, office: workFeedCalendarsOf(officeStored).office,
-  }).filter((item) => item.object.id === windowKey);
-  const { currentId } = await readWorkLedger(c, ledger, items.map((item) => item.id));
-  return items.map((item) => ({ ...item, id: currentId.get(item.id) ?? item.id }));
-}
-
-/** What a window issued, and whether every one of those POs is now sent. */
-export async function poWindowSendFacts(
-  c: Context<AppEnv>,
-  windowKey: string,
-): Promise<{ poIds: string[]; demandLeft: number; allSent: boolean }> {
-  const source = await readPoWindowSource(c);
-  const window = poWindowsOf(source.read, source.suppliers, { keepClosed: true }).find((w) => w.key === windowKey);
-  if (!window) return { poIds: [], demandLeft: 0, allSent: false };
-  return {
-    poIds: window.pos.map((po) => po.poId),
-    demandLeft: window.demand.rowIds.length,
-    allSent: window.pos.length > 0 && window.unsent === 0,
-  };
-}
-
-/** The windows a PO was issued from — before its send is recorded. */
-export async function poWindowKeysServing(c: Context<AppEnv>, poId: string): Promise<string[]> {
-  const source = await readPoWindowSource(c);
-  return poWindowsOf(source.read, source.suppliers)
-    .filter((w) => w.pos.some((po) => po.poId === poId))
-    .map((w) => w.key);
-}
-
-async function readManualPurchaseWorkSource(c: Context<AppEnv>) {
-  const internal = new Hono<AppEnv>();
-  internal.use("*", async (child, next) => {
-    child.set("auth", c.var.auth);
-    await next();
-  });
-  internal.route("/manual-purchase", manualPurchaseRouter);
-  return manualPurchaseWorkInputsFromRegister(
-    await readInternal<ManualPurchaseRegisterSource>(internal, "/manual-purchase", c),
-  );
-}
-
-export async function probeManualPurchaseWork(
-  c: Context<AppEnv>, requestId: string, ledger: WorkLedger = supabaseWorkLedger,
-): Promise<OperationWorkItem[] | null> {
-  const [source, officeStored] = await Promise.all([readManualPurchaseWorkSource(c), officeCalendarOf(c)]);
-  const requests = source.filter((r) => r.requestId === requestId);
-  const items = projectManualPurchaseWork({
-    requests, approver: null, poDuty: null, today: todayIsoMYT(), office: workFeedCalendarsOf(officeStored).office,
-  });
-  const { currentId } = await readWorkLedger(c, ledger, items.map((item) => item.id));
-  return items.map((item) => ({ ...item, id: currentId.get(item.id) ?? item.id }));
-}
-
-export async function manualPurchaseSendFacts(c: Context<AppEnv>, requestId: string) {
-  const request = (await readManualPurchaseWorkSource(c)).find((r) => r.requestId === requestId);
-  return { poIds: request?.poIds ?? [], demandLeft: request?.remainingQty ?? 0, allSent: request?.posAllSent ?? false };
-}
-
-export async function manualPurchaseRequestsServing(c: Context<AppEnv>, poId: string): Promise<string[]> {
-  return (await readManualPurchaseWorkSource(c)).filter((r) => r.poIds.includes(poId)).map((r) => r.requestId);
-}
-
-/**
  * THE Work read with its ledger: the composed open set, each item on its
  * current occurrence identity with To do / Waiting, and the recent Completed.
  * The page, the staff doors and the module completion writers all read this
@@ -2639,7 +2138,7 @@ ledger: WorkLedger = supabaseWorkLedger,
   }
   const completed = completedEvents
     .map((event) => workCompletedOf(event, response.staff))
-    .filter((row): row is OperationWorkCompleted => row !== null);
+    .filter((row): row is OperationWorkCompleted => row !== null && carriedByCarresFeed(row.module, row.ruleKey));
   return {
     response: { ...withWorkLifecycle(response, read.events, read.currentId), completed },
     events: read.events,

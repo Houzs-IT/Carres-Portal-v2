@@ -14,9 +14,8 @@ import { join } from "node:path";
  * file is the same proof as a guard that runs on every commit.
  *
  * A SOURCE SCAN, not a render test, for the reason Portal Core C1 already
- * found in this exact area: `OrderDetailDrawer.tsx` is 7,000 lines of
- * branches, and a render test only ever sees the branches its fixture
- * reaches. The API half of the proof lives beside the routes it guards, in
+ * found in this exact area: a large page has many branches, and a render
+ * test only ever sees the branches its fixture reaches. The API half of the proof lives beside the routes it guards, in
  * `apps/api/src/routes/operation/pos.test.ts`.
  */
 
@@ -88,23 +87,11 @@ describe("Card C1 · the Office has exactly ONE receiving door", () => {
 
   it("every Office receiving call in the web app goes through office-receive", () => {
     const officeCallers = SOURCES.filter((f) => /office-receive/.test(code(f)));
-    // The hook that owns the door, and nothing else in pages/**.
-    expect(officeCallers.map((f) => f.replace(WEB_SRC + "/", "")).sort()).toEqual([
-      "lib/queries.ts",
-    ]);
-  });
-
-  it("the order drawer hands over instead of receiving in place", () => {
-    const drawerPath = join(
-      WEB_SRC,
-      "pages/operation/components/OrderDetailDrawer.tsx",
-    );
-    const drawer = read(drawerPath);
-    const codeOf = (t: string) =>
-      t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    expect(drawer).toMatch(/tab=receiving&po=\$\{encodeURIComponent\(po\.id\)\}/);
-    // No local receive state survives to be re-wired to something.
-    expect(codeOf(drawer)).not.toMatch(/setReceivePo/);
+    // At most the hook that owns the door, and nothing else in pages/**. The Carres Receiving page was
+    // replaced by the Houzs engine page on 11 Nov 2026, so the hook itself is gone too (12 Nov 2026).
+    expect(
+      officeCallers.map((f) => f.replace(WEB_SRC + "/", "")).filter((f) => f !== "lib/queries.ts"),
+    ).toEqual([]);
   });
 
   it("only the three Session-opening RPCs may move received_qty from the API", () => {

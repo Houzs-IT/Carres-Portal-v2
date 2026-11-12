@@ -7,12 +7,14 @@
 // is verbatim.
 
 import { useMemo } from 'react';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useListMrpEnrichmentChunks } from './list-mrp-enrichment-chunks';
+import type { ListMrpStatus } from '../../../lib/listMrpStatus';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authedFetch } from './authed-fetch';
 import { poListParams, type PoListFilterParams } from './po-list-export';
 import type { PoListLine } from './po-line-export-columns';
 import { applyListMrpEnrichment, type EnrichableMrpRow, type ListMrpEnrichment } from '../../../lib/listMrpEnrichment';
-import { writeFailed, writeFailedAs } from './mutation-error';
+import { writeFailed, writeFailedAs, reportInBandFailure, type InBandFailure } from './mutation-error';
 import { idempotentInit } from '../../../lib/idempotency';
 import { invalidateSoLists } from './sales-order-queries';
 import { retryUnlessClientError } from '../../../lib/retryPolicy';
@@ -46,6 +48,9 @@ export type SupplierRow = {
   name: string;
   whatsapp_number: string | null;
   email: string | null;
+  /* Email 2 / Email 3 (owner 2026-11-09) — the PO email copies them (Cc). */
+  email2?: string | null;
+  email3?: string | null;
   contact_person: string | null;
   phone: string | null;
   address: string | null;
@@ -416,6 +421,16 @@ export function useSupplierPriceHistory(id: string | null) {
   });
 }
 
+/** Every supplier list: the picker list and the paged Suppliers page. The paged
+ *  one was missed, so a changed supplier showed its old values on the list for up
+ *  to 30 seconds after Back (Conts-ERP #406). */
+export function invalidateSupplierLists(qc: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    qc.invalidateQueries({ queryKey: ['suppliers-paged'] }),
+  ]);
+}
+
 export function useSupplierDetail(id: string | null) {
   return useQuery({
     queryKey: ['supplier-detail', id],
@@ -467,11 +482,7 @@ export function useCreateSupplier() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    // The Suppliers page reads 'suppliers-paged'; refreshing only 'suppliers' left a new supplier off the list until a reload.
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['suppliers'] });
-      qc.invalidateQueries({ queryKey: ['suppliers-paged'] });
-    },
+    onSuccess: () => invalidateSupplierLists(qc),
     onError: writeFailed,
   });
 }
@@ -485,8 +496,7 @@ export function useUpdateSupplier() {
         body: JSON.stringify(body),
       }),
     onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ['suppliers'] });
-      qc.invalidateQueries({ queryKey: ['suppliers-paged'] });
+      void invalidateSupplierLists(qc);
       qc.invalidateQueries({ queryKey: ['supplier-detail', vars.id] });
     },
   });
@@ -713,11 +723,11 @@ export type PoStatusCounts = {
      `outstanding` is: an older deployment answers without it. */
   on_hold?: number;
 };
-export function usePurchaseOrdersPaged(params: { page: number; pageSize: number; status?: string; supplierId?: string; q?: string; sort?: string; creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[]; docDates?: string[] }) {
-  const { page, pageSize, status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates } = params;
+export function usePurchaseOrdersPaged(params: { from?: string; to?: string; page: number; pageSize: number; status?: string; supplierId?: string; q?: string; sort?: string; creditorNames?: string[]; creditorCodes?: string[]; currencies?: string[]; docDates?: string[] }) {
+  const { page, pageSize, status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates, from, to } = params;
   // The filter half is shared with the two exports (po-list-export.ts), so an
   // export can never be sent a different filter than the list it was pressed on.
-  const usp = poListParams({ status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates });
+  const usp = poListParams({ status, supplierId, q, sort, creditorNames, creditorCodes, currencies, docDates, from, to });
   usp.set('page', String(page));
   usp.set('pageSize', String(pageSize));
   return useQuery({
@@ -748,49 +758,22 @@ export function usePoListFacets(f: PoListFilterParams) {
    Delivered) the list no longer computes on its critical path (see
    listMrpEnrichment.ts). Fired AFTER the list renders, for the POs it just
    showed, merged in by applyListMrpEnrichment. The ids are chunked at 100 so the
-   request stays bounded; each chunk is cached independently. The backend runs
-   ONE company-wide computeMrp per request regardless of chunk size. */
+   request stays bounded; each chunk is cached independently. The backend answers from the 15-min stored MRP snapshot
+   (list-mrp-enrichment-chunks.ts). */
 const PO_ENRICH_CHUNK = 100;
 
 export function usePoListMrpEnrichmentMap(
   poIds: string[],
   enabled: boolean,
-): { byId: Map<string, ListMrpEnrichment>; isFetching: boolean } {
-  const chunks = useMemo(() => {
-    const uniq = [...new Set(poIds.filter(Boolean))].sort();
-    const out: string[][] = [];
-    for (let i = 0; i < uniq.length; i += PO_ENRICH_CHUNK) out.push(uniq.slice(i, i + PO_ENRICH_CHUNK));
-    return out;
-  }, [poIds]);
-
-  const results = useQueries({
-    queries: chunks.map((chunk) => ({
-      enabled: enabled && chunk.length > 0,
-      queryKey: ['mfg-purchase-orders-list-mrp-enrichment', chunk.join(',')],
-      queryFn: ({ signal }: { signal?: AbortSignal }) =>
-        authedFetch<{ enrichment: Record<string, ListMrpEnrichment> }>(
-          `/mfg-purchase-orders/list-mrp-enrichment?poIds=${encodeURIComponent(chunk.join(','))}`,
-          { signal },
-        ),
-      staleTime: 30_000,
-      retry: retryUnlessClientError,
-      retryDelay: 800,
-    })),
+): { byId: Map<string, ListMrpEnrichment>; isFetching: boolean; mrp: ListMrpStatus } {
+  const { byId, isFetching, mrp } = useListMrpEnrichmentChunks<ListMrpEnrichment>({
+    ids: poIds,
+    enabled,
+    queryKeyPrefix: 'mfg-purchase-orders-list-mrp-enrichment',
+    urlPrefix: '/mfg-purchase-orders/list-mrp-enrichment?poIds=',
+    chunkSize: PO_ENRICH_CHUNK,
   });
-
-  const sig = results.map((r) => r.dataUpdatedAt).join('|');
-  const isFetching = results.some((r) => r.isFetching);
-  const byId = useMemo(() => {
-    const map = new Map<string, ListMrpEnrichment>();
-    for (const r of results) {
-      const e = r.data?.enrichment;
-      if (e) for (const [k, v] of Object.entries(e)) map.set(k, v);
-    }
-    return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `results` is read through its `sig` (per-chunk dataUpdatedAt); depending on the array itself would rebuild every render.
-  }, [sig]);
-
-  return { byId, isFetching };
+  return { byId, isFetching, mrp };
 }
 
 /* The overlay the PO list applies: take the rows the list endpoint returned
@@ -799,16 +782,17 @@ export function usePoListMrpEnrichmentMap(
 export function useEnrichedPoListRows<T extends EnrichableMrpRow>(
   rows: T[],
   enabled: boolean,
-): T[] {
-  const poIds = useMemo(
+): { rows: T[]; mrp: ListMrpStatus } {
+  const ids = useMemo(
     () => rows.map((r) => r.id).filter((x): x is string => !!x),
     [rows],
   );
-  const { byId } = usePoListMrpEnrichmentMap(poIds, enabled);
-  return useMemo(
+  const { byId, mrp } = usePoListMrpEnrichmentMap(ids, enabled);
+  const healed = useMemo(
     () => rows.map((r) => applyListMrpEnrichment(r, r.id ? byId.get(r.id) : undefined)),
     [rows, byId],
   );
+  return { rows: healed, mrp };
 }
 
 export function usePurchaseOrderDetail(id: string | null) {
@@ -986,10 +970,12 @@ export function useCreateGrnsFromPoItems() {
       notes?: string;
     }) =>
       authedFetch<{
-        created: Array<{ id: string; grnNumber: string; purchaseOrderId: string; poNumber: string; lineCount: number }>;
+        created: Array<{ id: string; grnNumber: string; purchaseOrderId: string; poNumber: string; lineCount: number } & InBandFailure>;
         total: number;
       }>(`/grns/from-po-items`, { method: 'POST', body: JSON.stringify(body) }),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      /* Each receipt is auto-posted and carries its own stock / PO-recount failure. */
+      for (const g of data.created) reportInBandFailure(`GRN ${g.grnNumber} created, but not everything was recorded`, g);
       qc.invalidateQueries({ queryKey: ['mfg-purchase-orders'] });
       qc.invalidateQueries({ queryKey: ['grns'] });
       qc.invalidateQueries({ queryKey: ['inventory'] });
@@ -1138,6 +1124,12 @@ export function useCreatePosFromSoItems() {
          reference-only: bypass the qty_exceeds_remaining cap + tag PO lines
          from_mrp so they don't lock the source SO line (infinite-convert). */
       fromMrp?: boolean;
+      /* computedAt of the MRP plan on screen; the server refuses with
+         mrp_plan_stale when a PO was raised on these lines after it. */
+      planAsOf?: string | null;
+      /* The operator confirmed different sofa models of one order on different
+         suppliers; the server refuses that split without it. */
+      allowSofaSupplierSplit?: boolean;
     }) =>
       authedFetch<{
         // Create-new-POs shape:
@@ -1231,7 +1223,9 @@ export function useUpdatePurchaseOrderHeader() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: {
-      id: string; poDate?: string; expectedAt?: string;
+      /** The PO's updated_at as this screen loaded it (sister review G6). The
+       *  server refuses a stale one (409) and a missing one (428). */
+      id: string; expectedUpdatedAt: string | null; poDate?: string; expectedAt?: string;
       currency?: Currency; notes?: string; supplierId?: string;
       /** Mig 0026 — supplier-revised header delivery dates. */
       supplierDeliveryDate2?: string | null;
