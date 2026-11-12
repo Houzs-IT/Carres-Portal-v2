@@ -83,14 +83,14 @@ const COPY = {
   "public.assr_issue_categories": {}, "public.assr_ncr_categories": {},
   "public.assr_product_categories": {}, "public.assr_priorities": {}, "public.assr_priority_stage_targets": {},
   "public.assr_stage_targets": {}, "public.assr_lead_time_profiles": {}, "public.assr_resolution_methods": {},
-  "public.document_types": {}, "public.project_brands": {}, "public.project_cost_rates": {},
+  "public.document_types": {}, "public.project_brands": { strip: ["logo_r2_key"] }, "public.project_cost_rates": {},
   "public.project_venues": {}, "public.project_event_types": { naturalKey: "slug" }, "public.project_checklist_templates": {},
   "public.project_checklist_template_sections": {}, "public.project_checklist_template_items": {},
   // Settings, filtered to the generic switches (Houzs branding, counters, checkpoints, secrets and backups stay)
   "public.app_settings": { where: `key not like 'branding%'` },
   "public.system_settings": { where: `key in ('inspection_checklist', 'logistics_budget_pct', 'fatigue_max_hours')` },
   "scm.app_config": { where: `key not like '%backup%' and key not like '%before%' and key not like '%last_run%'
-                              and key not in ('owner_email', 'scm.venture_portal_feed')` },
+                              and key not in ('owner_email', 'scm.venture_portal_feed', 'connect.company_profile')` },
   "public.agent_controls": { note: "AI assistants' on/off switches; copied so they stay paused as in Houzs" },
 };
 
