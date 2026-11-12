@@ -60,7 +60,9 @@ describe('the deposit save gate is OFF on both surfaces (owner 2026-08-20)', () 
   });
 
   test('the CREATE path hands the collector no deposit condition', () => {
-    const create = sliceFrom(SO, 'const pricedGateProblems', 'if (pricedGateProblems');
+    /* Carres: the shared collector still takes no money condition. Carres's own 50% gate (owner 2026-11-12,
+       carres-deposit-gate.ts) follows it as a separate, company-gated step, so the slice ends where it begins. */
+    const create = sliceFrom(SO, 'const pricedGateProblems', 'const depositRefusal = carresDepositProblem({');
     expect(create).not.toMatch(/deposit/i);
   });
 

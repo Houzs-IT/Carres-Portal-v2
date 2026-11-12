@@ -39,6 +39,7 @@ import {
   notifyPoAmendmentRaised,
 } from '../../services/amendmentNotify';
 import { collectProcessingGateProblems } from '../shared/so-save-problems';
+import { carresDepositProblemForDoc } from '../lib/carres-deposit-gate';
 import { canonicaliseSoHeaderChanges, soDateDay, soDatePairRefusal, withProcessingRemovalCascade } from '../shared/so-processing-date';
 import { recordSoAudit } from '../lib/so-audit';
 import { soHasLivePo, soHasUnreceivedPo } from '../lib/so-po-lock';
@@ -927,6 +928,11 @@ export async function approveSoCommandHandler(c: any, sb: any, lap: (step: strin
           hasPostcode: !!String(soRow.postcode ?? '').trim(),
         },
       });
+      /* Carres: the 50% deposit blocks an amendment that sets a NEW Processing Date (owner 2026-11-12). */
+      if (nextProc !== ymd(cur.processing_date)) {
+        const depositRefusal = await carresDepositProblemForDoc(sb, amendment.so_doc_no, c.get('companyCode'), 'processing_date');
+        if (depositRefusal) gateProblems.push(depositRefusal);
+      }
       if (gateProblems.length > 0) {
         return c.json({
           error: 'validation_failed',

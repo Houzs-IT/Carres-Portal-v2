@@ -139,9 +139,12 @@ migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent
 **Sales Order: Carres rulings (owner, 12 Nov 2026).** Three places where the engine's SO (desktop New SO and
 edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
 1. *Deposit before Proceed / Processing Date is 50%*: `processingDateThresholdFor` (backend
-   `scm/shared/order-rules.ts`) gives the HOUZS row 2990's 50%, and the refusal text says 50%. As in Houzs since
-   20 Aug 2026, the deposit is not a save gate; the 50% is what the refusal, the cancel/refund floor and the
-   proceed message use.
+   `scm/shared/order-rules.ts`) gives the HOUZS row 2990's 50%. It BLOCKS (owner, 12 Nov 2026; Houzs dropped
+   its money gate on 20 Aug 2026 and other companies keep that): a Processing Date or a move into the proceed stage
+   is refused while the collected deposit is below 50% of the order total, with "Deposit RM x of RM y needed (50%)
+   …". Applied on create (counting the payments the form records right after, `pendingDepositSen`), header edit of
+   a new or changed date, `/status` (Proceed, and Draft → Confirmed with a date), amendment approval, and told
+   before saving by `POST /validate`. Rule: backend `scm/lib/carres-deposit-gate.ts`.
 2. *No fairs: Showroom, or Project instead.* The Fair picker, "Earlier fair? Order date" and "No fair" give way to
    a Showroom pick with a Project group (`engine/frontend/src/carres/SalePlacePicker.tsx`, rules in
    `carres/salePlace.ts`). A new order starts with the salesperson's own showroom (Team › member › Sales venue ›

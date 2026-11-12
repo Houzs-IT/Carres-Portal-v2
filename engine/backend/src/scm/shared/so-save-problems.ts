@@ -86,7 +86,7 @@ const axisLabel = (group: string, key: string): string => {
    pressed a button. Saying "before a Processing Date can be set" to the second
    one names a box he is not in — the order he pressed Proceed on already HAS
    its date (mfg-sales-orders.ts only runs the proceed gate on that branch). */
-type GateAct = 'processing_date' | 'proceed';
+export type GateAct = 'processing_date' | 'proceed'; // Carres: exported with depositProblem
 
 const ACT_CLAUSE: Record<GateAct, string> = {
   processing_date: 'before a Processing Date can be set',
@@ -134,7 +134,8 @@ const completenessProblem = (
  *
  *  Both amounts are SEN (the server ledger's unit): unlike the ratio-only
  *  `paid`/`total` on ProceedGateInput, these are printed, so the unit is fixed. */
-const depositProblem = (
+/* Carres: exported for the Carres deposit gate (scm/lib/carres-deposit-gate.ts, owner 2026-11-12). */
+export const depositProblem = (
   paidSen: number,
   totalSen: number,
   companyCode: string | null | undefined,
