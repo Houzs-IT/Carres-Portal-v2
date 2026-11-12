@@ -390,6 +390,7 @@ export function buildLogisticsPnl(input: PnlInput): LogisticsPnl {
   };
   const less = (x: RegionSen, y: RegionSen): RegionSen => add(x, { PG: -y.PG, KL: -y.KL, EM: -y.EM, SG: -y.SG });
 
+  const hasSen = (x: RegionSen): boolean => REGIONS.some((r) => x[r.code] !== 0); // Carres
   const ti = { houzs: incomeBy('houzs'), conts: incomeBy('conts'), hookka: incomeBy('hookka'), '2990': incomeBy('2990') };
   const otherIncome = add(ti.houzs, ti.conts, ti.hookka, sdIncome, fairIncome, ti['2990']);
   const totalIncome = add(doIncome, otherIncome);
@@ -413,11 +414,12 @@ export function buildLogisticsPnl(input: PnlInput): LogisticsPnl {
     money('do_value', 'Delivery Order', doValue),
     money('do_income', `Transport Income (${pctText}% of DO)`, doIncome),
     money('ti_houzs', 'Transport Income (Carres)', ti.houzs),
-    money('ti_conts', 'Transport Income (The Conts)', ti.conts),
-    money('ti_hookka', 'Transport Income (Hookka)', ti.hookka),
+    // Carres: The Conts / Hookka / 2990 are Houzs's sister companies; their rows show only when billed.
+    ...(hasSen(ti.conts) ? [money('ti_conts', 'Transport Income (The Conts)', ti.conts)] : []),
+    ...(hasSen(ti.hookka) ? [money('ti_hookka', 'Transport Income (Hookka)', ti.hookka)] : []),
     money('sd_income', 'Set/Dismantle Income (In-house)', sdIncome),
     money('fair_income', `Transport Income (${pctLabel(input.fairIncomeBp)}% of fair sales)`, fairIncome),
-    money('ti_2990', 'Transport Income (2990)', ti['2990']),
+    ...(hasSen(ti['2990']) ? [money('ti_2990', 'Transport Income (2990)', ti['2990'])] : []),
     money('total_income', 'TOTAL INCOME', totalIncome),
     money('outsource', 'Outsource Expense', outsource),
     money('petrol', 'Petrol Cost', inHouse.petrol),

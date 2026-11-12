@@ -11,6 +11,7 @@ import {
   useStrayFileDropGuard,
 } from "../../lib/uploadDropZone";
 import { PortalFrame } from "../components/PortalFrame";
+import { usePublicCompany } from "../../carres/publicBranding"; // Carres
 import { useDialog } from "../../hooks/useDialog";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import type { PortalCaseDetail } from "../types";
@@ -52,6 +53,8 @@ export function PortalCaseDetailPage() {
   const dialog = useDialog();
   const { token = "" } = useParams();
   const nav = useNavigate();
+  // Carres: the company name from Settings > Branding (public read), never Houzs's; blank -> "us".
+  const companyName = usePublicCompany().companyName.trim();
   const [data, setData] = useState<PortalCaseDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,7 +207,7 @@ export function PortalCaseDetailPage() {
           <div className="mb-2 text-lg font-semibold">Link Expired</div>
           <div className="text-sm text-ink-secondary">
             This tracking link is no longer valid. Please use the tracking page to
-            re-verify your case, or ask Houzs Century for a fresh link.
+            re-verify your case, or ask {companyName || "us"} for a fresh link.
           </div>
           <button
             onClick={() => nav("/track")}

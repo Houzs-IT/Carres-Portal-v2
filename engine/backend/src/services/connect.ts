@@ -17,6 +17,8 @@
 // CONNECT_WEBHOOK_KEY — while either is unset isConnectConfigured() is false and
 // the board's Send Now answers 503, exactly as the retired Seampify path did.
 // ---------------------------------------------------------------------------
+import type { Env } from '../types';
+import { enginePublicUrl } from './email'; // Carres
 
 /** The Connect automation the delivery follow-up triggers, matched BY NAME.
  *  Must equal the automation's name in chat.houzscentury.com exactly. */
@@ -97,13 +99,11 @@ export interface ConnectSendContext {
 
 /** Where the customer's tap comes back (routes/chatCallback.ts). */
 export const CHAT_CALLBACK_PATH = '/api/chat-callback';
-/** wrangler.toml sets PUBLIC_APP_URL per environment; this is prod's value and
- *  only a last resort for an environment that forgot to. */
-export const DEFAULT_PUBLIC_APP_URL = 'https://erp.houzscentury.com';
 
-export function chatCallbackUrl(env: { PUBLIC_APP_URL?: string }): string {
-  const base = String(env.PUBLIC_APP_URL || DEFAULT_PUBLIC_APP_URL).replace(/\/+$/, '');
-  return `${base}${CHAT_CALLBACK_PATH}`;
+/* Carres: /api/chat-callback lives on the engine Worker, reached through the engine's own site
+   (ENGINE_PUBLIC_URL); PUBLIC_APP_URL is the Carres portal, which does not serve it. */
+export function chatCallbackUrl(env: { ENGINE_PUBLIC_URL?: string }): string {
+  return enginePublicUrl(env as Env, CHAT_CALLBACK_PATH);
 }
 
 /** The figure the balance paragraph prints after "RM": sen → "1,500.00". */
@@ -381,7 +381,8 @@ export function connectUntriggeredReason(bodyText: string, automation: string): 
   const triggered = (body as { triggered?: unknown }).triggered;
   if (!Array.isArray(triggered)) return null;
   if (triggered.length > 0) return null;
-  return `Connect has no enabled automation named "${automation}" — publish and enable it in chat.houzscentury.com, then send again.`;
+  // Carres: names no Houzs host — the Connect app is whichever CONNECT_WEBHOOK_URL points at.
+  return `Connect has no enabled automation named "${automation}" — publish and enable it in Connect, then send again.`;
 }
 
 /** POST one contact event to Connect. Never throws — a network / non-2xx

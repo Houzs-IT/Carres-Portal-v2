@@ -52,7 +52,8 @@ describe("brandingToneForLabel — the bridge for lists with no category", () =>
   /* "ZANOTTI" names no furniture. Before this module a Zanotti sofa read as
      OTHER and turned grey next to a 2990s sofa that was green — the same
      product, two colours, one tenant apart. */
-  test.each(["ZANOTTI", "Zanotti", "2990s Sofa", "2990S SOFA", "SOFA"])(
+  // Carres: the HOUZS row (Carres) has no house sofa brand, so ZANOTTI is not a sofa word here.
+  test.each(["2990s Sofa", "2990S SOFA", "SOFA", "Sofa"])(
     "%s is the sofa colour", (label) => {
       expect(brandingToneForLabel(label)).toBe("success");
     },

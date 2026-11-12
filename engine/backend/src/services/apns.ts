@@ -26,11 +26,14 @@ import type { Env } from "../types";
 const APNS_HOST_PROD = "https://api.push.apple.com";
 const APNS_HOST_SANDBOX = "https://api.sandbox.push.apple.com";
 
-/** The bundle id doubles as the APNs topic. One place, not three. */
-export const APNS_TOPIC = "com.houzscentury.erp";
+/** The bundle id doubles as the APNs topic. Carres: from APNS_TOPIC (the app's bundle id), never
+ *  Houzs's "com.houzscentury.erp"; push stays off until it is set. */
+export function apnsTopic(env: Env): string {
+  return (env.APNS_TOPIC ?? "").trim();
+}
 
 export function apnsConfigured(env: Env): boolean {
-  return !!(env.APNS_TEAM_ID && env.APNS_KEY_ID && env.APNS_PRIVATE_KEY);
+  return !!(env.APNS_TEAM_ID && env.APNS_KEY_ID && env.APNS_PRIVATE_KEY && apnsTopic(env)); // Carres: + topic
 }
 
 let cachedJwt: { token: string; mintedAt: number; keyId: string } | null = null;
@@ -111,7 +114,7 @@ export async function sendApnsAlert(
       method: "POST",
       headers: {
         authorization: `bearer ${jwt}`,
-        "apns-topic": APNS_TOPIC,
+        "apns-topic": apnsTopic(env),
         "apns-push-type": "alert",
         "apns-priority": "10",
       },

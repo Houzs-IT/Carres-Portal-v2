@@ -5,6 +5,7 @@ import { getAssrDetail } from "../services/assr";
 import { earlierSupplierReturns, ensureFirstSupplierReturn, listSupplierReturns } from "../services/assrSupplierReturns";
 import { assrCaseRowInScope, assrCallerIsScoped, stripCreditorFields } from "../services/assrVisibility";
 import { allowedCompanyIds } from "../scm/lib/companyScope";
+import { intakeCompany } from "../lib/intake-company"; // Carres
 import {
   getBrandingForCompany,
   resolveCompanyCode,
@@ -47,6 +48,13 @@ export function signoffCompanyCode(entity: string, companyCode: string): string 
   const caseEntity = companyCode === HOUZS_COMPANY_CODE ? "houzs" : "2990";
   if (entity === caseEntity) return companyCode;
   return entity === "2990" ? "2990" : HOUZS_COMPANY_CODE;
+}
+
+/** Carres: whether the 2990 company exists, so the 2990 / Both letterheads can be printed. An
+ *  unreadable master keeps Houzs's behaviour; a readable master with no 2990 row is single-company. */
+export async function secondEntityExists(db: D1Database): Promise<boolean> {
+  const r = await intakeCompany(db, "2990");
+  return !r.master || r.id != null;
 }
 
 function esc(s: unknown): string {
@@ -286,10 +294,13 @@ app.get("/:id", requirePermission("service_cases.read"), async (c) => {
   type PrintEntity = "houzs" | "2990" | "both";
   const caseEntity: PrintEntity = companyCode === HOUZS_COMPANY_CODE ? "houzs" : "2990";
   const rawEntity = (c.req.query("entity") || "").toLowerCase();
-  const entity: PrintEntity =
+  let entity: PrintEntity =
     rawEntity === "houzs" || rawEntity === "2990" || rawEntity === "both"
       ? (rawEntity as PrintEntity)
       : caseEntity;
+  // Carres: one company only. With no 2990 company in the master, 2990 / Both paper does not exist,
+  // so the case's own letterhead is printed (Houzs's two-company behaviour is unchanged).
+  if (entity !== caseEntity && !(await secondEntityExists(c.env.DB))) entity = caseEntity;
 
   /* One entity's letterhead facts. Everything comes from the Branding config
      (Settings → Branding) — the identity is edited in one place and every
@@ -354,7 +365,8 @@ app.get("/:id", requirePermission("service_cases.read"), async (c) => {
   // Warehouse/CS contact line: the historical HOUZS CS number is not part of
   // the Branding config, so HOUZS keeps its literal (unchanged output); other
   // companies show their branding phone (blank → line renders without one).
-  const csPhone = signCode === HOUZS_COMPANY_CODE ? "011-6155 6133" : signBranding.phone;
+  // Carres: never Houzs's literal CS number — the Branding CS phone, else the Branding phone.
+  const csPhone = (signBranding as { csPhone?: string | null }).csPhone || signBranding.phone;
 
   const imageAttachments = attachments.filter((a: any) =>
     (a.content_type || "").startsWith("image/")

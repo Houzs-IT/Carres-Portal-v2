@@ -384,10 +384,13 @@ describe('buildSyncHeadline', () => {
 });
 
 describe('chatCallbackUrl / formatRm', () => {
-  it('builds the callback URL off PUBLIC_APP_URL, trimming a trailing slash, prod as last resort', () => {
-    expect(chatCallbackUrl({ PUBLIC_APP_URL: 'https://houzs-erp-staging.pages.dev/' }))
-      .toBe('https://houzs-erp-staging.pages.dev/api/chat-callback');
-    expect(chatCallbackUrl({})).toBe('https://erp.houzscentury.com/api/chat-callback');
+  // Carres: the callback is on the engine site (ENGINE_PUBLIC_URL), never the portal or a Houzs host.
+  it('Carres: builds the callback URL off ENGINE_PUBLIC_URL, trimming a trailing slash, the engine site as last resort', () => {
+    expect(chatCallbackUrl({ ENGINE_PUBLIC_URL: 'https://carres-scm-preview.pages.dev/' }))
+      .toBe('https://carres-scm-preview.pages.dev/api/chat-callback');
+    expect(chatCallbackUrl({})).toBe('https://carres-scm.pages.dev/api/chat-callback');
+    expect(chatCallbackUrl({ PUBLIC_APP_URL: 'https://carres-portal.pages.dev' } as never))
+      .toBe('https://carres-scm.pages.dev/api/chat-callback');
   });
 
   it('formats sen as the RM figure the message prints', () => {

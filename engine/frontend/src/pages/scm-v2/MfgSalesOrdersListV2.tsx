@@ -19,7 +19,8 @@
 // The old ledger-style page (MfgSalesOrdersList.tsx, DataGrid-based) stays in
 // the tree; App.tsx route swap decides which one users see.
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { getTableLayoutsSnapshot, subscribeTableLayouts } from "../../lib/tableLayouts"; // Carres
 import { shippedProgressColumn, ShippedProgressPill } from "./so-list-shipped-column";
 import { SO_STATUS_TABS, statusFor, type StatusTab } from "./so-list-status";
 import { SoListStatusCell } from "./SoListStatusCell";
@@ -1927,10 +1928,13 @@ export function MfgSalesOrdersListV2() {
      here out of play — moving a column for everyone in 2990 stopped being a
      deploy. Either way it is a baseline that applies only while a user has no
      column prefs of their own, so nobody's arrangement is touched. */
+  // Carres: the "2990 Layout" is offered only where the 2990 company exists (Houzs's two companies).
+  const layoutCompanies = useSyncExternalStore(subscribeTableLayouts, getTableLayoutsSnapshot, getTableLayoutsSnapshot).companies;
+  const has2990 = branding.companyCode === "2990" || layoutCompanies.some((co) => co.code.toUpperCase() === "2990");
   const layoutPresets = useMemo<ColumnLayoutPreset[]>(() => {
     const is2990 = branding.companyCode === "2990";
     return [
-      {
+      ...(has2990 ? [{
         id: "so-2990",
         label: "2990 Layout",
         hint: "Production & delivery",
@@ -1949,7 +1953,7 @@ export function MfgSalesOrdersListV2() {
           "processing_date",
           "customer_delivery_date",
         ],
-      },
+      }] : []),
       /* Owner 2026-09-15: the Houzs default is AutoCount's layout "SALES ORDER
          DETAILS-SALES", one row per line in the Export. A company default an
          admin saved from the Columns panel still takes this seed's place. */
@@ -1963,7 +1967,7 @@ export function MfgSalesOrdersListV2() {
       },
       { id: "so-autocount", label: "AutoCount: SALES ORDER DETAILS-SALES", hint: "One row per line in the Export", columns: SO_AUTOCOUNT_KEYS },
     ];
-  }, [branding.companyCode]);
+  }, [branding.companyCode, has2990]);
 
   /* One pill per vocabulary status, each carrying its FULL-set count (see
      SO_STATUS_TABS) via FilterPills' count badge — these are the SERVER's
