@@ -102,8 +102,7 @@ export default {
         // the CSS-module page rhythm we just switched via --font-title.
         // `font-serif` stays on IBM Plex Serif for the rare place that
         // deliberately opts into serif (`className="font-serif"`).
-        // Carres: titles in the Carres face (Inter, apps/web carres-tokens.css --font).
-        display: ['"Inter"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+        display: ['"IBM Plex Sans"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
         // Codes / IDs / eyebrow labels (金额/编号 role) — SYSTEM stack, owner
         // override 2026-07-24: Plex Mono's dotted zero read wrong ("系统的0可以
         // 用第二张照片的0吗"), and our self-hosted Plex subsets carry no plain-
@@ -118,8 +117,7 @@ export default {
         // resolved that (its digits are tabular by construction). Doc numbers
         // do NOT live here — they are `docno`, and the owner put those on Plex
         // Mono the same day. See that alias.
-        // Carres: codes and labels in the Carres face too.
-        mono: ['"Inter"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
+        mono: ['"IBM Plex Sans"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
         // Money / financial figures — same stack, kept as its own alias so
         // amount cells can diverge from codes again if needed.
         money: ['"IBM Plex Sans"', '"Noto Sans SC"', "system-ui", "-apple-system", "BlinkMacSystemFont", '"Segoe UI"', "Roboto", '"Helvetica Neue"', "Arial", "sans-serif"],
@@ -165,7 +163,7 @@ export default {
       boxShadow: {
         // Soft "stone" shadow — matches the cream canvas without
         // looking like a generic Material drop shadow.
-        stone: "0 1px 2px rgba(16, 24, 40, 0.10)", // Carres --shadow-lift
+        stone: "0 1px 0 rgba(17, 24, 16, 0.04), 0 4px 18px -8px rgba(17, 24, 16, 0.12)",
         slab: "0 1px 0 rgba(17, 24, 16, 0.06), 0 12px 32px -16px rgba(17, 24, 16, 0.25)",
         brass: "0 0 0 1px rgba(161, 106, 46, 0.3), 0 1px 4px rgba(161, 106, 46, 0.18)",
       },

@@ -35,10 +35,10 @@ export function FilterPills<T extends string>({ options, value, onChange }: Prop
     // a phone) it scrolls horizontally inside the slab without
     // bleeding into the layout. max-w-full prevents the inline-flex
     // from forcing parent width.
-    <div className="inline-block max-w-full overflow-hidden rounded-[10px] bg-[#E2E4E8] align-middle">
+    <div className="inline-block max-w-full overflow-hidden rounded-md border border-border bg-surface shadow-stone align-middle">
       <div
         className={cn(
-          "no-scrollbar flex items-center gap-0 overflow-x-auto p-[3px]",
+          "no-scrollbar flex items-center gap-0.5 overflow-x-auto p-1",
           "[&>*]:shrink-0"
         )}
       >
@@ -49,11 +49,10 @@ export function FilterPills<T extends string>({ options, value, onChange }: Prop
               key={opt.value}
               onClick={() => onChange(opt.value)}
               className={cn(
-                // Carres pill tabs (apps/web components/kit/Tabs.tsx).
-                "whitespace-nowrap rounded-lg px-3 py-[5px] text-[13px] leading-4 transition-colors",
+                "whitespace-nowrap rounded px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-all duration-150",
                 active
-                  ? "bg-white font-medium text-[#2F55E0] shadow-[0_1px_2px_rgba(16,24,40,0.10)]"
-                  : "font-normal text-[#4B5563] hover:bg-[#EEF0F3]"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-ink-secondary hover:bg-primary-soft hover:text-primary"
               )}
             >
               {opt.label}
@@ -61,7 +60,7 @@ export function FilterPills<T extends string>({ options, value, onChange }: Prop
                 <span
                   className={cn(
                     "ml-1.5 inline-block rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums align-middle",
-                    active ? "bg-primary-soft text-primary-ink" : "bg-white/70 text-ink-muted"
+                    active ? "bg-white/20 text-white" : "bg-bg text-ink-muted"
                   )}
                 >
                   {opt.count}
