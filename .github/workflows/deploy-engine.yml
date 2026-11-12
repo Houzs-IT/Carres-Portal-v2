@@ -54,6 +54,30 @@ jobs:
           else
             node scripts/carres-db/apply.mjs --ci
           fi
+      # The scan queue (Houzs: houzs-scan-ocr): long OCR reads run on it instead of inside the request, so a big PDF
+      # does not time out. Made here, idempotently; the binding is added only when both queues exist, so a token
+      # without Queues:Edit leaves scans running inside the request (as before) instead of failing the deploy.
+      - name: Scan queue
+        working-directory: engine/backend
+        run: |
+          for q in carres-scan-ocr carres-scan-ocr-dlq; do npx wrangler queues create "$q" >/dev/null 2>&1 || true; done
+          if npx wrangler queues info carres-scan-ocr >/dev/null 2>&1 && npx wrangler queues info carres-scan-ocr-dlq >/dev/null 2>&1; then
+            {
+              echo ''
+              echo '[[queues.producers]]'
+              echo 'binding = "SCAN_QUEUE"'
+              echo 'queue = "carres-scan-ocr"'
+              echo ''
+              echo '[[queues.consumers]]'
+              echo 'queue = "carres-scan-ocr"'
+              echo 'max_batch_size = 1'
+              echo 'max_retries = 3'
+              echo 'dead_letter_queue = "carres-scan-ocr-dlq"'
+            } >> wrangler.toml
+            echo "Scan queue on."
+          else
+            echo "::warning::The scan queue could not be made (the Cloudflare token needs Queues:Edit). Scans run inside the request."
+          fi
       - name: Deploy the server
         working-directory: engine/backend
         run: npx wrangler deploy --message "main ${GITHUB_SHA}"
