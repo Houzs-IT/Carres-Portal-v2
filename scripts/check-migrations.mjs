@@ -167,6 +167,8 @@ if (altered.length) throw new Error(`Committed migrations are immutable; only ne
  */
 const REVIEWED_DESTRUCTIVE = new Map([
   ["0692_the_chart_marks_the_money_accounts.sql", "9bf5c9424e5ee11a0c46244d69fee1bd771ccbbe"],
+  // Owner confirmed the drop in chat, 12 Nov 2026 ("Confirm delete"), after reading PR #2275's list.
+  ["0775_drop_removed_module_objects.sql", "a47a80854c6777b4d4070108a26b4f87cd64842d"],
 ]);
 const isReviewedDestructive = (file) => {
   const pinned = REVIEWED_DESTRUCTIVE.get(file.split("/").pop());
