@@ -68,10 +68,16 @@ the files the commits below name, and the Carres config files.
 **The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
 the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
 values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still
-in the tree because Finance (old), the dealer POS (`PosOrderDetail` → `SalesOrderWorkspace`) and the print pages import
+in the tree because Finance (old) and the print pages import
 it; no menu row or address opens it. Code nothing reachable used any more (unused `lib/queries.ts` hooks, the
 Delivery Monitor/Delivery Orders register helpers, the case wizard, `ReportProblemModal`, the `/api/it-support`
-route) was removed on 12 Nov 2026. Old Carres tables
+route) was removed on 12 Nov 2026. Also on 12 Nov the Workspace task feed stopped carrying supply-chain work
+(Workspace MASTER banner) and the five API routers that only it and the removed pages read were deleted:
+`/api/operation/purchasing/requests` (Manual Purchase), `/api/operation/stock`, `/api/operation/purchase-returns`,
+`/api/operation/repair-orders` and `/api/ops/issues`. With the PO, supplier-answer and delivery task panels gone,
+the old Carres Sales Order workspace (`SalesOrderWorkspace`, `OrderDetailDrawer`, `so-detail/*`, `so-batch/*` and
+the order components they mount, about 70 files) is no longer reachable from any page; it is left for a separate
+removal PR. The dealer POS does not import it. Old Carres tables
 and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
 orders in the old order book (`OLD_ORDER_FLOWS`).
 

@@ -142,7 +142,7 @@ const FEED: OperationWorkResponse = {
   generatedOn: TODAY,
   closureReceipt: null,
   staff: [{ userId: ME, name: "Shasha", email: "sha@carres.co" }, { userId: COLLEAGUE.userId, name: COLLEAGUE.name, email: "staff-b@carres.local" }],
-  sources: (["orders", "purchasing", "receiving", "delivery", "payment", "issue_tracker", "workspace"] as const).map((key) => ({
+  sources: (["orders", "payment", "workspace"] as const).map((key) => ({
     key,
     state: "healthy" as const,
     observedAt: `${TODAY}T01:00:00.000Z`,
@@ -150,18 +150,11 @@ const FEED: OperationWorkResponse = {
     errorLabel: null,
   })),
   items: [
-    item("purchasing", wd(-5), 5),
-    item("delivery", wd(-4), 4),
+    /* Only what the Carres feed carries (Houzs runs Purchasing, Receiving and Delivery since 11 Nov 2026). */
     item("payment", wd(-6), 6),
     item("orders", wd(0)),
-    item("receiving", wd(0)),
-    item("purchasing", wd(1)),
-    item("delivery", wd(1)),
-    item("delivery", wd(1)),
     item("orders", wd(1)),
     item("payment", wd(0)),
-    item("delivery", wd(2)),
-    item("purchasing", wd(2)),
     item("orders", null),
     item("payment", null),
     /* `+ Task`: one a colleague added for the preview person, one the other way round. */

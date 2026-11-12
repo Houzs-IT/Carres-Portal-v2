@@ -1990,14 +1990,6 @@ describe("there is exactly ONE issuance door left", () => {
     const src = readFileSync(join(here, "to-order.ts"), "utf8");
     expect(src.match(/rpc\(\s*"purchasing_issue_pos_batch"/g) ?? []).toHaveLength(1);
   });
-
-  it("Manual Purchase is the OTHER governed journey onto the same authority", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const manual = readFileSync(join(here, "manual-purchase.ts"), "utf8");
-    // It is not a bypass and this Card did not touch it — it is the second
-    // approved way in, and a claim of "one caller" would have been false.
-    expect(manual).toContain("purchasing_issue_pos_batch");
-  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

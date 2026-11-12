@@ -5,7 +5,7 @@
  * document must equal what the whole Work feed says for that order.
  */
 import { describe, expect, it } from "vitest";
-import { projectPurchaseOrderReplyWork, projectReceivingWork, receivingWorkSourceFromModuleFacts, projectSalesOrdersFromModuleFacts } from "./work";
+import { projectPurchaseOrderReplyWork, projectSalesOrdersFromModuleFacts } from "./work";
 
 type Row = Parameters<typeof projectSalesOrdersFromModuleFacts>[0]["orders"][number];
 
@@ -134,7 +134,7 @@ describe("the one-PO Work probe", () => {
 
 
 describe("missed arrivals remain Operation supplier follow-up", () => {
-  it("routes a passed source date to Purchasing, never to Receiving without a report", () => {
+  it("routes a passed source date to Purchasing", () => {
     const items = projectPurchaseOrderReplyWork({
       pos: [po("PO-late", { official_delivery_date: "2026-09-04" })],
       suppliers: [{ id: "supplier-1", name: "Nice Future" }],
@@ -146,10 +146,6 @@ describe("missed arrivals remain Operation supplier follow-up", () => {
       destination: "/operation?tab=purchase-orders&po=PO-late",
       requiredResult: "New evidenced supplier delivery date recorded",
     });
-    expect(projectReceivingWork({
-      source: receivingWorkSourceFromModuleFacts({ receipts: [] }),
-      duty: null, today: "2026-09-08", workingDaysLate: () => 2,
-    })).toEqual([]);
   });
 
   it("a later line reply cannot hide another line whose date passed", () => {

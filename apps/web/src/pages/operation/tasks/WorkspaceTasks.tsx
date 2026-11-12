@@ -34,13 +34,12 @@ import { TaskOpenContext } from "./TaskFrame";
 import NewTask from "./NewTask";
 import { TaskDayStrip } from "./TaskList";
 import { TASK_CARD_WORDS, TASK_TABS, emptyWord, taskCard, taskStrip, type TaskTab } from "./task-cards";
-import { TASK_MODULE_SYMBOL, TASK_MODULE_WORD, TASKS_WORDS as T, myTasks } from "./tasks-model";
-import { usePoWindowFacts } from "./use-po-window-facts";
+import { TASK_FEED_MODULES, TASK_MODULE_SYMBOL, TASK_MODULE_WORD, TASKS_WORDS as T, myTasks } from "./tasks-model";
 import { useTaskDesk } from "./use-task-desk";
 import { panelFor } from "./work-panels";
 import { WORKSPACE_WORDS as W, workspaceTable, workspaceWidths, type WorkspaceRow, type WorkspaceTone } from "./workspace-table";
 
-const MODULES = Object.keys(TASK_MODULE_WORD) as OperationWorkModule[];
+const MODULES: readonly OperationWorkModule[] = TASK_FEED_MODULES;
 /* The kit's Workspace widths (Layout Standard): `Task` takes what the fixed
    columns leave; short of room they give way together, never under their
    floors, so the table fits 1025 to 1440 with the Module rail open. */
@@ -114,15 +113,13 @@ export default function WorkspaceTasks() {
   const chosen = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : today;
 
   const scoped = useMemo(() => (team ? items : myTasks(items, myUserId)), [team, items, myUserId]);
-  const windows = usePoWindowFacts(scoped.some((row) => row.source.object.kind === "po_window"));
-  const factsOf = useCallback((row: WorkRow) => (row.source.object.kind === "po_window" ? windows.get(row.source.object.id) ?? null : null), [windows]);
-  const table = useMemo(() => (today ? workspaceTable({ scoped, completed, doneBy: myUserId, team, today, chosen, tab, module, factsOf }) : null),
-    [scoped, completed, myUserId, team, today, chosen, tab, module, factsOf]);
+  const table = useMemo(() => (today ? workspaceTable({ scoped, completed, doneBy: myUserId, team, today, chosen, tab, module }) : null),
+    [scoped, completed, myUserId, team, today, chosen, tab, module]);
   const strip = useMemo(() => (today ? taskStrip(scoped, today, chosen) : null), [scoped, today, chosen]);
 
   /* The desk walks the rows on screen, in the table's own order. */
-  const order = useMemo(() => (table ? table.rows.flatMap((row) => (row.work ? [taskCard(row.work, factsOf(row.work))] : [])) : []), [table, factsOf]);
-  const desk = useTaskDesk({ order, factsOf });
+  const order = useMemo(() => (table ? table.rows.flatMap((row) => (row.work ? [taskCard(row.work)] : [])) : []), [table]);
+  const desk = useTaskDesk({ order });
   const { task, openTask } = desk;
 
   /* The chosen task is in the address (Workspace MASTER §5.3): a link opens

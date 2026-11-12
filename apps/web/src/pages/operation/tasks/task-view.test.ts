@@ -37,10 +37,6 @@ describe("the head of an opened task", () => {
       record: "PO-261001-9001", owner: "TEST · Staff A", destination: "/operation/procurement?po=PO-261001-9001",
     });
   });
-  it("a purchase batch has no record: it is named by its time", () => {
-    const batch = row({ id: "b", line: "Issue the POs by 11:00 AM" }, { object: { kind: "po_window", id: "2026-10-05T11:00", label: "11:00 AM PO window" } });
-    expect(taskHead(batch, taskCard(batch))).toMatchObject({ page: "SO Batch Purchase", record: null });
-  });
   it("nobody assigned: no owner", () => {
     const task = row({ id: "c" }, { owner: { acting: null } });
     expect(taskHead(task, taskCard(task)).owner).toBeNull();
@@ -62,10 +58,6 @@ describe("the fact rows of an opened task", () => {
     expect(taskFacts(task, taskCard(task)).map((fact) => [fact.label, fact.value])).toEqual([
       ["Deadline", "Mon, 5 Oct"], ["Contact", "TEST Supplier A · WhatsApp"], ["Asked", "Fri, 2 Oct"], ["Next contact", "Tue, 6 Oct"],
     ]);
-  });
-  it("a purchase batch keeps its cut-off and adds no contact: its title names the suppliers", () => {
-    const batch = row({ id: "b", recipient: "2 suppliers" }, { object: { kind: "po_window", id: "2026-10-05T11:00", label: "11:00 AM PO window" } });
-    expect(taskFacts(batch, taskCard(batch)).map((fact) => fact.label)).toEqual(["Cut-off"]);
   });
   it("a module that names its own contact is not given a second one", () => {
     const task = row({ id: "a" });

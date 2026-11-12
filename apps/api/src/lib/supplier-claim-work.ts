@@ -1,9 +1,8 @@
 /**
- * ⭐ SUPPLIER CLAIM WORK — the claim's obligations in the ONE Work feed, and
- * the doors whose facts complete them (Purchasing MASTER §9.5, owner approval
- * 2026-09-25 · Workspace §6.1). Built the way Repair Orders are
- * (`repair-order-work.ts`): its own loader, one additive line in
- * `loadOperationWork`, and the PO projections in `work.ts` untouched.
+ * ⭐ SUPPLIER CLAIM WORK — the doors whose facts complete the claim's
+ * obligations in the 0584 ledger (Purchasing MASTER §9.5, owner approval
+ * 2026-09-25 · Workspace §6.1). The Carres task feed no longer lists claim
+ * work (owner, 11 Nov 2026: Houzs runs Purchasing), so there is no feed loader.
  *
  *   claims.issue_claim         ask recorded, no confirmed send  → POST /:id/send
  *   claims.obtain_reply        sent, no reply                   → POST /:id/response
@@ -19,9 +18,7 @@ import {
   projectSupplierClaimWork,
   type OperationWorkItem,
   type SupplierClaimFacts,
-  type WorkspaceDutyResolution,
 } from "@carres/shared";
-import type { PurchasingOfficeDays } from "@carres/shared";
 import type { AppEnv } from "../types";
 import { todayIsoMYT } from "./today";
 import { workCompletion, workCompletionDeps, type WorkCompletionDeps, type WorkCompletionSpec } from "./work-completion";
@@ -43,18 +40,6 @@ async function readWorkSource(c: Context<AppEnv>): Promise<Source> {
   const res = await (await claimReader(c)).request("http://workspace.internal/supplier-claims/work-source", {}, c.env);
   if (!res.ok) throw new Error(`Supplier Claim work source failed (${res.status})`);
   return (await res.json()) as Source;
-}
-
-/** The Work feed's Supplier Claim entry. A failed read fails the Purchasing
- *  source honestly rather than showing an empty claim desk. */
-export async function loadSupplierClaimWork(
-  c: Context<AppEnv>,
-  /** `holidays` = the stored Office calendar (`officeWorkingDayOptions`: weekdays + holidays,
-   *  Settings → Office); absent ⇒ Monday–Friday with the built-in list. */
-  input: { poDuty: WorkspaceDutyResolution | null; approver: WorkspaceDutyResolution | null; today: string; observedAt: string; holidays?: PurchasingOfficeDays },
-): Promise<OperationWorkItem[]> {
-  const { claims } = await readWorkSource(c);
-  return projectSupplierClaimWork({ claims, ...input });
 }
 
 /** ONE claim, ONE projector — each occurrence on its current ledger identity. */

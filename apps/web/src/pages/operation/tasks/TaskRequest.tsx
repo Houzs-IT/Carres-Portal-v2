@@ -41,7 +41,7 @@ const R = TASK_REQUEST_WORDS;
 
 /** Whether the task can be marked as asked. */
 export function canRecordRequest(row: WorkRow): boolean {
-  return Boolean(row.recipient) && row.source.object.kind !== "po_window" && workLifecycleOrToDo(row.source).state === "to_do";
+  return Boolean(row.recipient) && workLifecycleOrToDo(row.source).state === "to_do";
 }
 
 /** What the toast says: who was asked, how, and when to contact them again. */

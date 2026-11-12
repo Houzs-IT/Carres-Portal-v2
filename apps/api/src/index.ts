@@ -18,7 +18,6 @@ import principalDashboardRouter from "./routes/principal/dashboard";
 import principalDealersRouter from "./routes/principal/dealers";
 import principalPartnersRouter from "./routes/principal/partners";
 // 2026-05-19 — stock moved from principal/* (read by the Workspace work feed).
-import operationStockRouter from "./routes/operation/stock";
 import operationBadgesRouter from "./routes/operation/badges";
 import registerLayoutsRouter from "./routes/operation/register-layouts";
 // `Jump to…` — the document half of the ONE global navigate-only command
@@ -35,8 +34,6 @@ import operationPosRouter from "./routes/operation/pos";
 import operationReceiveThreadsRouter from "./routes/operation/receive-threads";
 // R2 — the supplier-claim queue (read side; claims are minted by 0288 RPCs)
 import supplierClaimsRouter from "./routes/operation/supplier-claims";
-import purchaseReturnsRouter from "./routes/operation/purchase-returns";
-import repairOrdersRouter from "./routes/operation/repair-orders";
 // R6 — the ops half: review what the warehouse filed, then replay it through
 // the ONE receive engine (0302).
 import warehouseReceiptsRouter from "./routes/operation/warehouse-receipts";
@@ -54,7 +51,6 @@ import deliveryArrangementsRouter from "./routes/operation/delivery-arrangements
 import paymentApprovalsRouter from "./routes/operation/payment-approvals";
 import toOrderRouter from "./routes/operation/to-order";
 import purchaseDemandsRouter from "./routes/operation/purchase-demands";
-import manualPurchaseRouter from "./routes/operation/manual-purchase";
 import purchasingSettingsRouter from "./routes/operation/purchasing-settings";
 import opsStaffRouter from "./routes/operation/staff";
 import orderPaymentsRouter from "./routes/operation/order-payments";
@@ -119,7 +115,6 @@ import opsStockRouter from "./routes/ops/stock";
 import snRouter from "./routes/ops/service-notes";
 // Migration 0210 — Service Cases (case parent layer above Service Notes).
 import scRouter from "./routes/ops/service-cases";
-import issuesRouter from "./routes/ops/issues";
 // Migration 0162 — ops cockpit: the Tasks board.
 import opsTasksRouter from "./routes/ops/tasks";
 // Phase B (migration 0138) — order annotations.
@@ -222,8 +217,6 @@ api.route("/operation/purchase/to-order", toOrderRouter);
 // CARD-2026-08-20 — the read-only customer-demand Register. Mounted beside To
 // Order, on the same recomputation; it issues nothing.
 api.route("/operation/purchase/demands", purchaseDemandsRouter);
-// Manual Purchase requests (0359) — the typed lane's header + lines + register.
-api.route("/operation/purchasing/requests", manualPurchaseRouter);
 // P1 (0303) — Purchasing → Settings: the numbers the ordering engine reads.
 api.route("/operation/purchasing/settings", purchasingSettingsRouter);
 // 0668 + 0669 — Settings → Company · Office · Settings editors (Carres Settings
@@ -247,7 +240,6 @@ api.route("/operation/people", peopleWorkDaysRouter);
 api.route("/operation/pos", operationPosRouter);
 api.route("/operation/pos", lpInboundRouter);
 api.route("/operation/pos", operationReceiveThreadsRouter);
-api.route("/operation/stock", operationStockRouter);
 api.route("/operation/suppliers", operationSuppliersRouter);
 api.route("/operation/arrival-sources", arrivalSourcesRouter);
 // 0174 — Sales Order Maintenance grid + shared column config.
@@ -311,12 +303,8 @@ api.route("/storage/dos", dosRouter);
 api.route("/ops/stock", opsStockRouter);
 api.route("/ops/service-notes", snRouter);
 api.route("/ops/service-cases", scRouter);
-api.route("/ops/issues", issuesRouter);
 api.route("/ops/tasks", opsTasksRouter);
 api.route("/operation/supplier-claims", supplierClaimsRouter);
-api.route("/operation/purchase-returns", purchaseReturnsRouter);
-// §9.7 Repair Orders (0602): register, object, create and the RO doors.
-api.route("/operation/repair-orders", repairOrdersRouter);
 api.route("/operation/warehouse-receipts", warehouseReceiptsRouter);
 api.route("/operation/workspace-duties", workspaceDutiesRouter);
 api.route("/operation/work-activity", workActivityRouter);

@@ -115,14 +115,6 @@ describe("a task card", () => {
     expect(card.party).toBe("TEST customer D");
     expect(card.rows.map((r) => [r.label, r.value, r.warn])).toEqual([["SO No", "SO-9106", false], ["Deadline", "No date · set by Sales Orders", false]]);
   });
-  it("a purchase batch is named by its cut-off time, never by a key, under SO Batch Purchase", () => {
-    const batch = row({ id: "b", line: "Issue PO", recipient: null }, { object: { kind: "po_window", id: "2026-10-05T11:00", label: "11:00 AM" } });
-    const card = taskCard(batch);
-    expect(card.party).toBe("SO Batch Purchase");
-    expect(card.rows.map((r) => [r.label, r.value, r.warn])).toEqual([["Cut-off", "11:00 AM", false]]);
-    const passed = taskCard(row({ id: "b2", timingBucket: "overdue", recipient: null }, { object: { kind: "po_window", id: "2026-10-05T11:00", label: "11:00 AM" } }));
-    expect(passed.rows[0]).toMatchObject({ label: "Cut-off", value: "11:00 AM · passed", warn: true });
-  });
   it("waiting work says when it was asked and when to contact next", () => {
     expect(taskCard(WAIT).rows.map((r) => [r.label, r.value, r.warn])).toEqual([
       ["PO No", "PO-261001-9001", false],

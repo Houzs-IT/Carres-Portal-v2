@@ -21,7 +21,7 @@ import { TASK_MODULE_SYMBOL } from "./tasks-model";
 
 function Card({ card, selected, onOpen }: { card: TaskCard; selected: boolean; onOpen: (card: TaskCard) => void }) {
   const owner = card.work?.source.owner?.acting;
-  const deadline = card.rows.find(row => row.label === W.deadline || row.label === W.cutOff);
+  const deadline = card.rows.find(row => row.label === W.deadline);
   const body = (
     <span className="grid w-full min-w-0 grid-cols-[20px_22px_minmax(0,1fr)_104px] items-start gap-x-1.5 gap-y-1">
       <span className="mt-px grid h-5 w-5 place-items-center rounded-full border border-c-border text-c-secondary" aria-hidden="true">{!card.work && <MIcon name="check" size={16} />}</span>

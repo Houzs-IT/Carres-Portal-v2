@@ -21,7 +21,6 @@ vi.mock("../use-open-work", () => ({
     lastUpdatedAt: null, unhealthySources: [], generatedOn: "2026-10-05", retry: () => {}, staff: [],
   }),
 }));
-vi.mock("./use-po-window-facts", () => ({ usePoWindowFacts: () => new Map() }));
 /* The module's own panel is its own test; here it only proves WHICH task the
    page opens and that it is handed the shared desk's host. */
 vi.mock("./work-panels", () => ({
@@ -41,7 +40,7 @@ import WorkspaceTasks from "./WorkspaceTasks";
 
 const waiting = { state: "waiting", waitingSince: "2026-10-02T03:00:00.000Z", replyDueOn: "2026-10-06", replyMissed: false, channel: "whatsapp", contactKind: "supplier", contactId: null, lastReplyAt: null };
 const row = (over: Partial<WorkRow> & { id: string }, source: Record<string, unknown> = {}): WorkRow => ({
-  module: "purchasing", ruleKey: "purchasing.supplier_date_passed", dueIso: TODAY, timingBucket: "today",
+  module: "payment", ruleKey: "payment.collect_customer_balance", dueIso: TODAY, timingBucket: "today",
   line: "Ask TEST Supplier A when the goods will arrive", problem: "Supplier delivery date passed", recipient: "TEST Supplier A",
   ownerId: ME, ownerState: "primary", normalOwner: null, destination: "/operation/procurement?po=PO-261001-9001",
   ...over,
@@ -89,13 +88,15 @@ describe("Workspace: the table", () => {
     expect(tabWords()).toEqual(["My Task", "Team Work", "To do 3", "Waiting 1", "Done 1"]);
     expect(rows()).toEqual(["late", "now", "call"]);
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent).filter(Boolean)).toEqual(["Due", "Task", "Contact", "Last contact", "Status"]);
-    expect(screen.getByTestId("workspace-task-late")).toHaveTextContent("Ask TEST Supplier A when the goods will arrivePurchasing · PO-261001-9001");
+    expect(screen.getByTestId("workspace-task-late")).toHaveTextContent("Ask TEST Supplier A when the goods will arrivePayment · PO-261001-9001");
     expect(screen.getByTestId("workspace-status-late")).toHaveTextContent("4 days late");
     expect(screen.getByTestId("workspace-due-now")).toHaveTextContent("Mon, 5 Oct");
     expect(screen.getByTestId("workspace-last-now")).toHaveTextContent("Not recorded");
     /* The Module rail counts the chosen tab and sums to it. */
     expect(moduleCount("all")).toBe("3");
-    expect([moduleCount("purchasing"), moduleCount("orders"), moduleCount("delivery")]).toEqual(["2", "1", "0"]);
+    expect([moduleCount("payment"), moduleCount("orders"), moduleCount("workspace")]).toEqual(["2", "1", "0"]);
+    /* The rail lists only what the Carres feed carries: Houzs runs Purchasing, Receiving and Delivery. */
+    expect(screen.queryByTestId("workspace-module-purchasing")).toBeNull();
     expect(screen.getByTestId("workspace-footer")).toHaveTextContent("3 tasks");
   });
 
@@ -105,7 +106,7 @@ describe("Workspace: the table", () => {
     expect(screen.getByTestId("where")).toHaveTextContent("status=waiting");
     expect(rows()).toEqual(["wait"]);
     expect(screen.getByTestId("workspace-last-wait")).toHaveTextContent("Asked Fri, 2 Oct");
-    expect([moduleCount("all"), moduleCount("purchasing"), moduleCount("orders")]).toEqual(["1", "1", "0"]);
+    expect([moduleCount("all"), moduleCount("payment"), moduleCount("orders")]).toEqual(["1", "1", "0"]);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Done 1" }));
     expect(rows()).toEqual(["d1"]);
     expect(screen.getByTestId("workspace-status-d1")).toHaveTextContent("Done");
@@ -190,11 +191,9 @@ describe("Workspace: one task beside its list", () => {
     expect(notify).toHaveBeenCalledWith("Saved by the module", expect.objectContaining({ next: expect.objectContaining({ label: "Next: TEST Supplier A" }) }));
   });
 
-  it("the governed messages are beside the task: the order's for an order task, the supplier's for a PO task", () => {
+  it("the governed messages are beside the task: the order's for an order task", () => {
     mount("/operation?tab=work&task=call");
     expect(screen.getByTestId("communication")).toHaveTextContent("o-9106 · customer");
-    fireEvent.click(screen.getByTestId("workspace-pick-now"));
-    expect(screen.getByTestId("communication")).toHaveTextContent("TEST Supplier A · supplier");
   });
 });
 

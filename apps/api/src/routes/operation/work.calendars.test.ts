@@ -12,7 +12,6 @@ import {
   projectPaymentCollectionWork,
   projectPurchaseOrderReplyWork,
   projectSalesOrderWork,
-  receivingWorkSourceFromModuleFacts,
   workFeedCalendarsOf,
 } from "./work";
 
@@ -148,19 +147,6 @@ describe("Purchasing Work reads the stored Office calendar", () => {
     }).office;
     expect(before).toBe("2026-10-21");
     expect(due(office)).toBe("2026-10-22");
-  });
-});
-
-describe("GRN lateness names the receiving Site", () => {
-  it("carries the actual Site, else the PO's Warehouse", () => {
-    const source = receivingWorkSourceFromModuleFacts({
-      receipts: [
-        { id: "r-1", po_id: "PO-1", supplier_name: "A", status: "submitted", submitted_at: "2026-10-01T00:00:00Z", actual_site_id: "site-b", warehouse_id: "site-a" },
-        { id: "r-2", po_id: "PO-2", supplier_name: "B", status: "submitted", submitted_at: "2026-10-01T00:00:00Z", warehouse_id: "site-a" },
-        { id: "r-3", po_id: "PO-3", supplier_name: "C", status: "submitted", submitted_at: "2026-10-01T00:00:00Z" },
-      ],
-    });
-    expect(source.submitted.map((r) => r.site_id)).toEqual(["site-b", "site-a", null]);
   });
 });
 
