@@ -57,7 +57,17 @@ describe("the Houzs tree", () => {
       /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026); the Carres bottom group is gone. */
       {
         head: "System",
-        blocks: ["Team: Directory · Org Chart · Departments · Mailboxes · Roles & Permissions", "Mail Center", "IT Support"],
+        blocks: [
+          "Team: Directory · Org Chart · Departments · Mailboxes · Roles & Permissions",
+          "Mail Center",
+          "Announcements",
+          "IT: System Health · AI Usage",
+          "Change Log",
+          "Assistant",
+          "Agent Console",
+          "IT Support",
+          "OCR",
+        ],
       },
     ]);
   });
@@ -75,7 +85,14 @@ describe("the Houzs tree", () => {
       ["team-mailboxes", "/team?tab=mail2"],
       ["team-roles", "/team?tab=permissions"],
       ["mail-center", "/mail-center"],
+      ["announcements", "/announcements"],
+      ["system-health", "/system-health"],
+      ["ai-usage", "/ai-usage"],
+      ["change-log", "/change-log"],
+      ["assistant", "/assistant"],
+      ["agent-console", "/agents"],
       ["it-support", "/it-support"],
+      ["ocr", "/ocr"],
     ];
     for (const [key, page] of rows) {
       const item = OPERATIONS.items.find((i) => i.key === key)!;

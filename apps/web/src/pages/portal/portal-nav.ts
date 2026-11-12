@@ -62,6 +62,12 @@ import {
   LifeBuoy,
   ListChecks,
   AlertCircle,
+  Activity,
+  Sparkles,
+  Server,
+  Bot,
+  ScanLine,
+  Megaphone,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
@@ -114,9 +120,12 @@ export type PortalSection =
   | "Projects"
   /* Rows that hang directly under Supply Chain, outside its modules (Houzs: Product Request). */
   | "Supply Chain"
-  /* SYSTEM (Houzs Sidebar.tsx section "system"; owner 11 Nov 2026): the Team module, and Mail Center and
-   * IT Support as plain rows ("System" has no module row). */
+  /* SYSTEM (Houzs Sidebar.tsx section "system"; owner 11 Nov 2026): the Team module; Houzs's two plain
+   * Operations rows Mail Center and Announcements ("Operations Rows", kept in SYSTEM where the owner put Mail
+   * Center); Houzs's IT group (System Health, AI Usage); then Houzs's plain System rows ("System"). */
   | "Team"
+  | "Operations Rows"
+  | "IT"
   | "System"
   /* HOUZS FINANCE (engine; owner 11 Nov 2026): Houzs's Finance group (Sidebar.tsx:736-873), its plain rows
    * (To do, Money today), its five sub-groups and its one Reports entry. Kept apart from the Carres Finance
@@ -163,6 +172,8 @@ export const SECTION_ORDER: ReadonlyArray<PortalSection> = [
   "Finance Reports",
   "Finance Setup",
   "Team",
+  "Operations Rows",
+  "IT",
   "System",
   "Admin",
   /* Finance, Houzs order: Money in, Money out, Bank & cards, Books, Reports,
@@ -239,6 +250,8 @@ export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   { section: "Finance Setup", label: "Setup", icon: Settings, handleOnly: true },
   /* System, Houzs words (Sidebar.tsx:963-1000). */
   { section: "Team", label: "Team", icon: Users },
+  /* Houzs's IT group has no `to` (Sidebar.tsx:1004-1013): its row only opens and shuts. */
+  { section: "IT", label: "IT", icon: Server, handleOnly: true },
   /* Finance, Houzs words (Sidebar.tsx:740-853). */
   { section: "Receivables", label: "Money in", icon: ArrowDownLeft },
   { section: "Payables", label: "Money out", icon: ArrowUpRight },
@@ -492,15 +505,25 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "fin-deposit-invoices", label: "Deposit invoices", icon: Receipt, path: "/operation/sc/fin-deposit-invoices", section: "Finance Setup", roles: FINANCE_ROLES },
       { key: "fin-todo-rules", label: "To do rules", icon: ListChecks, path: "/operation/sc/fin-todo-rules", section: "Finance Setup", roles: FINANCE_ROLES },
 
-      /* SYSTEM — Houzs's Team, Mail Center and IT Support (Sidebar.tsx:922-1085; owner 11 Nov 2026). Also
-       * shown to `hr`. */
+      /* SYSTEM — Houzs's Team, Mail Center and IT Support (Sidebar.tsx:922-1085; owner 11 Nov 2026), and every
+       * other Houzs row the engine keeps (navOnly.ts KEEP; 12 Nov 2026): Announcements beside Mail Center, the
+       * IT group, Change Log, Assistant, Agent Console and OCR, in Houzs's order with Houzs's words and icons.
+       * Houzs's own gates (it.pages.view, `*`, scm.changelog.read, org.assistant.use) stay inside the engine.
+       * Also shown to `hr`. */
       { key: "team-directory", label: "Directory", icon: Users, path: "/operation/sc/team-directory", section: "Team", roles: SYSTEM_ROLES },
       { key: "team-org-chart", label: "Org Chart", icon: Network, path: "/operation/sc/team-org-chart", section: "Team", roles: SYSTEM_ROLES },
       { key: "team-departments", label: "Departments", icon: Building2, path: "/operation/sc/team-departments", section: "Team", roles: SYSTEM_ROLES },
       { key: "team-mailboxes", label: "Mailboxes", icon: Mail, path: "/operation/sc/team-mailboxes", section: "Team", roles: SYSTEM_ROLES },
       { key: "team-roles", label: "Roles & Permissions", icon: ShieldCheck, path: "/operation/sc/team-roles", section: "Team", roles: SYSTEM_ROLES },
-      { key: "mail-center", label: "Mail Center", icon: Mail, path: "/operation/sc/mail-center", section: "System", roles: SYSTEM_ROLES },
+      { key: "mail-center", label: "Mail Center", icon: Mail, path: "/operation/sc/mail-center", section: "Operations Rows", roles: SYSTEM_ROLES },
+      { key: "announcements", label: "Announcements", icon: Megaphone, path: "/operation/sc/announcements", section: "Operations Rows", roles: SYSTEM_ROLES },
+      { key: "system-health", label: "System Health", icon: Activity, path: "/operation/sc/system-health", section: "IT", roles: SYSTEM_ROLES },
+      { key: "ai-usage", label: "AI Usage", icon: Sparkles, path: "/operation/sc/ai-usage", section: "IT", roles: SYSTEM_ROLES },
+      { key: "change-log", label: "Change Log", icon: History, path: "/operation/sc/change-log", section: "System", roles: SYSTEM_ROLES },
+      { key: "assistant", label: "Assistant", icon: Bot, path: "/operation/sc/assistant", section: "System", roles: SYSTEM_ROLES },
+      { key: "agent-console", label: "Agent Console", icon: Bot, path: "/operation/sc/agent-console", section: "System", roles: SYSTEM_ROLES },
       { key: "it-support", label: "IT Support", icon: LifeBuoy, path: "/operation/sc/it-support", section: "System", roles: SYSTEM_ROLES },
+      { key: "ocr", label: "OCR", icon: ScanLine, path: "/operation/sc/ocr", section: "System", roles: SYSTEM_ROLES },
     ],
   },
   {
@@ -659,6 +682,9 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "hub-team": "/team?tab=hub", "team-directory": "/team?tab=directory", "team-org-chart": "/team?tab=orgchart2",
   "team-departments": "/team?tab=departments2", "team-mailboxes": "/team?tab=mail2", "team-roles": "/team?tab=permissions",
   "mail-center": "/mail-center", "it-support": "/it-support",
+  // The rest of Houzs's System rows the engine keeps (navOnly.ts KEEP), and Announcements.
+  announcements: "/announcements", "system-health": "/system-health", "ai-usage": "/ai-usage",
+  "change-log": "/change-log", assistant: "/assistant", "agent-console": "/agents", ocr: "/ocr",
   // Houzs Finance (Sidebar.tsx:736-873).
   "fin-todo": "/scm/finance", "fin-money-today": "/scm/daily-bank?view=board", "fin-receipts": "/scm/receipts",
   "fin-invoices": "/scm/ar-invoices", "fin-debtors": "/scm/other-debtors",
@@ -968,7 +994,7 @@ export interface MenuGroup {
 
 /** The Houzs areas of the Operations menu: their pages wear Houzs's own icon, as in Houzs's menu. */
 export const HOUZS_ICON_SECTIONS: ReadonlySet<PortalSection> = new Set<PortalSection>([
-  "Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse", "Team",
+  "Customer Care", "Projects", "Supply Chain", "Sales", "Consignment", "Purchasing", "Delivery", "Warehouse", "Team", "IT",
   "Finance", "Finance Money in", "Finance Money out", "Finance Bank", "Finance Books", "Finance Reports", "Finance Setup",
 ]);
 
@@ -987,9 +1013,10 @@ export const OPERATION_MENU_GROUPS: ReadonlyArray<MenuGroup> = [
     row: { key: "finance", label: "Finance", icon: BookOpen },
     sections: ["Finance", "Finance Money in", "Finance Money out", "Finance Bank", "Finance Books", "Finance Reports", "Finance Setup"],
   },
-  /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026): the Team module, then Mail Center and
-   * IT Support. The Carres bottom group (Payments, Issue Tracker, Sales invoice lines) is removed. */
-  { label: "System", sections: ["Team", "System"] },
+  /* Houzs's SYSTEM group after Supply Chain (owner, 11 Nov 2026): the Team module, Mail Center and
+   * Announcements, the IT module, then Change Log · Assistant · Agent Console · IT Support · OCR. The Carres
+   * bottom group (Payments, Issue Tracker, Sales invoice lines) is removed. */
+  { label: "System", sections: ["Team", "Operations Rows", "IT", "System"] },
 ];
 
 /** The blocks of one area, cut into its menu groups. Only the Operations

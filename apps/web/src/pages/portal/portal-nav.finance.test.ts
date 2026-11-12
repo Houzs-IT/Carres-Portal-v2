@@ -218,6 +218,10 @@ describe("Payment Requests for HR staff", () => {
 
   it("is the only row HR sees outside the System rows", () => {
     expect(keys("hr", GRANT).filter((k) => k !== "payment-requests")).toEqual(keys("hr"));
-    expect(keys("hr")).toEqual(["team-directory", "team-org-chart", "team-departments", "team-mailboxes", "team-roles", "mail-center", "it-support"]);
+    expect(keys("hr")).toEqual([
+      "team-directory", "team-org-chart", "team-departments", "team-mailboxes", "team-roles",
+      "mail-center", "announcements", "system-health", "ai-usage",
+      "change-log", "assistant", "agent-console", "it-support", "ocr",
+    ]);
   });
 });

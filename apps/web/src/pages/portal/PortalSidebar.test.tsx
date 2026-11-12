@@ -383,7 +383,13 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "group-head-system",
       "module-team",
       "child-mail-center",
+      "child-announcements",
+      "module-it",
+      "child-change-log",
+      "child-assistant",
+      "child-agent-console",
       "child-it-support",
+      "child-ocr",
     ]);
     openSupply();
     expect(walk()).toEqual([
@@ -407,7 +413,13 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "group-head-system",
       "module-team",
       "child-mail-center",
+      "child-announcements",
+      "module-it",
+      "child-change-log",
+      "child-assistant",
+      "child-agent-console",
       "child-it-support",
+      "child-ocr",
     ]);
   });
 
@@ -1017,7 +1029,7 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(child("sales-invoices").className).toContain("bg-c-select-pill");
   });
 
-  it("the bottom group sits under the caps SYSTEM heading: Team, Mail Center, IT Support", () => {
+  it("the bottom group sits under the caps SYSTEM heading, in Houzs's order: Team, Mail Center, Announcements, IT, Change Log, Assistant, Agent Console, IT Support, OCR", () => {
     renderAt("/operation");
     const head = screen.getByTestId("nav-group-head-system");
     expect(head).toHaveTextContent(/^System$/);
@@ -1030,8 +1042,36 @@ describe("PortalSidebar — the Sales Order module", () => {
       "nav-group-head-system",
       "nav-module-team",
       "nav-child-mail-center",
+      "nav-child-announcements",
+      "nav-module-it",
+      "nav-child-change-log",
+      "nav-child-assistant",
+      "nav-child-agent-console",
       "nav-child-it-support",
+      "nav-child-ocr",
     ]);
+  });
+
+  it("the IT module opens on System Health and AI Usage and lights the page; a page under OCR lights OCR", () => {
+    renderAt("/operation/sc/system-health");
+    expect(module_("it")).toHaveAttribute("aria-expanded", "true");
+    expect(within(screen.getByTestId("nav-children-it")).getAllByTestId(/^nav-child-/).map((el) => el.dataset.testid)).toEqual([
+      "nav-child-system-health",
+      "nav-child-ai-usage",
+    ]);
+    expect(child("system-health")).toHaveAttribute("aria-current", "page");
+    expect(child("system-health")).toHaveAttribute("href", "/operation/sc/system-health");
+    expect(screen.getByTestId("houzs-icon-system-health")).toBeInTheDocument();
+  });
+
+  it("each new System row is a plain link to its own address, lit where it stands (and under ?at=)", () => {
+    for (const key of ["announcements", "change-log", "assistant", "agent-console", "ocr"]) {
+      const { unmount } = renderAt(`/operation/sc/${key}?at=${encodeURIComponent(`/${key}/x`)}`);
+      expect(child(key), key).toHaveAttribute("href", `/operation/sc/${key}`);
+      expect(child(key), key).toHaveAttribute("aria-current", "page");
+      expect(child(key).getAttribute("aria-expanded"), key).toBeNull();
+      unmount();
+    }
   });
 
   it("on ?tab=rental only Subscription is lit, and it opens the Sales Order module", () => {
