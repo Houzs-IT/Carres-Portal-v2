@@ -119,7 +119,12 @@ export default function FinanceApp() {
           {/* 0645 — staff ask Finance to pay a bill (Chew 2026-10-03). NOT finance-only:
               the Operation staff Finance or the boss allows reach it here, and the database
               shows each person only what they may see. */}
-          <Route path="payment-requests/*" element={<PaymentRequests />} />
+          {/* Operations staff ask through Houzs's own Payment Requests now (owner 11 Nov 2026: the Houzs
+              pages are the system; the Workspace row opens it): an Operations person's old link lands
+              there. Finance and the principal keep this page, which the Finance (old) Payables row and
+              the Payment Vouchers page still open. */}
+          <Route path="payment-requests/*" element={role === "operation"
+            ? <Navigate to="/operation/sc/payment-requests" replace /> : <PaymentRequests />} />
           {/* 0642 — a supplier's credit note takes money off what Carres owes (Chew 2026-10-03). */}
           <Route path="credit-notes/*"     element={financeOnly(<SupplierCreditNotes />)} />
           <Route path="debit-notes/*"      element={financeOnly(<SupplierDebitNotes />)} />

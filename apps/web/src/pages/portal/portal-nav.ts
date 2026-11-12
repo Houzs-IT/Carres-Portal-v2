@@ -371,13 +371,15 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "overview", label: "Overview", icon: LayoutDashboard, path: "/operation/sc/overview", section: "Workspace" },
       { key: "orders-shortcut", label: "Sales Orders", icon: ShoppingCart, mIcon: "shopping_cart", path: "/operation/sc/orders", shortcut: true, section: "Workspace" },
       /* The one Workspace row shown by a grant, not a role (0645; Chew 2026-10-03,
-       * Finance MASTER §3.3). The page lives in Finance. */
+       * Finance MASTER §3.3). It opens Houzs's own Payment Requests (the engine page Finance > Money out
+       * opens too; owner 11 Nov 2026, the Houzs pages are the system), with the same count. Its own row key,
+       * so `hr`, who does not see the Houzs Finance rows, may still open it (roleMayOpenEngineRow). */
       {
         key: "payment-requests",
         label: "Payment Requests",
         icon: HandCoins,
-        path: "/finance/payment-requests",
-        activeFor: ["path:/finance/payment-requests"],
+        path: "/operation/sc/payment-requests",
+        badge: "payment-requests-waiting",
         section: "Workspace",
         roles: ["operation", "principal", "hr"],
         needs: "payment-requester",
@@ -634,6 +636,8 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "project-overview": "/projects?view=finances", projects: "/projects?view=list",
   "project-calendar": "/projects?view=calendar", "project-maintenance": "/projects?view=maintenance",
   orders: "/scm/sales-orders", "orders-shortcut": "/scm/sales-orders",
+  // The Workspace door to Houzs's Payment Requests (the same page as `fin-payment-requests`).
+  "payment-requests": "/scm/payment-requests",
   "fair-pending": "/scm/fair-pending", amendments: "/scm/amendments",
   "payment-backdate-requests": "/scm/payment-backdate-requests",
   "delivery-orders": "/scm/delivery-orders", "delivery-returns": "/scm/delivery-returns",
@@ -789,7 +793,21 @@ export function engineFor(pathname: string, search = ""): string | null {
 }
 
 /** Rows that only repeat another row's page: never the row a frame move lights. */
-const ENGINE_SHORTCUT_ROWS = new Set(["orders-shortcut", "product-request"]);
+const ENGINE_SHORTCUT_ROWS = new Set(["orders-shortcut", "product-request", "payment-requests"]);
+/** Shortcut rows that keep their own address when the frame moves under their page: the Workspace door to
+ *  Payment Requests, which `hr` may open though it may not open the Finance row of the same page. */
+const ENGINE_DOOR_ROWS = new Set(["payment-requests"]);
+
+/** How closely the engine page `page` covers `url` (a longer, more specific page scores higher), or null when
+ *  `url` is neither that page nor under it. */
+function coverScore(page: string, url: URL): number | null {
+  const p = new URL(page, "http://engine");
+  const onPath = p.pathname === "/" ? url.pathname === "/" : url.pathname === p.pathname || url.pathname.startsWith(`${p.pathname}/`);
+  if (!onPath) return null;
+  const params = [...p.searchParams];
+  if (!params.every(([k, v]) => url.searchParams.get(k) === v)) return null;
+  return p.pathname.length * 10 + params.length;
+}
 
 /** The menu row for a page the frame moved to: the row whose engine page it is, or sits under (a record or
  *  form below a list), the most specific match winning. Null when no row covers it. */
@@ -803,21 +821,21 @@ export function engineRowFor(enginePath: string): string | null {
   ];
   for (const [key, page, bonus] of pages) {
     if (ENGINE_SHORTCUT_ROWS.has(key)) continue;
-    const p = new URL(page, "http://engine");
-    const onPath = p.pathname === "/" ? url.pathname === "/" : url.pathname === p.pathname || url.pathname.startsWith(`${p.pathname}/`);
-    if (!onPath) continue;
-    const params = [...p.searchParams];
-    if (!params.every(([k, v]) => url.searchParams.get(k) === v)) continue;
-    const score = p.pathname.length * 10 + params.length + bonus;
+    const covered = coverScore(page, url);
+    if (covered == null) continue;
+    const score = covered + bonus;
     if (!best || score > best.score) best = { key, score };
   }
   return best?.key ?? null;
 }
 
 /** The portal address for a page the frame moved to: its row's own address, plus `?at=` when the page is not
- *  the row's own page. Null when no row covers it. */
-export function engineAddressFor(enginePath: string): string | null {
-  const key = engineRowFor(enginePath);
+ *  the row's own page. Null when no row covers it. `stayOn` is the row the address shows now: when it is a
+ *  door that repeats the found row's page (ENGINE_DOOR_ROWS), the door keeps it, so a person who may open
+ *  only the door (`hr` and Payment Requests) is never sent to a row they may not open. */
+export function engineAddressFor(enginePath: string, stayOn?: string | null): string | null {
+  let key = engineRowFor(enginePath);
+  if (key && stayOn && ENGINE_DOOR_ROWS.has(stayOn) && ENGINE_PAGES[stayOn] === ENGINE_PAGES[key]) key = stayOn;
   if (!key) return null;
   return ENGINE_PAGES[key] === enginePath ? `/operation/sc/${key}` : `/operation/sc/${key}?at=${encodeURIComponent(enginePath)}`;
 }
