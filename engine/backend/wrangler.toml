@@ -10,6 +10,9 @@ name = "carres-scm-engine"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
+# Variables set in the Cloudflare dashboard (IT_HUB_URL, IT_HUB_AI_USAGE_COMPANY, CLIENT_ERROR_DIGEST_TO ...) survive
+# a deploy. Without this, every deploy deletes any variable not listed under [vars] below.
+keep_vars = true
 
 # Same as Houzs: the fetch handler runs in Singapore, next to the database, so a request's several database round
 # trips stay short, and every Claude call (document reading, assistant) leaves from Singapore: Anthropic refuses some
@@ -43,8 +46,8 @@ PUBLIC_APP_URL = "https://carres-portal.pages.dev"
 # The engine's own site: the public pages a link must open (/survey/<token>, /invite/<token>, /reset/<token>,
 # /portal/case/<token>) live here, not on the Carres portal.
 ENGINE_PUBLIC_URL = "https://carres-scm.pages.dev"
-# Who gets the daily client-error digest. Blank = the Settings > Branding email; neither set = no digest.
-CLIENT_ERROR_DIGEST_TO = ""
+# CLIENT_ERROR_DIGEST_TO (who gets the daily client-error digest) is set in the Cloudflare dashboard, not here, so a
+# deploy does not blank it. Unset = the Settings > Branding email; neither set = no digest.
 EMAIL_FROM = "Carres <noreply@carresofficial.com>"
 SO_ITEM_PHOTOS_BUCKET_NAME = "carres-scm"
 SENTRY_ENVIRONMENT = "production"
