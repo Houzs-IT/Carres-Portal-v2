@@ -96,19 +96,15 @@ describe("Card C1 · the Office has exactly ONE receiving door", () => {
 
   it("only the three Session-opening RPCs may move received_qty from the API", () => {
     // `operation_receive_po_with_do` is the ONE receive engine and stays —
-    // but nothing may call it except the doors that open a Session first, plus
-    // the PARTNER leg, which is not an Office path.
+    // but nothing may call it except the doors that open a Session first.
     const api = slash(join(REPO, "apps/api/src"));
     const files = walk(api).filter((f) => /\.ts$/.test(f));
     const direct = files.filter((f) =>
       /rpc\("operation_receive_po_with_do"/.test(code(f)),
     );
-    expect(direct.map((f) => f.replace(api + "/", "")).sort()).toEqual([
-      // The partner confirming goods AT a warehouse — a different leg, and
-      // out of Card C1's frozen scope (Office only). Named here so the next
-      // chat inherits the fact instead of re-deriving it.
-      "routes/partner/pickups.ts",
-    ]);
+    // The partner leg (`routes/partner/pickups.ts`) was the one exception; it
+    // was removed with the delivery partner portal on 12 Nov 2026 (owner).
+    expect(direct.map((f) => f.replace(api + "/", "")).sort()).toEqual([]);
   });
 });
 

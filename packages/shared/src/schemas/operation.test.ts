@@ -13,8 +13,6 @@ import {
   listMovementsQuery,
   confirmProceedRequestInputSchema,
   reselectPartnerInput,
-  lpAcceptOrderInput,
-  lpRejectOrderInput,
   partnerAcceptRfdInput,
   partnerRejectRfdInput,
   dispatchCustomerLegInput,
@@ -354,36 +352,6 @@ describe('reselectPartnerInput (migration 0147 — item h)', () => {
   });
   it('rejects extra keys (strict mode)', () => {
     expect(reselectPartnerInput.safeParse({ partnerId: UUID, extra: 1 }).success).toBe(false);
-  });
-});
-
-describe('lpAcceptOrderInput (migration 0147 — item h)', () => {
-  it('accepts empty body', () => {
-    expect(lpAcceptOrderInput.safeParse({}).success).toBe(true);
-  });
-  it('rejects extra keys (strict mode)', () => {
-    expect(lpAcceptOrderInput.safeParse({ extra: 1 }).success).toBe(false);
-  });
-});
-
-describe('lpRejectOrderInput (migration 0147 — item h)', () => {
-  it('accepts a non-empty reason', () => {
-    expect(lpRejectOrderInput.safeParse({ reason: 'out of capacity' }).success).toBe(true);
-  });
-  it('rejects empty reason', () => {
-    expect(lpRejectOrderInput.safeParse({ reason: '' }).success).toBe(false);
-  });
-  it('rejects whitespace-only reason (trim+min(1))', () => {
-    expect(lpRejectOrderInput.safeParse({ reason: '   ' }).success).toBe(false);
-  });
-  it('rejects reason >500 chars', () => {
-    expect(lpRejectOrderInput.safeParse({ reason: 'a'.repeat(501) }).success).toBe(false);
-  });
-  it('rejects missing reason', () => {
-    expect(lpRejectOrderInput.safeParse({}).success).toBe(false);
-  });
-  it('rejects extra keys', () => {
-    expect(lpRejectOrderInput.safeParse({ reason: 'ok', extra: 1 }).success).toBe(false);
   });
 });
 

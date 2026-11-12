@@ -12,9 +12,7 @@ function homeForRole(role: Role | null): string {
   switch (role) {
     case "principal":   return "/principal";
     case "operation":   return "/operation";
-    case "partner":     return "/delivery-partner";
     case "finance":     return "/finance";
-    case "supplier":    return "/supplier";
     case "bd":          return "/bd";
     case "dealer":
     case "salesperson":

@@ -19,8 +19,8 @@ import type { OperationWorkItem } from "@carres/shared/operation-work";
 import { inOrderScope, orderScopeOf } from "@carres/shared/payment-register-scope";
 import {
   COLLECTION_NOT_ASSIGNED as NOT_ASSIGNED,
-  MANAGER_ASSIGNS_IN_SETTINGS,
-  MANAGER_ASSIGNS_IN_SETTINGS_HREF,
+  TEAM_DEPARTMENTS_DOOR,
+  TEAM_DEPARTMENTS_HREF,
   NOBODY_ASSIGNED_TO_ORDER,
 } from "@carres/shared/payment-collection-owner";
 import { ChevronLeft, ChevronRight, PanelLeftOpen } from "lucide-react";
@@ -170,9 +170,9 @@ function OwnerChip({ owner }: { owner: OperationWorkItem["owner"] }) {
        the Sales Order was dealt to, so an unresolved owner is a system error a
        manager fixes. The word stays short on the fixed row (`Not assigned`);
        the link's own name is the two governed lines in the sheet's one-line
-       spelling, and it opens Houzs's Settings. */
-    const named = joinLines(NOBODY_ASSIGNED_TO_ORDER, MANAGER_ASSIGNS_IN_SETTINGS);
-    return <Link to={MANAGER_ASSIGNS_IN_SETTINGS_HREF} className="shrink-0 text-kit-red-11 underline underline-offset-2"
+       spelling, and it opens Houzs's Team › Departments (owner, 12 Nov 2026). */
+    const named = joinLines(NOBODY_ASSIGNED_TO_ORDER, TEAM_DEPARTMENTS_DOOR);
+    return <Link to={TEAM_DEPARTMENTS_HREF} className="shrink-0 text-kit-red-11 underline underline-offset-2"
       aria-label={named} title={named}
       onClick={(event) => event.stopPropagation()}
       data-testid="monitor-owner-unassigned">{NOT_ASSIGNED}</Link>;

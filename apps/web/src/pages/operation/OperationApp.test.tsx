@@ -80,9 +80,10 @@ describe("OperationApp — retired Carres addresses move to the nearest engine r
     ["/operation?tab=warehouse-inbound", "/operation/sc/receiving"],
     // The Carres Settings workspace is removed: every Settings address opens Houzs's own Settings.
     ["/operation/settings/service", "/operation/sc/settings"],
-    ["/operation/settings/staff-duties", "/operation/sc/settings"],
     ["/operation/settings", "/operation/sc/settings"],
-    ["/operation?tab=staff-duties", "/operation/sc/settings"],
+    // Staff & Duties went to Houzs Team (owner, 12 Nov 2026): its old addresses open Team › Departments.
+    ["/operation/settings/staff-duties", "/operation/sc/team-departments"],
+    ["/operation?tab=staff-duties", "/operation/sc/team-departments"],
     // The Carres Issue Tracker and the Sales invoice lines report are removed: Sales Orders.
     ["/operation/issues", "/operation/sc/orders"],
     ["/operation/issues/reports", "/operation/sc/orders"],

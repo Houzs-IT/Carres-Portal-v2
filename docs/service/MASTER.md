@@ -1,6 +1,8 @@
 # SERVICE — MASTER
 
 > **Replaced by Houzs engine page 11 Nov 2026.** The Carres Service Cases and Service Notes pages, and the Sales Order `Report a problem` case wizard were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+>
+> **Replaced by Houzs engine page 12 Nov 2026.** The Carres service case and service note print pages, the customer survey page (`/survey/:token`) and their API routers (`/api/ops/service-cases`, `/api/ops/service-notes`, `/public/service-survey`) were removed; Houzs's engine prints its own and serves its own survey. Business law below is unchanged.
 
 > **The only Service document.** Overwritten when re-ruled; never versioned.
 > **You read `CLAUDE.md` and this file.**

@@ -19,16 +19,17 @@ export const COLLECTION_OWNER_DUTY_WORD = "Delivery Duty";
  * Payment MASTER §3, Delivery MASTER §13.1). Since 0504 the owner is the
  * individual the Sales Order was dealt to. The system deals every order to a
  * person, so an unassigned order is a system error that only a manager fixes:
- * line 1 `Nobody assigned to this order` over line 2 `Manager assigns in
- * Settings`, and line 2 opens Houzs's own Settings (`/operation/sc/settings`).
- * The Carres Settings workspace and its Staff & Duties page were removed on
- * 11 Nov 2026 (owner: the Houzs pages are the system). The short word on a
- * fixed row is `Not assigned`.
+ * line 1 `Nobody assigned to this order` over line 2 `Team › Departments`,
+ * a door to Houzs's Team › Departments page (`/operation/sc/team-departments`),
+ * where each department and its lead are kept. Staff & Duties went to Houzs
+ * Team (owner, 12 Nov 2026); the door says Houzs's own words for that page
+ * (owner: "跟着houzs的"). The short word on a fixed row is `Not assigned`.
  */
 export const COLLECTION_NOT_ASSIGNED = "Not assigned";
 export const NOBODY_ASSIGNED_TO_ORDER = "Nobody assigned to this order";
-export const MANAGER_ASSIGNS_IN_SETTINGS = "Manager assigns in Settings";
-export const MANAGER_ASSIGNS_IN_SETTINGS_HREF = "/operation/sc/settings";
+/** Houzs's own words for the page (its Sidebar group `Team`, row `Departments`). */
+export const TEAM_DEPARTMENTS_DOOR = "Team › Departments";
+export const TEAM_DEPARTMENTS_HREF = "/operation/sc/team-departments";
 
 export interface CollectionOwnerHistoryRow {
   id: string;

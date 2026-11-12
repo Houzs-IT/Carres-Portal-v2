@@ -75,7 +75,7 @@ describe("Collection owner", () => {
     state.owner = null;
     show();
     expect(await screen.findByTestId("collection-owner-none")).toHaveTextContent("Nobody assigned to this order");
-    expect(screen.getByRole("link", { name: "Manager assigns in Settings" })).toHaveAttribute("href", "/operation/sc/settings");
+    expect(screen.getByRole("link", { name: "Team › Departments" })).toHaveAttribute("href", "/operation/sc/team-departments");
     expect(screen.queryByText(/Delivery Duty|Nobody holds/)).not.toBeInTheDocument();
   });
 
@@ -85,8 +85,8 @@ describe("Collection owner", () => {
     const line1 = await screen.findByTestId("collection-owner-none");
     expect(line1.textContent).toBe("Nobody assigned to this order");
     const door = screen.getByTestId("collection-owner-none-door");
-    expect(door.textContent).toBe("Manager assigns in Settings");
-    expect(door).toHaveAttribute("href", "/operation/sc/settings");
+    expect(door.textContent).toBe("Team › Departments");
+    expect(door).toHaveAttribute("href", "/operation/sc/team-departments");
     expect(line1.compareDocumentPosition(door) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const section = screen.getByTestId("collection-owner");
     expect(section).not.toHaveTextContent(/Nobody is assigned|Assign it in Sales Orders|Sales Orders → Team/);

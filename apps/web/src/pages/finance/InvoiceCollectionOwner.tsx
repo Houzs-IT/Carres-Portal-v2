@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  MANAGER_ASSIGNS_IN_SETTINGS,
-  MANAGER_ASSIGNS_IN_SETTINGS_HREF,
+  TEAM_DEPARTMENTS_DOOR,
+  TEAM_DEPARTMENTS_HREF,
   NOBODY_ASSIGNED_TO_ORDER,
   type CollectionOwnerContextRow,
 } from "@carres/shared/payment-collection-owner";
@@ -20,11 +20,11 @@ import { toast } from "sonner";
  * surface agrees on — normal owner · today's cover · acting person — from the
  * SAME read the Work feed uses, then the append-only history, and (for a
  * principal or manager) the one formal `Hand over collection` door. Cover is
- * never written here: leave and buddy cover live in Staff & Duties. The owner
- * itself is the individual the Sales Order was dealt to (0504), so the
- * unresolved case is a system error a manager fixes: `Nobody assigned to this
- * order` over `Manager assigns in Settings` (owner ruling
- * 2026-09-26), never a duty holder to fill.
+ * never written here. The owner itself is the individual the Sales Order was
+ * dealt to (0504), so the unresolved case is a system error a manager fixes:
+ * `Nobody assigned to this order` over `Team › Departments`, a door to Houzs's
+ * Team page (owner rulings 2026-09-26 and 12 Nov 2026: Staff & Duties went to
+ * Houzs Team, in Houzs's words), never a duty holder to fill.
  */
 export default function InvoiceCollectionOwner({ orderId, canRead }: {
   orderId: string;
@@ -46,8 +46,8 @@ export default function InvoiceCollectionOwner({ orderId, canRead }: {
       : !owner ? <>
           <p className="text-kit-red-11" data-testid="collection-owner-none">{NOBODY_ASSIGNED_TO_ORDER}</p>
           <p className="text-meta">
-            <Link to={MANAGER_ASSIGNS_IN_SETTINGS_HREF} className="underline underline-offset-2"
-              data-testid="collection-owner-none-door">{MANAGER_ASSIGNS_IN_SETTINGS}</Link>
+            <Link to={TEAM_DEPARTMENTS_HREF} className="underline underline-offset-2"
+              data-testid="collection-owner-none-door">{TEAM_DEPARTMENTS_DOOR}</Link>
           </p>
         </>
       : <OwnerFacts owner={owner} />}

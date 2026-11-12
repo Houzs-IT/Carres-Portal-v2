@@ -1,6 +1,8 @@
 # DELIVERY — MASTER
 
 > **Replaced by Houzs engine page 11 Nov 2026.** The Carres Delivery pages (Delivery Monitor, Delivery Orders register, planning, fleet) were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+>
+> **Replaced by Houzs engine page 12 Nov 2026.** The Carres delivery partner portal (`/delivery-partner/*`, `/api/partner/*`), the run sheet print page and `/api/operation/fleet` were removed; Houzs's engine has its own versions. The external logistics link (`/delivery-link/:token`) stays. Business law below is unchanged.
 
 **SO blueprint direct dependency — APPROVED TARGET / NOT BUILT, Jess 2026-10-01.**
 Orders MASTER §0.0 requires validation of preceding-leg arrival before next-leg DO release,

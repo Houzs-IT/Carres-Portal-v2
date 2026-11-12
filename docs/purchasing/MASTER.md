@@ -1,6 +1,8 @@
 # PURCHASING — MASTER
 
 > **Replaced by Houzs engine page 11 Nov 2026.** The Carres Purchasing, Receiving, Supplier Claims, Purchase Returns and Repair Orders pages (`/operation?tab=purchase…`, `receiving`, `claims`…) were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+>
+> **Replaced by Houzs engine page 12 Nov 2026.** The Carres supplier portal (`/supplier/*`), its pickup-event DO reprint and their API routers (`/api/supplier/*`, `/api/pickup-events`, `/api/storage/dos`, the thread and LP inbound doors under `/api/operation/pos`) were removed; Houzs's engine has its own supplier pages. Business law below is unchanged.
 
 ## Current shared UI intake ·30Oct2026
 

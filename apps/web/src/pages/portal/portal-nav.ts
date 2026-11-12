@@ -733,6 +733,8 @@ const RETIRED_PATHS: ReadonlyArray<readonly [string, string]> = [
   ["/operation/purchasing", "purchase-orders"], ["/operation/old-orders", "orders"],
   ["/operation/amendments", "amendments"], ["/operation/stock/unit", "stock"],
   ["/operation/to-order", "purchase-orders"], ["/operation/orders", "orders"],
+  /* The Carres Staff & Duties page went to Houzs Team (owner, 12 Nov 2026): its old address opens Team › Departments. */
+  ["/operation/settings/staff-duties", "team-departments"],
   /* The Carres Settings workspace, removed 11 Nov 2026 (owner): every old Settings address opens Houzs's own. */
   ["/operation/settings", "settings"],
   /* The Carres Issue Tracker and its monthly report, removed from the menu 11 Nov 2026 (owner). */

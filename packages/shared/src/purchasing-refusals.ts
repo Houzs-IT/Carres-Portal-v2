@@ -115,7 +115,7 @@ export function purchasingRefusal(
     case "no_purchase_approver":
       return {
         wrong: "Nobody holds Purchasing Approver.",
-        todo: "Set the holder in Workspace → Staff & Duties.",
+        todo: "Set the holder in Team › Departments.",
       };
     /* Owner ruling 2026-09-18 (0533): nobody approves a purchase they raised. */
     case "own_request":

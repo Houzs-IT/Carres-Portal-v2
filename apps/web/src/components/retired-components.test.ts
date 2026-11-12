@@ -39,11 +39,8 @@ const RETIRED: Record<string, { file: string; replacement: string; allow: string
   PageHeader: {
     file: "components/PageHeader.tsx",
     replacement: "components/kit/PageShell",
-    allow: [
-      "pages/warehouse/WarehouseIncoming.tsx",
-      "pages/warehouse/WarehouseMyReceipts.tsx",
-      "pages/warehouse/WarehouseOutboundDoor.tsx",
-    ],
+    /* Its last importers, the warehouse portal pages, were removed 12 Nov 2026 (owner). */
+    allow: [],
   },
   /* The ⋮ menu is the one CPopover menu (one kit, 15 Oct 2026). */
   "kit/DropdownMenu": {

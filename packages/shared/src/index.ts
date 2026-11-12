@@ -574,8 +574,6 @@ export {
   listMovementsQuery,
   confirmProceedRequestInputSchema,
   reselectPartnerInput,
-  lpAcceptOrderInput,
-  lpRejectOrderInput,
   reservedDrilldownQuery,
   reservedDrilldownResponse,
   awaitingStockShortageResponse,
@@ -586,7 +584,6 @@ export {
   resumeDispatchInput,
   setThresholdInput,
   // Migration 0107 — supplier per-thread pickup feature.
-  OperationReceiveThreadsInput,
   type AssignPartnerInput,
   type ChasePoEventInput,
   type RecordTomorrowDeliveryInput,
@@ -604,8 +601,6 @@ export {
   type ListMovementsQuery,
   type ConfirmProceedRequestInput,
   type ReselectPartnerInput,
-  type LpAcceptOrderInput,
-  type LpRejectOrderInput,
   type ReservedDrilldownQuery,
   type ReservedDrilldownResponse,
   type AwaitingStockShortageResponse,
@@ -670,27 +665,6 @@ export {
   type LedgerAccountReorderInput, type LedgerAccountMoveInput, type LedgerAccountAddInput,
   type LedgerEntriesQuery, type LedgerAsOfQuery, type LedgerPeriodQuery, type LedgerAccountLedgerQuery,
 } from "./schemas/finance";
-
-export {
-  supplierMarkDeliveredInput,
-  supplierPosListQuery,
-  type SupplierMarkDeliveredInput,
-  type SupplierPosListQuery,
-} from "./schemas/supplier";
-
-// Migration 0107 — supplier per-thread pickup feature. Path-only POST that
-// flips `order_supplier_threads.supplier_ready_at` for a single thread.
-export {
-  markThreadReadyInput,
-  type MarkThreadReadyInput,
-} from "./schemas/supplier-threads";
-
-// Migration 0107 — partner-side batch pickup of ready threads (factory_pickup
-// flow). One DO covers N threads on a single PO.
-export {
-  partnerPickupBatchInput,
-  type PartnerPickupBatchInput,
-} from "./schemas/partner";
 
 // Migration 0132 — AutoCount order-import door. See
 // docs/autocount-import-contract.md.
@@ -816,93 +790,6 @@ export {
   type OpsStockEmergencyRow,
   type OpsStockEmergencyResponse,
 } from "./schemas/ops-stock-emergency";
-
-// Migration 0140 — Service Notes (SN module / Issue Tracker).
-export {
-  snSectionASchema,
-  snSectionBSchema,
-  snSectionCSchema,
-  snItemSchema,
-  serviceNoteSchema,
-  serviceNoteListItemSchema,
-  serviceNoteListResponseSchema,
-  createServiceNoteInputSchema,
-  updateServiceNoteInputSchema,
-  SN_CATEGORIES,
-  SN_TYPES,
-  SN_LOGISTICS,
-  SN_STAGES,
-  SN_STAGE_LABELS,
-  SN_STAGE_NEXT,
-  type SnStage,
-  type SnSectionA,
-  type SnSectionB,
-  type SnSectionC,
-  type SnItem,
-  type ServiceNote,
-  type ServiceNoteListItem,
-  type ServiceNoteListResponse,
-  type CreateServiceNoteInput,
-  type UpdateServiceNoteInput,
-} from "./schemas/service-notes";
-
-// Migration 0210 — Service Cases (case parent layer + config-driven type/status).
-export {
-  caseTypeSchema,
-  caseStatusSchema,
-  serviceCaseConfigSchema,
-  serviceCaseSchema,
-  serviceCaseListResponseSchema,
-  createServiceCaseInputSchema,
-  updateServiceCaseInputSchema,
-  mayPickCaseOwner,
-  SERVICE_PICK_LISTS,
-  type ServicePickList,
-  serviceSettingsPatchSchema,
-  servicePickItemCreateSchema,
-  servicePickItemPatchSchema,
-  leadTimeProfileCreateSchema,
-  leadTimeTargetAmendSchema,
-  type LeadTimeProfile,
-  type LeadTimeAmendment,
-  type LeadTimeRead,
-  caseLookupLineSchema,
-  caseLookupOrderSchema,
-  caseLookupResponseSchema,
-  // S2 (0289) — the evidence ledger.
-  caseEvidenceEntrySchema,
-  caseEvidenceListResponseSchema,
-  caseEvidenceUploadedSchema,
-  signCaseEvidenceUploadInputSchema,
-  signCaseEvidenceUploadResponseSchema,
-  // S3 (0291) — the recorded outcomes of the follow-up chain.
-  caseProgressEntrySchema,
-  recordCaseStepInputSchema,
-  // S4 (0298) — the deadline's recorded events.
-  caseSlaEventSchema,
-  recordCaseSlaInputSchema,
-  // S5 (no migration) — the Numbers tab's whole answer.
-  serviceCaseNumbersResponseSchema,
-  type ServiceCaseNumbersResponse,
-  type CaseProgressEntryRecord,
-  type RecordCaseStepInput,
-  type CaseSlaEventRecord,
-  type RecordCaseSlaInput,
-  type CaseEvidenceEntry,
-  type CaseEvidenceListResponse,
-  type CaseEvidenceUploaded,
-  type SignCaseEvidenceUploadInput,
-  type SignCaseEvidenceUploadResponse,
-  type CaseType,
-  type CaseStatus,
-  type ServiceCaseConfig,
-  type ServiceCase,
-  type ServiceCaseListResponse,
-  type CreateServiceCaseInput,
-  type UpdateServiceCaseInput,
-  type CaseLookupOrder,
-  type CaseLookupResponse,
-} from "./schemas/service-cases";
 
 // Migration 0156 — multi-leg delivery chain (γ architecture).
 export {

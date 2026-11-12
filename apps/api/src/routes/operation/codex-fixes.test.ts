@@ -17,7 +17,6 @@ const MIG_0044 = read("supabase/migrations/0044_po_dispatch_fields.sql");
 const MIG_0045 = read("supabase/migrations/0045_logistics_rpcs_chunk1.sql");
 const MIG_0046 = read("supabase/migrations/0046_partner_role_rls.sql");
 const MIG_0047 = read("supabase/migrations/0047_orders_rollup_stage_amend.sql");
-const STORAGE_DOS = read("apps/api/src/routes/storage/dos.ts");
 
 // Strip `-- line comments` from SQL — the absence-checks need to look at SQL
 // statements only, since explanatory comments often mention what was REJECTED
@@ -32,24 +31,7 @@ function stripSqlComments(sql: string): string {
     .join("\n");
 }
 
-// Strip TS `// line` and `/* block */` comments — same reason: dos.ts has a
-// JSDoc that says "NEVER `adminClient`", which would false-positive on the
-// raw text check.
-function stripTsComments(ts: string): string {
-  // Remove block comments (non-greedy, multiline).
-  const noBlocks = ts.replace(/\/\*[\s\S]*?\*\//g, "");
-  // Remove single-line comments.
-  return noBlocks
-    .split("\n")
-    .map((line) => {
-      const idx = line.indexOf("//");
-      return idx === -1 ? line : line.slice(0, idx);
-    })
-    .join("\n");
-}
-
 const MIG_0044_CODE = stripSqlComments(MIG_0044);
-const STORAGE_DOS_CODE = stripTsComments(STORAGE_DOS);
 
 // Helper: extract a single RPC body by name from 0045. Slices from the
 // `CREATE OR REPLACE FUNCTION public.<name>(` opener to its matching
@@ -181,17 +163,8 @@ describe("Codex F1-F12 fix verification (Phase 4.5 Chunk 1 v3)", () => {
     expect(MIG_0044_CODE).toMatch(/partner_rejected_at/);
   });
 
-  it("F11: storage signed-upload uses userClient (NEVER adminClient/serviceRoleClient)", () => {
-    // Codex F11 RED LINE: signing must use USER JWT, never service_role.
-    // Sanity (whole file): import + call site present.
-    expect(STORAGE_DOS).toMatch(/import\s*\{\s*userClient\s*\}\s*from/);
-    expect(STORAGE_DOS).toMatch(/userClient\(c\.env,\s*auth\.jwt\)/);
-    // Absence checks against comment-stripped code (the JSDoc legitimately
-    // says "NEVER `adminClient`" — a false positive on the raw text).
-    expect(STORAGE_DOS_CODE).not.toMatch(/adminClient/);
-    expect(STORAGE_DOS_CODE).not.toMatch(/serviceRoleClient/);
-    expect(STORAGE_DOS_CODE).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY/);
-  });
+  // F11 guarded `routes/storage/dos.ts`, removed with the supplier and partner
+  // portals on 12 Nov 2026 (owner).
 
   it("F12: 0045 has 8 CREATE OR REPLACE FUNCTION statements (5 NEW + 2 EXTENDED + 1 MODIFIED)", () => {
     const matches = MIG_0045.match(/CREATE OR REPLACE FUNCTION public\.\w+\(/g);
