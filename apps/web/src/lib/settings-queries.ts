@@ -9,42 +9,12 @@
  * while loading or when the storage is not installed.
  */
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  DEFAULT_OFFICE_CALENDAR,
-  companyProfileResponseSchema,
-  officeCalendarOf,
-  officeCalendarResponseSchema,
-  settingsEditorsResponseSchema,
-  type CompanyProfileSaveInput,
-  type OfficeCalendar,
-  type OfficeCalendarValues,
-  type OfficeHolidaysSaveInput,
-  type SettingsChange,
-  type SettingsEditorSection,
-} from "@carres/shared";
+import { useQuery } from "@tanstack/react-query";
+import { DEFAULT_OFFICE_CALENDAR, officeCalendarOf, officeCalendarResponseSchema, type OfficeCalendar } from "@carres/shared";
 import { apiFetch } from "./api";
 import { MY_ADDRESS, applyAddressOverrides, type AddressOverride } from "@/data/malaysia-postcodes";
 
-/** The change record of a Settings section without its own history (SET-01). */
-export function useSettingsChanges(section: "sales_orders" | "issue_tracker") {
-  return useQuery({
-    queryKey: ["settings", "changes", section] as const,
-    queryFn: async () => (await apiFetch<{ changes: SettingsChange[] }>(`/api/operation/settings/changes/${section}`)).changes,
-    staleTime: 30_000,
-  });
-}
 
-/** May the signed-in person change this Settings section? (TEAM-02) —
- *  false while loading, so no Edit flashes for a reader. */
-export function useCanEditSettings(section: SettingsEditorSection): boolean {
-  const q = useQuery({
-    queryKey: ["settings", "can-edit", section] as const,
-    queryFn: () => apiFetch<{ canEdit: boolean }>(`/api/operation/settings/can-edit/${section}`),
-    staleTime: 60_000,
-  });
-  return q.data?.canEdit === true;
-}
 
 export const settingsKeys = {
   company: ["settings", "company"] as const,
@@ -53,25 +23,7 @@ export const settingsKeys = {
   editors: ["settings", "editors"] as const,
 };
 
-export function useCompanySettings() {
-  return useQuery({
-    queryKey: settingsKeys.company,
-    queryFn: async () => companyProfileResponseSchema.parse(await apiFetch<unknown>("/api/operation/settings/company")),
-    staleTime: 30_000,
-  });
-}
 
-export function useSaveCompanySettings() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: CompanyProfileSaveInput) =>
-      apiFetch<unknown>("/api/operation/settings/company", { method: "PUT", body: JSON.stringify(input) }),
-    onSettled: () => {
-      void client.invalidateQueries({ queryKey: settingsKeys.company });
-      void client.invalidateQueries({ queryKey: settingsKeys.companyIdentity });
-    },
-  });
-}
 
 export function useOfficeSettings() {
   return useQuery({
@@ -88,40 +40,9 @@ export function useOfficeCalendar(): OfficeCalendar {
   return officeCalendarOf(q.data.values, q.data.holidays.map((h) => ({ holiday_date: h.date, name: h.name })));
 }
 
-export function useSaveOfficeCalendar() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { values: OfficeCalendarValues; revision: number; reason?: string }) =>
-      apiFetch<unknown>("/api/operation/settings/office", { method: "PUT", body: JSON.stringify(input) }),
-    onSettled: () => { void client.invalidateQueries({ queryKey: settingsKeys.office }); },
-  });
-}
 
-export function useSaveOfficeHolidays() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: OfficeHolidaysSaveInput) =>
-      apiFetch<unknown>("/api/operation/settings/office/holidays", { method: "PUT", body: JSON.stringify(input) }),
-    onSettled: () => { void client.invalidateQueries({ queryKey: settingsKeys.office }); },
-  });
-}
 
-export function useSettingsEditors() {
-  return useQuery({
-    queryKey: settingsKeys.editors,
-    queryFn: async () => settingsEditorsResponseSchema.parse(await apiFetch<unknown>("/api/operation/settings/editors")),
-    staleTime: 30_000,
-  });
-}
 
-export function useSettingsEditorDoor(kind: "grant" | "revoke") {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { section: SettingsEditorSection; userId: string }) =>
-      apiFetch<unknown>(`/api/operation/settings/editors/${kind}`, { method: "POST", body: JSON.stringify(input) }),
-    onSettled: () => { void client.invalidateQueries({ queryKey: settingsKeys.editors }); },
-  });
-}
 
 /**
  * Settings → Address lists (0722) — Weisiang's decision (Mr Lim, WhatsApp
@@ -152,14 +73,3 @@ export function useAddressLists() {
   }, [rows]);
 }
 
-export function useSaveAddressOverride() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { state: string; city: string | null; postcode: string | null; renameTo: string | null; hidden: boolean; remove?: boolean }) =>
-      apiFetch<unknown>("/api/operation/settings/address-lists", { method: "PUT", body: JSON.stringify(input) }),
-    onSettled: () => {
-      void client.invalidateQueries({ queryKey: addressListsKey });
-      void client.invalidateQueries({ queryKey: ["settings", "changes", "sales_orders"] });
-    },
-  });
-}

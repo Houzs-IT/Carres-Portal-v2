@@ -42,17 +42,6 @@ export type CListColumn = {
 /** The px floor of a track: `120px` → 120, `minmax(150px,1fr)` → 150. */
 export const trackFloor = (width: string) => Number(/(\d+)px/.exec(width)?.[1]) || 0;
 
-/** The header words: one line, or the two lines a long header is split into. */
-export function CListHead({ column }: { column: CListColumn }) {
-  return column.head ? (
-    <span className="text-left leading-[1.25]" title={column.label}>
-      <span className="block whitespace-nowrap">{column.head[0]}</span>
-      <span className="block whitespace-nowrap font-normal">{column.head[1]}</span>
-    </span>
-  ) : (
-    <span className="whitespace-nowrap text-left leading-[1.25]">{column.label}</span>
-  );
-}
 
 /** One body cell: plain words or a pill, then the grey second line, each on one
  *  line. A value widens its column rather than be cut (fix list 14 Oct); only a

@@ -7,7 +7,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { DataGrid, type DataGridColumn } from "./DataGrid";
-import RowTick from "./RowTick";
 
 interface Row {
   id: string;
@@ -80,20 +79,5 @@ describe("DataGrid · band", () => {
   it("is absent unless a column asks for it", () => {
     const { container } = render(<DataGrid<Row> rows={ROWS} columns={columns()} storageKey="t.band.b" rowKey={(r) => r.id} />);
     expect(container.querySelector('[class*="Band"]')).toBeNull();
-  });
-});
-
-describe("RowTick · a tick that cannot be taken", () => {
-  it("is greyed and says why on hover and to a screen reader", () => {
-    render(<RowTick checked={false} disabled onChange={() => {}} label="Select Queen" why="Enough stock · nothing to buy" />);
-    const box = screen.getByRole("checkbox", { name: "Select Queen. Enough stock · nothing to buy" });
-    expect(box).toBeDisabled();
-    expect(box.closest("label")!.className).toMatch(/checkRefused/);
-    expect(box.closest("label")).toHaveAttribute("title", "Enough stock · nothing to buy");
-  });
-
-  it("a tick that can be taken is not greyed", () => {
-    render(<RowTick checked={false} onChange={() => {}} label="Select Queen" />);
-    expect(screen.getByRole("checkbox", { name: "Select Queen" }).closest("label")!.className).not.toMatch(/checkRefused/);
   });
 });

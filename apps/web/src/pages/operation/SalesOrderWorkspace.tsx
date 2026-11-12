@@ -52,6 +52,7 @@ import PdfPreview from "@/components/kit/PdfPreview";
 import KitModal from "@/components/kit/Modal";
 import KitButton from "@/components/kit/Button";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { SERVICE_CASES_HREF } from "@/pages/portal/portal-nav";
 import { useQuery } from "@tanstack/react-query";
 import * as pdfjs from "pdfjs-dist";
 import { paintPdfPages } from "@/lib/pdf/paint";
@@ -139,7 +140,6 @@ import {
 import { routeActionOwnersOf } from "./workspace-duty-owner";
 import CancelSalesOrderDialog from "./CancelSalesOrderDialog";
 import { AddPaymentModal } from "./components/OrderDetailDrawer";
-import ServiceCaseWizard from "./components/ServiceCaseWizard";
 import CorrectionWorkList from "./CorrectionWorkList";
 import type { RecordedAgreement } from "./customer-agreement";
 import { configWords, diffRows, serviceSizeDraft, resizeService, sizeServiceUnit, NOT_IN_CATALOG, type EditAddon, type EditLine } from "./sales-order-change";
@@ -1076,7 +1076,6 @@ function SalesOrderWorkspaceBody() {
   const [viewRev, setViewRev] = useState<number | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [addingPayment, setAddingPayment] = useState(false);
-  const [problemOpen, setProblemOpen] = useState(false);
   /* The `Change salesperson` door lives beside the Salesperson it changes; the
      modal behind it lives in `SalesOrderAttribution`. Bumping this opens it. */
   const [attributionSignal, setAttributionSignal] = useState(0);
@@ -3185,7 +3184,7 @@ function SalesOrderWorkspaceBody() {
           : []),
         ...(canEditOrder && !editing
           ? [
-              { label: "Report a problem", icon: "support_agent", onSelect: () => setProblemOpen(true), testId: "workspace-report-problem" },
+              { label: "Report a problem", icon: "support_agent", onSelect: () => navigate(SERVICE_CASES_HREF), testId: "workspace-report-problem" },
               { label: "Cancel Sales Order", icon: "cancel", onSelect: () => setCancelOpen(true), testId: "workspace-cancel-so" },
             ]
           : []),
@@ -3280,32 +3279,6 @@ function SalesOrderWorkspaceBody() {
       )}
       {addingPayment && order && (
         <AddPaymentModal orderId={order.id} onClose={() => setAddingPayment(false)} />
-      )}
-      {problemOpen && order && (
-        <ServiceCaseWizard
-          initialOrder={{
-            id: order.id,
-            so: `SO-${order.so}`,
-            refNos: order.source_ref ?? [],
-            customerName: order.customer_name,
-            customerPhone: order.customer_phone,
-            customerAddress: order.customer_address,
-            deliveryDate: order.delivery_date,
-            lines: (detailQ.data?.lines ?? []).filter((line) => line.id).map((line) => ({
-              id: line.id!,
-              sku: line.sku,
-              qty: line.qty,
-              sourcePo: line.source_po ?? null,
-            })),
-          }}
-          onClose={() => setProblemOpen(false)}
-          onSaved={() => {
-            setProblemOpen(false);
-            /* The case it opened is Service's record; this object shows it on
-               Order Route, which reads it from the route facts. */
-            void routeFactsQ.refetch();
-          }}
-        />
       )}
       {/* An OLD revision is a photograph — it carries no lane. The modal is
           opened from `⋮ Change salesperson`. */}

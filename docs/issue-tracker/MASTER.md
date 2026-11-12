@@ -1,5 +1,7 @@
 # ISSUE TRACKER — MASTER
 
+> **Replaced by Houzs engine page 11 Nov 2026.** The Carres Issue Tracker (`/operation/issues`) were removed from the portal; Houzs's engine pages (`/operation/sc/<row>`) are the screens now. Business law below is unchanged; where a section describes a Carres page, component or route as current UI, read it as history.
+
 > **The only Issue Tracker document.** Overwritten when re-ruled; never versioned.
 > **APPROVED / LOCKED business architecture — Jess, 2026-08-14; complete page Blueprint ready for
 > owner review, 2026-09-15; business words, operating rules and shared MASTER UI composition

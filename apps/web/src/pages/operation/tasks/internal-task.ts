@@ -8,7 +8,6 @@
  * being given one grants no permission.
  */
 import { INTERNAL_TASK_KIND, internalTaskIdOf, type InternalTask } from "@carres/shared";
-import { fmtDate } from "@/lib/fmt-date";
 import type { WorkRow } from "../use-open-work";
 import type { TaskHistoryEvent } from "./task-view";
 
@@ -101,4 +100,3 @@ export function internalTaskAddedWords(assignee: { value: string; label: string 
   return W.added(!assignee || assignee.value === myUserId ? W.you : assignee.label);
 }
 
-export const internalTaskDueWord = (iso: string): string => fmtDate(iso);

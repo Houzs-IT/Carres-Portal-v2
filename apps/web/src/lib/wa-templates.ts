@@ -210,104 +210,9 @@ export function buildSupplierChase(i: SupplierChaseInput): string {
   );
 }
 
-// ── SUPPLIER GROUP — ONE message per supplier, covering many orders ──────────
-// Suppliers speak the ORIGINAL CR/TCF ref (orders.source_ref[0]), never the SO.
-// One WhatsApp group per supplier gets a single message listing every selected
-// order's ref + items — Remind (before deadline) or Chase (already late).
-export interface SupplierGroupRow {
-  ref: string | null;
-  /** PO number — included in the line only when `includePo` (sofa/bedframe
-   *  suppliers key off the PO; mattress + logistic speak the ref only). */
-  po?: string | null;
-  items: { sku: string; qty: number }[];
-}
 
-/** One consolidated supplier message covering all `rows`.
- *  `remind` = gentle (before deadline); `chase` = firmer (already late).
- *  Jess 2026-07-19: AGGREGATE by SKU (same SKU across orders sums to one line,
- *  e.g. Haven ×2), *bold* SKU + qty and _italic_ the refs (WhatsApp markup) so
- *  it copy-pastes clean; SKUs sorted. `includePo` (sofa/bedframe) tags each ref
- *  with its PO; mattress suppliers + logistic speak the ref alone. */
-export function buildSupplierGroupMessage(
-  mode: "remind" | "chase",
-  supplierName: string,
-  rows: SupplierGroupRow[],
-  includePo = false,
-): string {
-  const opener =
-    mode === "chase"
-      ? `Hi ${supplierName} 👋 following up.\nWe still need the ready date for these, customers are waiting:`
-      : `Hi ${supplierName} 👋 please confirm the ready date for these:`;
-  const closer =
-    mode === "chase"
-      ? `Please confirm a ready date today so we can plan delivery. Thank you!`
-      : `Appreciate a ready date per SKU. Thank you!`;
-  // Aggregate every row's items by SKU → total qty + the refs carrying it.
-  const bySku = new Map<string, { qty: number; refs: string[] }>();
-  let totalUnits = 0;
-  for (const r of rows) {
-    const refTag = includePo
-      ? [r.ref, r.po ? (r.ref ? `(PO ${r.po})` : `PO ${r.po}`) : null].filter(Boolean).join(" ")
-      : (r.ref ?? "");
-    for (const it of r.items) {
-      const e = bySku.get(it.sku) ?? { qty: 0, refs: [] };
-      e.qty += it.qty;
-      if (refTag && !e.refs.includes(refTag)) e.refs.push(refTag);
-      bySku.set(it.sku, e);
-      totalUnits += it.qty;
-    }
-  }
-  const body = [...bySku.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([sku, e]) => `*${sku}* ×${e.qty}${e.refs.length > 0 ? `\n_${e.refs.join(", ")}_` : ""}`)
-    .join("\n\n");
-  return `${opener}\n\n${body}\n\nTotal ${totalUnits} unit${totalUnits === 1 ? "" : "s"}. ${closer}`;
-}
 
-// ── SUPPLIER CLAIM (R3) — one message per claim, and the ASK is the point ────
-//
-// The follow-up on a receiving problem is a different conversation from the
-// ready-date chase above: the goods have already been counted, so the message
-// carries what we FOUND and what we WANT, and nothing else. Two rules shape it:
-//
-//  - **Lead with the DO number.** The queue-doc memory says suppliers speak the
-//    CR/TCF ref, not the SO — but a claim is about a specific delivery, and the
-//    delivery note is the supplier's OWN document. They recognise it instantly.
-//    The PO rides along in the same line for the sofa/bedframe suppliers who
-//    key off it.
-//  - **The ask is a sentence, not a code.** `deliver_correct_item` never
-//    reaches WhatsApp; the label does.
-//
-// Photos cannot ride along: a WhatsApp GROUP invite link accepts no attachment
-// and no `?text=` prefill, so the operator pastes the message and adds the
-// photos from the claim row. The UI says exactly that rather than pretending.
-export interface SupplierClaimMessageInput {
-  supplierName: string;
-  claimNo: string;
-  /** The delivery the problem came in on. Absent on a late-delivery claim —
-   *  nothing was delivered, so there is no delivery note. */
-  doNumber?: string | null;
-  poId: string;
-  sku: string;
-  qty: number;
-  /** Plain-words problem, e.g. "Damaged" — never the stored key. */
-  problemLabel: string;
-  /** Plain-words ask, e.g. "Deliver correct item" — never the stored key. */
-  requestLabel: string;
-}
 
-export function buildSupplierClaimMessage(i: SupplierClaimMessageInput): string {
-  const units = `${i.qty} unit${i.qty === 1 ? "" : "s"}`;
-  const doc = i.doNumber ? `DO ${i.doNumber} (PO ${i.poId})` : `PO ${i.poId}`;
-  return [
-    `Hi ${i.supplierName} 👋 we have a problem with ${doc}:`,
-    ``,
-    `*${i.sku}* ×${i.qty}: ${i.problemLabel}`,
-    ``,
-    `Please *${i.requestLabel.toLowerCase()}* for the ${units}.`,
-    `Photos are attached. Kindly confirm what you will do and by when. Thank you!`,
-  ].join("\n");
-}
 
 // ── LOGISTIC GROUP — ONE message per partner, covering many deliveries ───────
 // Mirrors the supplier group message, but a delivery is DISTINCT per customer
@@ -325,37 +230,4 @@ export interface PartnerGroupRow {
   items: { sku: string; qty: number }[];
 }
 
-/** One consolidated partner message covering all `rows` (deliveries).
- *  `remind` = gentle (before deadline); `chase` = firmer (deadline at risk /
- *  passed). REF-led (partners speak the CR/TCF ref, never the SO); each block
- *  carries the customer + region so the driver can plan the route. */
-export function buildPartnerGroupMessage(
-  mode: "remind" | "chase",
-  partnerName: string,
-  rows: PartnerGroupRow[],
-): string {
-  const opener =
-    mode === "chase"
-      ? `Hi ${partnerName} 👋 following up.\nThese deliveries still need a booked slot with the customer:`
-      : `Hi ${partnerName} 👋 please confirm the delivery date + time slot for these:`;
-  const closer =
-    mode === "chase"
-      ? `Please book the slots with the customers today. Thank you!`
-      : `Appreciate a confirmed date + slot per delivery. Thank you!`;
-  const body = rows
-    .map((r) => {
-      const who = r.customer ? `${r.customer}${r.region ? ` (${r.region})` : ""}` : "";
-      const head = [r.ref ? `_${r.ref}_` : "", who].filter(Boolean).join(" · ");
-      const items = itemsBlock(r.items);
-      const when = `by ${r.deadline}${r.overdue ? " · passed" : ""}`;
-      return [head, items, when].filter(Boolean).join("\n");
-    })
-    .join("\n\n");
-  return `${opener}\n\n${body}\n\n${rows.length} deliver${rows.length === 1 ? "y" : "ies"}. ${closer}`;
-}
 
-/** URL-encoded body, ready for `https://wa.me/<number>?text=` — real line
- *  breaks become %0A. */
-export function waEncode(text: string): string {
-  return encodeURIComponent(text);
-}
