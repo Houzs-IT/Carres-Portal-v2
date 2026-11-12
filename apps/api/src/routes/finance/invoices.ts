@@ -36,9 +36,8 @@ import type { AppEnv } from "../../types";
  * Mounted at `/api/finance/invoices`.
  *   GET   /                  list invoices (filters: from, to).
  *   POST  /issue · /:id/void 410 since 0476 — see INVOICE_DOORS below. The
- *                            governed doors are /prepare, /:id/issue,
- *                            /:id/void-replace and the order drawer's
- *                            Generate invoice (POST /api/orders/:id/issue-invoice).
+ *                            governed doors are /prepare, /:id/issue and
+ *                            /:id/void-replace.
  *
  * Chunk C: GET /:id/pdf renders the tax-invoice PDF server-side via
  * @react-pdf/renderer (Q7=A locked). Gated on invoice issued + order
@@ -908,8 +907,7 @@ financeInvoicesRouter.get("/", requireFinance, async (c) => {
  */
 const INVOICE_DOORS = {
   issue:
-    "This way of issuing an invoice is closed. Issue the Sales Invoice from the order: "
-    + "open the order, Balance, then Generate invoice (POST /api/orders/:id/issue-invoice). "
+    "This way of issuing an invoice is closed. "
     + "A prepared invoice is issued with POST /api/finance/invoices/:id/issue.",
   void:
     "This way of voiding an invoice is closed. An issued invoice is corrected by void and replace: "

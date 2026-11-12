@@ -22,12 +22,7 @@ const RETIRED: Record<string, { file: string; replacement: string; allow: string
   Btn: {
     file: "components/Btn.tsx",
     replacement: "components/kit/Button",
-    allow: [
-      "pages/operation/components/GenerateInvoiceOverlay.tsx",
-      "pages/operation/components/LoanPanel.tsx",
-      "pages/operation/components/OrderDetailDrawer.tsx",
-      "pages/operation/components/StockPickerGrid.tsx",
-    ],
+    allow: [],
   },
   Field: {
     file: "components/Field.tsx",
@@ -39,7 +34,6 @@ const RETIRED: Record<string, { file: string; replacement: string; allow: string
       "pages/finance/payables/PaymentVouchers.tsx",
       "pages/finance/payables/SupplierBills.tsx",
       "pages/finance/payables/VoucherAdvance.tsx",
-      "pages/operation/components/OrderDetailDrawer.tsx",
     ],
   },
   PageHeader: {

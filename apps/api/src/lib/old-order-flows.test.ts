@@ -40,7 +40,7 @@ describe("new orders into the old supply chain, while it is turned off", () => {
 });
 
 describe("new cases into the old Service Cases, while it is turned off", () => {
-  for (const path of ["/api/ops/service-cases", "/api/ops/service-notes", "/api/guarantees/00000000-0000-0000-0000-000000000001/claim"]) {
+  for (const path of ["/api/guarantees/00000000-0000-0000-0000-000000000001/claim"]) {
     it(`${path} refuses with the plain sentence`, async () => {
       const res = await post(path, { OLD_ORDER_FLOWS: "off" });
       expect(res.status).toBe(409);

@@ -79,12 +79,9 @@ import { chunk } from "../../lib/purchase-demand-read";
 import { userClient } from "../../lib/supabase";
 import type { AppEnv } from "../../types";
 import operationOrdersRouter from "./orders";
-import operationPosRouter from "./pos";
-import operationSuppliersRouter from "./suppliers";
 import workspaceDutiesRouter from "./workspace-duties";
 import opsStaffRouter from "./staff";
 import financeInvoicesRouter from "../finance/invoices";
-import purchaseDemandsRouter from "./purchase-demands";
 import {
   invoiceArrivalDayWord,
   invoiceNeeded,
@@ -2112,99 +2109,6 @@ export async function probeOrderWork(
   });
   const { currentId } = await readWorkLedger(c, ledger, items.map((item) => item.id));
   return items.map((item) => ({ ...item, id: currentId.get(item.id) ?? item.id }));
-}
-
-/**
- * ONE PURCHASE ORDER, ONE PROJECTOR: the same reply projector the Work feed
- * runs, over the PO register row narrowed by `poId` (so promises, sends and
- * lines are read exactly as the feed reads them). Supplier names and PO Duty
- * decide the words and WHO, never WHETHER, so they are not read here.
- */
-export async function probePurchaseOrderWork(
-  c: Context<AppEnv>,
-  poId: string,
-  ledger: WorkLedger = supabaseWorkLedger,
-): Promise<OperationWorkItem[] | null> {
-  const internal = new Hono<AppEnv>();
-  internal.use("*", async (child, next) => {
-    child.set("auth", c.var.auth);
-    await next();
-  });
-  internal.route("/pos", operationPosRouter);
-  const { pos } = await readInternal<{ pos: PurchaseOrderWorkSource[] }>(
-    internal,
-    `/pos?status=all&poId=${encodeURIComponent(poId)}`,
-    c,
-  );
-  const po = pos.find((row) => row.id === poId);
-  if (!po) return null;
-  const today = todayIsoMYT();
-  const office = workFeedCalendarsOf(await officeCalendarOf(c)).office;
-  const items = [
-    ...projectPurchaseOrderReplyWork({ pos: [po], suppliers: [], poDuty: null, today, office }),
-    ...projectPurchaseOrderCancellationSendWork({pos:[po],suppliers:[],poDuty:null,today}),
-    ...projectPurchaseOrderArrivalCheckWork({ pos: [po as PurchaseOrderArrivalSource], suppliers: [], poDuty: null, today, office }),
-  ];
-  const { currentId } = await readWorkLedger(c, ledger, items.map((item) => item.id));
-  return items.map((item) => ({ ...item, id: currentId.get(item.id) ?? item.id }));
-}
-
-/** The SO Batch read and supplier doors, read as the caller — the window
- *  probe and completion facts see exactly what the Work feed sees. */
-async function readPoWindowSource(c: Context<AppEnv>): Promise<{
-  read: SoBatchPurchaseResponse;
-  suppliers: Parameters<typeof projectPoWindowWork>[0]["suppliers"];
-}> {
-  const internal = new Hono<AppEnv>();
-  internal.use("*", async (child, next) => {
-    child.set("auth", c.var.auth);
-    await next();
-  });
-  internal.route("/purchase/demands", purchaseDemandsRouter);
-  internal.route("/suppliers", operationSuppliersRouter);
-  const [read, suppliers] = await Promise.all([
-    readInternal<SoBatchPurchaseResponse>(internal, "/purchase/demands", c),
-    readInternal<{ suppliers: Parameters<typeof projectPoWindowWork>[0]["suppliers"] }>(internal, "/suppliers", c),
-  ]);
-  return { read, suppliers: suppliers.suppliers };
-}
-
-/** One PO window's open occurrence, on its current ledger identity. */
-export async function probePoWindowWork(
-  c: Context<AppEnv>,
-  windowKey: string,
-  ledger: WorkLedger = supabaseWorkLedger,
-): Promise<OperationWorkItem[] | null> {
-  const [source, officeStored] = await Promise.all([readPoWindowSource(c), officeCalendarOf(c)]);
-  const now = new Date().toISOString();
-  const items = projectPoWindowWork({
-    ...source, poDuty: null, today: todayIsoMYT(), now, office: workFeedCalendarsOf(officeStored).office,
-  }).filter((item) => item.object.id === windowKey);
-  const { currentId } = await readWorkLedger(c, ledger, items.map((item) => item.id));
-  return items.map((item) => ({ ...item, id: currentId.get(item.id) ?? item.id }));
-}
-
-/** What a window issued, and whether every one of those POs is now sent. */
-export async function poWindowSendFacts(
-  c: Context<AppEnv>,
-  windowKey: string,
-): Promise<{ poIds: string[]; demandLeft: number; allSent: boolean }> {
-  const source = await readPoWindowSource(c);
-  const window = poWindowsOf(source.read, source.suppliers, { keepClosed: true }).find((w) => w.key === windowKey);
-  if (!window) return { poIds: [], demandLeft: 0, allSent: false };
-  return {
-    poIds: window.pos.map((po) => po.poId),
-    demandLeft: window.demand.rowIds.length,
-    allSent: window.pos.length > 0 && window.unsent === 0,
-  };
-}
-
-/** The windows a PO was issued from — before its send is recorded. */
-export async function poWindowKeysServing(c: Context<AppEnv>, poId: string): Promise<string[]> {
-  const source = await readPoWindowSource(c);
-  return poWindowsOf(source.read, source.suppliers)
-    .filter((w) => w.pos.some((po) => po.poId === poId))
-    .map((w) => w.key);
 }
 
 /**
