@@ -313,43 +313,11 @@ const facts = () => ({
     : [],
 });
 /* ── THE PO WINDOW CARDS (Purchasing §5.6.1, owner rulings 2026-09-24/25) ──
-   `?pw=1` adds today's two windows: 11:30 AM after issue (three POs, two not
-   sent yet) and 4:00 PM before issue (demand still to buy). The SO Batch read
-   and the PO rows below are what the panel computes the same window from. */
-const pw = new URLSearchParams(window.location.search).get("pw") === "1";
+   The Workspace feed no longer carries PO window tasks (Houzs runs Purchasing since
+   11 Nov 2026); these mock reads stay only for the PO pages' own previews. */
 const SUP = { ohana: "00000000-0000-4000-8000-0000000005a1", hookka: "00000000-0000-4000-8000-0000000005a2", dorsett: "00000000-0000-4000-8000-0000000005a3" };
 const W1130 = `${TODAY}T11:30`;
 const W1600 = `${TODAY}T16:00`;
-function windowItem(key: string, label: string, problem: string, action: string, recipient: string, embedded: boolean): OperationWorkItem {
-  const base = item("purchasing", TODAY);
-  const destination = `/operation?tab=purchase&window=${encodeURIComponent(key)}`;
-  return {
-    ...base,
-    id: `purchasing:${key}:purchasing.po_window`,
-    ruleKey: "purchasing.po_window",
-    object: { kind: "po_window", id: key, label },
-    problem, action, recipient,
-    requiredResult: "Every PO issued and marked as sent",
-    completionStatement: "Every PO issued from the window has its current version marked as sent",
-    owner: { ...base.owner, rule: "po_duty", dutyKey: "po_duty" },
-    interaction: embedded
-      ? {
-          mode: "embedded", actionKey: "purchasing.confirm_po_sent", componentKey: "purchasing.po_issue_evidence",
-          capability: "POST /api/operation/pos/:id/confirm-sent", inputContract: "ConfirmPoSentInput",
-          evidenceContract: "po_sends confirmed_sent for the rendered version", idempotencyKey: "po_id + po_version",
-          staleVersion: "ConfirmPoSentInput.poVersion", staleRefusal: "stale_po_version",
-          successReceipt: "PO sent to supplier", fallbackDestination: destination,
-        }
-      : { mode: "open_module", fallbackDestination: destination },
-    destination,
-  };
-}
-if (pw) {
-  FEED.items.push(
-    windowItem(W1130, "11:30 AM PO window", "3 POs issued · 2 not sent yet", "Click WhatsApp, send PO170926-4827(1) to Ohana", "2 suppliers", true),
-    windowItem(W1600, "4:00 PM PO window", "Buy 7 items for 4 Sales Orders", "Issue the POs by 4:00 PM", "2 suppliers", false),
-  );
-}
 const demandRow = (id: string, orderId: string, so: number, supplierId: string, supplier: string, toBuy: number) => ({
   id, state: "safety_days_full", lineIds: [`${id}-l`], orderId, so, customer: "Customer", customerDelivery: "2026-10-20",
   item: "M1401F", variant: "King", category: "mattress", skus: ["M1401F-K"], supplierId, supplier,
