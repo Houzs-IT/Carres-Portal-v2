@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { signoffCompanyCode } from "../src/routes/assr_print";
+import { secondEntityExists, signoffCompanyCode } from "../src/routes/assr_print";
 
 /**
  * The service form's sign-off names the company on the letterhead.
@@ -40,7 +40,32 @@ describe("the printed sign-off reads the signing company", () => {
   test("coShort and csPhone come from the sign-off company, not the case's", () => {
     expect(src).toMatch(/const signCode = signoffCompanyCode\(entity, companyCode\)/);
     expect(src).toMatch(/const coShort = shortCompanyName\(signBranding\.companyName\)/);
-    expect(src).toMatch(/const csPhone = signCode === HOUZS_COMPANY_CODE/);
+    // Carres: the CS phone is the signing company's Branding phone, never Houzs's literal number.
+    expect(src).toMatch(/const csPhone = \(signBranding as \{ csPhone\?: string \| null \}\)\.csPhone \|\| signBranding\.phone/);
+    expect(src).not.toMatch(/6155 6133/);
     expect(src).not.toMatch(/shortCompanyName\(branding\.companyName\)/);
   });
 });
+
+// Carres: with one company there is no 2990 / Both letterhead to print.
+describe("secondEntityExists", () => {
+  const db = (row: unknown, fail = false) => ({
+    prepare: () => ({ bind: () => ({ first: async () => { if (fail) throw new Error("no table"); return row; } }) }),
+  }) as unknown as D1Database;
+
+  test("no 2990 row in a readable master = single company", async () => {
+    expect(await secondEntityExists(db(null))).toBe(false);
+  });
+  test("a 2990 row keeps Houzs's two-company letterheads", async () => {
+    expect(await secondEntityExists(db({ id: 2 }))).toBe(true);
+  });
+  test("an unreadable master keeps Houzs's behaviour", async () => {
+    expect(await secondEntityExists(db(null, true))).toBe(true);
+  });
+  test("the route falls back to the case's own entity when 2990 does not exist", () => {
+    expect(src2()).toMatch(/if \(entity !== caseEntity && !\(await secondEntityExists\(c\.env\.DB\)\)\) entity = caseEntity;/);
+  });
+});
+function src2(): string {
+  return fs.readFileSync(path.join(REPO_BACKEND, "src/routes/assr_print.ts"), "utf8");
+}

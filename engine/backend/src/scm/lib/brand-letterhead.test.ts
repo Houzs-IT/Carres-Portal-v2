@@ -86,15 +86,17 @@ describe('brand letterhead — the company half of the owner 2026-08-18 sofa rul
     ).toBeNull();
   });
 
-  it('a HOUZS sofa order keeps Zanotti — the rule’s other half must not regress', () => {
+  // Carres: the HOUZS row is Carres, which has no house sofa brand, so a sofa order keeps the
+  // company letterhead (Settings > Branding) even when a ZANOTTI logo row is in the pool.
+  it('Carres: a HOUZS-row sofa order does not print the Zanotti logo', () => {
     expect(
       resolveBrandLetterheadKey({
         brands: HOUZS_BRANDS,
         itemGroups: ['SOFA'],
-        firstDescription: 'ZANOTTI 5526 3 SEATER',
+        firstDescription: '5526 3 SEATER',
         companyCode: 'HOUZS',
       }),
-    ).toBe('brands/logo-2-1783145516704.png');
+    ).toBeNull();
   });
 
   it('2990 WOULD print its own sofa brand the day that row gets a logo', () => {

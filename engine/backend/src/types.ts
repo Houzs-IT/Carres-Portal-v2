@@ -169,6 +169,8 @@ export type Env = {
   APNS_KEY_ID?: string;
   APNS_PRIVATE_KEY?: string;
   APNS_SANDBOX?: string;
+  /** Carres: the iOS app's bundle id (APNs topic); push is off while blank. */
+  APNS_TOPIC?: string;
   EMAIL_FROM?: string;        // e.g. "Houzs ERP <no-reply@houzs.com>"
   EMAIL_REPLY_TO?: string;
   // Public origin for building email links (portal survey URLs etc.).

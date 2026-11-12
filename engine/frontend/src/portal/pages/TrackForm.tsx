@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { PortalFrame } from "../components/PortalFrame";
+import { usePublicCompany } from "../../carres/publicBranding"; // Carres
 import { portalApi } from "../portalApi";
 
 // Public page at /track. Customer enters their ASSR number + phone.
@@ -9,6 +10,8 @@ import { portalApi } from "../portalApi";
 // self-contained portal case URL.
 
 export function TrackForm() {
+  // Carres: the company name from Settings > Branding (public read), never Houzs's; blank -> "we".
+  const companyName = usePublicCompany().companyName.trim();
   const [assrNo, setAssrNo] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,7 +98,7 @@ export function TrackForm() {
           <div className="font-semibold text-ink-secondary">No login required</div>
           <div className="mt-1">
             This portal doesn't use passwords. Your case number and phone number
-            together give you short-lived access. If Houzs Century sent you a
+            together give you short-lived access. If {companyName || "we"} sent you a
             direct link by WhatsApp, just click that link instead.
           </div>
         </div>

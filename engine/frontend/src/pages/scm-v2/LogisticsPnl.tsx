@@ -35,6 +35,7 @@ const whole = (sen: number | null): string => {
 const pctText = (part: number, base: number) => (base > 0 ? `${((part / base) * 100).toFixed(1)}%` : '—');
 
 const INCOME = ['do_income', 'ti_houzs', 'ti_conts', 'ti_hookka', 'sd_income', 'fair_income', 'ti_2990'];
+const SISTER_ROWS = new Set(['ti_conts', 'ti_hookka', 'ti_2990']); // Carres
 const IN_HOUSE = ['petrol', 'upkeep', 'instalment', 'roadtax', 'manpower', 'other_lorry'];
 
 export function PnlView({ p, mode, split, showPct, period, months }: ViewProps) {
@@ -51,7 +52,8 @@ export function PnlView({ p, mode, split, showPct, period, months }: ViewProps) 
       const cells = money(totalKey);
       return { id, label: name, totalLabel, kids, cells, pct: pctOf(cells, doValue) };
     };
-    const income = group('income', 'INCOME', 'TOTAL INCOME', INCOME.map(line), 'total_income');
+    // Carres: a row the server left out (The Conts / Hookka / 2990 with nothing billed) is not drawn.
+    const income = group('income', 'INCOME', 'TOTAL INCOME', INCOME.filter((k) => !SISTER_ROWS.has(k) || has(k)).map(line), 'total_income');
     const inHouse = { ...group('inhouse', 'In-house', 'Total In-house Expenses', IN_HOUSE.filter((k) => k !== 'other_lorry' || has(k)).map(line), 'inhouse_total'), kind: 'group' as const };
     const expense = group('expense', 'EXPENSE', 'TOTAL EXPENSE', [line('outsource'), inHouse], 'total_expense');
     const net = money('net');

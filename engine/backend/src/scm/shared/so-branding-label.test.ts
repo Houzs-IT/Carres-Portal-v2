@@ -12,7 +12,7 @@
    the assertion is a property over all of it. */
 import { describe, expect, test } from 'vitest';
 
-import { brandingLabel, isPlaceholderBrandText, brandingCategoryNoun, CATEGORY_SOURCES, NO_ITEMS_LABEL } from './so-branding-label';
+import { brandingLabel, houseSofaBrandName, isPlaceholderBrandText, brandingCategoryNoun, CATEGORY_SOURCES, NO_ITEMS_LABEL } from './so-branding-label';
 import { normCategory } from '../lib/so-readiness';
 
 const CO_2990 = '2990';
@@ -129,18 +129,19 @@ describe('brandingLabel — the 2990 spec (owner 2026-08-18)', () => {
 });
 
 describe('brandingLabel — the HOUZS spec (owner 2026-08-18)', () => {
-  test('SOFA is ZANOTTI, whatever the line claims', () => {
-    /* «houzs sofa=zanotti». Symmetric with 2990: one house sofa brand per
-       company, so the line's text is not consulted on either side. */
-    expect(brandingLabel('SOFA', 'AKEMI', CO_HOUZS)).toBe('ZANOTTI');
-    expect(brandingLabel('SOFA', null, CO_HOUZS)).toBe('ZANOTTI');
-    expect(brandingLabel('SOFA', '   ', CO_HOUZS)).toBe('ZANOTTI');
+  // Carres: the HOUZS row is Carres, which has no house sofa brand — never ZANOTTI.
+  test('Carres: SOFA follows the SKU brand, else "Sofa", and is never ZANOTTI', () => {
+    expect(brandingLabel('SOFA', 'AKEMI', CO_HOUZS)).toBe('AKEMI');
+    expect(brandingLabel('SOFA', null, CO_HOUZS)).toBe('Sofa');
+    expect(brandingLabel('SOFA', '   ', CO_HOUZS)).toBe('Sofa');
+    for (const brand of [null, '', 'AKEMI'])
+      expect(brandingLabel('SOFA', brand, CO_HOUZS)).not.toBe('ZANOTTI');
   });
 
-  test('an unbranded sofa SKU no longer degrades to the bare category noun', () => {
-    /* The 5526 family — 11 live ACTIVE SKUs, 8 of them already on orders —
-       carries no branding at all, and used to print "Sofa" on a Zanotti sofa. */
-    expect(brandingLabel('SOFA', null, CO_HOUZS)).not.toBe('Sofa');
+  test('Carres: houseSofaBrandName is null for HOUZS, so the PDF keeps the company letterhead', () => {
+    expect(houseSofaBrandName('HOUZS')).toBeNull();
+    expect(houseSofaBrandName(' houzs ')).toBeNull();
+    expect(houseSofaBrandName('2990')).toBe('2990s Sofa');
   });
 
   test('MATTRESS follows the SKU, exactly as 2990 does', () => {

@@ -8,6 +8,7 @@ vi.mock("../portal/portalApi", () => ({ portalApi: { get: (...a: unknown[]) => g
 
 import { normalizePublicCompany, publicAddressLines, resetPublicCompanyCache } from "./publicBranding";
 import { PortalFrame } from "../portal/components/PortalFrame";
+import { TrackForm } from "../portal/pages/TrackForm";
 
 beforeEach(() => {
   resetPublicCompanyCache();
@@ -45,6 +46,13 @@ describe("public company contact", () => {
     await waitFor(() => expect(get).toHaveBeenCalled());
     expect(container.textContent).toContain("Carres");
     expect(container.querySelector('a[href^="mailto:"]')).toBeNull();
+    expect(container.innerHTML).not.toMatch(/houzs/i);
+  });
+
+  it("the tracking form names the Branding company, never Houzs Century", async () => {
+    get.mockResolvedValue({ companyName: "Carres Sdn Bhd" });
+    const { container } = render(<MemoryRouter><TrackForm /></MemoryRouter>);
+    await waitFor(() => expect(container.textContent).toContain("If Carres Sdn Bhd sent you a"));
     expect(container.innerHTML).not.toMatch(/houzs/i);
   });
 });

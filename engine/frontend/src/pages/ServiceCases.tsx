@@ -6850,6 +6850,13 @@ const PRINT_ENTITIES = {
 } as const;
 type PrintEntity = keyof typeof PRINT_ENTITIES;
 
+/** Carres: the letterheads that can be printed. Without a 2990 company only the company's own. */
+export function printEntityOptions(companyCodes: readonly string[]): PrintEntity[] {
+  return companyCodes.some((c) => c.trim().toUpperCase() === "2990")
+    ? (Object.keys(PRINT_ENTITIES) as PrintEntity[])
+    : ["houzs"];
+}
+
 function PrintMenu({
   caseId,
   assrNo,
@@ -6891,6 +6898,12 @@ function PrintMenu({
      before. The picker lives in the dialog rather than the copy menu because
      the menu would otherwise become 3 copies × 3 entities = 9 rows. */
   const [entity, setEntity] = useState<PrintEntity | null>(null);
+  // Carres: 2990 / Both are offered only when the 2990 company exists (Houzs's two companies).
+  const { data: companiesData } = useQuery<{ companies: Array<{ code: string }> }>("/api/companies",
+    () => api.get<{ companies: Array<{ code: string }> }>("/api/companies"),
+    [],
+  );
+  const entityOptions = printEntityOptions((companiesData?.companies ?? []).map((co) => co.code));
   /* Null means "not touched" — which resolves to the case's OWN company, the
      same thing the backend falls back to. Resolving it here rather than leaving
      it blank is what lets the picker highlight a real choice and the card name
@@ -7012,11 +7025,11 @@ function PrintMenu({
               value: resolutionMethod ? resolutionLabel(resolutionMethod) : "Not set yet",
             },
             { label: "Copy", value: `${PRINT_VARIANTS[variant].label} · ${PRINT_VARIANTS[variant].hint}` },
-            {
+            ...(entityOptions.length > 1 ? [{
               label: "Letterhead",
               value: (
                 <span className="inline-flex overflow-hidden rounded-md border border-border align-middle">
-                  {(Object.keys(PRINT_ENTITIES) as PrintEntity[]).map((e) => (
+                  {entityOptions.map((e) => (
                     <button
                       key={e}
                       type="button"
@@ -7034,7 +7047,7 @@ function PrintMenu({
                   ))}
                 </span>
               ),
-            },
+            }] : []),
           ]}
           onViewPdf={() => openInTab(variant, chosen)}
           viewLabel="View full copy"

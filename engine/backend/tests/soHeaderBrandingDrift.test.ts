@@ -36,7 +36,8 @@ const CASES: Array<{ name: string; lines: Line[]; want: string | null }> = [
   { name: 'HC-SO-2609-336: one Dunlopillo mattress', lines: [{ item_code: 'DUN-Q', item_group: 'MATTRESS', branding: 'BEDFRAME' }], want: 'DUNLOPILLO' },
   { name: 'bedframe keyed before the mattress', lines: [{ item_code: 'BF1', item_group: 'BEDFRAME', branding: null }, { item_code: 'DUN-Q', item_group: 'MATTRESS', branding: null }], want: 'DUNLOPILLO' },
   { name: 'bedframe-only stays BEDFRAME', lines: [{ item_code: 'BF1', item_group: 'BEDFRAME', branding: null }], want: 'BEDFRAME' },
-  { name: 'unbranded sofa -> house brand', lines: [{ item_code: 'BF1', item_group: 'BEDFRAME', branding: null }, { item_code: '5526-2A', item_group: 'SOFA', branding: null }], want: 'ZANOTTI' },
+  // Carres: the HOUZS row has no house sofa brand, so the bedframe's brand stands.
+  { name: 'Carres: unbranded sofa -> no house brand', lines: [{ item_code: 'BF1', item_group: 'BEDFRAME', branding: null }, { item_code: '5526-2A', item_group: 'SOFA', branding: null }], want: 'BEDFRAME' },
   { name: 'accessory only -> nothing', lines: [{ item_code: 'A1', item_group: 'ACCESSORY', branding: null }], want: null },
   { name: 'no lines -> nothing', lines: [], want: null },
   { name: 'unknown code -> nothing', lines: [{ item_code: 'ZZZ', item_group: null, branding: null }], want: null },

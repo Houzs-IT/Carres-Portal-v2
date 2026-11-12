@@ -162,6 +162,17 @@ describe('the P&L', () => {
     roadTax: new Set(['900-I002']), instalment: new Set(['450-H002']), salary: new Set(['900-S100']),
   };
 
+  // Carres: The Conts / Hookka / 2990 are Houzs's sister companies; nothing billed to them, no row.
+  test('Carres: the sister-company income rows are left out when nothing was billed to them', () => {
+    const p = buildLogisticsPnl({
+      from: '2026-09-01', to: '2026-09-30', dos: [{ region: 'KL', valueSen: 1_000_000 }], doIncomeBp: 300,
+      fairs: [], fairIncomeBp: 100, income: [], trips: [], legs: [], accounts, spreadMonths: new Map(), ownTrips: 0,
+    });
+    const keys = p.rows.map((r) => r.key);
+    expect(keys).toContain('ti_houzs');
+    for (const k of ['ti_conts', 'ti_hookka', 'ti_2990']) expect(keys).not.toContain(k);
+  });
+
   test("September's shape: income, outsource by region, in-house in KL, the net and per DO", () => {
     const p = buildLogisticsPnl({
       from: '2026-09-01', to: '2026-09-30',

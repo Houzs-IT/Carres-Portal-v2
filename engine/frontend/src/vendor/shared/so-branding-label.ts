@@ -184,7 +184,10 @@ export function brandingCategoryNoun(category: string | null | undefined): { buc
  *  are the whole SOFA rule — see THE SPEC above. Not a lookup that grows: a
  *  second sofa brand at either company makes the equation false, and the fix
  *  then is to read the SKU again, not to add a row here. */
-const SOFA_BRAND_HOUZS = 'ZANOTTI';
+/* Carres: Carres runs on the HOUZS company row (code 'HOUZS') but sells no
+   ZANOTTI — it has no house sofa brand, so a sofa reads the SKU's branding (or
+   "Sofa") and the PDF keeps the company letterhead from Settings > Branding. */
+const SOFA_BRAND_HOUZS: string | null = null;
 const SOFA_BRAND_2990 = '2990s Sofa';
 
 /**
@@ -272,7 +275,11 @@ export function brandingLabel(
        — an omitted or unrecognised company still reads as 2990, because a
        label may never be blank. It is the letterhead caller, not this one, that
        needs the null; see houseSofaBrandName above for why the two differ. */
-    return houseSofaBrandName(companyCode) ?? SOFA_BRAND_2990;
+    const house = houseSofaBrandName(companyCode);
+    if (house) return house;
+    /* Carres: no house sofa brand on the HOUZS row, so the SKU's brand, else the noun. */
+    if ((companyCode ?? '').trim().toUpperCase() === HOUZS) return brand || noun;
+    return SOFA_BRAND_2990;
   }
 
   if (bucket === 'BEDFRAME') {

@@ -32,7 +32,7 @@ export type SampleBill = {
 };
 
 export const SAMPLE_BILL: SampleBill = {
-  company: "HOUZS CENTURY SDN BHD",
+  company: "CARRES SDN BHD", // Carres: the sample receipt names Carres, not Houzs
   ssm: "SSM 123456-X",
   event: "AEON Tebrau Cash & Carry",
   receipt_no: "T02-000279",

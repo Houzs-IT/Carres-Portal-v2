@@ -35,12 +35,13 @@ const HOUZS_BRANDS = ['AKEMI', 'AKEMI C&C', 'BEDFRAME', 'Carres', 'DUNLOPILLO', 
 const B2990_BRANDS = ['2990s Mattress', '2990s Sofa', 'Accessories', 'Bedframe', 'Carres Mattress', 'Happi.S Mattress', 'Service'];
 
 describe('deriveHeaderBrandingFromLines', () => {
-  it('a Houzs sofa whose SKU has no branding is stamped with the brand the list shows (ZANOTTI), not left blank', async () => {
+  // Carres: the HOUZS row is Carres, which has no house sofa brand, so an unbranded sofa leaves the header blank.
+  it('Carres: a sofa whose SKU has no branding is NOT stamped ZANOTTI', async () => {
     const sb = fakeSb([{ code: '5526-2A', branding: null, category: 'SOFA', company_id: 1 }]);
     const brand = await deriveHeaderBrandingFromLines(sb,
       [{ item_code: '5526-2A', item_group: 'SOFA', branding: null, company_id: 1 }], 1,
       { companyCode: 'HOUZS', brands: HOUZS_BRANDS });
-    expect(brand).toBe('ZANOTTI');
+    expect(brand).toBeNull();
   });
 
   it('a 2990 sofa with an unbranded SKU reads 2990s Sofa', async () => {
@@ -96,7 +97,8 @@ describe('header branding is a brand, not a category word (BUG-115, HC-0094)', (
     ], 1, HOUZS)).toBe('DUNLOPILLO');
   });
 
-  it('a bedframe with an unbranded Houzs sofa stamps the house sofa brand', async () => {
+  // Carres: no house sofa brand, so the bedframe's own brand stands.
+  it('Carres: a bedframe with an unbranded sofa keeps the bedframe brand, never ZANOTTI', async () => {
     const sb = fakeSb([
       { code: 'BF1', branding: 'BEDFRAME', category: 'BEDFRAME', company_id: 1 },
       { code: '5526-2A', branding: null, category: 'SOFA', company_id: 1 },
@@ -104,7 +106,7 @@ describe('header branding is a brand, not a category word (BUG-115, HC-0094)', (
     expect(await deriveHeaderBrandingFromLines(sb, [
       { item_code: 'BF1', item_group: 'BEDFRAME', branding: null, company_id: 1 },
       { item_code: '5526-2A', item_group: 'SOFA', branding: null, company_id: 1 },
-    ], 1, HOUZS)).toBe('ZANOTTI');
+    ], 1, HOUZS)).toBe('BEDFRAME');
   });
 
   it('a client-sent category word or placeholder is not a brand; a real brand is kept', () => {
