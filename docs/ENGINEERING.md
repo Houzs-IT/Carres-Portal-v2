@@ -81,9 +81,16 @@ removal PR. The dealer POS does not import it. Old Carres tables
 and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
 orders in the old order book (`OLD_ORDER_FLOWS`).
 
-**System rows, Settings and IT (owner, 11 Nov 2026).** The menu's SYSTEM group is Houzs's Team (Directory · Org
-Chart · Departments · Mailboxes · Roles & Permissions; its row opens `/team?tab=hub`), Mail Center and IT Support,
-each an engine row. The Settings gear opens Houzs's `/settings` (`/operation/sc/settings`) and `Report a problem
+**System rows, Settings and IT (owner, 11 Nov 2026; completed 12 Nov 2026).** The menu's SYSTEM group is Houzs's
+Team (Directory · Org Chart · Departments · Mailboxes · Roles & Permissions; its row opens `/team?tab=hub`), Mail
+Center, Announcements, the IT module (System Health · AI Usage; its row only opens and shuts, as Houzs's IT group
+has no page), Change Log, Assistant, Agent Console (`/agents`), IT Support and OCR, each an engine row in Houzs's
+order, words and icons. Every top-level entry in the engine's `navOnly.ts` KEEP list now has a portal place
+(`portal-nav.system.test.ts` reads KEEP and fails on a missing one); Houzs's own gates (`it.pages.view`, `*`,
+`scm.changelog.read`, `org.assistant.use`) stay inside the engine, so a row the person may not use opens Houzs's
+refusal. Houzs draws Mail Center and Announcements in its Operations section; the portal keeps them in SYSTEM where
+the owner put Mail Center on 11 Nov. Not rows, as in Houzs: Sales Entries (`/sales`, commented out of Houzs's menu)
+and the DO / SI / DR detail listings (`/scm/reports/*-detail-listing`; no Houzs menu entry or page links them). The Settings gear opens Houzs's `/settings` (`/operation/sc/settings`) and `Report a problem
 to IT` opens Houzs's IT Support row (the portal's own `/api/it-support` route and its `IT_HUB_URL` /
 `IT_HUB_API_KEY` Worker secrets are no longer used; the secrets can be deleted). A Sales Order's `Report a problem`
 opens Houzs's Service Cases row. Removed: the Carres HR area (`/hr*` → Team hub), the Carres Settings

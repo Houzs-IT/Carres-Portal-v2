@@ -5180,7 +5180,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
 | Projects | `Project Overview` · `Project List` · `Calendar` · `Project Maintenance` |
-| System (after Supply Chain; owner 11 Nov 2026) | caps `System` · module `Team`: `Directory` · `Org Chart` · `Departments` · `Mailboxes` · `Roles & Permissions` · rows `Mail Center` · `IT Support` |
+| System (after Supply Chain; owner 11 Nov 2026; completed 12 Nov 2026) | caps `System` · module `Team`: `Directory` · `Org Chart` · `Departments` · `Mailboxes` · `Roles & Permissions` · rows `Mail Center` · `Announcements` · module `IT`: `System Health` · `AI Usage` · rows `Change Log` · `Assistant` · `Agent Console` · `IT Support` · `OCR` |
 | Menu bottom | `Settings` (opens Houzs Settings) · `Report a problem to IT` (opens IT Support) |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
