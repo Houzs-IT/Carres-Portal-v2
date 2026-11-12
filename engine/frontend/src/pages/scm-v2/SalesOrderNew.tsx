@@ -1421,6 +1421,9 @@ export const SalesOrderNew = () => {
     ...(carresSale ? salePlacePayload(salePlace.value) : fairDayCheck(fairEditPatch(fairEventOf(fairPick)), {})), // Carres: the showroom / project
     noFair, fairWhy: autoFair.why,
     hasSalesperson: !!salespersonId,
+    /* Carres: the payments this create records right after it, so the 50% deposit check before a Processing
+       Date (owner 2026-11-12) is asked against the money the save brings — the same amount the create sends. */
+    pendingDepositSen: paymentIntents().reduce((sum, d) => sum + d.amountSen, 0),
     companyCode: branding.companyCode,
     salesLocation,
     customerState: state, customerCountry: country,

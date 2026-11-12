@@ -1424,6 +1424,14 @@ export function MobileNewSO({
      the order's ORIGINAL dates and line groups) so the grandfather + introduced-
      mix carve-outs apply and an untouched old order never false-alarms. The phone
      holds NO validation rules; every problem + its wording is the server's. */
+  /* The money this save records right after the order write (never a backdate-request row, which is not money the
+     order holds until an admin approves it). Sent gate-only with the create and, for Carres, with an edit that sets
+     a Processing Date (owner 2026-11-12). */
+  const pendingDepositSen = useCallback(
+    () => pays.filter((p) => toSen(p.amount) > 0 && !isBackdateRow(p)).reduce((sum, p) => sum + toSen(p.amount), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isBackdateRow reads only `can`, stable per session
+    [pays],
+  );
   const buildSoValidateDraft = useCallback((asDraftFlag: boolean) => ({
     debtorName: name,
     phone,
@@ -1435,6 +1443,10 @@ export function MobileNewSO({
       : fairDayCheck(fairEditPatch(fairEventOf(fairPick)), fairEditPatch(linkedEvent(resolvedVenueName, linkedFair, linkedDay)))),
     noFair, fairWhy: autoFair.why,
     hasSalesperson: isEdit || !canChangeSalesperson || !!outgoingSalespersonId || !!selfStaffMatch,
+    /* Carres: the 50% deposit check before a Processing Date (owner 2026-11-12) — an edit names its order, and
+       both count the payments this save records right after. */
+    docNo: isEdit ? docNo ?? undefined : undefined,
+    pendingDepositSen: pendingDepositSen(),
     companyCode: branding.companyCode,
     salesLocation,
     customerState: state, customerCountry: country, confirmingDraft: mode === "edit-draft", ...(mode === "edit" ? { origCustomerState: origState } : {}),
@@ -1455,7 +1467,7 @@ export function MobileNewSO({
       convertedFromDocNo: p.convertedFromDocNo ?? "",
       amountSen: toSen(p.amount),
     })),
-  }), [carresSale, salePlaceKeys, name, phone, namedLines, isEdit, outgoingVenueName, outgoingVenueId, fairPick, noFair, autoFair.why, resolvedVenueName, linkedFair, linkedDay, canChangeSalesperson, outgoingSalespersonId, selfStaffMatch, branding.companyCode, salesLocation, state, country, mode, origState, procDate, delivDate, addr1, postcode, origProcDate, origDelivDate, origPhone, origItems, pays]);
+  }), [docNo, pendingDepositSen, carresSale, salePlaceKeys, name, phone, namedLines, isEdit, outgoingVenueName, outgoingVenueId, fairPick, noFair, autoFair.why, resolvedVenueName, linkedFair, linkedDay, canChangeSalesperson, outgoingSalespersonId, selfStaffMatch, branding.companyCode, salesLocation, state, country, mode, origState, procDate, delivDate, addr1, postcode, origProcDate, origDelivDate, origPhone, origItems, pays]);
 
   /* A slip date outside the window blocks the save (the payments post AFTER the
      create) — except a too-old row, which becomes an admin request (isBackdateRow). */
@@ -2151,7 +2163,12 @@ export function MobileNewSO({
         if (hasHeaderChanges(dirtyPatch) || leaseToken) {
           /* The end of the save says so even when the patch carries fields: the
              server can drop a field this screen thought dirty - so-save-lease.ts. */
-          const headerBody = { ...dirtyPatch, version: loadedVersionRef.current, ...soSaveEndFields(leaseToken), ...afterDoHeaderFields(afterDoSave, dirtyPatch) };
+          const headerBody = {
+            ...dirtyPatch, version: loadedVersionRef.current, ...soSaveEndFields(leaseToken), ...afterDoHeaderFields(afterDoSave, dirtyPatch),
+            /* Carres: the payments recorded right after this PATCH count toward the 50% deposit a new Processing
+               Date needs (owner 2026-11-12). Gate-only, never stored. */
+            ...("processingDate" in dirtyPatch && pendingDepositSen() > 0 ? { pendingDepositSen: pendingDepositSen() } : {}),
+          };
           const headerResult = await authedFetch<{ ok: boolean; version: number }>(`/mfg-sales-orders/${encodeURIComponent(docNo)}`, {
             method: "PATCH",
             body: JSON.stringify(headerBody),
@@ -2203,12 +2220,7 @@ export function MobileNewSO({
            fix as desktop). The AMOUNT only — never the slip — and never a
            backdate-request row, which is not money the order holds until an
            admin approves it. */
-        pendingDepositSen: (() => {
-          const c = pays
-            .filter((p) => toSen(p.amount) > 0 && !isBackdateRow(p))
-            .reduce((sum, p) => sum + toSen(p.amount), 0);
-          return c > 0 ? c : undefined;
-        })(),
+        pendingDepositSen: pendingDepositSen() || undefined,
         items,
       };
 

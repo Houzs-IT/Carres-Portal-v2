@@ -39,7 +39,7 @@ import { soHasDownstream } from '../lib/downstream-lock';
 import { dateOrNull, effectiveDateAfterPatch, isDateColumn } from '../lib/date-coerce';
 import { soStatusAfterProcessingDateChange } from '../lib/so-proceed-status-change';
 import { recordSoTotalChange, snapshotSoTotals } from '../lib/so-total-changes';
-import { liveStatusForProcessingDate, processingDateOnConfirm } from '../shared/so-proceeded-status';
+import { liveStatusForProcessingDate, processingDateOnConfirm, PROCEED_TO_STATUS } from '../shared/so-proceeded-status';
 import { syncSoDeliveredFromDo } from '../lib/so-delivery-sync';
 import { exemptionExpirySeed } from '../lib/so-exemption-expiry';
 import { soIsMigrated, withSoMigratedReadonly } from '../lib/migrated-so-readonly';
@@ -249,6 +249,7 @@ import { findColourKivLines, findIncompleteVariantLines, type ColourKivOffender,
 /* Aggregate ALL Processing-Date/save gate failures into one response instead of
    returning on the first (owner 2026-07-18). Pure — no I/O. */
 import { collectProcessingGateProblems, validationFailedBody } from '../shared/so-save-problems';
+import { carresDepositProblem, carresDepositProblemForDoc, pendingDepositOf } from '../lib/carres-deposit-gate';
 /* The gate's DB reads and its refusals. Lifted out of this file (2026-08-18)
    when the proceed refusal grew the per-condition detail it now carries — this
    router is at its file-size ceiling, and the three helpers were already a
@@ -4180,6 +4181,17 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
           },
         })
       : [];
+    /* Carres: the 50% deposit blocks a Processing Date on create (owner 2026-11-12). The money is what this
+       create brings: the POS handover's payments, else the gate-only amount the forms send for the payments they
+       record right after (pendingDepositSen), else the header deposit. */
+    if (procDateOnCreate) {
+      const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0);
+      const depositRefusal = carresDepositProblem({
+        companyCode: c.get('companyCode'), act: 'processing_date', totalSen: grandTotal,
+        paidSen: posPaymentsTotalSen ?? Math.max(num(body.pendingDepositSen), num(body.depositSen)),
+      });
+      if (depositRefusal) pricedGateProblems.push(depositRefusal);
+    }
     if (pricedGateProblems.length > 0) {
       await rollbackPwpClaims();
       return c.json(validationFailedBody(pricedGateProblems), 422);
@@ -5015,6 +5027,23 @@ mfgSalesOrders.post('/validate', async (c) => {
     })));
     if (feeProblem) problems.push(feeProblem);
   }
+  /* Carres: the 50% deposit blocks a NEW or changed Processing Date (owner 2026-11-12), told here so the form
+     refuses before saving with the same words the save would. A create weighs its lines against the money it
+     brings (pendingDepositSen); an edit names its order (docNo) and is weighed against the payments recorded on
+     it. The company is the server's own, so a client that sends none is still judged. */
+  if (!asDraft && procDate && procDate.slice(0, 10) !== (str(body.origProcessingDate).trim() || '').slice(0, 10)) {
+    const depositCompany = c.get('companyCode') ?? companyCode;
+    const editDoc = isEdit ? str(body.docNo).trim() : '';
+    const depositRefusal = editDoc
+      ? await carresDepositProblemForDoc(c.get('supabase'), editDoc, depositCompany, 'processing_date', pendingDepositOf(body))
+      : isEdit ? null : carresDepositProblem({
+          companyCode: depositCompany, act: 'processing_date',
+          paidSen: pendingDepositOf(body),
+          totalSen: items.reduce((sum, it) => sum
+            + Number(it.qty ?? 1) * Number(it.unitPriceSen ?? 0) - Number(it.discountSen ?? 0), 0),
+        });
+    if (depositRefusal) problems.push(depositRefusal);
+  }
   /* Carres: the showroom or project, on a create and on an edit that sends one (an edit that leaves it alone sends
      neither key). The create and the DRAFT -> CONFIRMED gate ask the same (carres-sale-place.ts). */
   if (carresSale && !asDraft) {
@@ -5287,6 +5316,12 @@ export const patchMfgSalesOrderStatusHandler = async (c: any) => {
      queued, and a draft that never got a State has to be resolved HERE rather
      than refused by the account book. Condition mirrors that enqueue exactly:
      out of DRAFT, not a cancel (a cancelled draft queues no create). */
+  /* Carres: the 50% deposit blocks every move into the proceed stage (owner 2026-11-12) — Proceed itself and a
+     Draft confirmed with a Processing Date, which lands there. */
+  if (toStatus === PROCEED_TO_STATUS && fromNorm !== PROCEED_TO_STATUS) {
+    const depositRefusal = await carresDepositProblemForDoc(sb, docNo, c.get('companyCode'), 'proceed');
+    if (depositRefusal) return c.json(validationFailedBody([depositRefusal]), 422);
+  }
   if (fromNorm === 'DRAFT' && toStatus !== 'CANCELLED') {
     const locationProblem = await soLocationProblemForDoc(sb, docNo, c.get('companyCode') ?? null);
     if (locationProblem) return c.json(validationFailedBody([locationProblem]), 422);
@@ -6758,6 +6793,12 @@ export const patchMfgSalesOrderHeaderHandler = async (c: any) => {
         };
       })(),
     });
+    /* Carres: the 50% deposit blocks a NEW or changed Processing Date (owner 2026-11-12); an untouched date
+       and a removal are never refused. */
+    if (effProc && soDateYmd(effProc) !== soDateYmd(origProc)) {
+      const depositRefusal = await carresDepositProblemForDoc(sb, docNo, c.get('companyCode'), 'processing_date', pendingDepositOf(body));
+      if (depositRefusal) problems.push(depositRefusal);
+    }
     if (problems.length > 0) return c.json(validationFailedBody(problems), 422);
   }
 
