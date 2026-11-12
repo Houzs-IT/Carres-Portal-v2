@@ -127,13 +127,11 @@ describe("the closed Phase-5 invoice doors (0476)", () => {
     return { res, sb };
   }
 
-  it("POST /issue is gone and names Generate invoice and the governed issue door", async () => {
+  it("POST /issue is gone and names the governed issue door", async () => {
     const { res, sb } = await post("issue", { orderId: ORDER_ID, amount: 5970, taxAmount: 442 });
     expect(res.status).toBe(410);
     const body = (await res.json()) as { code: string; message: string };
     expect(body.code).toBe("door_closed");
-    expect(body.message).toContain("Generate invoice");
-    expect(body.message).toContain("/api/orders/:id/issue-invoice");
     expect(body.message).toContain("/api/finance/invoices/:id/issue");
     expect(sb.rpc).not.toHaveBeenCalled();
     expect(sb.from).not.toHaveBeenCalled();

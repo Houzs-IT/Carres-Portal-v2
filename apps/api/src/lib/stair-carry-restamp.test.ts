@@ -331,10 +331,11 @@ describe("the stair fee follows the GOODS, not only the floor", () => {
 });
 
 /**
- * EVERY DOOR THAT WRITES LINES RE-STAMPS, and a fifth one has to as well.
+ * EVERY DOOR THAT WRITES LINES RE-STAMPS, and a new one has to as well.
  *
  * This is a SOURCE SCAN because the alternative is four route integration
- * tests that each prove the same one line is present. It pins the pairing that
+ * tests that each prove the same one line is present. (The change-request
+ * decide door, which held two of the four, was removed on 12 Nov 2026.) It pins the pairing that
  * matters: a call to `add_order_lines` or `replace_order_lines` is followed by
  * a re-stamp before the route answers. A new line door added without one fails
  * here, which is the only way this defect does not come back.
@@ -348,16 +349,15 @@ describe("no line-writing door ships without a re-stamp", () => {
   it("pairs every add/replace RPC with a re-stamp", () => {
     const writers = routes.match(/sb\.rpc\("(add_order_lines|replace_order_lines)"/g) ?? [];
     const restamps = routes.match(/await restampAfterLineWrite\(sb, id\);/g) ?? [];
-    expect(writers.length, "the four known line doors").toBe(4);
+    expect(writers.length, "the two known line doors").toBe(2);
     expect(restamps.length, "one re-stamp per line door").toBe(writers.length);
   });
 
   it("does not re-stamp after doors that write no lines", () => {
-    /* `reject_order_change_request` and `edit_order_addon` sit in the same
-       decide handler and move no line count — a re-stamp there would be a
-       round-trip for nothing, and `edit_order_addon` is refused on the four
-       server-computed keys anyway. */
-    for (const rpc of ["reject_order_change_request", "edit_order_addon"]) {
+    /* `edit_order_addon` moves no line count — a re-stamp there would be a
+       round-trip for nothing, and it is refused on the four server-computed
+       keys anyway. */
+    for (const rpc of ["edit_order_addon"]) {
       const at = routes.indexOf(`sb.rpc("${rpc}"`);
       expect(at, `${rpc} is still called`).toBeGreaterThan(-1);
       const after = routes.slice(at, routes.indexOf("fetchAndShapeOrder", at));

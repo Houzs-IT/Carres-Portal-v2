@@ -23,7 +23,6 @@ import registerLayoutsRouter from "./routes/operation/register-layouts";
 // `Jump to…` — the document half of the ONE global navigate-only command
 // surface (ui/MASTER, APPROVED / LOCKED 2026-08-11). Read-only, no create.
 import jumpRouter from "./routes/operation/jump";
-import correctionWorkRouter from "./routes/operation/correction-work";
 import operationOrdersRouter from "./routes/operation/orders";
 import operationPartnersRouter from "./routes/operation/partners";
 import deliverySettingsRouter from "./routes/operation/delivery-settings";
@@ -32,8 +31,6 @@ import scmEngineRouter from "./routes/operation/scm-engine";
 import peopleWorkDaysRouter from "./routes/operation/people-work-days";
 import operationPosRouter from "./routes/operation/pos";
 import operationReceiveThreadsRouter from "./routes/operation/receive-threads";
-// R2 — the supplier-claim queue (read side; claims are minted by 0288 RPCs)
-import supplierClaimsRouter from "./routes/operation/supplier-claims";
 // R6 — the ops half: review what the warehouse filed, then replay it through
 // the ONE receive engine (0302).
 import warehouseReceiptsRouter from "./routes/operation/warehouse-receipts";
@@ -43,24 +40,18 @@ import workspaceDutiesRouter from "./routes/operation/workspace-duties";
 import leaveRouter from "./routes/operation/leave";
 import operationWorkRouter from "./routes/operation/work";
 import internalTasksRouter from "./routes/operation/internal-tasks";
-import deliveryChainRouter from "./routes/operation/delivery-chain";
 import orderControlRouter from "./routes/operation/order-control";
 import deliveryOrdersRouter from "./routes/operation/delivery-orders";
 // 0379 — Delivery's OWN arrangement doors (owner correction 2026-08-24).
 import deliveryArrangementsRouter from "./routes/operation/delivery-arrangements";
 import paymentApprovalsRouter from "./routes/operation/payment-approvals";
-import toOrderRouter from "./routes/operation/to-order";
 import purchaseDemandsRouter from "./routes/operation/purchase-demands";
 import purchasingSettingsRouter from "./routes/operation/purchasing-settings";
 import opsStaffRouter from "./routes/operation/staff";
 import orderPaymentsRouter from "./routes/operation/order-payments";
-import bulkCompleteRouter from "./routes/operation/bulk-complete";
 import lpInboundRouter from "./routes/operation/lp-inbound";
-import resumeDispatchRouter from "./routes/operation/resume-dispatch";
 import operationSuppliersRouter from "./routes/operation/suppliers";
 import arrivalSourcesRouter from "./routes/operation/arrival-sources";
-// 0174 — Sales Order Maintenance (AutoCount-style configurable SO grid).
-import salesOrderMaintenanceRouter from "./routes/operation/sales-order-maintenance";
 import bdAccountsRouter from "./routes/bd/accounts";
 import bdDealersRouter from "./routes/bd/dealers";
 import partnerDashboardRouter from "./routes/partner/dashboard";
@@ -117,8 +108,6 @@ import snRouter from "./routes/ops/service-notes";
 import scRouter from "./routes/ops/service-cases";
 // Migration 0162 — ops cockpit: the Tasks board.
 import opsTasksRouter from "./routes/ops/tasks";
-// Phase B (migration 0138) — order annotations.
-import annotationsRouter from "./routes/operation/annotations";
 // Migration 0223 — Stripe online collection (POS checkout links + webhook).
 import stripeCheckoutRouter from "./routes/stripe-checkout";
 import stripeWebhookRouter from "./routes/stripe-webhook";
@@ -195,12 +184,7 @@ api.route("/operation/badges", operationBadgesRouter);
 api.route("/operation/register-layouts", registerLayoutsRouter);
 api.route("/operation/jump", jumpRouter);
 api.route("/operation/orders", operationOrdersRouter);
-// STAGE 3 card 3.4 — durable correction work, read by the RECEIVING module.
-api.route("/operation/correction-work", correctionWorkRouter);
-api.route("/operation/orders", resumeDispatchRouter);
-// 0156 γ multi-leg — PUT /:id/delivery-chain + PATCH /:id/delivery-stops/:leg
-api.route("/operation/orders", deliveryChainRouter);
-// 0159 P2 control overlay — GET + PUT /:id/control
+// 0159 P2 — order-control routes (delivery attempt, loan offers, import tools)
 api.route("/operation/orders", orderControlRouter);
 api.route("/operation/delivery-orders", deliveryOrdersRouter);
 api.route("/operation/delivery-arrangements", deliveryArrangementsRouter);
@@ -211,11 +195,8 @@ api.route("/operation/payment-approvals", paymentApprovalsRouter);
 api.route("/operation/orders", orderPaymentsRouter);
 // 0223 Stripe online collection — POST/GET /orders/:id/stripe/checkout[/:sid]
 api.route("/orders", stripeCheckoutRouter);
-// 0166 bulk Mark-completed (AutoCount legacy cleanup) — POST /bulk-complete
-api.route("/operation/orders", bulkCompleteRouter);
-api.route("/operation/purchase/to-order", toOrderRouter);
-// CARD-2026-08-20 — the read-only customer-demand Register. Mounted beside To
-// Order, on the same recomputation; it issues nothing.
+// CARD-2026-08-20 — the read-only customer-demand Register. It reads the
+// To Order recomputation; it issues nothing.
 api.route("/operation/purchase/demands", purchaseDemandsRouter);
 // P1 (0303) — Purchasing → Settings: the numbers the ordering engine reads.
 api.route("/operation/purchasing/settings", purchasingSettingsRouter);
@@ -242,8 +223,6 @@ api.route("/operation/pos", lpInboundRouter);
 api.route("/operation/pos", operationReceiveThreadsRouter);
 api.route("/operation/suppliers", operationSuppliersRouter);
 api.route("/operation/arrival-sources", arrivalSourcesRouter);
-// 0174 — Sales Order Maintenance grid + shared column config.
-api.route("/operation/sales-order-maintenance", salesOrderMaintenanceRouter);
 api.route("/bd/accounts", bdAccountsRouter);
 api.route("/bd/dealers", bdDealersRouter);
 api.route("/partner/dashboard", partnerDashboardRouter);
@@ -304,14 +283,12 @@ api.route("/ops/stock", opsStockRouter);
 api.route("/ops/service-notes", snRouter);
 api.route("/ops/service-cases", scRouter);
 api.route("/ops/tasks", opsTasksRouter);
-api.route("/operation/supplier-claims", supplierClaimsRouter);
 api.route("/operation/warehouse-receipts", warehouseReceiptsRouter);
 api.route("/operation/workspace-duties", workspaceDutiesRouter);
 api.route("/operation/work-activity", workActivityRouter);
 api.route("/operation/leave", leaveRouter);
 api.route("/operation/work", operationWorkRouter);
 api.route("/operation/internal-tasks", internalTasksRouter);
-api.route("/operation/orders", annotationsRouter);
 // 0247-0249 — Rental + Service Plan base (config CRUD + registry reads)
 api.route("/rental", rentalRouter);
 

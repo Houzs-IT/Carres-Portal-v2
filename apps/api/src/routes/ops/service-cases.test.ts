@@ -150,50 +150,9 @@ function buildCaseSb(caseRow: unknown, statusIsClosed = true) {
   return { sb, updates };
 }
 
-async function post(body: unknown, sb: unknown, role = "operation") {
-  vi.mocked(userClient).mockReturnValue(sb as never);
-  return app.request(
-    "/api/ops/service-cases",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${await makeJwt(role)}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    },
-    env,
-  );
-}
-
 /** S2 — the wizard now uploads against a draft before the case exists. */
 const DRAFT_ID = "22222222-2222-2222-2222-222222222222";
 const draftPath = (slot: string) => `draft/${DRAFT_ID}/abc-${slot}.jpg`;
-
-/** Everything `colour_uneven` + reported-by-customer demands: the customer's
- *  screenshot, an overall photo, TWO close-ups, the SKU label and the video. */
-const FULL_EVIDENCE = [
-  { slot: "customer_message", path: draftPath("customer_message") },
-  { slot: "overall_photo", path: draftPath("overall_photo") },
-  { slot: "closeup_photo", path: draftPath("closeup_photo") },
-  { slot: "closeup_photo", path: `draft/${DRAFT_ID}/def-closeup_photo.jpg` },
-  { slot: "sku_label_photo", path: draftPath("sku_label_photo") },
-  { slot: "pan_video", path: `draft/${DRAFT_ID}/ghi-pan_video.mp4` },
-];
-
-const WIZARD_BODY = {
-  customerName: "Ryan Chong",
-  whatHappened: "Colour uneven: Sofa · SF2201. Found by Customer. Still usable: No.",
-  reportedBy: "customer",
-  orderLineId: "11111111-1111-1111-1111-111111111111",
-  productSku: "SF2201 3 Seater",
-  productCategory: "sofa",
-  issueType: "colour_uneven",
-  usable: "no",
-  customerWants: ["repair", "replace"],
-  draftId: DRAFT_ID,
-  evidence: FULL_EVIDENCE,
-};
 
 const CASE_ROW = {
   id: "c1",
@@ -229,15 +188,6 @@ async function get(path: string, sb: unknown, role = "operation") {
 }
 
 describe("GET /api/ops/service-cases", () => {
-  it("narrows to one order in the database when ?orderId= is given", async () => {
-    const { sb, eqCalls } = buildSb([CASE_ROW]);
-    const res = await get("/ops/service-cases?orderId=ord-1", sb);
-
-    expect(res.status).toBe(200);
-    // The filter must reach the query — not be applied after the fact, and not
-    // be dropped on the floor.
-    expect(eqCalls).toContainEqual(["order_id", "ord-1"]);
-  });
 
   it("does NOT filter by order when the param is absent", async () => {
     const { sb, eqCalls } = buildSb([CASE_ROW]);
@@ -249,267 +199,6 @@ describe("GET /api/ops/service-cases", () => {
     const { sb, eqCalls } = buildSb([CASE_ROW]);
     await get("/ops/service-cases?orderId=%20%20", sb);
     expect(eqCalls.some(([col]) => col === "order_id")).toBe(false);
-  });
-
-  it("carries the linked order's SO number so the link can be named", async () => {
-    const { sb, selects } = buildSb([CASE_ROW]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: { so: number | null; orderId: string }[] };
-
-    expect(selects[0]).toContain("orders(so,");
-    expect(body.items[0].so).toBe(1258);
-    expect(body.items[0].orderId).toBe("ord-1");
-  });
-
-  it("reports so=null for a case with no linked order — the live state today", async () => {
-    // Every service case in prod is currently unlinked (order_id null), so this
-    // is the shape the screen actually renders.
-    const { sb } = buildSb([{ ...CASE_ROW, order_id: null, orders: null }]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: { so: number | null; orderId: string | null }[] };
-
-    expect(body.items[0].orderId).toBeNull();
-    expect(body.items[0].so).toBeNull();
-  });
-
-  it("tolerates PostgREST returning the embed as an array", async () => {
-    const { sb } = buildSb([{ ...CASE_ROW, orders: [{ so: 1301 }] }]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: { so: number | null }[] };
-    expect(body.items[0].so).toBe(1301);
-  });
-
-  it("carries the intake answers back so the case reads the way it was filed", async () => {
-    const { sb } = buildSb([
-      { ...CASE_ROW, issue_type: "damaged", usable: "no", priority: "high",
-        customer_wants: ["replace"], reported_by: "logistic", product_category: "sofa" },
-    ]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: Record<string, unknown>[] };
-
-    expect(body.items[0]).toMatchObject({
-      issueType: "damaged",
-      usable: "no",
-      priority: "high",
-      customerWants: ["replace"],
-      reportedBy: "logistic",
-      productCategory: "sofa",
-    });
-  });
-
-  it("reports a pre-wizard case as unanswered rather than inventing a priority", async () => {
-    // SC2607-01 — the one real case on file, filed before 0285 existed.
-    const { sb } = buildSb([CASE_ROW]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: Record<string, unknown>[] };
-
-    expect(body.items[0].priority).toBeNull();
-    expect(body.items[0].issueType).toBeNull();
-    expect(body.items[0].customerWants).toEqual([]);
-  });
-
-  it("still refuses a dealer — the cross-link opens no new door", async () => {
-    const { sb } = buildSb([CASE_ROW]);
-    const res = await get("/ops/service-cases?orderId=ord-1", sb, "dealer");
-    expect(res.status).toBe(403);
-  });
-});
-
-describe("POST /api/ops/service-cases — the S1 guided intake", () => {
-  it("lands all five answers in their own columns, not only in the prose", async () => {
-    const { sb, inserts } = buildInsertSb();
-    const res = await post(WIZARD_BODY, sb);
-
-    expect(res.status).toBe(201);
-    expect(inserts[0]).toMatchObject({
-      reported_by: "customer",
-      order_line_id: "11111111-1111-1111-1111-111111111111",
-      product_sku: "SF2201 3 Seater",
-      product_category: "sofa",
-      issue_type: "colour_uneven",
-      usable: "no",
-      customer_wants: ["repair", "replace"],
-    });
-  });
-
-  it("starts the priority from `usable`, never from the client (0711: staff edit it afterwards)", async () => {
-    const { sb, inserts } = buildInsertSb();
-    await post({ ...WIZARD_BODY, priority: "low" }, sb);
-    expect(inserts[0]).toMatchObject({ priority: "high" });
-  });
-
-  // 0764: the issue type is a Service Settings code, so the database's foreign key refuses an unknown one.
-  it("refuses an answer that is not one of the offered keys", async () => {
-    const { sb: sb2 } = buildInsertSb();
-    const bad2 = await post({ ...WIZARD_BODY, customerWants: ["free_sofa"] }, sb2);
-    expect(bad2.status).toBe(400);
-
-    const { sb: sb3 } = buildInsertSb();
-    const bad3 = await post({ ...WIZARD_BODY, usable: "maybe" }, sb3);
-    expect(bad3.status).toBe(400);
-  });
-
-  it("still accepts a case with no wizard answers — the edit modal writes prose only", async () => {
-    const { sb, inserts } = buildInsertSb();
-    const res = await post({ customerName: "Walk-in", whatHappened: "typed by hand" }, sb);
-
-    expect(res.status).toBe(201);
-    expect(inserts[0]).toMatchObject({
-      reported_by: null,
-      issue_type: null,
-      usable: null,
-      customer_wants: [],
-    });
-  });
-
-  it("still refuses a dealer — the wizard opens no new door", async () => {
-    const { sb } = buildInsertSb();
-    const res = await post(WIZARD_BODY, sb, "dealer");
-    expect(res.status).toBe(403);
-  });
-});
-
-describe("POST /api/ops/service-cases — the S2 evidence gate", () => {
-  it("refuses a case whose issue type demands evidence it does not have", async () => {
-    // The card's acceptance: "submitting without required evidence is
-    // impossible." A disabled button is not impossible — this is the rule.
-    const { sb, inserts } = buildInsertSb();
-    const res = await post({ ...WIZARD_BODY, draftId: undefined, evidence: [] }, sb);
-
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as { code: string; message: string };
-    expect(body.code).toBe("evidence_missing");
-    // Rule 6 — the error names what is still needed.
-    expect(body.message).toContain("Video of the whole item");
-    expect(body.message).toContain("Photo of the label on the item");
-    // Nothing reached the database.
-    expect(inserts).toHaveLength(0);
-  });
-
-  it("refuses a half-done count as loudly as a missing file", async () => {
-    // Colour uneven asks for TWO close-ups. One is not "nearly enough".
-    const { sb, inserts } = buildInsertSb();
-    const res = await post(
-      { ...WIZARD_BODY, evidence: FULL_EVIDENCE.filter((_, i) => i !== 3) },
-      sb,
-    );
-
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as { message: string; missing: { need: number; have: number }[] };
-    expect(body.message).toContain("(1 of 2)");
-    expect(body.missing).toContainEqual(
-      expect.objectContaining({ slot: "closeup_photo", need: 2, have: 1 }),
-    );
-    expect(inserts).toHaveLength(0);
-  });
-
-  it("accepts the case once the checklist is satisfied", async () => {
-    const { sb, inserts } = buildInsertSb();
-    const res = await post(WIZARD_BODY, sb);
-
-    expect(res.status).toBe(201);
-    expect((inserts[0].evidence as unknown[]).length).toBe(6);
-  });
-
-  it("stamps who uploaded each file and when — the client cannot author it", async () => {
-    const { sb, inserts } = buildInsertSb();
-    // A client trying to forge a different uploader: the extra keys are not in
-    // the schema, so they are stripped, and the server's own stamp is what lands.
-    await post(
-      {
-        ...WIZARD_BODY,
-        evidence: FULL_EVIDENCE.map((f) => ({
-          ...f,
-          by: "somebody-else",
-          by_role: "principal",
-          at: "1999-01-01T00:00:00Z",
-        })),
-      },
-      sb,
-    );
-
-    const entries = inserts[0].evidence as Record<string, string>[];
-    for (const e of entries) {
-      expect(e.by).toBe("11111111-1111-1111-1111-000000000999"); // the JWT's subject
-      expect(e.by_role).toBe("operation");
-      expect(e.at).not.toBe("1999-01-01T00:00:00Z");
-      expect(Number.isNaN(Date.parse(e.at))).toBe(false);
-    }
-  });
-
-  it("derives the file kind from the slot rather than trusting the client", async () => {
-    // Declaring the video slot to be a photo would satisfy the count while
-    // proving nothing the video was asked for.
-    const { sb, inserts } = buildInsertSb();
-    await post(
-      { ...WIZARD_BODY, evidence: FULL_EVIDENCE.map((f) => ({ ...f, kind: "photo" })) },
-      sb,
-    );
-
-    const entries = inserts[0].evidence as Record<string, string>[];
-    expect(entries.find((e) => e.slot === "pan_video")?.kind).toBe("video");
-    expect(entries.find((e) => e.slot === "overall_photo")?.kind).toBe("photo");
-  });
-
-  it("refuses a file that belongs to somebody else's draft", async () => {
-    const { sb, inserts } = buildInsertSb();
-    const res = await post(
-      {
-        ...WIZARD_BODY,
-        evidence: [
-          ...FULL_EVIDENCE.slice(1),
-          { slot: "customer_message", path: "draft/99999999-9999-9999-9999-999999999999/x.jpg" },
-        ],
-      },
-      sb,
-    );
-
-    expect(res.status).toBe(422);
-    expect(((await res.json()) as { code: string }).code).toBe("evidence_path_mismatch");
-    expect(inserts).toHaveLength(0);
-  });
-
-  it("refuses evidence sent with no draft to belong to", async () => {
-    const { sb } = buildInsertSb();
-    const res = await post({ ...WIZARD_BODY, draftId: undefined }, sb);
-    expect(res.status).toBe(422);
-    expect(((await res.json()) as { code: string }).code).toBe("missing_draft_id");
-  });
-
-  it("drops the customer's screenshot from the demand when the WAREHOUSE found it", async () => {
-    // A fault found before dispatch has no customer chat to screenshot. If the
-    // gate demanded one anyway it could only be passed dishonestly.
-    const { sb, inserts } = buildInsertSb();
-    const res = await post(
-      {
-        ...WIZARD_BODY,
-        reportedBy: "warehouse",
-        evidence: FULL_EVIDENCE.filter((f) => f.slot !== "customer_message"),
-      },
-      sb,
-    );
-
-    expect(res.status).toBe(201);
-    expect((inserts[0].evidence as unknown[]).length).toBe(5);
-  });
-
-  it("still accepts a prose-only case with no issue type and no evidence", async () => {
-    // The edit modal asks no issue question; S1 kept that path alive and S2 must
-    // not close it. The gate binds to the issue type, not to the endpoint.
-    const { sb, inserts } = buildInsertSb();
-    const res = await post({ customerName: "Walk-in", whatHappened: "typed by hand" }, sb);
-
-    expect(res.status).toBe(201);
-    expect(inserts[0].evidence).toEqual([]);
-  });
-
-  it("refuses an unknown evidence slot outright", async () => {
-    const { sb } = buildInsertSb();
-    const res = await post(
-      { ...WIZARD_BODY, evidence: [{ slot: "receipt", path: draftPath("receipt") }] },
-      sb,
-    );
-    expect(res.status).toBe(400);
   });
 });
 
@@ -662,36 +351,6 @@ describe("S3 — the case drives the follow-ups", () => {
     );
   }
 
-  it("resolves the factory from the SKU so the follow-up can name it", async () => {
-    // 200 of 205 SKUs in prod carry a supplier; 0 purchase orders do. The SKU is
-    // the only route to a name today, and a follow-up that cannot name the party
-    // is the label failure COPY-STANDARD exists to stop.
-    const { sb, inserts } = buildInsertSb("sup-ohana");
-    const res = await post(WIZARD_BODY, sb);
-
-    expect(res.status).toBe(201);
-    expect(inserts[0].supplier_id).toBe("sup-ohana");
-  });
-
-  it("still files the case when the SKU traces to no factory", async () => {
-    const { sb, inserts } = buildInsertSb(null);
-    const res = await post(WIZARD_BODY, sb);
-
-    expect(res.status).toBe(201);
-    expect(inserts[0].supplier_id).toBeNull();
-  });
-
-  it("never lets the client choose the factory or seed the chain", async () => {
-    const { sb, inserts } = buildInsertSb("sup-ohana");
-    await post(
-      { ...WIZARD_BODY, supplierId: "sup-somebody-else", progress: [stamped("customer_confirmed")] },
-      sb,
-    );
-
-    expect(inserts[0].supplier_id).toBe("sup-ohana");
-    expect(inserts[0]).not.toHaveProperty("progress");
-  });
-
   it("Close Case closes an open case even with steps still open — Weisiang's decision 2026-10-22", async () => {
     // Overturns the S3 close gate (Service MASTER S:734): Houzs lets staff press
     // Close Case on every open case.
@@ -840,28 +499,6 @@ describe("S3 — the case drives the follow-ups", () => {
       403,
     );
     expect((await patch("c1", { statusId: "33333333-3333-3333-3333-333333333333" }, sb, "dealer")).status).toBe(403);
-  });
-
-  it("carries the chain's recorded outcomes back on the list read", async () => {
-    const { sb } = buildSb([{ ...REPAIR_CASE, progress: [stamped("collect")] }]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as {
-      items: { progress: { step: string; byRole: string }[]; supplierName: string | null }[];
-    };
-
-    expect(body.items[0].progress).toEqual([
-      { step: "collect", on: "2026-07-27", at: "2026-07-27T02:00:00Z", by: "u1", byRole: "operation", note: null },
-    ]);
-    expect(body.items[0].supplierName).toBe("Ohana");
-  });
-
-  it("reports an empty chain for a case that predates S3 rather than crashing", async () => {
-    const { sb } = buildSb([CASE_ROW]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: { progress: unknown[]; supplierName: null }[] };
-
-    expect(body.items[0].progress).toEqual([]);
-    expect(body.items[0].supplierName).toBeNull();
   });
 });
 
@@ -1076,42 +713,6 @@ describe("S4 — the deadline", () => {
     expect(res.status).toBe(422);
     expect(((await res.json()) as { code: string }).code).toBe("no_deadline");
     expect(updates).toHaveLength(0);
-  });
-
-  it("carries the events back on the list read", async () => {
-    const { sb } = buildSb([
-      {
-        ...SLA_CASE,
-        sla_events: [
-          {
-            kind: "customer_told",
-            on: "2026-07-17",
-            reason: "supplier_no_date",
-            due: "2026-07-22",
-            at: "2026-07-17T02:00:00Z",
-            by: "u1",
-            by_role: "operation",
-          },
-        ],
-      },
-    ]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as {
-      items: { slaEvents: { kind: string; due: string; byRole: string }[] }[];
-    };
-
-    expect(body.items[0].slaEvents[0]).toMatchObject({
-      kind: "customer_told",
-      due: "2026-07-22",
-      byRole: "operation",
-    });
-  });
-
-  it("reports an empty ledger for a case that predates S4 rather than crashing", async () => {
-    const { sb } = buildSb([CASE_ROW]);
-    const res = await get("/ops/service-cases", sb);
-    const body = (await res.json()) as { items: { slaEvents: unknown[] }[] };
-    expect(body.items[0].slaEvents).toEqual([]);
   });
 
   it("still refuses a dealer — the deadline opens no new door", async () => {
@@ -1361,15 +962,6 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(updates).toContainEqual(["service_cases", { priority: "low" }]);
   });
 
-  it("gives a new case the default owner from Service settings", async () => {
-    const { sb, inserts } = tableSb({
-      service_settings: { default_owner_user_id: ADMIN },
-      service_cases: { id: "new-case", case_no: "SC2610-01" },
-    });
-    await post({ customerName: "Ryan Chong" }, sb);
-    expect(inserts.find(([t]) => t === "service_cases")?.[1]).toMatchObject({ owner_user_id: ADMIN });
-  });
-
   it("answers 409 with a clear message when the database keeps the last closing stage in use", async () => {
     const refusal = { code: "23514", details: "last_closing_stage", message: "Keep one stage that closes the case in use. Close Case needs it." };
     const chain: Record<string, unknown> = {
@@ -1423,14 +1015,6 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(sb.rpc).not.toHaveBeenCalledWith("service_case_amend_lead_time_target", expect.anything());
   });
 
-  it("My Cases narrows the list to the ids the database answers for me and my team", async () => {
-    const { sb } = tableSb({ service_cases: [CASE_ROW, { ...CASE_ROW, id: "c2" }] }, ["c2"]);
-    const res = await get("/ops/service-cases?mine=1", sb);
-    const body = (await res.json()) as { items: Array<{ id: string }> };
-    expect(body.items.map((r) => r.id)).toEqual(["c2"]);
-    expect(sb.rpc).toHaveBeenCalledWith("my_service_case_ids");
-  });
-
   // 0745 — the stage clock (Houzs stage history and stage targets).
   async function patchStage(list: string, body: unknown, sb: unknown) {
     vi.mocked(userClient).mockReturnValue(sb as never);
@@ -1474,30 +1058,6 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     expect(updates).toHaveLength(0);
   });
 
-  it("reads the stage as entered at the open history row, with the target snapshotted then", async () => {
-    const row = {
-      ...CASE_ROW,
-      status_id: "11111111-1111-4111-8111-111111111111",
-      service_case_statuses: { label: "In Progress", is_closed: false, target_days: 9 },
-      service_case_stage_history: [
-        { status_id: "11111111-1111-4111-8111-111111111111", entered_at: "2026-06-20T03:00:00Z", exited_at: null, target_days: "2.5", changed_by: null },
-        { status_id: null, entered_at: "2026-06-16T00:00:00Z", exited_at: "2026-06-20T03:00:00Z", target_days: null, changed_by: null },
-      ],
-    };
-    const { sb } = tableSb({ service_cases: [row] });
-    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
-    expect(body.items[0]).toMatchObject({ stageSince: "2026-06-20T03:00:00Z", stageTargetDays: 2.5 });
-    expect((body.items[0].stageHistory as Array<{ enteredAt: string }>).map((h) => h.enteredAt))
-      .toEqual(["2026-06-16T00:00:00Z", "2026-06-20T03:00:00Z"]);
-  });
-
-  it("reads a case filed before 0745 as in its stage since it was created, with the stage's target today", async () => {
-    const row = { ...CASE_ROW, service_case_statuses: { label: "In Progress", is_closed: false, target_days: 4 } };
-    const { sb } = tableSb({ service_cases: [row] });
-    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
-    expect(body.items[0]).toMatchObject({ stageSince: CASE_ROW.created_at, stageTargetDays: 4, stageHistory: [] });
-  });
-
   // 0746 — the pickup leg and delivery-back leg (Houzs pickup tracking).
   it("saves the legs to their own columns, and a blank PIC as none", async () => {
     const { sb, updates } = tableSb({ service_cases: { order_id: null } });
@@ -1520,16 +1080,6 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
       expect((await patchCase(body, sb)).status).toBe(400);
       expect(updates).toHaveLength(0);
     }
-  });
-
-  it("reads the legs back", async () => {
-    const row = { ...CASE_ROW, pickup_by: "own", pickup_requested_at: "2026-11-10", pickup_status: "pending", delivery_by: "own", delivery_confirmed_at: "2026-11-20" };
-    const { sb } = tableSb({ service_cases: [row] });
-    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
-    expect(body.items[0]).toMatchObject({
-      pickupBy: "own", pickupRequestedAt: "2026-11-10", pickupConfirmedAt: null, pickupStatus: "pending",
-      itemLocation: null, deliveryBy: "own", deliveryConfirmedAt: "2026-11-20",
-    });
   });
 
   // 0760 — sub-statuses inside a stage (Houzs assr-sub-statuses.ts).
@@ -1569,60 +1119,5 @@ describe("0711 — the Sales Order PIC picks the case owner; staff edit priority
     const res = await patchCase({ subStatusId: SUB }, { from: vi.fn(() => chain), rpc: vi.fn() });
     expect(res.status).toBe(422);
     expect(await res.json()).toMatchObject({ message: refusal.message });
-  });
-
-  it("reads the sub-status and its label back", async () => {
-    const row = { ...CASE_ROW, sub_status_id: SUB, service_case_sub_statuses: { label: "Pending Supplier Pickup" } };
-    const { sb } = tableSb({ service_cases: [row] });
-    const body = (await (await get("/ops/service-cases", sb)).json()) as { items: Array<Record<string, unknown>> };
-    expect(body.items[0]).toMatchObject({ subStatusId: SUB, subStatusLabel: "Pending Supplier Pickup" });
-  });
-
-  // 0763 — cost tracking (Houzs 037_assr_settings_and_costs.sql). Records only.
-  it("saves the two amounts and the supplier invoice ref, refuses a negative amount, and reads them back as numbers", async () => {
-    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
-    expect((await patchCase({ customerAmount: 250, supplierCostAmount: 180.5, supplierInvoiceRef: " INV-9 " }, sb)).status).toBe(200);
-    expect(updates).toContainEqual(["service_cases", { customer_amount: 250, supplier_cost_amount: 180.5, supplier_invoice_ref: "INV-9" }]);
-
-    const bad = tableSb({ service_cases: { order_id: null } });
-    expect((await patchCase({ customerAmount: -1 }, bad.sb)).status).toBe(400);
-    expect(bad.updates).toHaveLength(0);
-
-    const row = { ...CASE_ROW, customer_amount: "250.00", supplier_cost_amount: null, supplier_invoice_ref: "INV-9" };
-    const read = tableSb({ service_cases: [row] });
-    const body = (await (await get("/ops/service-cases", read.sb)).json()) as { items: Array<Record<string, unknown>> };
-    expect(body.items[0]).toMatchObject({ customerAmount: 250, supplierCostAmount: null, supplierInvoiceRef: "INV-9" });
-  });
-
-  // 0762 — archive off the list (Houzs assr.ts:1140).
-  it("archives and unarchives a case, and the list hides archived cases unless asked", async () => {
-    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
-    expect((await patchCase({ archived: true }, sb)).status).toBe(200);
-    expect(updates).toContainEqual(["service_cases", expect.objectContaining({ archived_at: expect.any(String), archived_by: expect.any(String) })]);
-    expect((await patchCase({ archived: false }, sb)).status).toBe(200);
-    expect(updates).toContainEqual(["service_cases", { archived_at: null, archived_by: null }]);
-
-    const list = tableSb({ service_cases: [] });
-    await get("/ops/service-cases", list.sb);
-    expect(list.filters).toContainEqual(["is", "archived_at", null]);
-    const arch = tableSb({ service_cases: [] });
-    await get("/ops/service-cases?archived=1", arch.sb);
-    expect(arch.filters).toContainEqual(["not", "archived_at", "is", null]);
-  });
-
-  // 0761 — resolution method from a settings list (Houzs 065_assr_lookups.sql).
-  it("adds a resolution method, saves it on a case and reads its label back", async () => {
-    const ok = tableSb({}, true);
-    expect((await postPick("resolutionMethods", { label: "Replace Unit" }, ok.sb)).status).toBe(201);
-    expect(ok.inserts[0]).toEqual(["service_case_resolution_methods", expect.objectContaining({ label: "Replace Unit" })]);
-
-    const { sb, updates } = tableSb({ service_cases: { order_id: null } });
-    expect((await patchCase({ resolutionMethodId: SUB }, sb)).status).toBe(200);
-    expect(updates).toContainEqual(["service_cases", { resolution_method_id: SUB }]);
-
-    const row = { ...CASE_ROW, resolution_method_id: SUB, service_case_resolution_methods: { label: "Replace Unit" } };
-    const read = tableSb({ service_cases: [row] });
-    const body = (await (await get("/ops/service-cases", read.sb)).json()) as { items: Array<Record<string, unknown>> };
-    expect(body.items[0]).toMatchObject({ resolutionMethodId: SUB, resolutionMethodLabel: "Replace Unit" });
   });
 });

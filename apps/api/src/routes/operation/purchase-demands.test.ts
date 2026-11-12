@@ -459,21 +459,6 @@ const bySku = (rows: SoBatchPurchaseResponse["rows"], sku: string) =>
   rows.find((r) => r.skus.includes(sku));
 
 describe("GET /api/operation/purchase/demands — one read, two projections", () => {
-  it("reads the SAME engine SO Batch Purchase reads — there is no second one", () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const demands = readFileSync(join(here, "purchase-demands.ts"), "utf8");
-    const toOrder = readFileSync(join(here, "to-order.ts"), "utf8");
-    for (const src of [demands, toOrder]) {
-      expect(src).toContain('from "../../lib/purchase-demand-read"');
-      // Neither route may grow its own demand read.
-      expect(src).not.toMatch(/^async function loadToOrder\(/m);
-      expect(src).not.toMatch(/^function loadToOrder\(/m);
-    }
-    // The Register issues nothing.
-    expect(demands).not.toMatch(/operation_create_po|purchasing_issue_pos_batch/);
-    expect(demands).not.toMatch(/\.(insert|update|upsert|delete)\(/);
-    expect(demands).not.toMatch(/router\.post\(/);
-  });
 
   it("carries the server Order By fact and gives refused planning no invented date", async () => {
     const { rows } = await rowsOf();

@@ -243,10 +243,6 @@ const KIT_FILES = new Set([
   // is gone, and the exemption died with the code it described.
   "apps/web/src/pages/dev/UiShowcase.tsx",
   "apps/web/src/components/SectionPanel.tsx",
-  "apps/web/src/pages/operation/components/OrderDetailDrawer.tsx",
-  "apps/web/src/pages/operation/components/StockPickerGrid.tsx",
-  "apps/web/src/pages/operation/components/RouteJourneyBar.tsx",
-  "apps/web/src/pages/operation/components/OrderControlPanel.tsx",
 ]);
 const ICON_SIZES = new Set([14, 16, 18]); // SIZING LAW: 14 pill/inline · 16 default UI · 18 top-bar (stroke 2)
 // SIZING LAW (MASTER SPEC §3, final 2026-07-18): 13 body · 12 caption/meta/pill

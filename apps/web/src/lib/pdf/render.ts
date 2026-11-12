@@ -7,13 +7,11 @@ import { PoTemplate } from "./po-template";
 import { PickupEventTemplate } from "./pickup-event-template";
 import { ReceiptTemplate } from "./receipt-template";
 import { CreditNoteTemplate } from "./credit-note-template";
-import { ExtensionAgreementTemplate } from "./extension-agreement-template";
-import { LoanNoteTemplate } from "./loan-note-template";
 import { OtherDebtorInvoiceTemplate } from "./other-debtor-invoice-template";
 import { PaymentVoucherTemplate } from "./payment-voucher-template";
 import { RegisterListTemplate, type RegisterListTemplateData } from "./register-list-template";
 import { registerNotoSansSC } from "./fonts/noto";
-import type { DoTemplateData, ExtensionAgreementTemplateData, InvoiceTemplateData, LoanNoteTemplateData, OtherDebtorInvoiceTemplateData, PaymentVoucherTemplateData, PoTemplateData, ReceiptTemplateData, SalesOrderTemplateData } from "./types";
+import type { DoTemplateData, InvoiceTemplateData, OtherDebtorInvoiceTemplateData, PaymentVoucherTemplateData, PoTemplateData, ReceiptTemplateData, SalesOrderTemplateData } from "./types";
 import type { PickupEventPrintPayload } from "@/lib/queries";
 import type { CreditNotePrintData } from "@carres/shared/schemas/finance-credit-note";
 
@@ -53,25 +51,8 @@ export function renderCreditNotePdf(data: CreditNotePrintData): Promise<Blob> {
   return toBlob(CreditNoteTemplate(data));
 }
 
-/** Migration 0196 — storage delivery-extension agreement (the two Google Forms).
- *  Rendered on-demand from the ops_order_control extension_* fields + order. */
-export function renderExtensionAgreementPdf(
-  data: ExtensionAgreementTemplateData,
-): Promise<Blob> {
-  return toBlob(ExtensionAgreementTemplate(data));
-}
-
 export function renderDoPdf(data: DoTemplateData): Promise<Blob> {
   return toBlob(DoTemplate(data));
-}
-
-
-
-
-/** Migration 0242 — ON LOAN delivery-note (the customer signs on hand-over of a
- *  loaner). Rendered on-demand from the ops_sofa_loans row + order. */
-export function renderLoanNotePdf(data: LoanNoteTemplateData): Promise<Blob> {
-  return toBlob(LoanNoteTemplate(data));
 }
 
 /** A Register's CURRENT VIEW as a document — not a business document, so it

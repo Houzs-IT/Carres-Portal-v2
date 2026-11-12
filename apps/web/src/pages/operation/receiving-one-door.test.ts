@@ -14,9 +14,8 @@ import { join } from "node:path";
  * file is the same proof as a guard that runs on every commit.
  *
  * A SOURCE SCAN, not a render test, for the reason Portal Core C1 already
- * found in this exact area: `OrderDetailDrawer.tsx` is 7,000 lines of
- * branches, and a render test only ever sees the branches its fixture
- * reaches. The API half of the proof lives beside the routes it guards, in
+ * found in this exact area: a large page has many branches, and a render
+ * test only ever sees the branches its fixture reaches. The API half of the proof lives beside the routes it guards, in
  * `apps/api/src/routes/operation/pos.test.ts`.
  */
 
@@ -93,19 +92,6 @@ describe("Card C1 · the Office has exactly ONE receiving door", () => {
     expect(
       officeCallers.map((f) => f.replace(WEB_SRC + "/", "")).filter((f) => f !== "lib/queries.ts"),
     ).toEqual([]);
-  });
-
-  it("the order drawer hands over instead of receiving in place", () => {
-    const drawerPath = join(
-      WEB_SRC,
-      "pages/operation/components/OrderDetailDrawer.tsx",
-    );
-    const drawer = read(drawerPath);
-    const codeOf = (t: string) =>
-      t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    expect(drawer).toMatch(/tab=receiving&po=\$\{encodeURIComponent\(po\.id\)\}/);
-    // No local receive state survives to be re-wired to something.
-    expect(codeOf(drawer)).not.toMatch(/setReceivePo/);
   });
 
   it("only the three Session-opening RPCs may move received_qty from the API", () => {
