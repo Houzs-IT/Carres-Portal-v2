@@ -56,7 +56,7 @@ response. **Grep `apps/web/dist` for `SERVICE_ROLE` before every commit; it must
 
 ### The engine — Houzs's Service Cases, Projects and Supply Chain, unchanged
 
-`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`efa70b116`**, run as its
+`engine/` is Houzs-ERP's own code (frontend, backend, scripts), currently Houzs **`c780a870b`**, run as its
 own Pages site (`carres-scm`), Worker (`carres-scm-engine`) and Supabase project. The portal shows it in a
 frame (`SupplyChainEngine.tsx`), signs the person in, and draws the menu (the only menu). On those pages the
 one top row is Houzs's own top bar inside the frame (workspace tabs, search, Refresh, presence, bell; no company
@@ -137,7 +137,8 @@ Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bo
 migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
-after normalising the recolour): the only non-colour differences are the Carres integration (`src/carres/*`, the
+after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits
+met in only `mail-center.ts` and `fair-binding.ts`, both merged cleanly): the only non-colour differences are the Carres integration (`src/carres/*`, the
 frame/top-bar branches in `Layout.tsx`/`TopNavbar.tsx`/`App.tsx`/`main.tsx`, `backend/src/carres/sso.ts`), the brand
 name and blank Branding defaults, `CR-` document numbers, the Carres hosts and dev fallbacks, showroom venues in
 `fair-binding.ts`, and the supplier-code check in `ProductModels.tsx`. Every loading feature is Houzs's unchanged
@@ -150,12 +151,15 @@ announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worke
 geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
 `TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
 
-**Resync from a newer Houzs main** (done 12 Nov 2026 from `efa70b116`):
+**Resync from a newer Houzs main** (last done 12 Nov 2026, `efa70b116` → `c780a870b`; migrations 1184–1187
+copied and built on PGlite, NOT YET APPLIED to the engine database):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
    Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:
    keep the Carres light, print and dark values there (the recolour script does not touch channel triplets).
-3. Re-apply the Carres edits: `git diff <recoloured old import> origin/main -- engine/` with `git apply --3way`.
+3. Re-apply the Carres edits: `git diff <recoloured old import> origin/main -- engine/` with `git apply --3way`
+   (equivalently: a throwaway repo with the recoloured old Houzs as base, `engine/` as one branch and the
+   recoloured new Houzs as the other, `git merge`, then apply `git diff engine..merge` to `engine/`).
    The first import (`f6e9ca924`) itself changed 16 files (Carres wrangler settings, dev fallbacks to
    localhost); check they survived. **Check both `wrangler.toml` files name the Carres account, buckets and
    URLs, never Houzs's** — a conflict there once reverted to Houzs's production settings.

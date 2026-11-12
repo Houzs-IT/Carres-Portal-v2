@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildEventCommission, changeView, goodsAt, monthAdjustmentsOf, mytDay, paidByOrder, reachedOn, withMonthAdjustments,
-  type CommissionChange, type CommissionFair, type CommissionPayment, type CommissionSo,
+  buildEventCommission, changeView, deferredInFrom, goodsAt, monthAdjustmentsOf, mytDay, paidByOrder, reachedOn, withMarks, withMonthAdjustments,
+  withUncountedChanges,
+  type CommissionChange, type CommissionFair, type CommissionMark, type CommissionPayment, type CommissionSo,
 } from './event-commission';
 
 /* Event Commission (owner 2026-10-20): goods × the fair's brand rate, earned on
@@ -19,7 +20,7 @@ const so = (o: Partial<CommissionSo> = {}): CommissionSo => ({
 });
 const change = (o: Partial<CommissionChange> = {}): CommissionChange => ({
   docNo: 'HC-SO-2610-001', changedAt: '2026-10-20T04:00:00Z', beforeGoodsSen: 1_000_00, afterGoodsSen: 1_200_00,
-  beforeTotalSen: 1_100_00, afterTotalSen: 1_300_00, source: 'edit', changedBy: 'Finance', ...o,
+  beforeTotalSen: 1_100_00, afterTotalSen: 1_300_00, source: 'edit', changedBy: 'Finance', uncounted: false, ...o,
 });
 const RATES = new Map<string, number | null>([['AKEMI', 14], ['ZANOTTI', 13]]);
 const OCT = { from: '2026-10-01', to: '2026-10-31' };
@@ -75,7 +76,7 @@ describe('Part 1 — fairs that start in the range, as at its last day', () => {
     expect(f.sos[0]).toMatchObject({ reachedOn: '2026-10-02', commissionSen: 140_00, paidPct: 36.4 });
     expect(f.sos[1]).toMatchObject({ reachedOn: null, commissionSen: 0, paidPct: 20 });
     expect(f).toMatchObject({ ratePct: 14, payableSen: 140_00, estimateRm: 67864 });
-    expect(r.totals).toEqual({ payableSen: 140_00, adjustmentsSen: 0, monthAdjustmentsSen: 0, totalSen: 140_00 });
+    expect(r.totals).toEqual({ payableSen: 140_00, adjustmentsSen: 0, monthAdjustmentsSen: 0, deferredInSen: 0, totalSen: 140_00 });
   });
 
   it('as at the range\'s last day: a later payment, a later upsale and a later cancellation are not in it', () => {
@@ -139,7 +140,7 @@ describe('Part 2 — what happened in the range to orders of earlier fairs', () 
       ['2026-10-10', 'reached', 1_100_00, 143_00, false],
       ['2026-10-20', 'upsale', 200_00, 26_00, false],
     ]);
-    expect(r.totals).toEqual({ payableSen: 0, adjustmentsSen: 169_00, monthAdjustmentsSen: 0, totalSen: 169_00 });
+    expect(r.totals).toEqual({ payableSen: 0, adjustmentsSen: 169_00, monthAdjustmentsSen: 0, deferredInSen: 0, totalSen: 169_00 });
   });
 
   it('a cancellation takes back what the order had earned; one re-opened since is live again', () => {
@@ -225,8 +226,8 @@ describe('by SO date — the same two parts keyed on the order\'s own SO date', 
     };
     const bySo = buildEventCommission({ ...input, basis: 'so_date' });
     const byFair = buildEventCommission(input);
-    expect(bySo.totals).toEqual({ payableSen: 130_00, adjustmentsSen: 0, monthAdjustmentsSen: 0, totalSen: 130_00 });
-    expect(byFair.totals).toEqual({ payableSen: 0, adjustmentsSen: 130_00, monthAdjustmentsSen: 0, totalSen: 130_00 });
+    expect(bySo.totals).toEqual({ payableSen: 130_00, adjustmentsSen: 0, monthAdjustmentsSen: 0, deferredInSen: 0, totalSen: 130_00 });
+    expect(byFair.totals).toEqual({ payableSen: 0, adjustmentsSen: 130_00, monthAdjustmentsSen: 0, deferredInSen: 0, totalSen: 130_00 });
   });
 });
 
@@ -342,7 +343,254 @@ describe('closing a month — 关月 (owner 2026-10-26)', () => {
 
   it('the adjustments add to the month they are paid in', () => {
     const rows = monthAdjustmentsOf([closedSep()], new Map([['2026-09', september([])]]));
-    expect(withMonthAdjustments(october(), rows).totals).toEqual({ payableSen: 0, adjustmentsSen: 0, monthAdjustmentsSen: -130_00, totalSen: -130_00 });
+    expect(withMonthAdjustments(october(), rows).totals).toEqual({ payableSen: 0, adjustmentsSen: 0, monthAdjustmentsSen: -130_00, deferredInSen: 0, totalSen: -130_00 });
     expect(october().monthAdjustments).toEqual([]);
+  });
+});
+
+describe('round 3 (owner 2026-11-12)', () => {
+  const pay = (docNo: string, paidAt: string, amountSen: number): CommissionPayment => ({ docNo, paidAt, amountSen });
+  const mark = (o: Partial<CommissionMark> = {}): CommissionMark => ({
+    id: 'm1', docNo: 'HC-SO-2610-001', kind: 'exclude', month: null, reason: 'checking', markedBy: 'Finance', markedAt: '2026-11-12T03:00:00Z', ...o,
+  });
+  const october = () => buildEventCommission({
+    ...OCT, fairs: [fair()], ratePctByBrand: RATES,
+    sos: [so(), so({ docNo: 'HC-SO-2610-002' })],
+    payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00), pay('HC-SO-2610-002', '2026-10-02', 500_00)], changes: [], cancels: [],
+  });
+
+  it("a fair's Total Sales is its orders' goods and its estimate those × the rate; the typed figure stays beside it", () => {
+    const r = buildEventCommission({
+      ...OCT, fairs: [fair()], ratePctByBrand: RATES,
+      sos: [so(), so({ docNo: 'HC-SO-2610-002', goodsSen: 2_000_00, totalSen: 2_000_00 })],
+      payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00)], changes: [], cancels: [],
+    });
+    expect(r.fairs[0]).toMatchObject({ goodsSen: 3_000_00, estimateSen: 420_00, totalSalesRm: 484746, payableSen: 140_00 });
+  });
+
+  it('fairs that start the same day sit together: start, end, venue, organizer, brand', () => {
+    const r = buildEventCommission({
+      ...OCT, ratePctByBrand: RATES, sos: [], payments: [], changes: [], cancels: [],
+      fairs: [
+        fair({ id: 3, name: 'C', brand: 'ZANOTTI', venue: 'MID VALLEY', organizer: 'BIGHOME' }),
+        fair({ id: 2, name: 'B', brand: 'AKEMI', venue: 'SETIA CITY', organizer: 'BIGHOME' }),
+        fair({ id: 1, name: 'A', brand: 'AKEMI', venue: 'MID VALLEY', organizer: 'BIGHOME' }),
+        fair({ id: 4, name: 'D', brand: 'AKEMI', venue: 'AEON', organizer: 'MLE', startDate: '2026-10-01' }),
+      ],
+    });
+    expect(r.fairs.map((f) => f.id)).toEqual([4, 1, 3, 2]);
+  });
+
+  it('补开单: keyed in the range for a fair that had ended before it — not one keyed at the fair, not one of the range\'s fairs', () => {
+    const r = buildEventCommission({
+      ...OCT, fairs: [fair(), fair({ id: 9, name: 'Sep fair', startDate: '2026-09-04', endDate: '2026-09-06' })], ratePctByBrand: RATES,
+      sos: [
+        so({ docNo: 'HC-SO-2610-002', projectId: 9, createdAt: '2026-10-02T03:00:00Z', soDate: '2026-10-02' }),
+        so({ docNo: 'HC-SO-2609-050', projectId: 9, createdAt: '2026-09-05T03:00:00Z', soDate: '2026-09-05' }),
+        so(),
+      ],
+      payments: [], changes: [], cancels: [],
+    });
+    expect(r.lateBills).toEqual(['HC-SO-2610-002']);
+  });
+
+  it('「这张单不要算」: the order earns nothing, its row stays tagged, and it is listed with what it would have earned', () => {
+    const r = withMarks(october(), [mark()]);
+    expect(r.fairs[0]!.sos.find((s) => s.docNo === 'HC-SO-2610-001')).toMatchObject({ commissionSen: 0, mark: { kind: 'exclude', reason: 'checking' } });
+    expect(r.fairs[0]!.payableSen).toBe(140_00);
+    expect(r.marked).toMatchObject([{ docNo: 'HC-SO-2610-001', commissionSen: 140_00, mark: { kind: 'exclude' } }]);
+    expect(r.totals.totalSen).toBe(140_00);
+    expect(paidByOrder(r)).toEqual({ 'HC-SO-2610-002': 140_00 });
+  });
+
+  it('「这个算下个月」 acts only in the month it names, and only on a one-month report', () => {
+    expect(withMarks(october(), [mark({ kind: 'defer', month: '2026-10' })]).totals.totalSen).toBe(140_00);
+    expect(withMarks(october(), [mark({ kind: 'defer', month: '2026-09' })]).totals.totalSen).toBe(280_00);
+    const quarter = buildEventCommission({
+      from: '2026-10-01', to: '2026-12-31', fairs: [fair()], ratePctByBrand: RATES, sos: [so()],
+      payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00)], changes: [], cancels: [],
+    });
+    expect(withMarks(quarter, [mark({ kind: 'defer', month: '2026-10' })]).totals.totalSen).toBe(140_00);
+    /* This month so far is the month too: a report to the 20th moves it. */
+    const soFar = buildEventCommission({
+      from: '2026-10-01', to: '2026-10-20', fairs: [fair()], ratePctByBrand: RATES, sos: [so()],
+      payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00)], changes: [], cancels: [],
+    });
+    expect(withMarks(soFar, [mark({ kind: 'defer', month: '2026-10' })]).totals.totalSen).toBe(0);
+  });
+
+  it('the month after receives what was moved and pays it; marked again, it moves on', () => {
+    const moved = deferredInFrom(withMarks(october(), [mark({ kind: 'defer', month: '2026-10' })]), '2026-10');
+    expect(moved).toMatchObject([{ docNo: 'HC-SO-2610-001', fromMonth: '2026-10', commissionSen: 140_00, fairName: fair().name }]);
+    const november = buildEventCommission({
+      from: '2026-11-01', to: '2026-11-30', fairs: [fair()], ratePctByBrand: RATES, sos: [so()],
+      payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00)], changes: [], cancels: [],
+    });
+    const nov = withMarks(november, [mark({ kind: 'defer', month: '2026-10' })], moved);
+    expect(nov.totals).toMatchObject({ deferredInSen: 140_00, totalSen: 140_00 });
+    expect(paidByOrder(nov)).toEqual({ 'HC-SO-2610-001': 140_00 });
+    const again = withMarks(november, [mark({ kind: 'defer', month: '2026-10' }), mark({ id: 'm2', kind: 'defer', month: '2026-11' })], moved);
+    expect(again.totals.totalSen).toBe(0);
+    expect(deferredInFrom(again, '2026-11')).toMatchObject([{ docNo: 'HC-SO-2610-001', commissionSen: 140_00 }]);
+  });
+
+  it('marked "not counted" after its month closed: the recalculation drops it and the adjustment takes it back', () => {
+    const closed = [{ month: '2026-10', paid: paidByOrder(october()), carried: [] }];
+    const rows = monthAdjustmentsOf(closed, new Map([['2026-10', withMarks(october(), [mark()])]]));
+    expect(rows).toMatchObject([{ month: '2026-10', docNo: 'HC-SO-2610-001', wasSen: 140_00, nowSen: 0, adjustmentSen: -140_00 }]);
+  });
+});
+
+describe('a price change not counted — 「这次改价不算」 (owner 2026-11-12)', () => {
+  const pay = (docNo: string, paidAt: string, amountSen: number): CommissionPayment => ({ docNo, paidAt, amountSen });
+  const mark = (o: Partial<CommissionMark> = {}): CommissionMark => ({
+    id: 'c1', docNo: 'HC-SO-2610-001', kind: 'exclude_change', month: '2026-10', reason: 'typing fix', markedBy: 'Finance', markedAt: '2026-11-12T03:00:00Z', ...o,
+  });
+  const SEP = { from: '2026-09-01', to: '2026-09-30' };
+  const NOV = { from: '2026-11-01', to: '2026-11-30' };
+  /* + RM 200.00 on 20 October, and the order as it stands after it. */
+  const UP = change();
+  const upsold = so({ goodsSen: 1_200_00, totalSen: 1_300_00 });
+  const octoberFair = (changes: CommissionChange[]) => buildEventCommission({
+    ...OCT, fairs: [fair()], ratePctByBrand: RATES, sos: [upsold], payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00)], changes, cancels: [],
+  });
+  /* The same upsale on an order of a September fair. */
+  const SEP_FAIR = fair({ id: 9, name: 'KL [AKEMI] REX @ MID VALLEY', startDate: '2026-09-04', endDate: '2026-09-06' });
+  const SEP_UP = change({ docNo: 'HC-SO-2609-050' });
+  const sepMark = mark({ docNo: 'HC-SO-2609-050' });
+  const sepOrder = (o: Partial<CommissionSo> = {}) => so({
+    docNo: 'HC-SO-2609-050', projectId: 9, createdAt: '2026-09-05T03:00:00Z', soDate: '2026-09-05', goodsSen: 1_200_00, totalSen: 1_300_00, ...o,
+  });
+  const sepFair = (range: { from: string; to: string }, o: { sos?: CommissionSo[]; payments: CommissionPayment[]; changes: CommissionChange[]; cancels?: Array<{ docNo: string; at: string }> }) =>
+    buildEventCommission({ ...range, fairs: [SEP_FAIR], ratePctByBrand: RATES, sos: o.sos ?? [sepOrder()], payments: o.payments, changes: o.changes, cancels: o.cancels ?? [] });
+
+  it('the mark names an order and a month: its changes made in that month (Malaysia time) are left out, no other', () => {
+    const chs = [
+      change({ changedAt: '2026-09-30T15:59:00Z' }), // 30 September, 23:59 in Malaysia
+      change({ changedAt: '2026-09-30T16:00:00Z' }), // 1 October
+      change({ changedAt: '2026-10-31T15:59:00Z' }), // 31 October
+      change({ changedAt: '2026-10-31T16:00:00Z' }), // 1 November
+      change({ docNo: 'HC-SO-2610-002' }),
+    ];
+    const marks = [mark(), mark({ id: 'x1', docNo: 'HC-SO-2610-002', kind: 'exclude', month: null }), mark({ id: 'd1', docNo: 'HC-SO-2610-002', kind: 'defer' })];
+    expect(withUncountedChanges(chs, marks).map((c) => c.uncounted)).toEqual([false, true, true, false, false]);
+    expect(withUncountedChanges(chs, []).some((c) => c.uncounted)).toBe(false);
+  });
+
+  it("this range's fair: the order earns on its goods less the change; its goods and the fair's Total Sales stay; the change is listed with no effect", () => {
+    const counted = octoberFair([UP]);
+    expect(counted.fairs[0]!.sos[0]).toMatchObject({ goodsSen: 1_200_00, commissionSen: 168_00 });
+    expect(counted.changedOrders).toMatchObject([{ amendedSen: 200_00, effectSen: 28_00 }]);
+
+    const r = octoberFair(withUncountedChanges([UP], [mark()]));
+    expect(r.fairs[0]!.sos[0]).toMatchObject({ goodsSen: 1_200_00, commissionSen: 140_00, uncountedSen: 28_00 });
+    expect(r.fairs[0]!.sos[0]!.changes).toMatchObject([{ deltaGoodsSen: 200_00, notCounted: null, uncounted: true }]);
+    expect(r.fairs[0]).toMatchObject({ goodsSen: 1_200_00, estimateSen: 168_00, payableSen: 140_00 });
+    expect(r.changedOrders).toMatchObject([{
+      docNo: 'HC-SO-2610-001', part: 'range', originalSen: 1_000_00, latestSen: 1_200_00, amendedSen: 200_00, effectSen: 0, uncountedGoodsSen: 200_00,
+    }]);
+    expect(r.totals.totalSen).toBe(140_00);
+  });
+
+  it('a drop sale left out: the order still earns on what it was before the drop', () => {
+    const DROP = change({ afterGoodsSen: 800_00, afterTotalSen: 900_00 });
+    const dropped = (changes: CommissionChange[]) => buildEventCommission({
+      ...OCT, fairs: [fair()], ratePctByBrand: RATES, sos: [so({ goodsSen: 800_00, totalSen: 900_00 })],
+      payments: [pay('HC-SO-2610-001', '2026-10-02', 500_00)], changes, cancels: [],
+    });
+    expect(dropped([DROP]).fairs[0]!.sos[0]).toMatchObject({ commissionSen: 112_00 });
+    expect(dropped([DROP]).changedOrders).toMatchObject([{ amendedSen: -200_00, effectSen: -28_00 }]);
+    const r = dropped(withUncountedChanges([DROP], [mark()]));
+    expect(r.fairs[0]!.sos[0]).toMatchObject({ goodsSen: 800_00, commissionSen: 140_00, uncountedSen: -28_00 });
+    expect(r.changedOrders).toMatchObject([{ amendedSen: -200_00, effectSen: 0, uncountedGoodsSen: -200_00 }]);
+  });
+
+  it('an opening-day fix in the marked month is not an upsale: its goods still count', () => {
+    const fix = change({ changedAt: '2026-10-02T08:00:00Z' });
+    const r = octoberFair(withUncountedChanges([fix], [mark()]));
+    expect(r.fairs[0]!.sos[0]).toMatchObject({ commissionSen: 168_00 });
+    expect(r.fairs[0]!.sos[0]!.changes).toMatchObject([{ notCounted: 'opening_day', uncounted: false }]);
+    expect(r.changedOrders).toEqual([]);
+  });
+
+  it('an earlier order upsold after it had reached 30%: the upsale line stays, earning nothing', () => {
+    const paidInSep = [pay('HC-SO-2609-050', '2026-09-05', 500_00)];
+    const counted = sepFair(OCT, { payments: paidInSep, changes: [SEP_UP] });
+    expect(counted.adjustments).toMatchObject([{ kind: 'upsale', date: '2026-10-20', goodsSen: 200_00, commissionSen: 28_00 }]);
+
+    const r = sepFair(OCT, { payments: paidInSep, changes: withUncountedChanges([SEP_UP], [sepMark]) });
+    expect(r.adjustments).toMatchObject([{ kind: 'upsale', date: '2026-10-20', goodsSen: 200_00, commissionSen: 0, uncounted: true, uncountedSen: 28_00 }]);
+    expect(r.earlierOrders).toMatchObject([{ docNo: 'HC-SO-2609-050', amendedSen: 200_00, commissionSen: 0, events: [{ kind: 'upsale', uncounted: true }] }]);
+    expect(r.changedOrders).toMatchObject([{ part: 'earlier', amendedSen: 200_00, effectSen: 0, uncountedGoodsSen: 200_00 }]);
+    expect(r.totals.totalSen).toBe(0);
+  });
+
+  it('an earlier order reaching 30% after the change: it earns that day on its goods less the change', () => {
+    const paidLate = [pay('HC-SO-2609-050', '2026-10-25', 500_00)];
+    const counted = sepFair(OCT, { payments: paidLate, changes: [SEP_UP] });
+    expect(counted.adjustments.find((a) => a.kind === 'reached')).toMatchObject({ date: '2026-10-25', goodsSen: 1_200_00, commissionSen: 168_00 });
+
+    const r = sepFair(OCT, { payments: paidLate, changes: withUncountedChanges([SEP_UP], [sepMark]) });
+    expect(r.adjustments.find((a) => a.kind === 'reached')).toMatchObject({ date: '2026-10-25', goodsSen: 1_200_00, commissionSen: 140_00, uncountedSen: 28_00 });
+    expect(r.adjustments.find((a) => a.kind === 'upsale')).toMatchObject({ commissionSen: 0, beforeReach: true, uncounted: true });
+    expect(r.totals.totalSen).toBe(140_00);
+  });
+
+  it('it stays left out in the months after: 30% reached in November earns on the goods less the October change', () => {
+    const paidInNov = [pay('HC-SO-2609-050', '2026-11-05', 500_00)];
+    expect(sepFair(NOV, { payments: paidInNov, changes: [SEP_UP] }).totals.totalSen).toBe(168_00);
+    const r = sepFair(NOV, { payments: paidInNov, changes: withUncountedChanges([SEP_UP], [sepMark]) });
+    expect(r.adjustments).toMatchObject([{ kind: 'reached', date: '2026-11-05', goodsSen: 1_200_00, commissionSen: 140_00, uncountedSen: 28_00 }]);
+  });
+
+  it('a cancellation later takes back what the order earned — never the change that was not counted', () => {
+    const o = {
+      sos: [sepOrder({ status: 'CANCELLED' })], payments: [pay('HC-SO-2609-050', '2026-09-05', 500_00)],
+      cancels: [{ docNo: 'HC-SO-2609-050', at: '2026-11-10T02:00:00Z' }],
+    };
+    const months = (changes: CommissionChange[]) => [SEP, OCT, NOV].map((range) => sepFair(range, { ...o, changes }).totals.totalSen);
+    expect(months([SEP_UP])).toEqual([140_00, 28_00, -168_00]);
+    expect(months(withUncountedChanges([SEP_UP], [sepMark]))).toEqual([140_00, 0, -140_00]);
+  });
+
+  it('the changed order carries the mark for its Undo, and the mark is listed with what it took out — the order itself is not marked', () => {
+    const marks = [mark()];
+    const r = withMarks(octoberFair(withUncountedChanges([UP], marks)), marks);
+    expect(r.changedOrders[0]).toMatchObject({ effectSen: 0, changeMark: { id: 'c1', kind: 'exclude_change', month: '2026-10', reason: 'typing fix' } });
+    expect(r.changedOrders[0]!.mark).toBeUndefined();
+    expect(r.fairs[0]!.sos[0]).toMatchObject({ commissionSen: 140_00 });
+    expect(r.fairs[0]!.sos[0]!.mark).toBeUndefined();
+    expect(r.marked).toMatchObject([{ docNo: 'HC-SO-2610-001', commissionSen: 28_00, mark: { id: 'c1', kind: 'exclude_change' } }]);
+    expect(r.totals.totalSen).toBe(140_00);
+    expect(paidByOrder(r)).toEqual({ 'HC-SO-2610-001': 140_00 });
+  });
+
+  it('a mark for another month changes nothing here and is not listed', () => {
+    const marks = [mark({ month: '2026-09' })];
+    const r = withMarks(octoberFair(withUncountedChanges([UP], marks)), marks);
+    expect(r.totals.totalSen).toBe(168_00);
+    expect(r.changedOrders[0]).toMatchObject({ effectSen: 28_00 });
+    expect(r.changedOrders[0]!.changeMark).toBeUndefined();
+    expect(r.marked).toEqual([]);
+  });
+
+  it('with 「这张单不要算」 the whole order earns nothing; with 「这个算下个月」 the month after receives it less the change', () => {
+    const excluded = [mark(), mark({ id: 'x1', kind: 'exclude', month: null })];
+    const none = withMarks(octoberFair(withUncountedChanges([UP], excluded)), excluded);
+    expect(none.totals.totalSen).toBe(0);
+    expect(none.marked.map((m) => [m.mark.kind, m.commissionSen])).toEqual([['exclude', 140_00], ['exclude_change', 28_00]]);
+
+    const moved = [mark(), mark({ id: 'd1', kind: 'defer' })];
+    const oct = withMarks(octoberFair(withUncountedChanges([UP], moved)), moved);
+    expect(oct.totals.totalSen).toBe(0);
+    expect(deferredInFrom(oct, '2026-10')).toMatchObject([{ docNo: 'HC-SO-2610-001', commissionSen: 140_00 }]);
+  });
+
+  it('marked after its month closed: the recalculation leaves the change out and the adjustment takes it back', () => {
+    const closed = [{ month: '2026-10', paid: paidByOrder(octoberFair([UP])), carried: [] }];
+    const now = withMarks(octoberFair(withUncountedChanges([UP], [mark()])), [mark()]);
+    expect(monthAdjustmentsOf(closed, new Map([['2026-10', now]]))).toMatchObject([
+      { month: '2026-10', docNo: 'HC-SO-2610-001', wasSen: 168_00, nowSen: 140_00, adjustmentSen: -28_00 },
+    ]);
   });
 });

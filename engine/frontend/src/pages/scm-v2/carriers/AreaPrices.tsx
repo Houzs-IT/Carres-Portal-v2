@@ -3,10 +3,13 @@
 // own. They read as ONE ruled table (owner, the same day: 「做成一个table」,
 // 「别"，"」, 「放线条」, prices 「放在上面别centre」): the card's own prices first,
 // then a row per town A to Z, each area's name, prices and pencil merged down
-// across its towns. A click on a price changes or removes it; a dash, where the
-// card's own price applies, adds one. A delivery to one of the area's towns is
-// priced with these in place of the card's own; a town price on the same town
-// still adds on top.
+// across its towns. For a day a finance table held them (#5676): a band per
+// area, its prices on its first town only, which read as that town's prices
+// alone — owner 2026-11-12 「改回原本的」, so the merged cells are back, under a
+// head shaded like the finance tables'. A click on a price changes or removes
+// it; a dash, where the card's own price applies, adds one. A delivery to one of
+// the area's towns is priced with these in place of the card's own; a town price
+// on the same town still adds on top.
 import { useMemo, useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import {
@@ -19,10 +22,15 @@ import { cn } from '../../../lib/utils';
 import { centiToRM, rmToSen } from './cardSettings';
 import { areaColumns, columnHead, parseTowns, ruleAt, sortTowns, townLabel, type PriceBox } from './rateCardAreas';
 import { AMOUNT_ERROR, AddPriceCell, PriceButton } from './ruleEditors';
-import { BTN_PRI, BTN_QUIET, HINT, INPUT, LABEL, T_CELL, T_HEAD } from './ui';
+import { BTN_PRI, BTN_QUIET, HINT, INPUT, LABEL } from './ui';
 
-const ERR = 'text-[12.5px] font-semibold text-[color:var(--hz-dk-err,#8a2c2c)]';
+const ERR = 'text-[12px] font-semibold text-[color:var(--hz-dk-err,#8a2c2c)]';
 const townsWord = (n: number) => `${n} ${n === 1 ? 'town' : 'towns'}`;
+
+/* Lines around every cell as in a spreadsheet (「放线条」); the head shaded and
+   lettered like the finance tables on the card's other tabs. */
+const T_CELL = 'border border-border-strong px-2.5 py-1.5 align-top';
+const T_HEAD = 'border border-border-strong bg-surface-dim px-2.5 py-2 align-bottom text-[11.5px] font-semibold text-ink';
 
 /** Name and towns, typed: used to add an area and to change one. */
 const AreaFields = ({ idPrefix, name, towns, onName, onTowns }: {
@@ -86,7 +94,9 @@ const AreaPriceCell = ({ cardId, area, col, rule, rowSpan }: {
   </td>
 );
 
-/** One area: a row per town, its name, prices and pencil merged down across them. */
+/** One area: a row per town, its name, prices and pencil merged down across
+ *  them and top-aligned on its first town; the name and towns editor opens in
+ *  a row under it. */
 const AreaRows = ({ cardId, area, rules, columns, editing, onEditing }: {
   cardId: string; area: RateArea; rules: readonly RateRule[]; columns: readonly PriceBox[]; editing: boolean; onEditing: (on: boolean) => void;
 }) => {
@@ -99,7 +109,7 @@ const AreaRows = ({ cardId, area, rules, columns, editing, onEditing }: {
         <tr key={town || '-'}>
           {i === 0 && (
             <th scope="rowgroup" rowSpan={span} className={cn(T_CELL, 'text-left font-normal')}>
-              <span className="block text-[13px] font-bold text-ink">{area.name}</span>
+              <span className="block text-[13px] font-semibold text-ink">{area.name}</span>
               <span className={HINT}>{townsWord(towns.length)}</span>
             </th>
           )}
@@ -187,7 +197,7 @@ export const AreaPrices = ({ cardId, areas, rules, ownRules, template, unit, add
     <div className="flex flex-col gap-2.5">
       {areas.length > 0 && (
         <>
-          <span className="text-[12.5px] font-semibold text-ink-secondary">Areas, each with its own prices (RM)</span>
+          <span className={LABEL}>Areas, each with its own prices (RM)</span>
           {/* On a phone the table keeps its columns and scrolls sideways inside this box. */}
           <div className="relative overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-[13px] tabular-nums">
