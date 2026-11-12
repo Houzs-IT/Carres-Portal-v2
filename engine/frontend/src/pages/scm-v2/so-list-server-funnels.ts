@@ -47,6 +47,7 @@ export const SO_COLUMN_FUNNEL_KEYS: readonly string[] = [
   "phone", "email", "debtor_code", "address1", "address2", "city", "postcode", "customer_state",
   "paid", "balance", "venue", "processing_date", "customer_delivery_date", "note", "customer_type",
   "building_type", "customer_country",
+  "sale_type", // Carres: Outright / Subscription
   // Finance columns: the backend honours these for a finance viewer only.
   ...FINANCE_COLUMN_KEYS,
 ];

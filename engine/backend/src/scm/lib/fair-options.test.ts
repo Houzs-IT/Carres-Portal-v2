@@ -577,9 +577,10 @@ describe('fairWhyOf / fairMissingMessage — the reason travels back checked', (
       .toBe('No fair found for you: your last fair (KLCC, 07/04) ended over a month ago. Pick a fair yourself, or ask the person in charge to add you.');
   });
 
-  it('only Houzs is on the keyer rule; 2990 is unchanged', () => {
-    expect(companyUsesKeyerFair('HOUZS')).toBe(true);
-    expect(companyUsesKeyerFair(' houzs ')).toBe(true);
+  it('no company is on the keyer rule in Carres; 2990 is unchanged', () => {
+    // Carres: the HOUZS row is Carres, which names a showroom or a project instead of a fair (owner 2026-11-12).
+    expect(companyUsesKeyerFair('HOUZS')).toBe(false);
+    expect(companyUsesKeyerFair(' houzs ')).toBe(false);
     expect(companyUsesKeyerFair('2990')).toBe(false);
     expect(companyUsesKeyerFair(undefined)).toBe(false);
   });

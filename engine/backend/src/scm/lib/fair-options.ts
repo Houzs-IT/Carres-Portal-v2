@@ -630,8 +630,10 @@ export function linkedFairOf(row: FairProjectRow): LinkedFair | null {
 // see in the list. Nothing is ever created, and No fair is never ticked for them.
 
 /** Companies whose new orders start with the keyer's fair, and whose server
- *  refuses a typed order with neither a fair nor No fair. 2990 is unchanged. */
-export const KEYER_FAIR_COMPANY_CODES: readonly string[] = ['HOUZS'];
+ *  refuses a typed order with neither a fair nor No fair. 2990 is unchanged.
+ *  Carres: none. The HOUZS row is Carres, which runs no fairs: its orders name a
+ *  showroom or a project instead (owner 2026-11-12, carres-sale-place.ts). */
+export const KEYER_FAIR_COMPANY_CODES: readonly string[] = [];
 
 export function companyUsesKeyerFair(companyCode: unknown): boolean {
   return KEYER_FAIR_COMPANY_CODES.includes(String(companyCode ?? '').trim().toUpperCase());

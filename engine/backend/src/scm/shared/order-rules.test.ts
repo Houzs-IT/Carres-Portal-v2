@@ -26,9 +26,10 @@ const complete = (paid: number, total: number, companyCode?: string | null): Pro
    Two functions for it is how a second threshold appeared once already: a 2990
    order refused at the Houzs 30% when the 2990 rule is 50%. */
 describe('meetsDepositGate', () => {
-  it('holds Houzs to 30%', () => {
-    expect(meetsDepositGate(29_99, 100_00, 'HOUZS')).toBe(false);
-    expect(meetsDepositGate(30_00, 100_00, 'HOUZS')).toBe(true);
+  // Carres: the HOUZS row is Carres, whose rule is 50% (owner 2026-11-12).
+  it('holds Carres (the HOUZS row) to 50%', () => {
+    expect(meetsDepositGate(49_99, 100_00, 'HOUZS')).toBe(false);
+    expect(meetsDepositGate(50_00, 100_00, 'HOUZS')).toBe(true);
   });
 
   it('holds 2990 to 50%', () => {
@@ -74,7 +75,7 @@ describe('meetsProceedGate asks meetsDepositGate the money question', () => {
 describe('processingDateThresholdFor', () => {
   it('reads a padded / lower-case company code', () => {
     expect(processingDateThresholdFor(' 2990 ')).toBe(0.5);
-    expect(processingDateThresholdFor('houzs')).toBe(0.30);
+    expect(processingDateThresholdFor('houzs')).toBe(0.5); // Carres: 50%
   });
 });
 

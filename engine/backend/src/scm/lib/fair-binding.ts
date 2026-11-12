@@ -37,6 +37,7 @@ import {
   type LinkedFair,
 } from './fair-options';
 import type { SaveProblem } from '../shared/so-save-problems';
+import { companyUsesShowroomSale, salePlaceMissing, SALE_PLACE_REQUIRED } from './carres-sale-place';
 import {
   loadVenueBindingInputs,
   resolveVenueBinding,
@@ -694,6 +695,8 @@ export async function fairConfirmProblems(args: {
     project_id?: number | string | null; fair_match?: string | null; venue?: string | null;
     fair_date?: string | null; slip_image_key?: string | null;
   };
+  /* Carres: no fairs — a showroom or a project instead, typed or scanned (owner 2026-11-12). */
+  if (companyUsesShowroomSale(args.companyCode)) return salePlaceMissing(order) ? [SALE_PLACE_REQUIRED] : [];
   const scan = await loadScanKeyer(args);
   if ('error' in scan) return [checkFailed(`scan: ${scan.error}`)];
   /* The slip photo marks the phone's old fallback scan, which has no job row. */

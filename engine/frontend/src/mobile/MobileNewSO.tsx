@@ -26,6 +26,9 @@ import { useAuth as useHouzsAuth } from "../auth/AuthContext";
 import { useVenues, type AutoVenue } from "../vendor/scm/lib/venues-queries";
 import { FairDayPicker, FairPicker, useAutoFair, type FairPickValue } from "../components/FairPicker";
 import { FairFallback } from "../components/FairFallback";
+import { SalePlacePicker, useSalePlace, useSalePlaces } from "../carres/SalePlacePicker";
+import { companyUsesShowroomSale, salePlaceFromOrder, salePlacePayload } from "../carres/salePlace";
+import { DEFAULT_SO_SALE_TYPE, SO_SALE_TYPE_OPTIONS, parseSoSaleType, type SoSaleType } from "../vendor/shared/so-sale-type";
 import { fairDayCheck, fairEditPatch, fairEventOf, fairPickValue, isScannedOrder, linkedEvent, type LinkedFair } from "../components/fairPick";
 import { useStateWarehouseMappings } from "../vendor/scm/lib/state-warehouse-queries";
 import { todayMyt } from "../vendor/scm/lib/dates";
@@ -200,6 +203,7 @@ type SoHeader = {
   venueId?: string | null;
   fair?: LinkedFair | null; // the linked event (owner 2026-09-24); absent on an older server
   fair_date?: string | null; fair_match?: string | null; slip_image_key?: string | null; slipImageKey?: string | null; // the day of that event; how it was linked; the slip a scan was read from
+  project_id?: number | null; sale_type?: string | null; // Carres: the project instead of a showroom; Outright / Subscription
   sales_location?: string | null;
   note: string | null;
   address1: string | null;
@@ -739,6 +743,11 @@ export function MobileNewSO({
   // Order info
   // Reconciled against the live building_type catalog — seed it straight (see custType).
   const [buildingType, setBuildingType] = useState(scanPrefill?.buildingType ?? "");
+  // Carres: Outright or Subscription, Outright to start with, a scan included (owner 2026-11-12).
+  const [saleType, setSaleType] = useState<SoSaleType>(DEFAULT_SO_SALE_TYPE);
+  const [origSaleType, setOrigSaleType] = useState<SoSaleType>(DEFAULT_SO_SALE_TYPE);
+  // Carres: the place an order opened for edit was recorded with (its project, else its venue).
+  const [loadedPlace, setLoadedPlace] = useState<{ venue: string | null; project_id: number | null } | null>(null);
   /* SEEDING NOTE (unchanged by the 2026-08-13 rename, flagged by it): this is
      the Sales Order's PROCESSING DATE (internal_expected_dd, the factory-start
      date), but it is seeded from `slipDate` — the day the rep WROTE the slip.
@@ -961,6 +970,8 @@ export function MobileNewSO({
         setEmail(h.email ?? "");
         setCustType(h.customer_type ?? "");
         setBuildingType(h.building_type ?? "");
+        { const t = parseSoSaleType(h.sale_type) ?? DEFAULT_SO_SALE_TYPE; setSaleType(t); setOrigSaleType(t); } // Carres
+        setLoadedPlace({ venue: h.venue ?? null, project_id: h.project_id ?? null }); // Carres
         setPrefillVenueId(h.venueId ?? h.venue_id ?? null);
         setPrefillVenueName(h.venue ?? ""); setScannedOrder(isScannedOrder(h));
         setOrderDate(h.so_date ? h.so_date.slice(0, 10) : null);
@@ -1168,7 +1179,26 @@ export function MobileNewSO({
   });
   const [noFair, setNoFair] = useState(false); // fair compulsory on create (owner 2026-09-26)
   const onFairChange = useCallback((n: FairPickValue) => { setFairPick(n); if (n.organizer) setNoFair(false); }, []);
-  const autoFair = useAutoFair(!isEdit && !noFair, fairPick, onFairChange); // the keyer's fair (owner 2026-10-19)
+  /* Carres: a Showroom, or a Project instead, in place of the Fair (owner 2026-11-12, carres/salePlace.ts). A new
+     order starts with the salesperson's own showroom and follows the Salesperson until a person picks; an edit
+     shows the recorded place and sends one only when a person picks. */
+  const carresSale = companyUsesShowroomSale(useBranding().companyCode);
+  const salePlacesQ = useSalePlaces(carresSale);
+  const [salePlace, dispatchSalePlace] = useSalePlace({
+    enabled: carresSale, places: salePlacesQ.data, follow: !isEdit,
+    salespersonShowroomId: selectedStaff?.showroomWarehouseId ?? null,
+  });
+  const [salePlaceTouched, setSalePlaceTouched] = useState(false);
+  useEffect(() => {
+    if (carresSale && isEdit && loadedPlace && !salePlaceTouched) {
+      dispatchSalePlace({ type: "load", value: salePlaceFromOrder(loadedPlace, salePlacesQ.data) });
+    }
+  }, [carresSale, isEdit, loadedPlace, salePlacesQ.data, salePlaceTouched, dispatchSalePlace]);
+  const salePlaceKeys = useMemo(
+    () => (carresSale && (!isEdit || salePlaceTouched) ? salePlacePayload(salePlace.value) : {}),
+    [carresSale, isEdit, salePlaceTouched, salePlace.value],
+  );
+  const autoFair = useAutoFair(!isEdit && !noFair && !carresSale, fairPick, onFairChange); // the keyer's fair (owner 2026-10-19)
   useEffect(() => {
     /* Seeds a BLANK only — a human pick is a decision and is never overwritten.
        A place, plus the order's linked event when it has one (fairPick.ts).
@@ -1401,7 +1431,8 @@ export function MobileNewSO({
     asDraft: asDraftFlag,
     isEdit,
     hasVenue: isEdit || !!outgoingVenueName || !!outgoingVenueId,
-    ...fairDayCheck(fairEditPatch(fairEventOf(fairPick)), fairEditPatch(linkedEvent(resolvedVenueName, linkedFair, linkedDay))),
+    ...(carresSale ? salePlaceKeys // Carres: the showroom / project instead of the fair
+      : fairDayCheck(fairEditPatch(fairEventOf(fairPick)), fairEditPatch(linkedEvent(resolvedVenueName, linkedFair, linkedDay)))),
     noFair, fairWhy: autoFair.why,
     hasSalesperson: isEdit || !canChangeSalesperson || !!outgoingSalespersonId || !!selfStaffMatch,
     companyCode: branding.companyCode,
@@ -1424,7 +1455,7 @@ export function MobileNewSO({
       convertedFromDocNo: p.convertedFromDocNo ?? "",
       amountSen: toSen(p.amount),
     })),
-  }), [name, phone, namedLines, isEdit, outgoingVenueName, outgoingVenueId, fairPick, noFair, autoFair.why, resolvedVenueName, linkedFair, linkedDay, canChangeSalesperson, outgoingSalespersonId, selfStaffMatch, branding.companyCode, salesLocation, state, country, mode, origState, procDate, delivDate, addr1, postcode, origProcDate, origDelivDate, origPhone, origItems, pays]);
+  }), [carresSale, salePlaceKeys, name, phone, namedLines, isEdit, outgoingVenueName, outgoingVenueId, fairPick, noFair, autoFair.why, resolvedVenueName, linkedFair, linkedDay, canChangeSalesperson, outgoingSalespersonId, selfStaffMatch, branding.companyCode, salesLocation, state, country, mode, origState, procDate, delivDate, addr1, postcode, origProcDate, origDelivDate, origPhone, origItems, pays]);
 
   /* A slip date outside the window blocks the save (the payments post AFTER the
      create) — except a too-old row, which becomes an admin request (isBackdateRow). */
@@ -1957,7 +1988,10 @@ export function MobileNewSO({
     try {
       if (isEdit && docNo) {
         // The picked fair EVENT rides the edit too (owner 2026-09-24) — fairPick.ts.
-        const patch: Record<string, unknown> = { ...fairEditPatch(fairEventOf(fairPick)), ...soHeaderPatchFrom(headerPatchInput), ...(isDraftSo && noFair ? { noFair: true } : {}) };
+        const patch: Record<string, unknown> = carresSale
+          /* Carres: no fair keys; the picked showroom / project when a person picked one, and the Sale type when it changed. */
+          ? { ...soHeaderPatchFrom(headerPatchInput), ...salePlaceKeys, ...(saleType !== origSaleType ? { saleType } : {}) }
+          : { ...fairEditPatch(fairEventOf(fairPick)), ...soHeaderPatchFrom(headerPatchInput), ...(isDraftSo && noFair ? { noFair: true } : {}) };
         /* AMENDMENT MODE (Phase 1-C, desktop SalesOrderDetail.submitAmendment
            parity) — the SO is processing-locked but amendment_eligible. The edit
            splits in two:
@@ -2155,6 +2189,12 @@ export function MobileNewSO({
         fairStart: fairPick.startDate ?? undefined,
         fairEnd: fairPick.endDate ?? undefined,
         fairDate: fairPick.day ?? undefined, fairProjectId: fairPick.booth ?? undefined, // which day of it, and the booth when asked (FairPicker rule 9)
+        /* Carres: the picked showroom or project by id, and no fair keys (owner 2026-11-12). */
+        ...(carresSale ? {
+          ...salePlaceKeys,
+          noFair: undefined, fairOrganizer: undefined, fairStart: undefined, fairEnd: undefined, fairDate: undefined, fairProjectId: undefined,
+        } : {}),
+        saleType, // Carres: Outright / Subscription
         /* EXPLICIT draft flag — the backend statuses DRAFT only on
            body.asDraft === true; nulling the dates alone saves CONFIRMED. */
         asDraft: asDraft === true,
@@ -2392,7 +2432,15 @@ export function MobileNewSO({
                   {/* Owner 2026-09-13 — the venue select became the FAIR picker:
                       place + organizer + dates, nothing typed. Same component
                       as the desktop forms, which is the point. */}
-                  <Field label="Fair" style={{ flex: 1 }}>
+                  {/* Carres: Outright or Subscription (owner 2026-11-12), beside Building Type. */}
+                  {carresSale && (
+                    <Field label="Sale Type" style={{ flex: 1 }}>
+                      <select className="fld-i" value={saleType} disabled={custLocked} onChange={(e) => setSaleType(parseSoSaleType(e.target.value) ?? DEFAULT_SO_SALE_TYPE)}>
+                        {SO_SALE_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </Field>
+                  )}
+                  {!carresSale && <Field label="Fair" style={{ flex: 1 }}>
                     <FairPicker
                       id="mob-so-fair"
                       value={fairPick}
@@ -2400,17 +2448,35 @@ export function MobileNewSO({
                       onChange={onFairChange} disabled={identityLocked}
                       selectClassName="fld-i" boothFor={{ docNo: isEdit ? docNo ?? null : null, items: isEdit ? [] : namedLines.map((l) => ({ itemCode: l.itemCode, itemGroup: l.itemGroup })) }}
                     />
-                  </Field>
+                  </Field>}
                 </div>
-                {autoFair.hint}
+                {/* Carres: the Showroom, or a Project instead, in place of the Fair (owner 2026-11-12). */}
+                {carresSale && (
+                  <Field label="Showroom">
+                    <SalePlacePicker
+                      id="mob-so-showroom"
+                      value={salePlace.value}
+                      places={salePlacesQ.data}
+                      onChange={(v) => { setSalePlaceTouched(true); dispatchSalePlace({ type: "pick", value: v }); }}
+                      disabled={identityLocked}
+                      selectClassName="fld-i"
+                    />
+                  </Field>
+                )}
+                {carresSale && !isEdit && salePlace.value && !salePlace.manual && (
+                  <div style={{ fontSize: 10, color: "var(--hz-c-primary)", marginTop: -4 }}>
+                    The salesperson&apos;s showroom. Change it, or pick a project, if this order was sold elsewhere.
+                  </div>
+                )}
+                {!carresSale && autoFair.hint}
                 {/* Back-keying date + the No-fair escape (owner 2026-09-26 / 10-19),
                     shared with the desktop form; FairFallback.tsx has the rules. */}
-                <FairFallback enabled={!isEdit || isDraftSo} value={fairPick} orderDate={orderDate}
+                <FairFallback enabled={!carresSale && (!isEdit || isDraftSo)} value={fairPick} orderDate={orderDate}
                   onOrderDate={setOrderDate} maxDate={today} noFair={noFair} onNoFair={setNoFair} disabled={identityLocked} />
-                {fairEventOf(fairPick) && ( // which DAY of the picked event (owner 2026-09-24)
+                {!carresSale && fairEventOf(fairPick) && ( // which DAY of the picked event (owner 2026-09-24)
                   <Field label="Fair Day"><FairDayPicker id="mob-so-fair-day" value={fairPick} soDate={orderDate} onChange={setFairPick} disabled={identityLocked} selectClassName="fld-i" /></Field>
                 )}
-                {!isEdit && !autoFair.hint && autoVenue?.venueId &&
+                {!carresSale && !isEdit && !autoFair.hint && autoVenue?.venueId &&
                   (pickedVenueId == null || pickedVenueId === autoVenue.venueId) && (
                   <div style={{ fontSize: 10, color: "var(--hz-c-primary)", marginTop: -4 }}>
                     {autoVenue.source === "SHOWROOM"

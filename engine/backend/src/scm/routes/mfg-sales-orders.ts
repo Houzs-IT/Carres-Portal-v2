@@ -177,6 +177,13 @@ import {
 } from '../lib/venue-binding';
 import { bindVenueOnCreate, editFairKeyerId, fairConfirmProblems, fairLinkForEdit, fairLinkOnCreate, fairRequiredProblem, isScanCreate, loadLinkedFair, resolveFairForSave, type FairDb } from '../lib/fair-binding';
 import { companyUsesKeyerFair, fairDayMissing, fairDayOnSave, fairWhyOf } from '../lib/fair-options';
+import { DEFAULT_SO_SALE_TYPE, parseSoSaleType } from '../shared/so-sale-type';
+import {
+  companyUsesShowroomSale, resolveSalePlace, salePlaceColumns, salePlacePickOf, SALE_PLACE_INVALID, SALE_PLACE_REQUIRED,
+  type ResolvedSalePlace,
+} from '../lib/carres-sale-place';
+/* Carres: the refusal for a Sale type that is neither Outright nor Subscription. */
+const SALE_TYPE_INVALID = { code: 'sale_type_invalid', message: 'Sale type must be Outright or Subscription.', field: 'Sale type' };
 import { loadVpBrandAsk, type VpBrandDb } from '../lib/vp-brand-ask';
 import { recordSoAudit, diffFields, type FieldChange } from '../lib/so-audit';
 import { carrySoPhotoToPoLines } from '../lib/so-photo-po-carry';
@@ -873,6 +880,8 @@ const HEADER =
   'ship_to_address, bill_to_address, install_to_address, subtotal_sen, overdue, ' +
   /* PR #46 — POS handover */
   'email, customer_type, salesperson_id, city, postcode, building_type, ' +
+  /* Carres: Outright / Subscription (migration 2006; the list view carries it too). */
+  'sale_type, ' +
   'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, target_date, ' +
   /* PR #143 + #150 + #157 — Payment (migrations 0068 + 0069 + 0070) */
   'payment_method, installment_months, merchant_provider, approval_code, payment_date, deposit_sen, paid_sen, ' +
@@ -2512,6 +2521,10 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
      none of the defaults below run for it, and a person picks all three on the
      draft before Confirm (fair-binding.ts::fairConfirmProblems). */
   const scanCreate = isScanCreate(c.auditSource, body);
+  // Carres: a Sale type that is neither Outright nor Subscription is refused, never stored as something else.
+  if (body.saleType != null && body.saleType !== '' && parseSoSaleType(body.saleType) == null) {
+    return c.json(validationFailedBody([SALE_TYPE_INVALID]), 422);
+  }
   let venueIdToStamp: string | null = scanCreate ? null : ((body.venueId as string | null | undefined) ?? null);
   if (!scanCreate && !venueIdToStamp && salespersonIdToStamp) {
     venueIdToStamp = salespersonIdToStamp === callerStaffId
@@ -2615,6 +2628,25 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
      project_venues integer id or a `showroom:…` synthetic id becomes NULL and
      the venue TEXT column (resolvedVenueName) carries the venue. See
      venueIdUuidOrNull for the full rationale; the header PATCH shares it. */
+  /* Carres: the picked SHOWROOM, or a PROJECT instead, is the order's place (owner 2026-11-12) — read by id,
+     company-scoped, and it wins over every default above. A scan picks it later, on the draft. */
+  const carresPick = !scanCreate && companyUsesShowroomSale(c.get('companyCode')) ? salePlacePickOf(body) : undefined;
+  let carresPlace: ResolvedSalePlace | null = null;
+  if (carresPick) {
+    try {
+      carresPlace = await resolveSalePlace({
+        pick: carresPick, db: c.env.DB as unknown as FairDb, projectSql: activeCompanySql(c, 'p.company_id'),
+        sb, scope: (q) => scopeToCompany(q, c),
+      });
+    } catch (e) {
+      return c.json({ error: 'load_failed', reason: e instanceof Error ? e.message : String(e) }, 500);
+    }
+    if (!carresPlace) return c.json(validationFailedBody([SALE_PLACE_INVALID]), 422);
+    resolvedVenueName = carresPlace.venue;
+    venueSource = 'MANUAL';
+    venueIdToStamp = null;
+    projectIdToStamp = carresPlace.projectId;
+  }
   const venueIdUuid = venueIdUuidOrNull(venueIdToStamp);
 
   /* ── Confirm gate on the DIRECT-TO-CONFIRMED create (owner 2026-08-08) ────
@@ -2647,6 +2679,10 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
       companySql: activeCompanySql(c, 'p.company_id'), keyerId: Number(c.get('houzsUser')?.id ?? NaN), orderDate: soDateForVenue,
     });
     if (fairProblem) confirmProblems.push(fairProblem);
+    /* Carres: a showroom or a project instead of a fair (owner 2026-11-12). Never the POS. */
+    if (companyUsesShowroomSale(c.get('companyCode')) && !carresPlace && !(await isPosTabletCaller(c))) {
+      confirmProblems.push(SALE_PLACE_REQUIRED);
+    }
     /* ...and a transport fee for Sabah / Sarawak / Labuan / Kelantan / Terengganu / Perlis /
        Singapore (owner 2026-11-11). The POS handover's applyDeliveryFee builds
        its fee lines after the insert, so that create is not judged here. */
@@ -4248,6 +4284,8 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
     city: (body.city as string) ?? null,
     postcode: (body.postcode as string) ?? null,
     building_type: (body.buildingType as string) ?? null,
+    // Carres: Outright or Subscription (owner 2026-11-12); a scan, the POS and any client that sends none start Outright.
+    sale_type: parseSoSaleType(body.saleType) ?? DEFAULT_SO_SALE_TYPE,
     emergency_contact_name: (body.emergencyContactName as string) ?? null,
     /* Task #91 — also normalize the emergency contact phone. */
     emergency_contact_phone: typeof body.emergencyContactPhone === 'string'
@@ -4655,7 +4693,10 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
      (owner 2026-11-12), a typed pick, the brand's booth then the keyer's own —
      is fair-binding.ts::fairLinkOnCreate. */
   {
-    const fairLink = await fairLinkOnCreate({
+    const fairLink = carresPlace
+      /* Carres: the picked showroom (No fair) or project, already read above (carres-sale-place.ts). */
+      ? { columns: { project_id: carresPlace.projectId, fair_match: carresPlace.fairMatch }, note: null }
+      : await fairLinkOnCreate({
       db: c.env.DB as unknown as FairDb, companySql: activeCompanySql(c, 'p.company_id'),
       companyCode: c.get('companyCode'), scanned: scanCreate,
       keyerId: Number(c.get('houzsUser')?.id ?? NaN), body, venue: resolvedVenueName,
@@ -4874,6 +4915,8 @@ mfgSalesOrders.post('/validate', async (c) => {
   const delivDate = str(body.customerDeliveryDate).trim() || null;
   const fillAddressLater = body.fillAddressLater === true;
   const companyCode = body.companyCode ?? null;
+  /* Carres: a Showroom, or a Project instead, takes the place of the Venue + Fair (owner 2026-11-12). */
+  const carresSale = companyUsesShowroomSale(companyCode);
 
   const linesForCheck = items.map((it) => ({
     itemCode: String(it.itemCode ?? ''),
@@ -4906,13 +4949,13 @@ mfgSalesOrders.post('/validate', async (c) => {
     origPhone: isEdit && typeof body.origPhone === 'string' ? body.origPhone : null,
     hasNamedLine,
     asDraft,
-    hasVenue: str(body.venueId).trim() !== '' || body.hasVenue === true,
+    hasVenue: carresSale || str(body.venueId).trim() !== '' || body.hasVenue === true, // Carres: asked below as the Showroom
     hasSalesperson: str(body.salespersonId).trim() !== '' || body.hasSalesperson === true,
     // Fair compulsory on CREATE (owner 2026-09-26): a picked/auto-filled fair
     // sets fairOrganizer; the operator can instead mark No-fair (showroom). Edits
     // are exempt (isEdit) so the change never blocks editing a legacy order that
     // pre-dates the rule.
-    fairChosen: str(body.fairOrganizer).trim() !== '' || isEdit,
+    fairChosen: carresSale || str(body.fairOrganizer).trim() !== '' || isEdit, // Carres: no fairs
     noFair: body.noFair === true,
     fairWhy: fairWhyOf(body.fairWhy), // why no fair was filled in (GET /fair-default)
     /* The surfaces send the fair keys only when this draft picks or changes an
@@ -4971,6 +5014,12 @@ mfgSalesOrders.post('/validate', async (c) => {
         : Number(it.qty ?? 1) * Number(it.unitPriceSen) - Number(it.discountSen ?? 0),
     })));
     if (feeProblem) problems.push(feeProblem);
+  }
+  /* Carres: the showroom or project, on a create and on an edit that sends one (an edit that leaves it alone sends
+     neither key). The create and the DRAFT -> CONFIRMED gate ask the same (carres-sale-place.ts). */
+  if (carresSale && !asDraft) {
+    const pick = salePlacePickOf(body);
+    if (pick === null || (pick === undefined && !isEdit)) problems.push(SALE_PLACE_REQUIRED);
   }
 
   return c.json({ problems }, 200);
@@ -6061,6 +6110,7 @@ export const patchMfgSalesOrderHeaderHandler = async (c: any) => {
     ['email', 'email'], ['customerType', 'customer_type'],
     ['salespersonId', 'salesperson_id'],
     ['city', 'city'], ['postcode', 'postcode'], ['buildingType', 'building_type'],
+    ['saleType', 'sale_type'], // Carres: Outright / Subscription (owner 2026-11-12)
     ['emergencyContactName', 'emergency_contact_name'],
     ['emergencyContactPhone', 'emergency_contact_phone'],
     ['emergencyContactRelationship', 'emergency_contact_relationship'],
@@ -6097,6 +6147,30 @@ export const patchMfgSalesOrderHeaderHandler = async (c: any) => {
      construction rather than by the frontend's current shape. A finance caller
      is unaffected. */
   const canFinance = canViewScmFinance(c);
+  // Carres: Outright / Subscription only; stored lower-case whatever spelling came.
+  if (body.saleType !== undefined) {
+    const saleType = parseSoSaleType(body.saleType);
+    if (saleType == null) return c.json(validationFailedBody([SALE_TYPE_INVALID]), 422);
+    body.saleType = saleType;
+  }
+  /* Carres: a picked SHOWROOM, or a PROJECT instead (owner 2026-11-12). Its name becomes the venue, read here by
+     id and company-scoped, never taken from the client; a showroom is No fair, a project is the order's link. */
+  const carresPick = companyUsesShowroomSale(c.get('companyCode')) ? salePlacePickOf(body) : undefined;
+  let carresPlace: ResolvedSalePlace | null = null;
+  if (carresPick) {
+    try {
+      carresPlace = await resolveSalePlace({
+        pick: carresPick, db: c.env?.DB as unknown as FairDb, projectSql: activeCompanySql(c, 'p.company_id'),
+        sb, scope: (q) => scopeToCompany(q, c),
+      });
+    } catch (e) {
+      return c.json({ error: 'load_failed', reason: e instanceof Error ? e.message : String(e) }, 500);
+    }
+    if (!carresPlace) return c.json(validationFailedBody([SALE_PLACE_INVALID]), 422);
+    body.venue = carresPlace.venue;
+    body.venueId = null;
+    if (carresPlace.kind === 'showroom') body.noFair = true;
+  }
   const updates: Record<string, unknown> = {};
   for (const [from, to] of map) {
     if (body[from] === undefined) continue;
@@ -6201,6 +6275,12 @@ export const patchMfgSalesOrderHeaderHandler = async (c: any) => {
      changes. Unticking alone changes nothing — picking a fair does. */
   if (body.noFair === true && !fairLink && (beforeRecord.fair_match !== 'NO_FAIR' || beforeRecord.project_id != null)) {
     Object.assign(updates, { project_id: null, fair_match: 'NO_FAIR', fair_date: null }); body['fairDate'] = null;
+  }
+  /* Carres: a picked project is the order's link, written only when it changes. */
+  if (carresPlace?.kind === 'project'
+    && (carresPlace.projectId !== (beforeRecord.project_id == null ? null : Number(beforeRecord.project_id)) || beforeRecord.fair_match !== 'PICKED')) {
+    const { project_id, fair_match, fair_date } = salePlaceColumns(carresPlace);
+    Object.assign(updates, { project_id, fair_match, fair_date }); body['fairDate'] = null;
   }
   for (const [from, to] of map) {
     if (!(to in updates) || norm(updates[to]) !== norm(beforeRecord[to])) continue;
@@ -6331,6 +6411,11 @@ export const patchMfgSalesOrderHeaderHandler = async (c: any) => {
       updates['fair_match'] = fair.projectId != null ? 'PICKED' : fair.match;
       updates['fair_date'] = null;
       body['fairDate'] = null;
+    }
+    /* Carres: the picked project stands; the venue re-detect above never replaces it. */
+    if (carresPlace?.kind === 'project') {
+      const { project_id, fair_match, fair_date } = salePlaceColumns(carresPlace);
+      Object.assign(updates, { project_id, fair_match, fair_date });
     }
   }
 

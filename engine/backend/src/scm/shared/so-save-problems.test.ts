@@ -324,7 +324,7 @@ describe('collectProceedGateProblems', () => {
     hasAddress: true,
     hasPostcode: true,
     hasDeliveryDate: true,
-    paidSen: 300_00,
+    paidSen: 500_00, // Carres: the HOUZS row is Carres, whose rule is 50%
     totalSen: 1000_00,
     companyCode: 'HOUZS' as const,
   };
