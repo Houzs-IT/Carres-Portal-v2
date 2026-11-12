@@ -36,17 +36,13 @@ const NETS_WORDS = ["Confirmed date", "Time window", "Save Delivery Arrangement"
 const PAYMENT_SURFACES = [
   "apps/web/src/pages/operation/delivery-monitor.ts",
   "apps/web/src/pages/operation/components/MonitorTwoLines.tsx",
-  "apps/web/src/pages/partner/PartnerArrangePage.tsx",
   "apps/web/src/pages/public/DeliveryLinkPage.tsx",
-  "apps/api/src/routes/partner/deliveries.ts",
   "apps/api/src/routes/public/delivery-link.ts",
   "apps/api/src/lib/delivery-hold.ts",
 ];
 
 const NETS_SURFACES = [
-  "apps/web/src/pages/partner/PartnerArrangePage.tsx",
   "apps/web/src/pages/public/DeliveryLinkPage.tsx",
-  "apps/api/src/routes/partner/deliveries.ts",
   "apps/api/src/routes/public/delivery-link.ts",
 ];
 
@@ -59,7 +55,7 @@ describe("Hold delivery — the retired words never return to Delivery's own sur
     expect(offenders).toEqual([]);
   });
 
-  it("no retired NETS field or act word on the partner page or the link", () => {
+  it("no retired NETS field or act word on the link", () => {
     const offenders = [
       ...NETS_SURFACES.map((path) => ({ path, text: read(path) })),
       { path: "LINK_COPY", text: linkCopySource() },
@@ -69,16 +65,11 @@ describe("Hold delivery — the retired words never return to Delivery's own sur
 
   it("the governed words are present where they are owed (non-vacuity)", () => {
     expect(read("apps/web/src/pages/operation/delivery-monitor.ts")).toContain("unpaid");
-    const partner = read("apps/web/src/pages/partner/PartnerArrangePage.tsx");
-    for (const w of ["Scheduled date", "Scheduled time (optional)", "ETA (optional)", "Save delivery date", "Hold delivery"]) {
-      expect(partner).toContain(w);
-    }
     expect(linkCopySource()).toContain('"Hold delivery"');
   });
 
-  it("the partner and link surfaces print no money and no Finance reason", () => {
+  it("the link surface prints no money and no Finance reason", () => {
     for (const path of [
-      "apps/web/src/pages/partner/PartnerArrangePage.tsx",
       "apps/web/src/pages/public/DeliveryLinkPage.tsx",
     ]) {
       const text = read(path);

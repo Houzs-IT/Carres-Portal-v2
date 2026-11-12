@@ -81,6 +81,30 @@ removal PR. The dealer POS does not import it. Old Carres tables
 and API routes stay: Finance, POS, Rental and the Workspace still read them, and the server still refuses new
 orders in the old order book (`OLD_ORDER_FLOWS`).
 
+**Outside-party portals, prints, survey and Staff & Duties (owner, 12 Nov 2026).** Replaced by Houzs engine
+pages. Removed from the web: the supplier (`/supplier/*`), warehouse (`/warehouse/*`) and delivery partner
+(`/delivery-partner/*`) apps, the run sheet, service case, service note and pickup-event print pages
+(`/print/run-sheet`, `/print/service-case/:id`, `/print/service-note/:id`, `/print/pickup-event/:id`; the last was
+opened only from the supplier app) and `/survey/:token` (Houzs's engine serves its own survey). A `supplier`,
+`warehouse` or `partner` login now lands on the `This portal moved` card (`components/WrongPortal.tsx`
+`PortalMoved`, the same signpost card as the wrong-domain one); their old addresses fall to it too. Removed from the
+API (no remaining caller, proven by grep of `apps/web/src` and `engine/`): `/api/partner/*` (dashboard, fleet,
+orders, deliveries, pickups, pickups batch, pod), `/api/supplier/*` (activity, me, pos, products, threads),
+`/api/warehouse/*`, `/api/pickup-events`, `/api/storage/dos`, `/api/ops/service-notes`, `/api/ops/service-cases`,
+`/public/service-survey` (and its Resend sender, the `SURVEY_EMAIL_FROM` binding, now unused), `/api/operation/fleet`,
+and the partner/thread doors under `/api/operation/pos` (`lp-accept-inbound`, `lp-reject-inbound`,
+`relocate-inbound`, `:poId/threads`, `:poId/receive-threads`). The daily PO / GRN rota cron (`cron/duty-rota.ts`,
+0671) is removed: PO and GRN Duty went with Carres Supply Chain. Kept because something still calls them:
+`/api/operation/workspace-duties` and `/api/operation/staff` (Finance (old) collection owner, backdate requests and
+payment records), `/api/operation/leave` (Workspace → Leave), `/api/operation/work-activity` (the activity check),
+`/api/operation/partners` and `/api/principal/partners` (the principal's logistics companies),
+`/public/delivery-link` (the external logistics link). **Staff & Duties goes to Houzs Team:** every door that opened
+it (the collection owner's `Nobody assigned to this order` line, the Purchasing Approver refusal, `?tab=staff-duties`,
+`/operation/settings/staff-duties`) opens Houzs's Team › Departments (`/operation/sc/team-departments`;
+`TEAM_DEPARTMENTS_DOOR` / `TEAM_DEPARTMENTS_HREF` in `packages/shared/src/payment-collection-owner.ts`) and says
+Houzs's words, `Team › Departments`. No table or function is dropped; those now unused by any Carres code are
+listed in the pull request that removed them (branch `chore/remove-partner-pages-staff-duties`) and stay until a governed migration retires them.
+
 **System rows, Settings and IT (owner, 11 Nov 2026; completed 12 Nov 2026).** The menu's SYSTEM group is Houzs's
 Team (Directory · Org Chart · Departments · Mailboxes · Roles & Permissions; its row opens `/team?tab=hub`), Mail
 Center, Announcements, the IT module (System Health · AI Usage; its row only opens and shuts, as Houzs's IT group

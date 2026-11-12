@@ -272,9 +272,9 @@ describe("Payment Monitor — the listing", () => {
     const late = screen.getByTestId("monitor-timing-1302");
     const door = within(late).getByTestId("monitor-owner-unassigned");
     expect(door.textContent).toBe("Not assigned");
-    expect(door).toHaveAccessibleName("Nobody assigned to this order · Manager assigns in Settings");
-    expect(door).toHaveAttribute("title", "Nobody assigned to this order · Manager assigns in Settings");
-    expect(door).toHaveAttribute("href", "/operation/sc/settings");
+    expect(door).toHaveAccessibleName("Nobody assigned to this order · Team › Departments");
+    expect(door).toHaveAttribute("title", "Nobody assigned to this order · Team › Departments");
+    expect(door).toHaveAttribute("href", "/operation/sc/team-departments");
     expect(late).not.toHaveTextContent(/Delivery Duty|Payment Duty|Nobody is assigned|Sales Orders → Team/);
     expect(late).toHaveTextContent("Ask customer to pay");
     expect(screen.queryByTestId("monitor-owner-avatar")).not.toBeInTheDocument();

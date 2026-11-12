@@ -60,17 +60,17 @@ export default function Login() {
           ? "/principal"
           : role === "operation"
             ? "/operation"
-            : role === "partner"
-              ? "/delivery-partner/dashboard"
-              : role === "finance"
-                ? "/finance"
-                : role === "supplier"
-                  ? "/supplier"
-                  : role === "bd"
-                    ? "/bd"
-                    : role === "dealer" || role === "salesperson" || role === "showroom"
-                      ? "/dealer"
-                      : "/me";
+            : role === "finance"
+              ? "/finance"
+              : role === "bd"
+                ? "/bd"
+                : role === "dealer" || role === "salesperson" || role === "showroom"
+                  ? "/dealer"
+                  /* The supplier, warehouse and delivery partner portals moved to Houzs (owner, 12 Nov 2026):
+                     `/` shows those roles the "This portal moved" card (App HomeRedirect). */
+                  : role === "partner" || role === "supplier" || role === "warehouse"
+                    ? "/"
+                    : "/me";
       navigate(from ?? defaultHome, { replace: true });
     }
   }, [session, role, location.state, navigate]);

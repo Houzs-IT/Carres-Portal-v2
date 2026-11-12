@@ -1,5 +1,7 @@
 # PAYMENT — MASTER
 
+> **Replaced by Houzs engine page 12 Nov 2026.** The collection owner's `Nobody assigned to this order` door opens Houzs's Team › Departments (`/operation/sc/team-departments`) and reads `Team › Departments`, since Staff & Duties went to Houzs Team. Business law below is unchanged.
+
 **SO amendment commercial exception boundary — OWNER-APPROVED 2026-10-01 / TARGET NOT BUILT.**
 Sales Approver must approve a customer price decrease, a customer refund or whole-SO
 cancellation after Proceed before it takes effect, under Orders MASTER § Staff amendments and

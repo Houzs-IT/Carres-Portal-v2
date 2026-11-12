@@ -636,26 +636,6 @@ export const reselectPartnerInput = z.object({
 }).strict();
 export type ReselectPartnerInput = z.infer<typeof reselectPartnerInput>;
 
-/**
- * `lpAcceptOrderInput` — POST /api/partner/orders/:id/accept (item h).
- * Maps to RPC `lp_accept_order(p_order_id)`. Body is empty; the order id is
- * the path param. Strict so callers can't sneak extra keys.
- */
-export const lpAcceptOrderInput = z.object({}).strict();
-export type LpAcceptOrderInput = z.infer<typeof lpAcceptOrderInput>;
-
-/**
- * `lpRejectOrderInput` — POST /api/partner/orders/:id/reject (item h).
- * Maps to RPC `lp_reject_order(p_order_id, p_reason)`. Reason is REQUIRED
- * and free-text (max 500 chars). RPC rejects empty/whitespace reasons with
- * 22023 detail 'reason_required'. The reason is shown to Operation in the
- * reselect dialog so they know why this LP couldn't take the job.
- */
-export const lpRejectOrderInput = z.object({
-  reason: z.string().trim().min(1).max(500),
-}).strict();
-export type LpRejectOrderInput = z.infer<typeof lpRejectOrderInput>;
-
 /* `transferReadyInputSchema` (POST /:id/transfer-ready → the same
  * `operation_warehouse_pick`) is RETIRED with it — 【DELIVERY】 CARD 21. */
 
@@ -1074,36 +1054,6 @@ export const OperationBadgesResponse = z.object({
   lpRejected: z.number().int().nonnegative().default(0),
 });
 export type OperationBadgesResponse = z.infer<typeof OperationBadgesResponse>;
-
-/**
- * `OperationReceiveThreadsInput` — POST /api/operation/threads/receive-batch
- * (migration 0107, supplier per-thread pickup feature).
- *
- * Maps to RPC `operation_receive_threads(p_thread_ids, p_do_number,
- * p_do_file_path, p_do_note)`. The own_logistics counterpart to
- * `partnerPickupBatchInput`: when an own_logistics supplier delivers ready
- * threads to an HQ warehouse, operation batch-acks them via this route. Server
- * creates a `po_pickup_events` row with `ack_role='operation'`, stamps
- * `pickup_event_id` onto every thread, advances `operation_stage` to
- * `ready_to_dispatch` (or the appropriate next stage per SOP), and flips PO
- * `sup_status` to `delivered` once every thread is received.
- *
- * Unlike `partnerPickupBatchInput`, there is no `poId` here — threads can span
- * a single PO (typical) but the RPC infers the parent PO from the thread set
- * and rejects mixed-PO arrays.
- *
- * `signed` must be literal `true` — same "I have signed the DO on receipt"
- * gate as partner-side. `doFilePath` is the canonical Storage path from the
- * `/api/storage/dos/sign-upload` flow.
- */
-export const OperationReceiveThreadsInput = z.object({
-  threadIds: z.array(z.string().uuid()).min(1),
-  doNumber: z.string().trim().min(3).max(50),
-  doFilePath: z.string().trim().min(1).max(500),
-  doNote: z.string().max(500).optional(),
-  signed: z.literal(true),
-}).strict();
-export type OperationReceiveThreadsInput = z.infer<typeof OperationReceiveThreadsInput>;
 
 /** The exact sent PO and the outside answer, recorded together.
  *

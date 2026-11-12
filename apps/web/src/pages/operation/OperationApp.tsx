@@ -15,7 +15,8 @@ import { CATALOG_TAB_PARAM } from "@/pages/catalog/catalog-tabs";
 import ShellHeader, { ShellHeaderContext, useShellHeaderHost } from "./components/ShellHeader";
 import ShellTasks, { useShellTasks } from "./components/ShellTasks";
 import { useTasksHost } from "./tasks/tasks-host";
-import { ENGINE_SETTINGS_HREF, activeNavTitle, engineFor, retiredRedirect, roleMayOpenEngineRow } from "@/pages/portal/portal-nav";
+import { TEAM_DEPARTMENTS_HREF } from "@carres/shared";
+import { activeNavTitle, engineFor, retiredRedirect, roleMayOpenEngineRow } from "@/pages/portal/portal-nav";
 
 /** Where a person who may open only some rows lands: `finance` on Houzs Finance's To do, `hr` on Houzs's Team hub. */
 const limitedHome = (role: string | null) => (role === "finance" ? "/operation/sc/fin-todo" : "/operation/sc/hub-team");
@@ -60,8 +61,9 @@ export default function OperationApp() {
   }
   if (retired) return <Navigate to={retired} replace />;
 
-  /* The page for a tab-driven Carres row. The retired Payments desk and the staff-duties bookmark forward to
-     their one home; a principal's stale `?tab=catalog` goes to the selling catalog in Admin. */
+  /* The page for a tab-driven Carres row. The retired Payments desk forwards to its one home; the old Staff &
+     Duties bookmark opens Houzs's Team › Departments (owner, 12 Nov 2026: Staff & Duties went to Houzs Team);
+     a principal's stale `?tab=catalog` goes to the selling catalog in Admin. */
   function tabPage() {
     switch (tab) {
       case "work": return <WorkspaceTasks />;
@@ -72,7 +74,7 @@ export default function OperationApp() {
         return <Navigate to={`/finance/monitor${so ? `?order=${encodeURIComponent(so)}` : ""}`} replace />;
       }
       case "staff-duties":
-        return <Navigate replace to={ENGINE_SETTINGS_HREF} />;
+        return <Navigate replace to={TEAM_DEPARTMENTS_HREF} />;
       case "catalog": {
         if (role !== "principal") return <Navigate to="/operation/sc/op-catalog" replace />;
         const section = searchParams.get(CATALOG_TAB_PARAM);

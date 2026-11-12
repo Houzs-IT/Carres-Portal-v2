@@ -5,7 +5,6 @@ import analyticsRouter from "./routes/analytics";
 import authRouter from "./routes/auth";
 import deliveryLinksRouter from "./routes/operation/delivery-links";
 import publicDeliveryLinkRouter from "./routes/public/delivery-link";
-import publicServiceSurveyRouter from "./routes/public/service-survey";
 import catalogRouter from "./routes/catalog";
 import dealerRouter from "./routes/dealers";
 import ordersRouter from "./routes/orders";
@@ -26,11 +25,9 @@ import jumpRouter from "./routes/operation/jump";
 import operationOrdersRouter from "./routes/operation/orders";
 import operationPartnersRouter from "./routes/operation/partners";
 import deliverySettingsRouter from "./routes/operation/delivery-settings";
-import fleetRouter from "./routes/operation/fleet";
 import scmEngineRouter from "./routes/operation/scm-engine";
 import peopleWorkDaysRouter from "./routes/operation/people-work-days";
 import operationPosRouter from "./routes/operation/pos";
-import operationReceiveThreadsRouter from "./routes/operation/receive-threads";
 // R6 — the ops half: review what the warehouse filed, then replay it through
 // the ONE receive engine (0302).
 import warehouseReceiptsRouter from "./routes/operation/warehouse-receipts";
@@ -49,19 +46,10 @@ import purchaseDemandsRouter from "./routes/operation/purchase-demands";
 import purchasingSettingsRouter from "./routes/operation/purchasing-settings";
 import opsStaffRouter from "./routes/operation/staff";
 import orderPaymentsRouter from "./routes/operation/order-payments";
-import lpInboundRouter from "./routes/operation/lp-inbound";
 import operationSuppliersRouter from "./routes/operation/suppliers";
 import arrivalSourcesRouter from "./routes/operation/arrival-sources";
 import bdAccountsRouter from "./routes/bd/accounts";
 import bdDealersRouter from "./routes/bd/dealers";
-import partnerDashboardRouter from "./routes/partner/dashboard";
-import partnerFleetRouter from "./routes/partner/fleet";
-import partnerOrdersRouter from "./routes/partner/orders";
-import partnerDeliveriesRouter from "./routes/partner/deliveries";
-import partnerPickupsRouter from "./routes/partner/pickups";
-import partnerPickupsBatchRouter from "./routes/partner/pickups-batch";
-import partnerPodRouter from "./routes/partner/pod";
-import pickupEventsRouter from "./routes/pickup-events/print";
 import financePaymentsRouter from "./routes/finance/payments";
 import financeInvoicesRouter from "./routes/finance/invoices";
 import paymentSettingsRouter from "./routes/finance/payment-settings";
@@ -86,26 +74,17 @@ import financeMoneyMovesRouter from "./routes/finance/money-moves";
 import financeCancelledMoneyRouter from "./routes/finance/cancelled-money";
 import { financeCorrectionsRouter, financeNotYetBilledRouter } from "./routes/finance/billing-checks";
 import financeCardSettlementRouter from "./routes/finance/card-settlement";
-import supplierActivityRouter from "./routes/supplier/activity";
-import supplierMeRouter from "./routes/supplier/me";
-import supplierPosRouter from "./routes/supplier/pos";
-import supplierProductsRouter from "./routes/supplier/products";
-import supplierThreadsRouter from "./routes/supplier/threads";
 // R6 — the warehouse login's whole surface: incoming · file a count · my counts
-import warehouseReceivingRouter from "./routes/warehouse/receiving";
 import salespersonsRouter from "./routes/salespersons";
 // 0233 — staff PIN login (outlet pick + 6-digit-PIN staff identity + tiers).
 import staffRouter from "./routes/staff";
 // 0240 — store-account self-service (dealer-principal email-change requests).
 import accountRouter from "./routes/account";
 import guaranteesRouter from "./routes/guarantees";
-import dosRouter from "./routes/storage/dos";
 // Phase A step 5 (migration 0137) — per-unit stock register.
 import opsStockRouter from "./routes/ops/stock";
 // Migration 0140 — Service Notes (SN / Issue Tracker).
-import snRouter from "./routes/ops/service-notes";
 // Migration 0210 — Service Cases (case parent layer above Service Notes).
-import scRouter from "./routes/ops/service-cases";
 // Migration 0162 — ops cockpit: the Tasks board.
 import opsTasksRouter from "./routes/ops/tasks";
 // Migration 0223 — Stripe online collection (POS checkout links + webhook).
@@ -116,7 +95,6 @@ import { runContactByCron, runFollowUpMaintenanceCron } from "./cron/contact-by"
 import { runDealerCommissionCloseCron } from "./cron/dealer-commission-close";
 import { runWorkActivityCron } from "./cron/work-activity";
 import { runVelocityPoll } from "./cron/velocity-poll";
-import { runDutyRotaCron } from "./cron/duty-rota";
 import type { AppEnv, Bindings } from "./types";
 
 const app = new Hono<AppEnv>();
@@ -155,8 +133,8 @@ app.route("/stripe", stripeWebhookRouter);
 // THE EXTERNAL LOGISTICS LINK (0581) — OUTSIDE the signed-in /api group: the
 // logistics company has no login. The 256-bit token is the trust boundary.
 app.route("/public/delivery-link", publicDeliveryLinkRouter);
-// 0765 — the customer satisfaction survey: no login, the token is the boundary.
-app.route("/public/service-survey", publicServiceSurveyRouter);
+// The supplier, warehouse and delivery partner portals, the service case/note routers and the public
+// survey were removed on 12 Nov 2026 (owner): Houzs's engine serves its own pages for them.
 
 const api = new Hono<AppEnv>();
 api.use("*", authMiddleware);
@@ -212,27 +190,15 @@ api.route("/address-lists", addressListsReadRouter);
 api.route("/operation/staff", opsStaffRouter);
 api.route("/operation/partners", operationPartnersRouter);
 api.route("/operation/delivery-settings", deliverySettingsRouter);
-// 0724 · Carres own lorries (Weisiang's decision 2026-10-22, Houzs way).
-api.route("/operation/fleet", fleetRouter);
 // Supply Chain and Service Cases engine: one sign-in from the portal (engine/).
 api.route("/operation/scm-engine", scmEngineRouter);
 // 0678 — the responsible person's recorded working week (People/HR), read-only.
 api.route("/operation/people", peopleWorkDaysRouter);
 api.route("/operation/pos", operationPosRouter);
-api.route("/operation/pos", lpInboundRouter);
-api.route("/operation/pos", operationReceiveThreadsRouter);
 api.route("/operation/suppliers", operationSuppliersRouter);
 api.route("/operation/arrival-sources", arrivalSourcesRouter);
 api.route("/bd/accounts", bdAccountsRouter);
 api.route("/bd/dealers", bdDealersRouter);
-api.route("/partner/dashboard", partnerDashboardRouter);
-api.route("/partner/fleet", partnerFleetRouter);
-api.route("/partner/orders", partnerOrdersRouter);
-api.route("/partner/pickups", partnerPickupsRouter);
-api.route("/partner/deliveries", partnerDeliveriesRouter);
-api.route("/partner/pickups", partnerPickupsBatchRouter);
-api.route("/partner/pod", partnerPodRouter);
-api.route("/pickup-events", pickupEventsRouter);
 api.route("/finance/payments", financePaymentsRouter);
 api.route("/finance/invoices", financeInvoicesRouter);
 api.route("/finance/payment-settings", paymentSettingsRouter);
@@ -271,17 +237,7 @@ api.route("/finance/corrections", financeCorrectionsRouter);
 // Card settlement files and their matching (0572). Before the catch-all as well.
 api.route("/finance/card-settlement", financeCardSettlementRouter);
 api.route("/finance", financeReconciliationRouter);
-api.route("/supplier/activity", supplierActivityRouter);
-api.route("/supplier/me", supplierMeRouter);
-api.route("/supplier/pos", supplierPosRouter);
-api.route("/supplier/products", supplierProductsRouter);
-api.route("/supplier/threads", supplierThreadsRouter);
-// R6 — the third external portal, beside supplier and partner.
-api.route("/warehouse", warehouseReceivingRouter);
-api.route("/storage/dos", dosRouter);
 api.route("/ops/stock", opsStockRouter);
-api.route("/ops/service-notes", snRouter);
-api.route("/ops/service-cases", scRouter);
 api.route("/ops/tasks", opsTasksRouter);
 api.route("/operation/warehouse-receipts", warehouseReceiptsRouter);
 api.route("/operation/workspace-duties", workspaceDutiesRouter);
@@ -321,9 +277,8 @@ export default {
         // 0666: the dealer commission month before closes by itself (on the 1st);
         // its failure is logged and never stops the jobs after it.
         await runDealerCommissionCloseCron(env).catch((e) => console.error("dealer commission close failed:", e));
-        // 0671: the monthly PO / GRN rota — this month, and next month from the
-        // 25th. Its failure is logged and never stops the jobs after it.
-        await runDutyRotaCron(env).catch((e) => console.error("duty rota failed:", e));
+        // The monthly PO / GRN rota (0671) was removed on 12 Nov 2026 (owner): PO and GRN
+        // Duty went with Carres Supply Chain, and Staff & Duties went to Houzs Team.
         await runContactByCron(env);
         await runFollowUpMaintenanceCron(env);
         // Purchasing MASTER §9.5: an overdue date is PO/Work follow-up,

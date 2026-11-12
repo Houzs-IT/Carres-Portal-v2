@@ -362,8 +362,8 @@ describe("one cache key per read — both mounting orders, real QueryClient", ()
     const exception = await within(timing).findByTestId("monitor-owner-unassigned");
     // Owner ruling 2026-09-26: a manager assigns in Settings.
     expect(exception).toHaveTextContent("Not assigned");
-    expect(exception).toHaveAccessibleName("Nobody assigned to this order · Manager assigns in Settings");
-    expect(exception).toHaveAttribute("href", "/operation/sc/settings");
+    expect(exception).toHaveAccessibleName("Nobody assigned to this order · Team › Departments");
+    expect(exception).toHaveAttribute("href", "/operation/sc/team-departments");
     expect(timing).toHaveTextContent("Payment should have been received");
     expect(timing).toHaveTextContent("Ask customer to pay");
     expect(screen.queryByTestId("monitor-owner-avatar")).not.toBeInTheDocument();

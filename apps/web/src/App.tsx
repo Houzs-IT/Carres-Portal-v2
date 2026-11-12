@@ -8,7 +8,7 @@ import { useCompanyIdentitySync } from "@/lib/company-identity";
 import { RequireRole } from "@/lib/require-role";
 import { loginState } from "@/lib/return-to";
 import { roleAllowedOnPortal } from "@/lib/portal";
-import WrongPortal from "@/components/WrongPortal";
+import WrongPortal, { PortalMoved } from "@/components/WrongPortal";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
 import UpdatePassword from "@/pages/UpdatePassword";
@@ -16,16 +16,10 @@ import Me from "@/pages/Me";
 import DealerApp from "@/pages/dealer/DealerApp";
 import PrincipalApp from "@/pages/principal/PrincipalApp";
 import OperationApp from "@/pages/operation/OperationApp";
-import PartnerApp from "@/pages/partner/PartnerApp";
 import FinanceApp from "@/pages/finance/FinanceApp";
-import SupplierApp from "@/pages/supplier/SupplierApp";
-import WarehouseApp from "@/pages/warehouse/WarehouseApp";
 import BDApp from "@/pages/bd/BDApp";
 import { retiredRedirect } from "@/pages/portal/portal-nav";
 import PickupEventPrintPage from "@/pages/print/PickupEventPrintPage";
-import ServiceNotePrintPage from "@/pages/print/ServiceNotePrintPage";
-import ServiceCasePrintPage from "@/pages/print/ServiceCasePrintPage";
-import FleetRunSheetPrintPage from "@/pages/print/FleetRunSheetPrintPage";
 import { PayCancelled, PaySuccess } from "@/pages/pay/PayResult";
 
 /* `/ui` — UI-KIT's third body (card D0.5a). LAZY on purpose: it is a kit
@@ -34,7 +28,6 @@ import { PayCancelled, PaySuccess } from "@/pages/pay/PayResult";
 const UiShowcase = lazy(() => import("@/pages/dev/UiShowcase"));
 /* 0581 — the external logistics link: public, lazy, its own chunk. */
 const DeliveryLinkPage = lazy(() => import("@/pages/public/DeliveryLinkPage"));
-const ServiceSurveyPage = lazy(() => import("@/pages/public/ServiceSurveyPage"));
 
 function HomeRedirect() {
   const location = useLocation();
@@ -55,12 +48,9 @@ function HomeRedirect() {
   if (role && !roleAllowedOnPortal(role)) return <WrongPortal role={role} />;
   if (role === "principal") return <Navigate to="/principal" replace />;
   if (role === "operation") return <Navigate to="/operation" replace />;
-  if (role === "partner") return <Navigate to="/delivery-partner" replace />;
   if (role === "finance") return <Navigate to="/finance" replace />;
-  if (role === "supplier") return <Navigate to="/supplier" replace />;
-  // R6 — the third external role lands on the only thing it has: what is
-  // coming to its own warehouse.
-  if (role === "warehouse") return <Navigate to="/warehouse" replace />;
+  // The supplier, warehouse and delivery partner portals moved to Houzs (owner, 12 Nov 2026): no app here.
+  if (role === "partner" || role === "supplier" || role === "warehouse") return <PortalMoved />;
   if (role === "bd") return <Navigate to="/bd" replace />;
   // The Carres HR area is removed (owner, 11 Nov 2026): HR staff open Houzs's Team, in Operations.
   if (role === "hr") return <Navigate to="/operation/sc/hub-team" replace />;
@@ -159,16 +149,6 @@ export default function App() {
           }
         />
         <Route
-          path="/delivery-partner/*"
-          element={
-            <RequireAuth>
-              <RequireRole roles={["partner"]}>
-                <PartnerApp />
-              </RequireRole>
-            </RequireAuth>
-          }
-        />
-        <Route
           path="/finance/*"
           element={
             <RequireAuth>
@@ -184,29 +164,9 @@ export default function App() {
             </RequireAuth>
           }
         />
-        <Route
-          path="/supplier/*"
-          element={
-            <RequireAuth>
-              <RequireRole roles={["supplier"]}>
-                <SupplierApp />
-              </RequireRole>
-            </RequireAuth>
-          }
-        />
-        {/* R6 — the warehouse portal. Role-gated here AND behind every RPC it
-            calls (0302 gates on app_role() = 'warehouse'), so a route guard
-            slipping is not enough to reach a single row. */}
-        <Route
-          path="/warehouse/*"
-          element={
-            <RequireAuth>
-              <RequireRole roles={["warehouse"]}>
-                <WarehouseApp />
-              </RequireRole>
-            </RequireAuth>
-          }
-        />
+        {/* The supplier (`/supplier/*`), warehouse (`/warehouse/*`) and delivery partner (`/delivery-partner/*`)
+            portals were removed on 12 Nov 2026 (owner: Houzs has its own pages for outside parties). Their old
+            addresses fall to HomeRedirect, which shows those roles "This portal moved". */}
         <Route
           path="/bd/*"
           element={
@@ -230,31 +190,8 @@ export default function App() {
             </RequireAuth>
           }
         />
-        {/* 0724 — a Carres lorry's run sheet (Weisiang's decision 2026-10-22, Houzs FleetRunSheet). */}
-        <Route
-          path="/print/run-sheet"
-          element={
-            <RequireAuth>
-              <FleetRunSheetPrintPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/print/service-case/:id"
-          element={
-            <RequireAuth>
-              <ServiceCasePrintPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/print/service-note/:id"
-          element={
-            <RequireAuth>
-              <ServiceNotePrintPage />
-            </RequireAuth>
-          }
-        />
+        {/* The run sheet, service case and service note print pages were removed on 12 Nov 2026 (owner):
+            Houzs's engine prints its own. */}
         {/* 0223 — Stripe Checkout landings. PUBLIC on purpose: the CUSTOMER's
          *  browser arrives here after paying; there is no session and nothing
          *  sensitive on the page. */}
@@ -271,15 +208,7 @@ export default function App() {
         />
         {/* 0581 — a logistics company with no portal login answers here.
             NOT behind RequireAuth: the link's token is the whole boundary. */}
-        {/* 0765 — the customer rates a closed service case. NOT behind RequireAuth: the token is the boundary. */}
-        <Route
-          path="/survey/:token"
-          element={
-            <Suspense fallback={<div className="p-4 text-body text-kit-slate-11">Loading…</div>}>
-              <ServiceSurveyPage />
-            </Suspense>
-          }
-        />
+        {/* `/survey/:token` was removed on 12 Nov 2026 (owner): Houzs's engine serves its own survey page. */}
         <Route
           path="/delivery-link/:token"
           element={
