@@ -7,3 +7,9 @@
     top: 0;
   }
 }
+
+/* Carres colours: section labels grey like the Carres menu's group labels, not brand orange. Colour only; the
+   layout, sizes and words stay Houzs's (owner: identical to Houzs except colour). */
+html.carres-embedded .tracking-brand.text-accent {
+  color: #4B5563;
+}

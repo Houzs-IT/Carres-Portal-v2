@@ -28,11 +28,11 @@
   --hz-primary: 27 27 57;
   --hz-primary-soft: 220 230 253;
   --hz-primary-ink: 47 85 224;
-  --hz-accent: 214 79 32;
-  --hz-accent-soft: 251 237 231;
+  --hz-accent: 47 85 224;
+  --hz-accent-soft: 238 243 255;
   --hz-accent-bright: 47 85 224;
-  --hz-accent-hover: 188 67 25;
-  --hz-accent-ink: 122 46 18;
+  --hz-accent-hover: 36 72 200;
+  --hz-accent-ink: 30 58 138;
   --hz-synced: 47 138 91;
   --hz-synced-bg: 226 240 233;
   --hz-err: 178 58 58;
@@ -204,9 +204,9 @@
     --hz-primary: 27 27 57;
     --hz-primary-soft: 220 230 253;
     --hz-primary-ink: 47 85 224;
-    --hz-accent: 214 79 32;
-    --hz-accent-soft: 251 237 231;
-    --hz-accent-ink: 122 46 18;
+    --hz-accent: 47 85 224;
+    --hz-accent-soft: 238 243 255;
+    --hz-accent-ink: 30 58 138;
     --hz-synced: 47 138 91;
     --hz-synced-bg: 226 240 233;
     --hz-err: 178 58 58;
