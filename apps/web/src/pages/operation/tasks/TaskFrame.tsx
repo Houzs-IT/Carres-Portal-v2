@@ -107,7 +107,7 @@ export default function TaskFrame({ head, steps, facts = [], orders = [], salesO
 
   /* `Record as sent`: only for the opened open work of the Tasks area, where
      the desk can say the result and return to the list. */
-  const request = opened?.result && canRecordRequest(opened.row) && !(opened.row.source.interaction?.mode === "embedded" && opened.row.source.interaction.actionKey === "purchasing.confirm_po_sent")
+  const request = opened?.result && canRecordRequest(opened.row)
     ? <TaskRequest key={opened.row.id} row={opened.row} onRecorded={opened.result} />
     : null;
 

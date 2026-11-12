@@ -20,14 +20,13 @@
  * Leaving a task with unsaved input (‹ All tasks, ×, another rail door) asks
  * `Leave without saving?`.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft, ListTodo, X } from "lucide-react";
 import type { OperationWorkModule } from "@carres/shared";
 import Icon from "@/components/kit/Icon";
 import MIcon from "@/components/carres/MIcon";
 import { fmtDate } from "@/lib/fmt-date";
-import { useOpenWorkSet, type WorkRow } from "../use-open-work";
-import { usePoWindowFacts } from "./use-po-window-facts";
+import { useOpenWorkSet } from "../use-open-work";
 import { TASK_MODULE_WORD, TASKS_WORDS as T, myTasks } from "./tasks-model";
 import { TaskOpenContext } from "./TaskFrame";
 import TaskList from "./TaskList";
@@ -58,15 +57,12 @@ export default function TasksArea({ onClose, fill = false, bare = false }: {
   const [chosenDay, setChosenDay] = useState<string | null>(null);
   const chosen = chosenDay ?? today;
   const [tab, setTab] = useState<TaskTab>("todo");
-  const windows = usePoWindowFacts(mine.some((r) => r.source.object.kind === "po_window"));
   const strip = useMemo(() => (today ? taskStrip(mine, today, chosen) : null), [mine, today, chosen]);
-  const tabs = useMemo(() => (today ? taskTabs(mine, completed, myUserId, today, chosen,
-    (row) => (row.source.object.kind === "po_window" ? windows.get(row.source.object.id) ?? null : null)) : null),
-  [mine, completed, myUserId, today, chosen, windows]);
-  const factsOf = useCallback((row: WorkRow) => (row.source.object.kind === "po_window" ? windows.get(row.source.object.id) ?? null : null), [windows]);
+  const tabs = useMemo(() => (today ? taskTabs(mine, completed, myUserId, today, chosen) : null),
+    [mine, completed, myUserId, today, chosen]);
   /* The open work of the tab the task was opened from, in the list's order. */
   const order = useMemo(() => (tabs ? tabs[tab].groups.flatMap((group) => group.cards) : []), [tabs, tab]);
-  const desk = useTaskDesk({ order, factsOf, onLeave: onClose });
+  const desk = useTaskDesk({ order, onLeave: onClose });
   const { task, lastTaskId, openTask, host, opened, taskOrder, taskAt, guard } = desk;
 
   /* ── states ───────────────────────────────────────────────────────────── */

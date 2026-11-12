@@ -123,7 +123,8 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
       // Already the page this address shows: keep the address. Two rows can open one engine page (Product
       // Request under Supply Chain and under Consignment); the row the person clicked stays lit.
       if (engineFor(window.location.pathname, window.location.search) === d.path) return;
-      const address = engineAddressFor(d.path);
+      const here = /^\/operation\/sc\/([a-z0-9-]+)\/?$/.exec(window.location.pathname)?.[1] ?? null;
+      const address = engineAddressFor(d.path, here);
       if (address && address !== window.location.pathname + window.location.search) navigate(address, { replace: true });
     };
     window.addEventListener("message", onMessage);

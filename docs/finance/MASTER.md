@@ -1,5 +1,7 @@
 # FINANCE — MASTER
 
+> **12 Nov 2026 (owner rule of 11 Nov: the Houzs pages are the system).** The Operations → Workspace row `Payment Requests` opens Houzs's own Payment Requests (`/operation/sc/payment-requests`, the same engine page as Houzs Finance → Money out, same count), and an Operations person's old `/finance/payment-requests` link forwards there. Finance, the principal (Finance (old) → Payables, Payment Vouchers) and HR/BD (`RequestsOnly`) still open the Carres page. Who may raise a request inside Houzs is the engine's own role (Team → Roles & Permissions), not the Carres grant that shows the row.
+
 > **Status 2026-10-03: PR #1864 DEPLOYED** (merge `030ea3d8c`). Chew chose to test on production (no separate test database) and approved going live: the work below is on production, and its migrations 0635–0648 were applied through the governed path. Chew tests everything once, on production; that walk is owed. §4's menu (one row per report, the Forecast row, the area fold) is PR #1865, merged 2026-10-05 (`37405f70`).
 >
 > **Who approves Finance's production changes.** Chew approves Finance's own production database changes and their release; he holds that permission for the Finance module (Chew 2026-10-03). ENGINEERING.md names Jess for migration approval; that was raised with Chew, who confirmed his authority over Finance's own changes. A change outside Finance still goes to Jess.

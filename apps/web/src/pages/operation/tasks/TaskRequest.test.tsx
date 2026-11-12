@@ -33,9 +33,8 @@ const sent = (): Array<Record<string, unknown>> => api.mock.calls.map(([path, in
 beforeEach(() => { api.mockReset(); });
 
 describe("which task can be marked as asked", () => {
-  it("open work that names a party; never a purchase batch, work already waiting, or work with no party", () => {
+  it("open work that names a party; never work already waiting, or work with no party", () => {
     expect(canRecordRequest(row())).toBe(true);
-    expect(canRecordRequest(row({}, { object: { kind: "po_window", id: "2026-10-05T11:00", label: "11:00 AM PO window" } }))).toBe(false);
     expect(canRecordRequest(row({}, { lifecycle: waiting }))).toBe(false);
     expect(canRecordRequest(row({ recipient: null }))).toBe(false);
     /* The answer day passed: the task is back in To do and can be asked again. */

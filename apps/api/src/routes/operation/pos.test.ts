@@ -3271,7 +3271,6 @@ describe("supplier email dispatch", () => {
     vi.mocked(recordPoEmailOutcome).mockReset().mockResolvedValue({ data: null, error: null } as never);
     vi.mocked(sendSupplierPoEmail).mockReset().mockResolvedValue({ status: "dispatched", providerId: "email-provider-1" });
     vi.spyOn(work, "poWindowKeysServing").mockResolvedValue([]);
-    vi.spyOn(work, "manualPurchaseRequestsServing").mockResolvedValue([]);
   });
   afterEach(() => { vi.restoreAllMocks(); });
   function database(options: { permission?: boolean; poChanges?: Record<string, unknown>; recipient?: string; history?: Record<string, unknown>[]; refusedRecord?: string } = {}) {

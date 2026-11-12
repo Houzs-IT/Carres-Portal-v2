@@ -78,10 +78,6 @@ describe("a row of the table", () => {
     expect(rows[3]).toMatchObject({ due: "No date", record: "Sales Orders · SO-9106", contact: "TEST customer D" });
   });
 
-  it("a purchase batch is named by its page and its cut-off, never by a key; its contact is its suppliers", () => {
-    expect(table().rows[1]).toMatchObject({ due: "Mon, 5 Oct", dueSub: "11:00 AM", record: "SO Batch Purchase", contact: "2 suppliers", status: "Cut-off passed", tone: "warn" });
-  });
-
   it("Waiting: who was asked, how and when; a passed answer day is back in To do and says so", () => {
     expect(table({ tab: "waiting" }).rows).toEqual([expect.objectContaining({
       id: "wait", contact: "TEST Supplier B", contactSub: "WhatsApp", lastContact: "Asked Fri, 2 Oct", status: "Waiting", tone: "neutral",

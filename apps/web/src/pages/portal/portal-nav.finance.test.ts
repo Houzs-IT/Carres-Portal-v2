@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
-import { PORTAL_MODULES, PORTAL_NAV, navBlocks, navItemHref, visibleItems } from "./portal-nav";
+import { PORTAL_MODULES, PORTAL_NAV, engineAddressFor, engineFor, navBlocks, navItemHref, roleMayOpenEngineRow, visibleItems } from "./portal-nav";
 
 /**
  * ⭐ THE FINANCE MODULES — the Houzs tree (Weisiang, WhatsApp 2026-11-01;
@@ -153,7 +153,9 @@ describe("the Finance modules (Chew, 2026-10-03)", () => {
 /**
  * ⭐ THE ONE SHARED-MENU ENTRY CHEW APPROVED (2026-10-03, Finance MASTER §3.3):
  * Payment Requests shows to the Operation staff the boss allows — by a grant,
- * not a role — and opens the page in Finance. Nobody else of Operation sees it.
+ * not a role — and opens Houzs's own Payment Requests (owner, 11 Nov 2026: the
+ * Houzs pages are the system), with the same count as Finance > Money out.
+ * Nobody else of Operation sees it.
  */
 describe("Payment Requests in the Operations rail", () => {
   const OPERATIONS = PORTAL_NAV.find((g) => g.area === "operation")!;
@@ -164,9 +166,12 @@ describe("Payment Requests in the Operations rail", () => {
     expect(keys(new Set(["payment-requester"] as const))).toContain("payment-requests");
   });
 
-  it("opens the Finance page and sits under Workspace", () => {
+  it("opens Houzs's Payment Requests with its count, and sits under Workspace", () => {
     const item = OPERATIONS.items.find((i) => i.key === "payment-requests")!;
-    expect(navItemHref(OPERATIONS, item)).toBe("/finance/payment-requests");
+    expect(navItemHref(OPERATIONS, item)).toBe("/operation/sc/payment-requests");
+    expect(engineFor("/operation/sc/payment-requests")).toBe("/scm/payment-requests");
+    expect(engineFor("/operation/sc/payment-requests")).toBe(engineFor("/operation/sc/fin-payment-requests"));
+    expect(item.badge).toBe("payment-requests-waiting");
     // Back under Workspace, as in Houzs (Weisiang, 2026-11-01).
     expect(item.section).toBe("Workspace");
     expect(item.needs).toBe("payment-requester");
@@ -194,9 +199,21 @@ describe("Payment Requests for HR staff", () => {
     expect(keys("hr", GRANT)).toContain("payment-requests");
   });
 
-  it("opens the Finance page", () => {
+  it("opens Houzs's Payment Requests, which HR may open though it does not see the Houzs Finance rows", () => {
     const item = OPS.items.find((i) => i.key === "payment-requests")!;
-    expect(navItemHref(OPS, item)).toBe("/finance/payment-requests");
+    expect(navItemHref(OPS, item)).toBe("/operation/sc/payment-requests");
+    expect(roleMayOpenEngineRow("hr", "payment-requests")).toBe(true);
+    expect(roleMayOpenEngineRow("hr", "fin-payment-requests")).toBe(false);
+  });
+
+  it("a record opened from the Workspace door keeps the door's address, so HR is never sent to the Finance row", () => {
+    const record = "/scm/payment-requests/prq-1";
+    expect(engineAddressFor(record, "payment-requests")).toBe(`/operation/sc/payment-requests?at=${encodeURIComponent(record)}`);
+    expect(engineAddressFor(record, "fin-payment-requests")).toBe(`/operation/sc/fin-payment-requests?at=${encodeURIComponent(record)}`);
+    // With no door to keep, the Finance row is the page's row (the door is a shortcut, never lit by a frame move).
+    expect(engineAddressFor(record)).toBe(`/operation/sc/fin-payment-requests?at=${encodeURIComponent(record)}`);
+    // A module row is not a door: it does not hold another module's page.
+    expect(engineAddressFor("/scm/purchase-orders", "hub-scm")).toBe("/operation/sc/purchase-orders");
   });
 
   it("is the only row HR sees outside the System rows", () => {

@@ -22,8 +22,6 @@ import {
   INTERNAL_TASK_KIND,
   internalTaskCreatorOf,
   malaysiaClockOf,
-  parsePoWindowKey,
-  poWindowTimeWord,
   workCompletionStatement,
   workLifecycleOrToDo,
   type OperationWorkCompleted,
@@ -32,7 +30,7 @@ import {
 import { fmtDate } from "@/lib/fmt-date";
 import type { WorkRow } from "../use-open-work";
 import { workRailDates } from "../work/work-model";
-import { TASK_MODULE_WORD, taskRowWords, type PoWindowFacts } from "./tasks-model";
+import { TASK_MODULE_WORD, taskRowWords } from "./tasks-model";
 
 export type TaskTab = "todo" | "waiting" | "done";
 export const TASK_TABS: readonly TaskTab[] = ["todo", "waiting", "done"];
@@ -45,7 +43,6 @@ export const TASK_CARD_WORDS = {
   previousWeek: "Previous week",
   nextWeek: "Next week",
   deadline: "Deadline",
-  cutOff: "Cut-off",
   passed: "passed",
   daysLate: (n: number) => `${n} ${n === 1 ? "day" : "days"} late`,
   noDate: "No date",
@@ -118,13 +115,8 @@ const isWaiting = (row: WorkRow) => workLifecycleOrToDo(row.source).state === "w
 const day = (iso: string) => fmtDate(iso);
 
 /** The deadline row of an open task. */
-function deadlineRow(row: WorkRow, facts: PoWindowFacts | null): TaskCardRow {
+function deadlineRow(row: WorkRow): TaskCardRow {
   const late = row.timingBucket === "overdue";
-  if (row.source.object.kind === "po_window") {
-    const parts = parsePoWindowKey(row.source.object.id);
-    const time = parts ? poWindowTimeWord(parts.time) : facts?.window ? row.source.object.label : row.source.object.label;
-    return { icon: "schedule", label: W.cutOff, value: late ? `${time} · ${W.passed}` : time, warn: late };
-  }
   if (row.dueIso === null) {
     return { icon: "event", label: W.deadline, value: `${W.noDate} · ${W.setBy(TASK_MODULE_WORD[row.module])}`, warn: false };
   }
@@ -135,17 +127,15 @@ function deadlineRow(row: WorkRow, facts: PoWindowFacts | null): TaskCardRow {
 }
 
 /** One open task as a card: its title, then one row per fact. */
-export function taskCard(row: WorkRow, facts: PoWindowFacts | null = null): TaskCard {
-  const words = taskRowWords(row, facts);
+export function taskCard(row: WorkRow): TaskCard {
+  const words = taskRowWords(row);
   const lifecycle = workLifecycleOrToDo(row.source);
-  const isBatch = row.source.object.kind === "po_window";
   /* An internal task has no record: its name is what the creator typed. */
   const isInternal = row.source.object.kind === INTERNAL_TASK_KIND;
   const creator = isInternal ? internalTaskCreatorOf(row.problem) : null;
   const rows: TaskCardRow[] = [];
-  /* A purchase batch is named by its time, never by a key. */
-  if (!isBatch && !isInternal) rows.push({ icon: "description", label: recordWord(row.source.object.kind, row.module), value: row.source.object.label, warn: false });
-  rows.push(deadlineRow(row, facts));
+  if (!isInternal) rows.push({ icon: "description", label: recordWord(row.source.object.kind, row.module), value: row.source.object.label, warn: false });
+  rows.push(deadlineRow(row));
   if (lifecycle.state === "waiting") {
     if (lifecycle.waitingSince) rows.push({ icon: "send", label: W.asked, value: day(lifecycle.waitingSince.slice(0, 10)), warn: false });
     if (lifecycle.replyDueOn) rows.push({ icon: "alarm", label: W.nextContact, value: day(lifecycle.replyDueOn), warn: false });
@@ -158,7 +148,7 @@ export function taskCard(row: WorkRow, facts: PoWindowFacts | null = null): Task
     id: row.id,
     module: row.module,
     title: words.act,
-    party: isBatch ? "SO Batch Purchase" : row.recipient ?? TASK_MODULE_WORD[row.module],
+    party: row.recipient ?? TASK_MODULE_WORD[row.module],
     rows,
     late: row.timingBucket === "overdue",
     sortKey: `${lifecycle.state === "waiting" ? lifecycle.replyDueOn ?? "9999" : row.dueIso ?? "9999"}|${row.id}`,
@@ -287,10 +277,9 @@ export function taskTabs(
   myUserId: string | null,
   today: string,
   chosen: string,
-  factsOf: (row: WorkRow) => PoWindowFacts | null = () => null,
 ): Record<TaskTab, { count: number; groups: TaskGroup[] }> {
-  const todo = todoOn(mine, today, chosen).map((row) => taskCard(row, factsOf(row)));
-  const waiting = waitingRows(mine).map((row) => taskCard(row, factsOf(row)));
+  const todo = todoOn(mine, today, chosen).map((row) => taskCard(row));
+  const waiting = waitingRows(mine).map((row) => taskCard(row));
   const done = doneOn(completed, myUserId, chosen).map(doneCard);
   return {
     todo: { count: todo.length, groups: taskGroups(todo) },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkRow } from "../use-open-work";
-import { partiesWord, taskRowWords } from "./tasks-model";
+import { taskRowWords } from "./tasks-model";
 
 const TODAY = "2026-10-05"; // a Monday
 const row = (over: Partial<WorkRow> & { id: string }): WorkRow => ({
@@ -18,15 +18,9 @@ const row = (over: Partial<WorkRow> & { id: string }): WorkRow => ({
 } as unknown as WorkRow);
 
 describe("tasks words", () => {
-  it("row words: the act on line 1, the document and what is owed on line 2", () => {
-    expect(taskRowWords(row({ id: "x" }))).toMatchObject({ act: "Call AL", detail: "SO-1368 · Get the scheduled delivery date", missedDate: null, noDate: null });
+  it("row words: the act on line 1, the document on line 2", () => {
+    expect(taskRowWords(row({ id: "x" }))).toMatchObject({ act: "Call AL", detail: "SO-1368", missedDate: null, noDate: null });
     expect(taskRowWords(row({ id: "y", dueIso: null, timingBucket: "no_date" })).noDate).toBe("No date · set by Delivery");
     expect(taskRowWords(row({ id: "z", dueIso: "2026-10-02", timingBucket: "overdue" })).missedDate).toBe("Fri, 2 Oct");
-  });
-
-  it("names the parties", () => {
-    expect(partiesWord(["Ohana"])).toBe("Ohana");
-    expect(partiesWord(["Ohana", "Nice Future", "Ohana"])).toBe("Ohana and Nice Future");
-    expect(partiesWord(["A", "B", "C"])).toBe("A and 2 more");
   });
 });

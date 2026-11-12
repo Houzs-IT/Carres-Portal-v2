@@ -7,10 +7,9 @@
  * row, so the Workspace's three numbers and the Tasks panel's three numbers
  * are the same arithmetic, never two that happen to agree (Law D).
  *
- *   Due            the date · `No date`; a purchase batch adds its cut-off
- *                  time. On `Done` the column is `Done`: when it was finished
+ *   Due            the date · `No date`. On `Done` the column is `Done`: when it was finished
  *   Task           the task, in its list card's own words, over page · record
- *   Contact        who is asked (a purchase batch: its suppliers), and how
+ *   Contact        who is asked, and how
  *                  once a request is recorded
  *   Last contact   the request or its answer day, from the Work record
  *   Status         `Broken commitment` · `{n} days late` · `Cut-off passed`
@@ -20,8 +19,6 @@
  */
 import {
   INTERNAL_TASK_KIND,
-  parsePoWindowKey,
-  poWindowTimeWord,
   workLifecycleOrToDo,
   type OperationWorkCompleted,
   type OperationWorkModule,
@@ -30,7 +27,7 @@ import {
 import { fmtDate } from "@/lib/fmt-date";
 import type { WorkRow } from "../use-open-work";
 import { TASK_CARD_WORDS, doneCard, doneOn, doneOnDay, taskCard, todoOn, waitingRows, type TaskTab } from "./task-cards";
-import { TASK_MODULE_WORD, type PoWindowFacts } from "./tasks-model";
+import { TASK_MODULE_WORD } from "./tasks-model";
 
 /** The words. COPY-STANDARD "The Workspace page words". */
 export const WORKSPACE_WORDS = {
@@ -80,15 +77,12 @@ export interface WorkspaceRow {
   sortKey: string;
 }
 
-function openRow(row: WorkRow, facts: PoWindowFacts | null): WorkspaceRow {
-  const card = taskCard(row, facts);
+function openRow(row: WorkRow): WorkspaceRow {
+  const card = taskCard(row);
   const lifecycle = workLifecycleOrToDo(row.source);
-  const isBatch = row.source.object.kind === "po_window";
   const late = row.timingBucket === "overdue";
-  const window = isBatch ? parsePoWindowKey(row.source.object.id) : null;
   const age = row.source.timing.missedAge;
-  const lateWord = isBatch ? `${TASK_CARD_WORDS.cutOff} ${TASK_CARD_WORDS.passed}`
-    : age.state === "counted" && age.workingDays > 0 ? TASK_CARD_WORDS.daysLate(age.workingDays) : TASK_CARD_WORDS.passed;
+  const lateWord = age.state === "counted" && age.workingDays > 0 ? TASK_CARD_WORDS.daysLate(age.workingDays) : TASK_CARD_WORDS.passed;
   const lastContact = lifecycle.replyMissed && lifecycle.replyDueOn ? W.noAnswerBy(fmtDate(lifecycle.replyDueOn))
     : lifecycle.waitingSince ? W.asked(fmtDate(lifecycle.waitingSince.slice(0, 10)))
       : lifecycle.lastReplyAt ? W.answered(fmtDate(lifecycle.lastReplyAt.slice(0, 10)))
@@ -99,13 +93,12 @@ function openRow(row: WorkRow, facts: PoWindowFacts | null): WorkspaceRow {
     work: row,
     /* A date, never a relative word (COPY "NO RELATIVE DATE WORDS"). */
     due: row.dueIso === null ? W.noDate : fmtDate(row.dueIso),
-    dueSub: window ? poWindowTimeWord(window.time) : null,
+    dueSub: null,
     title: card.title,
     /* An internal task: its page, then who added it (its name is the title). */
-    record: isBatch ? "SO Batch Purchase"
-      : row.source.object.kind === INTERNAL_TASK_KIND ? `${TASK_MODULE_WORD[row.module]} · ${row.problem}`
+    record: row.source.object.kind === INTERNAL_TASK_KIND ? `${TASK_MODULE_WORD[row.module]} · ${row.problem}`
       : `${TASK_MODULE_WORD[row.module]} · ${row.source.object.label}`,
-    /* The Work item's own party; for a purchase batch that is its suppliers. */
+    /* The Work item's own party. */
     contact: row.recipient,
     contactSub: row.recipient && lifecycle.channel ? CHANNEL_WORD[lifecycle.channel] : null,
     lastContact,
@@ -162,14 +155,12 @@ export function workspaceTable(input: {
   chosen: string;
   tab: TaskTab;
   module: OperationWorkModule | null;
-  factsOf?: (row: WorkRow) => PoWindowFacts | null;
 }): WorkspaceTable {
   const { scoped, completed, today, chosen, tab, module } = input;
-  const factsOf = input.factsOf ?? (() => null);
   const todo = todoOn(scoped, today, chosen);
   const waiting = waitingRows(scoped);
   const done = input.team ? doneOnDay(completed, chosen) : doneOn(completed, input.doneBy, chosen);
-  const open = (rows: readonly WorkRow[]) => rows.map((row) => openRow(row, factsOf(row)))
+  const open = (rows: readonly WorkRow[]) => rows.map((row) => openRow(row))
     .sort((a, b) => Number(b.late) - Number(a.late) || a.sortKey.localeCompare(b.sortKey));
   const tabRows = tab === "todo" ? open(todo) : tab === "waiting" ? open(waiting) : done.map(doneRow);
   const byModule = new Map<OperationWorkModule, number>();

@@ -101,7 +101,7 @@ describe("an internal task, opened", () => {
 });
 
 describe("an internal task on the Workspace page", () => {
-  const table = (rows: WorkRow[], team = false) => workspaceTable({ scoped: rows, completed: [], doneBy: null, team, today: TODAY, chosen: TODAY, tab: "todo", module: null, factsOf: () => null });
+  const table = (rows: WorkRow[], team = false) => workspaceTable({ scoped: rows, completed: [], doneBy: null, team, today: TODAY, chosen: TODAY, tab: "todo", module: null });
 
   it("is one row of the Staff tasks module, named by its title over who added it", () => {
     const out = table([task(), po()]);

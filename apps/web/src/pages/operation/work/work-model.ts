@@ -1,4 +1,4 @@
-import type { OperationWorkModule } from "@carres/shared";
+import type { OperationWorkModule, OperationWorkSourceHealth } from "@carres/shared";
 import { myHolidayName, myHolidaySet } from "@carres/shared/my-holidays";
 import { isWorkingDay } from "@carres/shared/working-days";
 import { addDaysIso, weekStartIso } from "@/lib/excel-date-filter";
@@ -290,13 +290,10 @@ export function workLayoutFor(width: number): WorkLayout {
 }
 
 /** Source words for Work source health — never the raw feed key. */
-export const WORK_SOURCE_LABEL: Record<OperationWorkModule, string> = {
+/** The feed's sources (Purchasing, Receiving, Delivery and the Issue Tracker are Houzs work now). */
+export const WORK_SOURCE_LABEL: Record<OperationWorkSourceHealth["key"], string> = {
   orders: "Sales Orders",
-  purchasing: "Purchasing",
-  receiving: "Receiving",
-  delivery: "Delivery",
   payment: "Payment",
-  issue_tracker: "Issue Tracker",
   workspace: "Staff tasks",
 };
 

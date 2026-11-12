@@ -32,13 +32,12 @@ export const operationWorkOwnerSchema = z.object({
   state: z.enum(["primary", "covered", "not_assigned"]),
 }).strict();
 
+/* The sources the Carres feed reads (owner, 11 Nov 2026: Purchasing, Receiving, Delivery and the Issue
+ * Tracker are worked in the Houzs engine, so the feed has no source for them). The module list above stays
+ * whole: the lifecycle ledger keeps those modules' past occurrences. */
 export const operationWorkSourceKeySchema = z.enum([
   "orders",
-  "purchasing",
-  "receiving",
-  "delivery",
   "payment",
-  "issue_tracker",
   "workspace",
 ]);
 
