@@ -39,6 +39,14 @@
 // Local test only: SEED_TARGET_URL=<localhost connection string> instead of the question; the "type the ref"
 // answer can then be piped on stdin. SEED_SOURCE_URL overrides the Houzs source (see seed-houzs-core.mjs).
 //
+// AS A MIGRATION (no connection string at all; the engine deploy applies it with its own secret):
+//
+//   node scripts/carres-db/load-carres-master-data.mjs --emit-sql scripts/carres-db/migrations/NNNN_carres_master_data.sql
+//
+// writes the same load as one idempotent SQL file and touches no engine database: it reads the same files and
+// houzs_local, and builds a throwaway local engine schema on the same local server to read columns from (see
+// emit-sql.mjs). Commit the file as the next migration; the next engine deploy applies it.
+//
 // SUPPLIER COLUMNS (AutoCount "Supplier List" export, header row 1) → engine supplier (same fields the New Supplier
 // form writes): Code → code (the AutoCount creditor code) · Company Name → name · Currency Code → currency ·
 // Registration No. → registration_no · Address 1-4 → address1-4 (and address = the lines joined, which GRN / PO
@@ -53,6 +61,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { askHidden, askLine } from "./ask.mjs";
 import { loadCatalog, readCatalog } from "./carres-catalog.mjs";
+import { emitMasterDataSql } from "./emit-sql.mjs";
 import { CARRES_GROUPS, connect, copyFromHouzs, dbName, isLocal, printCopyReport, refOf, safe, sourceUrl, tablesOfGroups } from "./seed-houzs-core.mjs";
 
 const require = createRequire(import.meta.url);
@@ -65,6 +74,7 @@ const argOf = (name) => { const i = argv.indexOf(name); if (i < 0) return undefi
 const DRY = argv.includes("--dry-run");
 const SUPPLIERS_FILE = argOf("--suppliers") || join(DOWNLOADS, "Carres - Supplier List.xlsx");
 const NO_SKUS = argv.includes("--no-skus");
+const EMIT_SQL = argOf("--emit-sql");
 const SKUS_FILE = argOf("--skus") || [join(DOWNLOADS, "Carres-SKU-Restructure-Review.xlsx"),
   join(homedir(), "Desktop", "Carres-Portal-v2-worktrees", "handoff", "Carres-SKU-Restructure-Review.xlsx")].find((f) => existsSync(f))
   || join(DOWNLOADS, "Carres-SKU-Restructure-Review.xlsx");
@@ -271,9 +281,10 @@ async function upsertByCode(tx, table, co, row, cols) {
 const tally = () => ({ inserted: 0, updated: 0, unchanged: 0 });
 
 /** C: the three warehouses, the one default, and the state → warehouse rows. */
+const WAREHOUSE_COLS = ["name", "type", "is_showroom", "is_default", "venue_name", "location", "city", "postcode", "state", "country", "is_active"];
 async function loadWarehouses(tx, co) {
   const t = tally();
-  const cols = ["name", "type", "is_showroom", "is_default", "venue_name", "location", "city", "postcode", "state", "country", "is_active"];
+  const cols = WAREHOUSE_COLS;
   for (const w of WAREHOUSES) t[await upsertByCode(tx, "scm.warehouses", co, { ...w, is_active: true }, cols)]++;
   const undefaulted = (await tx`update scm.warehouses set is_default = false, updated_at = now()
     where company_id = ${co} and is_default and code <> ${WAREHOUSES.find((w) => w.is_default).code} returning code`).map((r) => r.code);
@@ -316,6 +327,37 @@ if (!NO_SKUS) {
   } catch (e) { console.error(`${e.message}
 Nothing was changed.`); process.exit(1); }
   console.log(`Catalogue file: ${SKUS_FILE}  (${catalog.models.length} models, ${catalog.skus.length} SKUs, ${catalog.bindings.length} binding rows, ${catalog.combos.length} combo rows)`);
+}
+
+if (EMIT_SQL !== undefined) {
+  if (!EMIT_SQL) { console.error("--emit-sql needs the output file, e.g. scripts/carres-db/migrations/NNNN_carres_master_data.sql"); process.exit(1); }
+  let srcUrl, srcDb;
+  try { srcUrl = sourceUrl(); srcDb = connect(srcUrl); }
+  catch { console.error("Cannot read the Houzs local database password (~/.houzs-local-pg-pass). Nothing was written."); process.exit(1); }
+  if (!srcDb || !isLocal(srcUrl)) { console.error("The Houzs source must be a local database. Nothing was written."); process.exit(1); }
+  try {
+    const { outFile, report } = await emitMasterDataSql({
+      outFile: EMIT_SQL, src: srcDb, srcUrl, suppliers: sup.suppliers, supplierCols: SUPPLIER_COLS, catalog,
+      warehouses: WAREHOUSES, warehouseCols: WAREHOUSE_COLS, stateToWarehouse: STATE_TO_WAREHOUSE,
+      testRows: { supplierCode: TEST_SUPPLIER_CODE, itemCode: TEST_ITEM_CODE, warehouseCode: TEST_WAREHOUSE_CODE,
+        realName: sup.suppliers.find((s) => s.code.toUpperCase() === TEST_SUPPLIER_CODE)?.name ?? null },
+      sourceFiles: [SUPPLIERS_FILE, ...(catalog ? [SKUS_FILE] : [])],
+    });
+    console.log(`Local engine schema: built from ${report.built} migrations, then dropped.`);
+    console.log(`
+── A · from Houzs (groups ${CARRES_GROUPS.join(", ")}), written as on-conflict-do-nothing inserts`);
+    printCopyReport(report.houzs, true);
+    console.log(`
+Suppliers ${sup.suppliers.length} · warehouses ${WAREHOUSES.length} · state → warehouse ${Object.keys(STATE_TO_WAREHOUSE).length}${report.catalog ? ` · models ${report.catalog.models} · SKUs ${report.catalog.skus} · bindings ${report.catalog.bindings} · combo rows ${report.catalog.combos}` : ""}`);
+    if (sup.skipped.length) { console.log("Suppliers skipped / adjusted:"); for (const x of sup.skipped) console.log(`  ${x}`); }
+    console.log(`
+WROTE ${outFile}
+No engine database was touched. Commit it as the next migration; the engine deploy applies it.`);
+  } catch (e) {
+    console.error(`STOPPED, nothing was written: ${safe(e)}`);
+    process.exitCode = 1;
+  } finally { await srcDb.end(); }
+  process.exit(process.exitCode ?? 0);
 }
 
 let url = (process.env.SEED_TARGET_URL ?? "").trim();

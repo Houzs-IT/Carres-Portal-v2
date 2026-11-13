@@ -206,6 +206,14 @@ the engine's Houzs venue alias (`scm.canonicalize_venue`, `canonical-venue.ts`) 
 `seed-from-houzs.mjs` is the Houzs copy on its own: by default the same three groups, `--only=<groups>`, or the old
 whole-catalogue test copy behind `--full` (never for the real engine database); `--classify` lists every Houzs table.
 Before go-live, transactions start clean (CLAUDE.md §6); this master data is configuration.
+**The same load as a migration, no paste:** the hidden-prompt paste kept failing, so `--emit-sql <file>` writes the
+identical load as one idempotent SQL file (`engine/backend/scripts/carres-db/emit-sql.mjs`) and touches no engine
+database: upserts by code, parents found by code in subselects, every `company_id` = the company with code HOUZS, the
+test-row clean-up as a guarded DO block that stops if anything else uses those rows. It builds a throwaway local engine
+schema (on the houzs_local server, dropped afterwards) only to read columns. The result is migration
+`2008_carres_master_data.sql`, which the engine deploy applies with `ENGINE_DATABASE_URL` (`apply.mjs --ci`). It is
+generated: to change the data, regenerate into the NEXT number, never edit an applied file. Stock balances are not in
+it; the owner loads them later.
 
 ---
 

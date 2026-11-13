@@ -203,8 +203,12 @@ const NUMERIC = /^(smallint|integer|bigint|numeric|real|double precision)/;
  * Copies `tableNames` from Houzs (src) into the engine through `tx` (a transaction the caller owns).
  * Returns report rows [table, houzsTotal, eligible, copied, notes]. Throws on any failure (the caller's
  * transaction then rolls back). It does not commit and does not roll back.
+ *
+ * With `emit`, nothing is written: the same rows (after the same filters, stripping and reference checks against
+ * `tx`, which then only serves as the engine schema) go to emit({ table, cols, rows, companyCols, hasIdentity,
+ * seqCols }) once per table, in reference order; load-carres-master-data.mjs --emit-sql turns them into a migration.
  */
-export async function copyFromHouzs({ src, tx, tableNames, log = () => {} }) {
+export async function copyFromHouzs({ src, tx, tableNames, log = () => {}, emit = null }) {
   const report = [];
   const [srcCompany] = await src`select id from public.companies where code = ${SOURCE_COMPANY_CODE}`;
   if (!srcCompany) throw new Error(`Houzs company ${SOURCE_COMPANY_CODE} not found in the source`);
@@ -276,7 +280,8 @@ export async function copyFromHouzs({ src, tx, tableNames, log = () => {} }) {
       const moved = kept.filter((r) => r.__newId).length;
       if (moved) notes.get(t).push(`${moved} given a new id`);
     }
-    data.set(t, { cols, rows: kept, total });
+    if (emit && nk) throw new Error(`${t}: a naturalKey list cannot be written as a migration`);
+    data.set(t, { cols, rows: kept, total, compCols });
   }
 
   // References: to a copied row, to a row already in the target, or emptied/left out.
@@ -310,6 +315,17 @@ export async function copyFromHouzs({ src, tx, tableNames, log = () => {} }) {
         if (dropped) { notes.get(t).push(`${dropped} left out: ${f.cols.join("/")} -> ${f.ref} not copied`); changed = true; }
       }
     }
+  }
+
+  if (emit) {
+    for (const t of order) {
+      const { cols, rows, compCols, total } = data.get(t);
+      const seqCols = [];
+      for (const c of cols) if ((await tx`select pg_get_serial_sequence(${quoteIdent(t)}, ${c}) as seq`)[0].seq) seqCols.push(c);
+      emit({ table: t, cols, rows, companyCols: compCols, hasIdentity: cols.some((c) => dCols.get(t).get(c).identity), seqCols });
+      report.push([t, total, rows.length, rows.length, notes.get(t).join("; ")]);
+    }
+    return report;
   }
 
   // Copy.
