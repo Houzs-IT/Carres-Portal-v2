@@ -38,8 +38,9 @@ jobs:
           deploy='^\.github/workflows/(deploy-engine|deploy-production|preview|baselines)\.yml$'
           if ! outside "^engine/|$deploy"; then scope=engine
           elif ! outside "^engine/|^apps/api/|$deploy"; then scope=api
-          # Web only (as Houzs skips its backend suite on a frontend-only PR): the server suite is skipped except
-          # the one server test that reads web files; shared still runs (two of its tests read web files).
+          # Web only (as Houzs skips its backend suite on a frontend-only PR): the server suite is skipped; shared
+          # still runs (two of its tests read web files). The one server test that read web files went with the
+          # old Sales Order pages (PR #2281).
           elif ! outside "^engine/|^apps/web/|$deploy"; then scope=web
           else scope=all; fi
           echo "Checks for this PR: $scope"
@@ -117,9 +118,6 @@ jobs:
       - name: Server tests, shard 2 of 2
         if: matrix.part == 'api-2' && needs.scope.outputs.scope != 'web'
         run: pnpm --filter @carres/api exec vitest run --shard=2/2
-      - name: The server test that reads web files (web-only PR)
-        if: matrix.part == 'api-1' && needs.scope.outputs.scope == 'web'
-        run: pnpm --filter @carres/api exec vitest run src/routes/operation/orders-print-do.test.ts
       - name: Shared package tests
         if: matrix.part == 'shared' && (needs.scope.outputs.scope == 'all' || needs.scope.outputs.scope == 'web')
         run: pnpm --filter @carres/shared test
