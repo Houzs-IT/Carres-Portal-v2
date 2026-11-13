@@ -30,6 +30,8 @@ export type Bindings = {
   OLD_ORDER_FLOWS?: string;
   SCM_ENGINE_SITE?: string;
   SCM_ENGINE_SSO_SECRET?: string;
+  /** The staff portal origin a Team invite link lands on (routes/engine-staff-accounts.ts); unset => https://erp.carresofficial.com. */
+  STAFF_WEB_URL?: string;
   /** The engine Worker itself (service binding, production); unset => SCM_ENGINE_API over the internet. */
   SCM_ENGINE?: Fetcher;
 };

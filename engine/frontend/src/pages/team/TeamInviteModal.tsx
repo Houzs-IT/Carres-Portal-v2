@@ -34,7 +34,32 @@ type SendResult = {
   email_sent?: boolean;
   activated: boolean;
   email_alias?: string | null;
+  // Carres: what happened to the person's Carres portal login (the one staff sign in with).
+  carres_portal?: CarresPortalResult;
 };
+
+/** Carres: the backend's report on the portal login (engine/backend/src/routes/users.ts, POST /invite). */
+export type CarresPortalResult = { status: "created" | "existing"; role: string; email_sent: boolean };
+
+/** Carres: the success message when the invite also made (or linked) the Carres portal login. */
+export function carresPortalMessage(sent: { email: string; activated: boolean; carres_portal: CarresPortalResult }): { title: string; body: string } {
+  const p = sent.carres_portal;
+  if (p.status === "existing") {
+    return {
+      title: `Member added for ${sent.email}`,
+      body: "This email already has a Carres portal account, so it was linked and left as it was. Their portal password is unchanged.",
+    };
+  }
+  if (sent.activated) {
+    return {
+      title: `Account created for ${sent.email}`,
+      body: "They can sign in to the Carres portal right away with their email and the password you set.",
+    };
+  }
+  return p.email_sent
+    ? { title: `Invitation emailed to ${sent.email}`, body: "They'll receive an email to set their password, then sign in to the Carres portal." }
+    : { title: `Account created for ${sent.email}`, body: "The invite email did not go out. Set a password for them from their profile." };
+}
 
 type BulkResult = { email: string; ok: boolean; error?: string };
 
@@ -187,6 +212,7 @@ export function TeamInviteModal({
         invite_url?: string;
         email_sent?: boolean;
         email_alias?: string | null;
+        carres_portal?: CarresPortalResult; // Carres
       }>("/api/users/invite", {
         email: email.trim(),
         name: name.trim() || undefined,
@@ -221,6 +247,7 @@ export function TeamInviteModal({
         email_sent: res.email_sent,
         activated: withPassword && !!password,
         email_alias: res.email_alias,
+        carres_portal: res.carres_portal, // Carres
       });
       onInvited();
     } catch (e) {
@@ -395,6 +422,17 @@ export function TeamInviteModal({
     >
       {sent ? (
         <div className="flex flex-col gap-4 p-1">
+          {sent.carres_portal ? (
+            // Carres: the Carres portal login was made or linked; the copy says so.
+            <div className="rounded-lg border border-primary bg-primary-soft p-4">
+              <div className="text-[13px] font-semibold text-primary-ink">
+                {carresPortalMessage({ ...sent, carres_portal: sent.carres_portal }).title}
+              </div>
+              <p className="mb-0 mt-1 text-[12px] leading-relaxed text-primary-ink">
+                {carresPortalMessage({ ...sent, carres_portal: sent.carres_portal }).body}
+              </p>
+            </div>
+          ) : (
           <div className="rounded-lg border border-primary bg-primary-soft p-4">
             <div className="text-[13px] font-semibold text-primary-ink">
               {sent.activated
@@ -409,6 +447,7 @@ export function TeamInviteModal({
                   : "Email didn't go out automatically — share the invite link below directly."}
             </p>
           </div>
+          )}
           {sent.email_alias && (
             <div className="rounded-lg border border-border bg-surface-2 p-3 text-[12px] leading-relaxed text-ink-secondary">
               Company email: <span className="font-mono text-ink">{sent.email_alias}</span>. It can send now. To receive mail,
