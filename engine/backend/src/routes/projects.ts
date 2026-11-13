@@ -1580,9 +1580,10 @@ app.post("/venues", requirePermission("projects.write"), async (c) => {
   }>();
   const rawName = (body.name || "").trim();
   if (!rawName) return c.json({ error: "name required" }, 400);
-  // Fold showroom-venue aliases (e.g. "PJ Showroom") to canonical "2990s PJ" before
-  // the by-name lookup + INSERT, so re-adding an alias reactivates the ONE canonical
-  // picker row instead of spawning a duplicate menu entry (the main drift vector).
+  // Fold known venue aliases to their canonical name before the by-name lookup +
+  // INSERT, so re-adding an alias reactivates the ONE canonical picker row instead
+  // of spawning a duplicate menu entry. Carres: the alias map is empty, so this
+  // only trims ("PJ Showroom" stays "PJ Showroom"); see canonical-venue.ts.
   const name = canonicalizeVenue(rawName) ?? rawName;
   // Resolve the active company for this WRITE, or refuse. The INSERT below used
   // to omit company_id, so a venue created while viewing 2990 was written with
@@ -2125,8 +2126,8 @@ app.get("/analytics/profitability", requirePageAccess("projects.finances"), asyn
   const by_brand = groupBy((r) => r.brand);
   const by_organizer = groupBy((r) => r.organizer);
   // Canonicalize at read time too: any legacy row still holding an alias buckets
-  // under "2990s PJ" so the breakdown never shows the same showroom twice, even
-  // before the one-shot backfill runs.
+  // under its canonical name so the breakdown never shows the same place twice.
+  // Carres: the alias map is empty, so this only trims; see canonical-venue.ts.
   const by_venue = groupBy((r) => canonicalizeVenue(r.venue));
   const by_event_type = groupBy((r) => r.event_type_name);
   // YYYY-MM bucket from start_date

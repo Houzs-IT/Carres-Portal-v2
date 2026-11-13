@@ -4,6 +4,7 @@
    customer. */
 import { describe, expect, it } from 'vitest';
 import { STOCK_BUCKETS, emptyBuckets, isStockBucket, stockBucketOf } from './stock-bucket';
+import { canonicalizeVenue } from './canonical-venue';
 
 describe('stockBucketOf', () => {
   it('reads the type by default: each type its own bucket, warehouse as customer stock', () => {
@@ -31,5 +32,15 @@ describe('stockBucketOf', () => {
     expect(isStockBucket('showroom')).toBe(true);
     expect(isStockBucket('DISPLAY')).toBe(false);
     expect(emptyBuckets()).toEqual({ customer: 0, display: 0, service: 0, showroom: 0, others: 0 });
+  });
+});
+
+// Carres: the PJ-HQ warehouse named "PJ Showroom" (type showroom) counts as
+// showroom stock under its own name; nothing folds it into a 2990 name.
+describe('Carres: PJ Showroom stock bucket', () => {
+  it('a showroom-type warehouse named "PJ Showroom" is showroom stock, name untouched', () => {
+    const pj = { code: 'PJ-HQ', name: 'PJ Showroom', venue_name: 'PJ Showroom', type: 'showroom', stock_bucket: null };
+    expect(stockBucketOf(pj)).toBe('showroom');
+    expect(canonicalizeVenue(pj.venue_name)).toBe('PJ Showroom');
   });
 });

@@ -9,7 +9,7 @@
 // the per-warehouse override; blank falls back to the warehouse TYPE —
 //   warehouse → customer   (goods for sale)
 //   display   → display    (partner display sets standing on a floor)
-//   showroom  → showroom   (our own showrooms: 2990s PJ, the sleep studios)
+//   showroom  → showroom   (our own showrooms, e.g. Carres PJ Showroom)
 //   service   → service    (away at the supplier being repaired)
 //   others    → others     (HQ and the like)
 // A warehouse no row answers for (a movement whose warehouse is gone) counts

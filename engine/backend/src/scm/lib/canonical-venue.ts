@@ -3,34 +3,34 @@
 // The system has historically stored the venue as free text on TWO surfaces — the
 // PMS `projects.venue` (+ the `project_venues` picker) and the SCM showroom side
 // (`scm.mfg_sales_orders.venue`, `scm.warehouses.venue_name`). Each was cleaned up by
-// separate one-shot backfills, so the same place drifted back apart (e.g. "PJ Showroom"
-// vs "2990s PJ"). This module is imported by BOTH the runtime write paths and the
-// backfill script so the guard and the cleanup can never disagree — every surface that
-// writes or displays a venue resolves through the same map.
+// separate one-shot backfills, so the same place drifted back apart. This module is
+// imported by the runtime write paths so every surface that writes or displays a venue
+// resolves through the same map.
 //
-// To unify another venue in future, add a row to VENUE_CANONICAL_MAP.
-//
-// KEEP IN SYNC — the same rule is spelled out in three more places, and two
-// copies of it disagreeing is the exact failure this module exists to prevent:
-//   * backend/src/db/migrations-pg/*_venue_canonicalize.sql — scm.canonicalize_venue(),
-//     the BEFORE INSERT/UPDATE trigger that catches writes bypassing this front door
-//   * backend/src/db/migrations/*_venue_canonicalize.sql — the D1 test-mirror triggers
-//   * backend/scripts/backfill-canonicalize-venue.mjs — the one-shot cleanup
-// Changing VENUE_CANONICAL_MAP means changing all four. backend/tests/venueCanonicalSql.test.ts
-// fails the build if the SQL guards fall behind this map.
+// KEEP IN SYNC — the same rule is spelled out in the database too:
+//   * Carres (what the engine runs): scm.canonicalize_venue(), last defined by
+//     backend/scripts/carres-db/migrations/2007_carres_no_venue_aliases.sql, behind the
+//     BEFORE INSERT/UPDATE triggers on mfg_sales_orders.venue, warehouses.venue_name,
+//     projects.venue and project_venues.name
+//   * the D1 test mirror: migrations/141 created the triggers, 181 drops them for Carres
+//   * Houzs history only (not applied to Carres): migrations-pg/*_venue_canonicalize.sql
+//     and scripts/backfill-canonicalize-venue.mjs
+// backend/tests/venueCanonicalSql.test.ts fails the build if the Carres guards fall
+// out of step with this map.
 
-/** canonical display name -> the raw variants that must fold into it (compare key form). */
-export const VENUE_CANONICAL_MAP: Record<string, string[]> = {
-  "2990s PJ": [
-    "pj showroom",
-    "pj-showroom",
-    "pjshowroom",
-    "2990s pj",
-    "2990spj",
-    "2990 pj",
-    "2990pj",
-  ],
-};
+/** canonical display name -> the raw variants that must fold into it (compare key form).
+ *
+ * Carres: EMPTY on purpose. The engine runs for Carres only, and Carres has no venue
+ * aliases. Houzs's one row folded "PJ Showroom" (and its spellings) into "2990s PJ",
+ * a 2990 showroom name. Carres's real showroom is the PJ-HQ warehouse named
+ * "PJ Showroom", and the Carres SO Showroom picker saves that name as the order
+ * venue, so the Houzs row would have renamed Carres orders, warehouses and project
+ * venues to a 2990 name that must never appear in Carres. Carres's database guard
+ * scm.canonicalize_venue() is made alias-free by carres-db migration
+ * 2007_carres_no_venue_aliases.sql, and the D1 test mirror's alias triggers are
+ * dropped by migrations/181_carres_drop_venue_aliases.sql. Blank/trim behaviour is
+ * unchanged. Add a row here only for a real Carres alias, and update both guards. */
+export const VENUE_CANONICAL_MAP: Record<string, string[]> = {};
 
 /** Normalize a name to its lookup key: lower-case, trimmed, inner whitespace collapsed. */
 export function venueKey(name: string): string {

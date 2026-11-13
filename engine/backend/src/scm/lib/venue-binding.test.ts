@@ -339,3 +339,27 @@ describe('venueNameForHalfWrittenPair', () => {
     expect(r.kind).toBe('unresolved');
   });
 });
+
+// Carres: the SO showroom binding saves the showroom's own name. Houzs folded
+// "PJ Showroom" into "2990s PJ"; Carres's real showroom (PJ-HQ) is named
+// "PJ Showroom" and an order bound to it must carry exactly that venue.
+describe('Carres: SO create/edit venue binding keeps "PJ Showroom"', () => {
+  it('a showroom named "PJ Showroom" binds as "PJ Showroom"', () => {
+    const r = resolveVenueBinding({
+      soDate: '2026-11-13',
+      pmsCandidates: [],
+      showroom: showroom({ warehouseId: 'wh-pj-hq', warehouseName: 'PJ-HQ', venueName: 'PJ Showroom' }),
+    });
+    expect(r.venueName).toBe('PJ Showroom');
+    expect(r.source).toBe('SHOWROOM');
+  });
+
+  it('a project at "PJ Showroom" binds as "PJ Showroom"', () => {
+    const r = resolveVenueBinding({
+      soDate: '2026-07-19',
+      pmsCandidates: [project({ projectId: 9, venue: 'PJ Showroom' })],
+      showroom: null,
+    });
+    expect(r.venueName).toBe('PJ Showroom');
+  });
+});
