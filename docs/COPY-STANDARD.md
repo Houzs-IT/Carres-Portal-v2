@@ -6337,6 +6337,9 @@ The supply chain and service case screens run as their own site (engine/), frame
 | Frame | `Supply Chain` (read aloud) |
 | While it opens | `Opening Supply Chain` (read aloud) |
 | Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |
+| On a phone, the row at the foot of Houzs's Menu sheet that opens the portal menu (owner 14 Nov 2026: the phone version is Houzs's own phone app) | group `Carres` · row `Carres menu` |
+
+On a phone (below 768px) an engine page is Houzs's own phone app filling the screen (bottom tabs `Orders` · `Service` · Menu · `Calendar` · `Profile`, Houzs's words); the portal's phone header steps aside there and `Carres menu` opens the portal's drawer for the Carres rows. Carres's own pages keep the portal phone header.
 
 ## Old supply chain removed · owner decisions (10 and 11 Nov 2026)
 

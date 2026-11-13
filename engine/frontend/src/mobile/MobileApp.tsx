@@ -20,6 +20,9 @@ import { useAnnouncementUnread } from "./useAnnouncementUnread";
 import { MobileCrashBoundary } from "./MobileCrashBoundary";
 import { IosInstallGuide } from "../components/IosInstallGuide";
 import { AndroidInstallGuide } from "../components/AndroidInstallGuide";
+import { CARRES_EMBEDDED } from "../carres/embed";
+import { carresScreenPath, carresTabFor, useCarresMobileUrl } from "../carres/mobileUrl";
+import { CarresMenuRow } from "../carres/CarresMenuRow";
 // Heavy mobile screens are lazy-loaded so the initial mobile chunk stays small
 // (desktop routes were already lazy — this closes the mobile gap that made the
 // first mobile paint download/parse a ~10k-line monolith). Rendered under the
@@ -615,8 +618,9 @@ export function MobileApp() {
                 webviews, Chrome post-decline) got NO install path at all —
                 the guides self-guard on platform/standalone/cool-off, and
                 the Android one defers to PwaBanners' one-tap Install. */}
-            <IosInstallGuide />
-            <AndroidInstallGuide />
+            {/* Carres: inside the portal the portal is the installed app, so no install coach here. */}
+            {!CARRES_EMBEDDED && <IosInstallGuide />}
+            {!CARRES_EMBEDDED && <AndroidInstallGuide />}
             <MobileAppInner />
           </ChoiceProvider>
         </PromptProvider>
@@ -726,6 +730,13 @@ function MobileAppInner() {
      here — serialise the state itself, which is a small discriminated union. */
   const screenKey = JSON.stringify(screen);
   const back = () => setScreen({ t: "tab" });
+  // Carres: inside the portal the address follows the screen, and Back / the portal's menu open the address's screen.
+  useCarresMobileUrl(carresScreenPath(tab, screen, allKnownDestinations, destinationScreen), (location) => {
+    const carresTab = carresTabFor(location);
+    const route = resolveMobileRoute(location, visibleDestinations, allKnownDestinations);
+    setTab(carresTab ?? (route.t === "tab" ? route.tab : firstTab));
+    setScreen(carresTab ? { t: "tab" } : initialScreenFor(route));
+  });
   const leaveUrlDeadEnd = () => {
     navigate("/", { replace: true });
     setScreen({ t: "tab" });
@@ -1227,6 +1238,8 @@ function MobileAppInner() {
                 </div>
               ))}
               {menuGroups.length === 0 && <div style={{ textAlign: "center", color: "var(--hz-c-ink-soft)", fontSize: 12, padding: "24px 0" }}>No modules available for your position.</div>}
+              {/* Carres: the portal's own menu (Workspace, Leave, Subscription...). */}
+              <CarresMenuRow onOpen={() => setMenuOpen(false)} />
             </div>
           </div>
         </div>

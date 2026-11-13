@@ -11,8 +11,11 @@ import { carresPortalOrigin } from "./embed";
 /** The route fallback (components/RouteFallback.tsx PageSkeleton) while a page's code downloads. */
 const ROUTE_LOADING = '[aria-label="Loading page"]';
 
-/** The first page has drawn: the layout's <main> holds something, and it is not the route's loading shape. */
+/** The first page has drawn: the layout's <main> holds something, and it is not the route's loading shape. On a
+ *  phone Houzs's phone app has no <main>: its shell (`.hz-m`, mobile/MobileApp.tsx) holding something counts. */
 export function firstPageDrawn(root: ParentNode): boolean {
+  const phone = root.querySelector(".hz-m");
+  if (phone && phone.childElementCount > 0) return true;
   const main = root.querySelector("main");
   return !!main && main.childElementCount > 0 && !main.querySelector(ROUTE_LOADING);
 }

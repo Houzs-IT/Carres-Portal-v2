@@ -26,6 +26,10 @@ import Loading from "@/components/kit/Loading";
  * engine says its first page is drawn ({ type: "carres:ready" }, engine carres/ready.ts), or FRAME_READY_TIMEOUT_MS
  * passes, whichever is first. The session comes from lib/engine-session.ts, which keeps it for the tab and asks
  * for it early; when the engine refuses it ({ type: "carres:signed-out" }) one new session is asked for.
+ *
+ * On a phone (`phone`, the shell's phone width) the hand-over carries `m: 1`: the engine shows Houzs's own phone
+ * app, filling the frame with its bottom tabs and Menu, and the portal draws no header over it (OperationApp). The
+ * app's `Carres menu` row asks for the portal's menu ({ type: "carres:menu" }), which `onMenu` opens.
  */
 export const SC = {
   title: "Supply Chain",
@@ -36,9 +40,9 @@ export const SC = {
 
 const b64url = (s: string) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-/** The frame address: the engine site with the hand-over in the fragment. */
-export function engineFrameSrc(r: EngineSession, path = "/"): string {
-  return `${r.site}/#carres=${b64url(JSON.stringify({ t: r.token, sp: r.sessionPass ?? undefined, p: path }))}`;
+/** The frame address: the engine site with the hand-over in the fragment; `m: 1` asks for Houzs's phone app. */
+export function engineFrameSrc(r: EngineSession, path = "/", phone = false): string {
+  return `${r.site}/#carres=${b64url(JSON.stringify({ t: r.token, sp: r.sessionPass ?? undefined, p: path, ...(phone ? { m: 1 } : {}) }))}`;
 }
 
 /** The frame is shown at the latest this long after it starts loading, even without carres:ready. */
@@ -52,17 +56,21 @@ export function enginePath(p: string | null): string {
   return p && p.startsWith("/") && !p.startsWith("//") ? p : "/scm/sales-orders";
 }
 
-export default function SupplyChainEngine({ path: wantedPath }: { path: string }) {
+export default function SupplyChainEngine({ path: wantedPath, phone = false, onMenu }: { path: string; phone?: boolean; onMenu?: () => void }) {
   const path = enginePath(wantedPath);
   // The page the frame is on: it opens on the row clicked, and later clicks move it there.
   const shown = useRef(path);
   const wanted = useRef(path);
   wanted.current = path;
   // A session already in hand opens the frame on the first render, with no request first.
-  const [session, setSession] = useState<{ site: string; token: string; src: string } | null>(() => {
+  const [session, setSession] = useState<(EngineSession & { src: string }) | null>(() => {
     const cached = cachedEngineSession();
-    return cached ? { site: cached.site, token: cached.token, src: engineFrameSrc(cached, path) } : null;
+    return cached ? { ...cached, src: engineFrameSrc(cached, path, phone) } : null;
   });
+  const phoneNow = useRef(phone);
+  phoneNow.current = phone;
+  const menu = useRef(onMenu);
+  menu.current = onMenu;
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -74,8 +82,19 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
   const open = (r: EngineSession) => {
     shown.current = wanted.current;
     setReady(false);
-    setSession({ site: r.site, token: r.token, src: engineFrameSrc(r, shown.current) });
+    setSession({ ...r, src: engineFrameSrc(r, shown.current, phoneNow.current) });
   };
+
+  // Crossing the phone width reopens the frame on the same page, as Houzs's phone app or its computer screens.
+  const firstPhone = useRef(phone);
+  useEffect(() => {
+    if (phone === firstPhone.current) return;
+    firstPhone.current = phone;
+    if (!session) return; // a session still on its way opens with the current width (open above)
+    setReady(false);
+    setSession({ ...session, src: engineFrameSrc(session, shown.current, phone) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the width crosses, on the session in hand
+  }, [phone]);
 
   useEffect(() => {
     if (attempt === 0 && session) return; // opened from the session in hand
@@ -106,6 +125,8 @@ export default function SupplyChainEngine({ path: wantedPath }: { path: string }
       const d = e.data as { type?: string; path?: unknown; counts?: unknown } | null;
       if (e.origin !== session.site) return;
       if (d?.type === "carres:ready") { refreshed.current = false; setReady(true); return; }
+      // Houzs's phone app asks for the portal's menu (engine carres/CarresMenuRow.tsx).
+      if (d?.type === "carres:menu") { menu.current?.(); return; }
       // The engine refused the session (expired or signed out): one new session, then the failure.
       if (d?.type === "carres:signed-out") {
         if (refreshed.current) { dropEngineSession(session.token); setError(SC.failed); return; }

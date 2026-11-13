@@ -1,8 +1,10 @@
 // Carres only (not part of Houzs's code): running inside the Carres portal.
 //
 // The portal shows these screens in a frame and signs the person in on their behalf: the session arrives in the
-// address fragment (never sent to a server) and is removed from the address at once. Inside the frame this app
-// draws no menu or top bar of its own: the portal's sidebar picks the page (followCarresMenu) and its header is on screen.
+// address fragment (never sent to a server) and is removed from the address at once. On a computer, inside the frame
+// this app draws no menu or top bar of its own: the portal's sidebar picks the page (followCarresMenu) and its header
+// is on screen. On a phone the portal steps aside and Houzs's phone app (mobile/MobileApp.tsx) fills the frame with
+// its own bottom tabs and Menu, as in Houzs (carresPhone; owner 14 Nov 2026).
 import { tokenStore, passStore } from "../api/client";
 import "./embed.css";
 
@@ -13,13 +15,25 @@ export const CARRES_EMBEDDED: boolean = (() => {
 // Layout.tsx skips the top bars when embedded; embed.css keys off this class.
 if (CARRES_EMBEDDED) document.documentElement.classList.add("carres-embedded");
 
-/** Takes the hand-over from the address fragment: #carres=<base64url of {t, sp?, p}>. */
+/** Where the portal's phone flag is kept for this tab, so a reload inside the frame keeps the phone app. */
+const PHONE_KEY = "carres:phone";
+
+/** The portal draws its phone shell (below 768px) and asks for Houzs's phone app in the frame: true. Otherwise
+ *  null, and this app picks as Houzs does (auth/AuthGate.tsx mobileShellEnabled, mobile/useIsMobile.ts). */
+export function carresPhone(): boolean | null {
+  if (!CARRES_EMBEDDED) return null;
+  try { return sessionStorage.getItem(PHONE_KEY) === "1" ? true : null; } catch { return null; }
+}
+
+/** Takes the hand-over from the address fragment: #carres=<base64url of {t, sp?, p, m?}>. */
 export function consumeCarresSignIn(): void {
   const m = /^#carres=([A-Za-z0-9_-]+)$/.exec(window.location.hash);
   if (!m) return;
   let path = "/";
   try {
-    const { t, sp, p } = JSON.parse(atob(m[1].replace(/-/g, "+").replace(/_/g, "/"))) as { t?: string; sp?: string; p?: string };
+    const { t, sp, p, m: phone } = JSON.parse(atob(m[1].replace(/-/g, "+").replace(/_/g, "/"))) as { t?: string; sp?: string; p?: string; m?: number };
+    // `m: 1` = the portal shows its phone shell: Houzs's phone app fills the frame. Every hand-over restates it.
+    try { if (phone === 1) sessionStorage.setItem(PHONE_KEY, "1"); else sessionStorage.removeItem(PHONE_KEY); } catch { /* private mode */ }
     // Session storage only: the portal hands over its session for this tab on every visit
     // (apps/web/src/lib/engine-session.ts), and a new one when this app reports it refused (carres/ready.ts).
     if (t) tokenStore.set(t, false);
@@ -79,4 +93,10 @@ export function carresPortalOrigin(): string | null {
     const origin = document.referrer ? new URL(document.referrer).origin : null;
     return origin && PORTAL.test(origin) ? origin : null;
   } catch { return null; }
+}
+
+/** Houzs's phone app asks the portal to open its menu (the Carres rows: Workspace, Leave, Subscription...). */
+export function openCarresPortalMenu(): void {
+  const origin = carresPortalOrigin();
+  if (origin) window.parent.postMessage({ type: "carres:menu" }, origin);
 }
