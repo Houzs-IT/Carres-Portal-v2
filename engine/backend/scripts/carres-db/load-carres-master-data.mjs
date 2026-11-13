@@ -61,7 +61,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { askHidden, askLine } from "./ask.mjs";
 import { loadCatalog, readCatalog } from "./carres-catalog.mjs";
-import { emitMasterDataSql } from "./emit-sql.mjs";
+import { emitMasterDataSql, emitServiceMaintenanceSql } from "./emit-sql.mjs";
 import { CARRES_GROUPS, connect, copyFromHouzs, dbName, isLocal, printCopyReport, refOf, safe, sourceUrl, tablesOfGroups } from "./seed-houzs-core.mjs";
 
 const require = createRequire(import.meta.url);
@@ -75,6 +75,9 @@ const DRY = argv.includes("--dry-run");
 const SUPPLIERS_FILE = argOf("--suppliers") || join(DOWNLOADS, "Carres - Supplier List.xlsx");
 const NO_SKUS = argv.includes("--no-skus");
 const EMIT_SQL = argOf("--emit-sql");
+// --only service-maintenance (or --only=service-maintenance): ONLY Service Cases › Service Maintenance, as its own
+// migration (emit-sql.mjs emitServiceMaintenanceSql); needs --emit-sql. No supplier / catalogue file is read.
+const ONLY = argOf("--only") ?? argv.find((a) => a.startsWith("--only="))?.slice("--only=".length);
 const SKUS_FILE = argOf("--skus") || [join(DOWNLOADS, "Carres-SKU-Restructure-Review.xlsx"),
   join(homedir(), "Desktop", "Carres-Portal-v2-worktrees", "handoff", "Carres-SKU-Restructure-Review.xlsx")].find((f) => existsSync(f))
   || join(DOWNLOADS, "Carres-SKU-Restructure-Review.xlsx");
@@ -315,6 +318,28 @@ async function loadSuppliers(tx, co, suppliers) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+if (ONLY !== undefined) {
+  if (ONLY !== "service-maintenance") { console.error(`--only knows one group: service-maintenance (got "${ONLY}"). Nothing was written.`); process.exit(1); }
+  if (!EMIT_SQL) { console.error("--only service-maintenance is written as a migration: add --emit-sql scripts/carres-db/migrations/NNNN_carres_service_maintenance.sql"); process.exit(1); }
+  let srcUrl, srcDb;
+  try { srcUrl = sourceUrl(); srcDb = connect(srcUrl); }
+  catch { console.error("Cannot read the Houzs local database password (~/.houzs-local-pg-pass). Nothing was written."); process.exit(1); }
+  if (!srcDb || !isLocal(srcUrl)) { console.error("The Houzs source must be a local database. Nothing was written."); process.exit(1); }
+  try {
+    const { outFile, report } = await emitServiceMaintenanceSql({ outFile: EMIT_SQL, src: srcDb, srcUrl });
+    console.log(`Local engine schema: built from ${report.built} migrations, then dropped.`);
+    console.log(`
+── Service Maintenance from Houzs, written as insert-if-missing by natural key`);
+    printCopyReport(report.houzs, true);
+    console.log(`
+WROTE ${outFile}
+No engine database was touched. Commit it as the next migration; the engine deploy applies it.`);
+  } catch (e) {
+    console.error(`STOPPED, nothing was written: ${safe(e)}`);
+    process.exitCode = 1;
+  } finally { await srcDb.end(); }
+  process.exit(process.exitCode ?? 0);
+}
 let sup;
 try { sup = readSuppliers(SUPPLIERS_FILE); }
 catch (e) { console.error(`${e.message}\nNothing was changed.`); process.exit(1); }
