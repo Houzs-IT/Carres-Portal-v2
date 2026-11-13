@@ -189,16 +189,23 @@ copied and built on PGlite, NOT YET APPLIED to the engine database):
    Build a throwaway database from that folder (PGlite) before merging; the owner applies them to the
    engine database with `engine/backend/scripts/carres-db/apply.mjs`.
 
-**Test data: Houzs's master data in the engine** (`engine/backend/scripts/carres-db/seed-from-houzs.mjs`, 11 Nov
-2026). To test-run the whole engine flow on real master data, the owner runs, from `engine/backend` on the machine
-that holds Houzs's masked local database (`houzs_local`, built by `houzs-erp-local/.local-dev/import-snapshot.sh`):
-`node scripts/carres-db/seed-from-houzs.mjs --dry-run`, then without `--dry-run`. It asks for the engine database
-connection string hidden, like `apply.mjs`, and copies only master/config rows (catalogue, suppliers and bindings,
-warehouses and racks, customers, delivery rates, lead times, Finance chart of accounts and settings, lookup lists)
-of Houzs's main company, re-labelled to the Carres company, in one transaction; never transactions, stock, history,
-tokens or users, and it never changes or deletes a row already there (re-runs copy nothing new).
-`--classify` lists every Houzs table as copied or skipped with the reason. Before go-live, the engine database
-starts clean again (CLAUDE.md §6): this is test data.
+**Carres master data in the engine** (`engine/backend/scripts/carres-db/load-carres-master-data.mjs`, owner decision
+13 Nov 2026). ONE command, run by the owner from `engine/backend` on the machine that holds Houzs's masked local
+database (`houzs_local`): `node scripts/carres-db/load-carres-master-data.mjs` (optional `--suppliers <xlsx>`,
+`--skus <restructure workbook>`, `--dry-run`, `--no-skus`). It asks once for the engine connection string (hidden,
+like `apply.mjs`; refuses the portal's project), shows a rolled-back dry-run summary, then applies after the project
+ref is typed back, all in one transaction: D removes the hand-made test rows (supplier 400-T001 while it is not the
+AutoCount THE CONTS row, SKU/model TEST-PILLOW, warehouse TKL; stops if anything else uses them) · A copies from Houzs
+only categories, Products › Maintenance and SO Maintenance (all of Houzs's main-company entries) · C writes Carres's
+three warehouses (KLG-WH01 default, PJ-HQ showroom, KLG-SVC service) and maps Selangor, Kuala Lumpur and Putrajaya to KLG-WH01 · B
+upserts the 40 AutoCount suppliers by code · E loads the owner-reviewed restructure workbook (83 models, 322 SKUs,
+supplier bindings, sofa combos, and the maintenance entries Houzs lacks). Re-runs change nothing. No Houzs suppliers,
+SKUs, warehouses, customers, staff, Finance, delivery rates or venues; no selling prices; no stock balances. Known gap:
+the engine's Houzs venue alias (`scm.canonicalize_venue`, `canonical-venue.ts`) stores the showroom name
+"PJ Showroom" as "2990s PJ" on warehouses and orders until that alias is removed.
+`seed-from-houzs.mjs` is the Houzs copy on its own: by default the same three groups, `--only=<groups>`, or the old
+whole-catalogue test copy behind `--full` (never for the real engine database); `--classify` lists every Houzs table.
+Before go-live, transactions start clean (CLAUDE.md §6); this master data is configuration.
 
 ---
 
