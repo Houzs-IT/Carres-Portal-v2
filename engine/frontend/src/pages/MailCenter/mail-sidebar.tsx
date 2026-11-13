@@ -63,40 +63,56 @@ function ClaimMyAddress() {
       <p className="m-0 text-[11.5px] leading-snug text-ink-secondary">
         Pick your company address. You can claim it once; an admin can change it later.
       </p>
-      <div className="flex items-center overflow-hidden rounded-md border border-border bg-surface focus-within:border-primary">
+      {/* Carres: a long domain (@carresofficial.com) left the name a few letters
+          wide in the ~190px rail; the domain now wraps under the name instead. */}
+      <div className="flex flex-wrap items-center overflow-hidden rounded-md border border-border bg-surface focus-within:border-primary">
         <input
           value={claim.value}
           onChange={(e) => claim.setValue(e.target.value)}
           aria-label="Address name"
-          className="min-w-0 flex-1 bg-transparent px-2 py-1.5 font-mono text-[12px] text-ink outline-none"
+          className="min-w-[7rem] flex-1 bg-transparent px-2 py-1.5 font-mono text-[12px] text-ink outline-none"
         />
-        <span className="shrink-0 pr-2 font-mono text-[11px] text-ink-muted">@{offer.domain}</span>
+        <span className="min-w-0 break-all px-2 pb-1 font-mono text-[11px] text-ink-muted">@{offer.domain}</span>
       </div>
       {offer.department ? (
         <p className="m-0 text-[11px] text-ink-muted">Department: {offer.department.name} (from the Org Chart)</p>
       ) : (
+        // Carres: the question no longer fits inside a closed select in the
+        // narrow rail, so it is shown above it in full.
+        <label className="block space-y-1">
+          <span className="block text-[11px] leading-snug text-ink-muted">Which department do you work in?</span>
         <select
           value={claim.departmentId ?? ""}
           onChange={(e) => claim.setDepartmentId(e.target.value ? Number(e.target.value) : null)}
           aria-label="Department"
-          className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-ink outline-none focus:border-primary"
+          className="w-full min-w-0 truncate rounded-md border border-border bg-surface px-2 py-1.5 text-[12px] text-ink outline-none focus:border-primary"
         >
-          <option value="">Which department do you work in?</option>
+          <option value="">Choose…</option>
           {offer.departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}
             </option>
           ))}
         </select>
+        </label>
       )}
       {(claim.problem ?? claim.error) && <p className="m-0 text-[11px] text-err">{claim.problem ?? claim.error}</p>}
       <button
         type="button"
         disabled={!claim.ready}
         onClick={() => void claim.submit()}
-        className="w-full rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+        // Carres: the full address overflowed the button; let it wrap inside.
+        className="w-full rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold leading-snug text-white transition [overflow-wrap:anywhere] hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {claim.busy ? "Claiming…" : `Claim ${claim.value.trim().toLowerCase() || "…"}@${offer.domain}`}
+        {claim.busy ? (
+          "Claiming…"
+        ) : (
+          <>
+            {`Claim ${claim.value.trim().toLowerCase() || "…"}`}
+            <wbr />
+            {`@${offer.domain}`}
+          </>
+        )}
       </button>
       {claim.needsDepartment && (
         <p className="m-0 text-[10.5px] leading-snug text-ink-muted">An admin confirms your department.</p>

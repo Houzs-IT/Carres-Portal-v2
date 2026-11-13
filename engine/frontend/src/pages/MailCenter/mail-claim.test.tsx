@@ -59,6 +59,17 @@ describe("HC-0157 A claim my address", () => {
     expect(screen.getByText("An admin confirms your department.")).toBeTruthy();
   });
 
+  // Carres: the rail is ~190px wide inside the portal iframe.
+  it("keeps every part inside a narrow rail: the domain may wrap, the question sits above the select, the button wraps", () => {
+    department = null;
+    nav();
+    const input = screen.getByLabelText("Address name");
+    expect(input.parentElement?.className).toContain("flex-wrap");
+    expect(input.className).toContain("min-w-[7rem]");
+    expect(screen.getByText("Which department do you work in?").tagName).toBe("SPAN");
+    expect(screen.getByText("Claim kelly.wong@houzscentury.com").className).toContain("[overflow-wrap:anywhere]");
+  });
+
   it("matches the server's rule for the name", () => {
     for (const ok of ["kelly", "kelly.wong", "k-w_2"]) expect(localPartProblem(ok)).toBeNull();
     for (const bad of ["k", "kelly wong", ".kelly", "kelly-", "a..b", "x@y"]) expect(localPartProblem(bad)).not.toBeNull();
