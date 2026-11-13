@@ -181,8 +181,9 @@ export async function createProject(env: Env, input: CreateProjectInput) {
      Pinang'/'Kuala Lumpur'. Foreign state names (China provinces) pass
      through unchanged. */
   input.state = canonicalizeMyState(input.state ?? null);
-  // Fold showroom-venue aliases (e.g. "PJ Showroom") to the canonical "2990s PJ"
-  // at the write front door so every surface that later reads this row agrees.
+  // Fold known venue aliases to their canonical name at the write front door so
+  // every surface that later reads this row agrees. Carres: the alias map is
+  // empty, so this only trims ("PJ Showroom" stays); see canonical-venue.ts.
   input.venue = canonicalizeVenue(input.venue ?? null);
 
   // Derive code from identity fields. Throws if state/venue/brand are

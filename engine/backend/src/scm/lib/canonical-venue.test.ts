@@ -1,24 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { canonicalizeVenue, venueKey } from './canonical-venue';
+import { VENUE_CANONICAL_MAP, canonicalizeVenue, venueKey } from './canonical-venue';
 
 describe('canonicalizeVenue', () => {
-  it('folds every known showroom alias to "2990s PJ"', () => {
-    for (const raw of ['PJ Showroom', 'pj showroom', 'PJ-SHOWROOM', 'pjshowroom', '2990s pj', '2990 PJ', '2990spj']) {
-      expect(canonicalizeVenue(raw)).toBe('2990s PJ');
+  // Carres: the engine carries no venue aliases. Houzs folded "PJ Showroom" and its
+  // spellings into "2990s PJ"; Carres's own showroom is named "PJ Showroom" and must
+  // keep that name, so every spelling now comes back trimmed and otherwise unchanged.
+  it('Carres: has no alias rows at all', () => {
+    expect(VENUE_CANONICAL_MAP).toEqual({});
+  });
+
+  it('Carres: keeps "PJ Showroom" and never produces a 2990 name', () => {
+    for (const raw of ['PJ Showroom', 'pj showroom', 'PJ-SHOWROOM', 'pjshowroom', '2990 PJ']) {
+      expect(canonicalizeVenue(raw)).toBe(raw);
     }
   });
 
-  it('is idempotent on the canonical form', () => {
-    expect(canonicalizeVenue('2990s PJ')).toBe('2990s PJ');
-    expect(canonicalizeVenue(canonicalizeVenue('PJ Showroom'))).toBe('2990s PJ');
+  it('is idempotent', () => {
+    expect(canonicalizeVenue(canonicalizeVenue('PJ Showroom'))).toBe('PJ Showroom');
   });
 
-  it('normalizes surrounding and inner whitespace before matching', () => {
-    expect(canonicalizeVenue('  PJ   Showroom  ')).toBe('2990s PJ');
+  it('trims surrounding whitespace; the lookup key still collapses inner whitespace', () => {
+    expect(canonicalizeVenue('  PJ Showroom  ')).toBe('PJ Showroom');
     expect(venueKey('  PJ   Showroom ')).toBe('pj showroom');
   });
 
-  it('leaves an unknown venue unchanged (trimmed) — we only unify known aliases', () => {
+  it('leaves an unknown venue unchanged (trimmed)', () => {
     expect(canonicalizeVenue('KLCC Hall 3')).toBe('KLCC Hall 3');
     expect(canonicalizeVenue('  Sunway Pyramid ')).toBe('Sunway Pyramid');
   });

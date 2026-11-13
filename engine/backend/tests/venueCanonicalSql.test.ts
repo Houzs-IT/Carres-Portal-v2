@@ -1,93 +1,69 @@
 import { describe, expect, test } from "vitest";
-import { VENUE_CANONICAL_MAP, venueKey } from "../src/scm/lib/canonical-venue";
+import { VENUE_CANONICAL_MAP } from "../src/scm/lib/canonical-venue";
 
 /* WHY THIS TEST EXISTS.
-   The venue name has now been unified three times, and it drifted back twice —
-   each cleanup was a one-shot backfill with no guard. 2026-07-29 added the TS
-   front door (canonical-venue.ts) and this branch added the SQL net
-   (migrations-pg/*_venue_canonicalize.sql). That means ONE rule now lives in
-   three files: the TS module, the backfill script, and the SQL function. The
-   failure mode this whole effort is about is two copies of a rule disagreeing —
-   so "keep them in sync" is enforced here rather than written in a comment,
-   the same reasoning as migrationNumbers.test.ts.
+   One venue rule lives in three places: the TS front door (canonical-venue.ts), the
+   Carres database function scm.canonicalize_venue() behind four BEFORE triggers, and
+   the D1 test mirror's triggers. Two copies disagreeing is the failure this guards.
 
-   Adding an alias to VENUE_CANONICAL_MAP and forgetting the SQL fails HERE, at
-   PR time, instead of silently leaving a hole in the database-level guard.
+   Carres: the engine runs for Carres, which has NO venue aliases. Houzs's map folded
+   "PJ Showroom" into "2990s PJ", a 2990 name that must never appear in Carres (its
+   real showroom is named "PJ Showroom"). So the Carres contract is: the TS map is
+   empty, the LATEST carres-db definition of scm.canonicalize_venue() has no alias
+   branch, and the D1 alias triggers from migration 141 are dropped again. The Houzs
+   history (migrations-pg/*_venue_canonicalize.sql) is not applied to Carres and is
+   not checked here. */
 
-   Globbed by SUFFIX, never by number: this migration gets renumbered whenever a
-   parallel PR takes its slot on main, and a number-pinned glob resolves to
-   nothing and passes vacuously. */
+const carresMigrations = import.meta.glob("../scripts/carres-db/migrations/*.sql", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+}) as Record<string, string>;
 
-function onlySource(glob: Record<string, string>, what: string): string {
-  const paths = Object.keys(glob);
-  if (paths.length !== 1) {
-    throw new Error(
-      `expected exactly one ${what} venue-canonicalize migration, found ${paths.length}: ` +
-        `${paths.join(", ") || "(none)"}`,
-    );
+const d1Migrations = import.meta.glob("../src/db/migrations/*.sql", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+}) as Record<string, string>;
+
+/** The last CREATE OR REPLACE of scm.canonicalize_venue, in apply order. */
+function latestCarresFunction(): { file: string; body: string } {
+  let found: { file: string; body: string } | null = null;
+  for (const file of Object.keys(carresMigrations).sort()) {
+    const sql = carresMigrations[file].replace(/\r\n/g, "\n");
+    const re = /CREATE OR REPLACE FUNCTION scm\.canonicalize_venue\(input text\)[\s\S]*?END \$function\$;/g;
+    for (const m of sql.matchAll(re)) found = { file, body: m[0] };
   }
-  return glob[paths[0]];
+  if (!found) throw new Error("no carres-db migration defines scm.canonicalize_venue(text)");
+  return found;
 }
 
-const pgSql = onlySource(
-  import.meta.glob("../src/db/migrations-pg/*_venue_canonicalize.sql", {
-    eager: true,
-    query: "?raw",
-    import: "default",
-  }) as Record<string, string>,
-  "Postgres",
-);
-
-const d1Sql = onlySource(
-  import.meta.glob("../src/db/migrations/*_venue_canonicalize.sql", {
-    eager: true,
-    query: "?raw",
-    import: "default",
-  }) as Record<string, string>,
-  "D1",
-);
-
-/** Every lookup key the TS map folds, canonical included. */
-const allKeys = Object.entries(VENUE_CANONICAL_MAP).flatMap(([canonical, variants]) => [
-  venueKey(canonical),
-  ...variants.map(venueKey),
-]);
-
-describe("venue canonicalization: the TS map and the SQL guards agree", () => {
-  test("the TS map is non-empty (guards against a vacuous pass)", () => {
-    expect(allKeys.length).toBeGreaterThan(0);
+describe("Carres venue canonicalization: no Houzs/2990 aliases anywhere", () => {
+  test("the TS map is empty", () => {
+    expect(VENUE_CANONICAL_MAP).toEqual({});
   });
 
-  test("the Postgres function maps every alias the TS map knows", () => {
-    for (const [canonical, variants] of Object.entries(VENUE_CANONICAL_MAP)) {
-      for (const key of [venueKey(canonical), ...variants.map(venueKey)]) {
-        expect(
-          pgSql,
-          `scm.canonicalize_venue() has no WHEN branch for "${key}" — add it to the migration`,
-        ).toContain(`WHEN '${key}'`);
-      }
-      expect(pgSql, `the Postgres function never returns "${canonical}"`).toContain(
-        `THEN '${canonical}'`,
-      );
+  test("the latest Carres scm.canonicalize_venue() has no alias branch", () => {
+    const { file, body } = latestCarresFunction();
+    expect(file).toMatch(/2007_carres_no_venue_aliases\.sql$/);
+    expect(body).not.toMatch(/\bWHEN\b/);
+    expect(body).not.toContain("2990");
+    // Blank handling is unchanged: NULL stays NULL, blank returns its input.
+    expect(body).toContain("IF input IS NULL THEN RETURN NULL; END IF;");
+    expect(body).toContain("IF trimmed = '' THEN RETURN input; END IF;");
+    expect(body).toContain("RETURN trimmed;");
+  });
+
+  test("every D1 alias trigger created by 141 is dropped again", () => {
+    const files = Object.keys(d1Migrations).sort();
+    const created = files
+      .flatMap((f) => [...d1Migrations[f].matchAll(/CREATE TRIGGER IF NOT EXISTS (trg_\w*canonicalize\w*)/g)])
+      .map((m) => m[1]);
+    expect(created.length).toBeGreaterThan(0); // guards against a vacuous pass
+    const dropFile = files.find((f) => f.endsWith("_carres_drop_venue_aliases.sql"));
+    expect(dropFile, "the Carres D1 drop migration is missing").toBeTruthy();
+    for (const name of created) {
+      expect(d1Migrations[dropFile!]).toContain(`DROP TRIGGER IF EXISTS ${name};`);
     }
-  });
-
-  test("the D1 parity file carries the same alias list", () => {
-    for (const [canonical, variants] of Object.entries(VENUE_CANONICAL_MAP)) {
-      for (const key of [venueKey(canonical), ...variants.map(venueKey)]) {
-        expect(
-          d1Sql,
-          `the D1 parity trigger does not fold "${key}"`,
-        ).toContain(`'${key}'`);
-      }
-      expect(d1Sql).toContain(`'${canonical}'`);
-    }
-  });
-
-  test("blanks stay blank — the Postgres function returns its input untouched", () => {
-    // A NOT NULL venue column must survive this trigger; the owner asked to
-    // unify the PJ alias, not to fill unassigned rows.
-    expect(pgSql).toContain("IF input IS NULL THEN RETURN NULL; END IF;");
-    expect(pgSql).toContain("IF trimmed = '' THEN RETURN input; END IF;");
   });
 });
