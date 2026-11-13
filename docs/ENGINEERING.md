@@ -172,7 +172,7 @@ announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worke
 geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
 `TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
 
-**Resync from a newer Houzs main** (last done 14 Nov 2026, `c780a870b` → `b925e297f`; migrations 1188–1189
+**Resync from a newer Houzs main** (last done 14 Nov 2026, `c780a870b` → `b14535068`; migrations 1188–1189
 copied verbatim and built on PGlite (201 applied, 0 failed); the engine deploy applies them on merge
 (`deploy-engine.yml`, `apply.mjs --ci`, only when `ENGINE_DATABASE_URL` is set; check that run before
 calling them applied):
