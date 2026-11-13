@@ -5,6 +5,7 @@ import { ingestInboundEmail } from "../src/routes/mail-center";
 import {
   companyMailboxDomain,
   defaultPersonalLocalPart,
+  emailLocalPartSuggestion,
   freePersonalAddress,
   provisionPersonalMailbox,
 } from "../src/lib/mail-provision";
@@ -100,6 +101,17 @@ describe("the default address", () => {
     expect(defaultPersonalLocalPart("  José  Ng ")).toBe("jose.ng");
     expect(defaultPersonalLocalPart("Samuel")).toBe("samuel");
     expect(defaultPersonalLocalPart("陈 ")).toBeNull();
+  });
+
+  // Carres: members whose name is still their login email.
+  test("a name that is an email uses its local part only, never the email domain", () => {
+    expect(defaultPersonalLocalPart("weisiang329@gmail.com")).toBe("weisiang329");
+    expect(defaultPersonalLocalPart("Lim.Wei_Siang@Gmail.com")).toBe("lim.wei_siang");
+    expect(defaultPersonalLocalPart("Lim Wei Siang")).toBe("lim.siang");
+    expect(emailLocalPartSuggestion("a+b..c--@x.com")).toBe("a.b.c");
+    expect(emailLocalPartSuggestion("x@y.com")).toBeNull();
+    expect(emailLocalPartSuggestion(null)).toBeNull();
+    expect(emailLocalPartSuggestion(`${"a".repeat(39)}.b@x.com`)).toBe("a".repeat(39));
   });
 
   test("takes the next number when someone already holds it, and never a department mailbox", async () => {

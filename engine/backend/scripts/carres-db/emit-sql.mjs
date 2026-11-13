@@ -403,3 +403,173 @@ ${ctx.suppliers.map((s) => upsertByCode("scm.suppliers", s, ctx.supplierCols)).j
   writeFileSync(outFile, `${head}\n${sections.join("\n\n")}\n`);
   return { outFile, report };
 }
+
+// ── Service Cases › Service Maintenance (--only service-maintenance), owner 14 Nov 2026 ─────────────────────────────
+// Same source rules as the 2008 load (copyFromHouzs: main company, shared columns, user columns emptied), but written
+// as insert-if-missing BY NATURAL KEY, never by Houzs id: a picker list is matched by slug (or the same name), a
+// profile by name, a stage target by its parent (profile name / priority slug) + stage. New rows take the engine's
+// own ids. The Default Case Assignees (system_settings) are never copied: they name Houzs people.
+const SM_LOOKUPS = ["public.assr_issue_categories", "public.assr_resolution_methods", "public.assr_priorities",
+  "public.assr_ncr_categories", "public.assr_product_categories"];
+const SM_TEST_NAME = "ZZ TEST"; // the hand-made test row left in Issue Categories (hidden)
+const SKIP_COLS = new Set(["id", "created_at", "updated_at"]);
+const NAME_KEY = (e) => `lower(btrim(${e}))`;
+
+/** Moves an id counter past the ids already in the table, so the engine's next new row cannot collide. The counter
+ *  is the identity / owned sequence, else the one the id default calls (assr_product_categories' is not owned). */
+function idCounterSql(table) {
+  const t = quoteIdent(table);
+  const [schema, tbl] = table.split(".");
+  return `with s as (select coalesce(pg_get_serial_sequence(${lit(t)}, 'id'),
+    (select substring(column_default from $re$nextval\\('([^']+)'$re$) from information_schema.columns
+      where table_schema = ${lit(schema)} and table_name = ${lit(tbl)} and column_name = 'id'))::regclass as seq)
+select setval(s.seq, x.m) from s, (select max(id)::bigint as m from ${t}) x
+ where x.m is not null and x.m >= coalesce((select q.last_value from pg_sequences q where format('%I.%I', q.schemaname, q.sequencename)::regclass = s.seq), 0);`;
+}
+
+/** D · the ZZ TEST rows: deleted only while no case uses them; anything else stops the run, nothing changes. */
+function smCleanUpSql() {
+  const N = lit(SM_TEST_NAME.toUpperCase());
+  return `do $sm_cleanup$
+declare
+  r record; n int; blockers text[] := '{}'; found int := 0;
+begin
+  -- Picker lists: a case stores the slug or the name as text (service_category holds product category names).
+  for r in
+    select * from (values
+      ('public.assr_issue_categories', 'issue_category'), ('public.assr_resolution_methods', 'resolution_method'),
+      ('public.assr_priorities', 'priority'), ('public.assr_ncr_categories', 'ncr_category'),
+      ('public.assr_product_categories', 'service_category')) v(tbl, col)
+  loop
+    execute format($q$select count(*) from public.assr_cases c, %s x
+       where upper(btrim(x.name)) = ${N}
+         and ((x.slug <> '' and position(lower(x.slug) in lower(coalesce(c.%I::text, ''))) > 0) or position(lower(x.name) in lower(coalesce(c.%I::text, ''))) > 0)$q$,
+      r.tbl, r.col, r.col) into n;
+    if n > 0 then blockers := blockers || format('assr_cases.%s uses the %s test row: %s case(s)', r.col, r.tbl, n); end if;
+  end loop;
+  select count(*) into n from public.assr_cases c join public.assr_lead_time_profiles p on p.id = c.lead_time_profile_id
+   where upper(btrim(p.name)) = ${N};
+  if n > 0 then blockers := blockers || format('assr_cases.lead_time_profile_id uses the test profile: %s case(s)', n); end if;
+  if cardinality(blockers) > 0 then
+    raise exception 'Service maintenance: the % rows are in use (%); nothing was changed', ${lit(SM_TEST_NAME)}, array_to_string(blockers, '; ');
+  end if;
+  -- Rows that only describe a test priority / profile go with it.
+  delete from public.assr_priority_stage_targets where priority_id in (select id from public.assr_priorities where upper(btrim(name)) = ${N});
+  delete from public.assr_stage_targets where profile_id in (select id from public.assr_lead_time_profiles where upper(btrim(name)) = ${N});
+  for r in select unnest(array[${[...SM_LOOKUPS, "public.assr_lead_time_profiles"].map(lit).join(", ")}]) as tbl loop
+    execute format('delete from %s where upper(btrim(name)) = $1', r.tbl) using ${N}::text;
+    get diagnostics n = row_count; found := found + n;
+  end loop;
+  raise notice 'Service maintenance: % test row(s) named % removed', found, ${lit(SM_TEST_NAME)};
+end $sm_cleanup$;`;
+}
+
+/** A · one picker list: each Houzs row added only when the engine has no row with that slug or name. */
+function smLookupSql({ table, cols, rows }) {
+  if (!rows.length) return `-- ${table}: nothing in Houzs`;
+  const t = quoteIdent(table);
+  const ins = cols.filter((c) => !SKIP_COLS.has(c));
+  const body = `[\n${rows.map((r) => JSON.stringify(Object.fromEntries(ins.map((c) => [c, r[c]])))).join(",\n")}\n]`;
+  return `-- ${table}: ${rows.length} Houzs row(s), by slug / name
+${idCounterSql(table)}
+insert into ${t} (${ins.map(ident).join(", ")})
+select ${ins.map((c) => `r.${ident(c)}`).join(", ")}
+from jsonb_populate_recordset(null::${t}, ${dollar(body)}::jsonb) r
+where not exists (select 1 from ${t} e where e.slug = r.slug or ${NAME_KEY("e.name")} = ${NAME_KEY("r.name")});`;
+}
+
+function smProfilesSql({ rows }) {
+  if (!rows.length) return `-- public.assr_lead_time_profiles: nothing in Houzs`;
+  const body = `[\n${rows.map((r) => JSON.stringify({ name: r.name, description: r.description ?? null, is_active: r.is_active })).join(",\n")}\n]`;
+  return `-- public.assr_lead_time_profiles: ${rows.length} Houzs row(s), by name. One profile is active: a Houzs active profile
+-- stays inactive when the engine already has an active one.
+${idCounterSql("public.assr_lead_time_profiles")}
+insert into public.assr_lead_time_profiles (name, description, is_active)
+select r.name, r.description,
+       case when r.is_active::int = 1 and not exists (select 1 from public.assr_lead_time_profiles a where a.is_active = 1) then 1 else 0 end
+from jsonb_to_recordset(${dollar(body)}::jsonb) r(name text, description text, is_active bigint)
+where not exists (select 1 from public.assr_lead_time_profiles e where ${NAME_KEY("e.name")} = ${NAME_KEY("r.name")});`;
+}
+
+/** Stage targets under a parent found by its natural key (never by a Houzs id). */
+function smTargetsSql({ table, rows, parentTable, parentCol, parentKeyOf, parentMatch, keyLabel }) {
+  if (!rows.length) return `-- ${table}: nothing in Houzs`;
+  const out = [];
+  for (const r of rows) {
+    const key = parentKeyOf(r[parentCol]);
+    if (key == null) throw new Error(`${table} row ${r.id}: its ${parentCol} ${r[parentCol]} is not a copied row`);
+    out.push({ parent: key, stage: r.stage, target_days: r.target_days });
+  }
+  const body = `[\n${out.map((r) => JSON.stringify(r)).join(",\n")}\n]`;
+  return `-- ${table}: ${rows.length} Houzs row(s), by ${keyLabel} + stage
+${idCounterSql(table)}
+insert into ${quoteIdent(table)} (${ident(parentCol)}, stage, target_days)
+select p.pid, r.stage, r.target_days
+from jsonb_to_recordset(${dollar(body)}::jsonb) r(parent text, stage text, target_days double precision)
+cross join lateral (select min(x.id) as pid from ${quoteIdent(parentTable)} x where ${parentMatch}) p
+where p.pid is not null
+  and not exists (select 1 from ${quoteIdent(table)} e where e.${ident(parentCol)} = p.pid and e.stage = r.stage);`;
+}
+
+/** Writes the Service Maintenance migration. ctx: { outFile, src, srcUrl } */
+export async function emitServiceMaintenanceSql(ctx) {
+  const outFile = resolve(ctx.outFile);
+  const name = basename(outFile);
+  if (!/^\d{4}_[a-z0-9_]+\.sql$/.test(name)) throw new Error(`${name}: a migration file is named NNNN_words.sql`);
+  const report = {};
+  const got = new Map();
+  await withSchemaDb(ctx.srcUrl, dirname(outFile), name, async (db, built) => {
+    report.built = built;
+    const ROLLBACK = Symbol("schema only");
+    try {
+      await db.begin(async (tx) => {
+        report.houzs = await copyFromHouzs({ src: ctx.src, tx, tableNames: tablesOfGroups(["service-maintenance"]), emit: (t) => got.set(t.table, t) });
+        throw ROLLBACK;
+      });
+    } catch (e) { if (e !== ROLLBACK) throw e; }
+  });
+  for (const t of tablesOfGroups(["service-maintenance"])) if (!got.has(t)) throw new Error(`${t}: not read (missing on one side)`);
+  for (const t of got.values()) {
+    t.rows.sort((a, b) => Number(a.id) - Number(b.id));
+    if (t.companyCols.length) throw new Error(`${t.table} has a company column; this group assumes none`);
+    for (const r of t.rows) if (r.name != null && String(r.name).trim().toUpperCase() === SM_TEST_NAME) throw new Error(`${t.table}: Houzs has a ${SM_TEST_NAME} row`);
+  }
+  const prio = new Map(got.get("public.assr_priorities").rows.map((r) => [String(r.id), r.slug]));
+  const prof = new Map(got.get("public.assr_lead_time_profiles").rows.map((r) => [String(r.id), r.name]));
+  const sections = [
+    `-- ── D · clean-up: the hand-made ${SM_TEST_NAME} row(s) ─────────────────────────────────────────────────────────────\n${smCleanUpSql()}`,
+    `-- ── A · picker lists (General tab) ──────────────────────────────────────────────────────────────────────────────\n${SM_LOOKUPS.map((t) => smLookupSql(got.get(t))).join("\n\n")}`,
+    `-- ── A · lead time (Lead Time tab and the profile stamped on new cases) ─────────────────────────────────────────
+${smProfilesSql(got.get("public.assr_lead_time_profiles"))}
+
+${smTargetsSql({ table: "public.assr_stage_targets", rows: got.get("public.assr_stage_targets").rows, parentTable: "public.assr_lead_time_profiles",
+  parentCol: "profile_id", parentKeyOf: (id) => prof.get(String(id)), parentMatch: `${NAME_KEY("x.name")} = ${NAME_KEY("r.parent")}`, keyLabel: "profile name" })}
+
+${smTargetsSql({ table: "public.assr_priority_stage_targets", rows: got.get("public.assr_priority_stage_targets").rows, parentTable: "public.assr_priorities",
+  parentCol: "priority_id", parentKeyOf: (id) => prio.get(String(id)), parentMatch: `x.slug = r.parent`, keyLabel: "priority slug" })}`,
+  ];
+  const counts = report.houzs.map(([t, , n]) => `${t.replace(/^public\./, "")} ${n}`).join(" · ");
+  const head = `-- Carres engine database: Service Cases › Service Maintenance reference data from Houzs (owner, 14 Nov 2026:
+-- "Service maintenance also takes Houzs's data").
+--
+-- WHY. The page (frontend pages/ServiceSettings.tsx, Lead Time tab ServiceLeadTimePortal.tsx; backend routes/assr.ts
+-- lookups and routes/assrPortal.ts) was empty in Carres apart from one hidden hand-made row "${SM_TEST_NAME}" in Issue
+-- Categories, so the case form had no Issue Category / Resolution / Priority / Product Category / Root-Cause choices and
+-- no SLA lead times. GENERATED, do not edit by hand: regenerate with
+--   node scripts/carres-db/load-carres-master-data.mjs --only service-maintenance --emit-sql scripts/carres-db/migrations/${name}
+-- (and give the new file the next number; an applied migration is never edited).
+--
+-- WHAT. D removes the ${SM_TEST_NAME} row(s) from these lists (and stage targets that only belong to a test priority /
+-- profile); it stops, changing nothing, if any case uses one. A adds Houzs main-company rows (houzs_local, masked):
+-- ${counts}.
+-- Each row is added only when the engine has no row with the same natural key (slug or name for a list, name for a
+-- profile, profile name / priority slug + stage for a target); new rows take the engine's own ids, existing rows are
+-- never changed. These tables have no company column. NOT copied: the Default Case Assignees (system_settings
+-- assr_default_assignee_id / assr_default_assignee2_id point at Houzs people; Carres picks its own on the page).
+--
+-- RE-RUN: safe; a second run changes nothing. No row count of the target is asserted.
+-- REVERSAL: none automatic (data). Remove rows by hand on the page if ever needed.
+`;
+  writeFileSync(outFile, `${head}\n${sections.join("\n\n")}\n`);
+  return { outFile, report };
+}

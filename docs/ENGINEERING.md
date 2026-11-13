@@ -216,6 +216,15 @@ schema (on the houzs_local server, dropped afterwards) only to read columns. The
 `2008_carres_master_data.sql`, which the engine deploy applies with `ENGINE_DATABASE_URL` (`apply.mjs --ci`). It is
 generated: to change the data, regenerate into the NEXT number, never edit an applied file. Stock balances are not in
 it; the owner loads them later.
+**Team in the engine** (migration `2010_carres_team.sql`, owner decisions 13 Nov 2026): Houzs's roles and titles
+(copied from `houzs_local`, no people; Houzs's "HR" and "New Member (no access)" roles are NOT copied because
+`carres/sso.ts` makes its own starting roles by those names), the four departments Management · Operation · Warehouse ·
+Business Development, the titles COO · Administration Assistant · Business Development (Owner is Houzs's), the real
+staff pre-created by lower-case email so their first portal visit links to that row (sso.ts finds by email), and the
+Kelana Jaya showroom KJ-SR (street blank for the owner). New members start on their department's role: Management →
+the full-access Owner role · Operation → Ops Exec · Warehouse → Storekeeper · Business Development → BD Exec; an
+existing account keeps its role unless it is still on "New member". A person reaches the engine only when their
+portal role is in `ENGINE_ROLES` (operation, principal, hr, finance).
 
 ---
 

@@ -89,6 +89,16 @@ describe("POST /api/carres-sso", () => {
     expect(roleOf(db, "ops@carres.com")).toBe("Warehouse");
   });
 
+  it("links a first sign-in to the account made ahead of it (migration 2010), whatever the email's case", async () => {
+    const db = fakeDb();
+    db.roles.push({ id: 4, name: "Ops Exec", permissions: '["scm.access"]' });
+    db.users.push({ id: 3, email: "yujun@carres.com", role_id: 4, status: "active" });
+    expect((await signIn(db, { email: " YuJun@Carres.com ", role: "operation" })).status).toBe(200);
+    expect(db.users).toHaveLength(1);
+    expect(db.log.some((s) => s.startsWith("INSERT INTO users"))).toBe(false);
+    expect(roleOf(db, "yujun@carres.com")).toBe("Ops Exec");
+  });
+
   it("keeps the Supply Chain settings editor list in step on every sign-in", async () => {
     const db = fakeDb();
     await signIn(db, { email: "ops@carres.com", role: "operation", settingsEditor: true });
