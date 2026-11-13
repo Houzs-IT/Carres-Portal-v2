@@ -38,7 +38,8 @@ const CSP_REPORT_ONLY = [
   "img-src 'self' data: blob:",
   "font-src 'self'",
   "connect-src 'self' https://carres-scm-engine.wwch.workers.dev",
-  "frame-ancestors 'none'",
+  // Carres: the engine is shown inside the Carres portal, so the portal may frame it.
+  "frame-ancestors 'self' https://erp.carresofficial.com https://carres-portal.pages.dev https://*.carres-portal.pages.dev",
   "base-uri 'self'",
   "object-src 'none'",
   "form-action 'self'",

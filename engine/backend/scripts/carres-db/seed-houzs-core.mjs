@@ -109,7 +109,21 @@ export const GROUPS = {
     "scm.so_dropdown_options", "scm.so_settings", "scm.my_localities", "scm.delivery_planning_regions",
     "scm.state_delivery_regions",
   ],
+  "service-maintenance": [
+    "public.assr_issue_categories", "public.assr_resolution_methods", "public.assr_priorities", "public.assr_ncr_categories",
+    "public.assr_product_categories", "public.assr_lead_time_profiles", "public.assr_stage_targets",
+    "public.assr_priority_stage_targets",
+  ],
 };
+// service-maintenance  Service Cases › Service Maintenance (frontend pages/ServiceSettings.tsx + ServiceLeadTimePortal.tsx,
+//                      backend routes/assr.ts LOOKUP_TABLES + routes/assrPortal.ts), owner 14 Nov 2026: General tab
+//                      Issue Categories, Resolution Methods, Priorities (+ SLA hours), Product Categories, Root-Cause
+//                      Classifications (ncr); Lead Time tab per-priority stage targets, plus the lead-time profiles and
+//                      their stage targets the same portal routes stamp on new cases. NOT the Default Case Assignees
+//                      (system_settings assr_default_assignee*_id point at Houzs people; Carres picks its own).
+//                      None of these tables has a company column. Written by emit-sql.mjs emitServiceMaintenanceSql as
+//                      insert-if-missing BY NATURAL KEY (slug / name / parent + stage), never by Houzs id; it is NOT in
+//                      CARRES_GROUPS (migration 2008), it has its own migration (--only service-maintenance).
 export const CARRES_GROUPS = ["categories", "product-maintenance", "so-maintenance"];
 
 /** The table list for a set of group names; throws on an unknown group. */

@@ -1491,8 +1491,8 @@ export function MailInbox() {
           splitView && "lg:grid-cols-[230px_minmax(360px,400px)_minmax(0,1fr)]",
         )}
       >
-        {/* LEFT RAIL */}
-        <aside className="space-y-3">
+        {/* LEFT RAIL (Carres: min-w-0 keeps the rail inside its fixed track) */}
+        <aside className="min-w-0 space-y-3">
           <button
             onClick={() => {
               setResumeDraft(null);

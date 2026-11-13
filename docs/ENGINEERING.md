@@ -172,8 +172,10 @@ announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worke
 geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
 `TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
 
-**Resync from a newer Houzs main** (last done 12 Nov 2026, `efa70b116` → `c780a870b`; migrations 1184–1187
-copied and built on PGlite, NOT YET APPLIED to the engine database):
+**Resync from a newer Houzs main** (last done 14 Nov 2026, `c780a870b` → `b14535068`; migrations 1188–1189
+copied verbatim and built on PGlite (201 applied, 0 failed); the engine deploy applies them on merge
+(`deploy-engine.yml`, `apply.mjs --ci`, only when `ENGINE_DATABASE_URL` is set; check that run before
+calling them applied):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
    Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:
@@ -214,6 +216,15 @@ schema (on the houzs_local server, dropped afterwards) only to read columns. The
 `2008_carres_master_data.sql`, which the engine deploy applies with `ENGINE_DATABASE_URL` (`apply.mjs --ci`). It is
 generated: to change the data, regenerate into the NEXT number, never edit an applied file. Stock balances are not in
 it; the owner loads them later.
+**Team in the engine** (migration `2010_carres_team.sql`, owner decisions 13 Nov 2026): Houzs's roles and titles
+(copied from `houzs_local`, no people; Houzs's "HR" and "New Member (no access)" roles are NOT copied because
+`carres/sso.ts` makes its own starting roles by those names), the four departments Management · Operation · Warehouse ·
+Business Development, the titles COO · Administration Assistant · Business Development (Owner is Houzs's), the real
+staff pre-created by lower-case email so their first portal visit links to that row (sso.ts finds by email), and the
+Kelana Jaya showroom KJ-SR (street blank for the owner). New members start on their department's role: Management →
+the full-access Owner role · Operation → Ops Exec · Warehouse → Storekeeper · Business Development → BD Exec; an
+existing account keeps its role unless it is still on "New member". A person reaches the engine only when their
+portal role is in `ENGINE_ROLES` (operation, principal, hr, finance).
 
 ---
 

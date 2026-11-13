@@ -124,6 +124,19 @@ describe("a member claims their own address", () => {
     expect(again.status).toBe(409);
   });
 
+  // Carres: a member whose name is still their login email was offered "weisiang329.com".
+  test("a name that is an email, or a blank name, suggests the login email's local part only", async () => {
+    const tag = crypto.randomUUID().slice(0, 6);
+    const emailNamed = await user(`wsiang${tag}@gmail.com`, readerRole, DEPT);
+    const offer = (await (await call(await session(emailNamed), "/api/mail-center/claim")).json()) as { suggestion: string };
+    expect(offer.suggestion).toBe(`wsiang${tag}`);
+
+    const blank = await user("", readerRole, DEPT);
+    const login = (await env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(blank).first<{ email: string }>())!.email;
+    const offer2 = (await (await call(await session(blank), "/api/mail-center/claim")).json()) as { suggestion: string };
+    expect(offer2.suggestion).toBe(login.split("@")[0]);
+  });
+
   test("someone with no department must say which one, and the admin sees the request until it is set", async () => {
     const id = await user("Ahmad Zaki", readerRole, null);
     const token = await session(id);

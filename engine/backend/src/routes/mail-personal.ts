@@ -176,6 +176,7 @@ const LOCAL_PART_RE = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 
 type ClaimCaller = {
   name: string | null;
+  email: string | null;
   email_alias: string | null;
   department_id: number | null;
   department_name: string | null;
@@ -183,7 +184,7 @@ type ClaimCaller = {
 
 async function claimCaller(c: { env: Env }, userId: number): Promise<ClaimCaller | null> {
   return c.env.DB.prepare(
-    `SELECT u.name, u.email_alias, u.department_id, d.name AS department_name
+    `SELECT u.name, u.email, u.email_alias, u.department_id, d.name AS department_name
        FROM users u LEFT JOIN departments d ON d.id = u.department_id
       WHERE u.id = ? LIMIT 1`,
   )
@@ -208,7 +209,8 @@ app.get("/claim", async (c) => {
   return c.json({
     domain,
     address: alias.endsWith(`@${domain}`) ? alias : null,
-    suggestion: (await freePersonalAddress(c.env, userId, me.name))?.split("@")[0] ?? "",
+    // Carres: a blank name falls back to the login email's local part.
+    suggestion: (await freePersonalAddress(c.env, userId, me.name?.trim() || me.email))?.split("@")[0] ?? "",
     department: me.department_id == null ? null : { id: Number(me.department_id), name: me.department_name ?? "" },
     departments: departments.results.map((d) => ({ id: Number(d.id), name: d.name })),
   });

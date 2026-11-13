@@ -91,7 +91,8 @@ export type CommissionChange = {
   date: string;
   deltaGoodsSen: number;
   kind: 'upsale' | 'drop';
-  notCounted: 'opening_day' | 'first_price' | 'system_fix' | null;
+  /** 'price_wiped' (from 2026-11-13): the order's price wiped to 0, not put back yet. */
+  notCounted: 'opening_day' | 'first_price' | 'system_fix' | 'price_wiped' | null;
   /** An upsale / drop Finance left out (「这次改价不算」): listed, moving no commission. Absent before 2026-11-12. */
   uncounted?: boolean;
   source: string;
@@ -115,6 +116,8 @@ export type CommissionMarkInfo = {
 export type CommissionSoRow = {
   docNo: string;
   soDate: string | null;
+  /** The venue typed on an order with no fair (its fair row is "No fair", id below 0). */
+  venue?: string | null;
   /** Ref No. (the booklet number), status and when it was keyed — absent before 2026-11-12. */
   ref?: string | null;
   status?: string;
@@ -199,6 +202,9 @@ export type CommissionChangedOrder = CommissionOrderPlace & {
   reachedOn: string | null;
   effectSen: number;
   fromHistory: boolean;
+  /** An old order with no fair (opened before October 2026): only its upsales and
+      drop sales count, paid or not (owner 2026-11-13). */
+  oldOrder?: true;
 };
 /** A closed month's commission for one order, then and now — paid in the first
  *  open month as that month's adjustment (owner 2026-10-26, 关月). */
@@ -211,11 +217,17 @@ export type CommissionMonthAdjustment = {
   brand: string | null;
   salesperson: string | null;
   customer: string | null;
+  /** Ref No., SO date and status — absent on rows made before 2026-11-12. */
+  ref?: string | null; soDate?: string | null; status?: string;
   /** What that month paid for the order: as closed, plus adjustments paid since. */
   wasSen: number;
   /** That month recalculated today. */
   nowSen: number;
   adjustmentSen: number;
+  /** The goods Now is worked on and the rate (owner 2026-11-13: 「我看不到goods amount和rate」) —
+      absent when the month pays the order on nothing, and on rows made before. */
+  goodsSen?: number;
+  ratePct?: number | null;
 };
 /** An order Finance marked, with the commission the mark took out of this report. */
 export type CommissionMarkedOrder = CommissionOrderPlace & { mark: CommissionMarkInfo; commissionSen: number };
@@ -226,6 +238,13 @@ export type CommissionDeferredIn = CommissionOrderPlace & {
   commissionSen: number;
   /** Marked again here — moved on or not counted; 0 is paid here then. */
   markedAgain?: CommissionMarkInfo;
+};
+/** One of Finance's own lines (owner 2026-11-13): goods typed on an order for a
+ *  month — plus adds commission, minus takes it back — at the order's own rate. */
+export type CommissionManualLine = CommissionOrderPlace & {
+  line: { id: string; month: string; reason: string | null; addedBy: string | null; addedAt: string };
+  goodsSen: number;
+  commissionSen: number;
 };
 /** Which date puts an order in the range: its fair's start, or its own SO date. */
 export type CommissionBasis = 'fair' | 'so_date';
@@ -246,7 +265,9 @@ export type EventCommission = {
   /** The orders Finance marked on this report, and what the month before moved here. */
   marked?: CommissionMarkedOrder[];
   deferredIn?: CommissionDeferredIn[];
-  totals: { payableSen: number; adjustmentsSen: number; monthAdjustmentsSen?: number; deferredInSen?: number; totalSen: number };
+  /** Finance's own lines for the months the range begins — absent when there are none. */
+  manualLines?: CommissionManualLine[];
+  totals: { payableSen: number; adjustmentsSen: number; monthAdjustmentsSen?: number; deferredInSen?: number; manualSen?: number; totalSen: number };
   /** Set when the range is a closed month, served as it was closed. */
   closed?: { month: string; closedAt: string; closedBy: string | null };
   /** The company's closed months (YYYY-MM) and the first open one. */
@@ -299,6 +320,26 @@ export function useMarkCommissionOrder() {
       authedFetch<{ ok: true; mark: CommissionMarkInfo }>('/acc-events/commission/marks', { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['acc-events', 'commission'] }); },
     onError: writeFailedAs('Order not marked'),
+  });
+}
+
+/** Type a line on an order for an open month (Finance): goods, plus or minus, with the reason. */
+export function useAddCommissionLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { docNo: string; month: string; goodsSen: number; reason: string }) =>
+      authedFetch<{ ok: true }>('/acc-events/commission/lines', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['acc-events', 'commission'] }); },
+    onError: writeFailedAs('Line not added'),
+  });
+}
+/** Take one of Finance's lines away, while its month is open. */
+export function useRemoveCommissionLine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => authedFetch<{ ok: true }>('/acc-events/commission/lines/remove', { method: 'POST', body: JSON.stringify({ id }) }),
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ['acc-events', 'commission'] }); },
+    onError: writeFailedAs('Line not taken away'),
   });
 }
 
