@@ -28,6 +28,7 @@ import {
   MAX_INCLUDE_IDS,
 } from "../lib/staffCompanyScope";
 import { derivePosRole } from "../lib/pos-staff-role";
+import { ensureStaffRowForUser } from "../lib/carres-staff-for-user";
 import { isSalesUser } from "../../services/pmsAccess";
 import type { Env, Variables } from "../env";
 
@@ -439,7 +440,24 @@ staff.patch("/by-user/:userId/showroom", requireHouzsPerm("users.manage"), async
       .eq("user_id", userId);
     if (targetErr) return c.json({ error: "load_failed", reason: targetErr.message }, 500);
     const targetRows = ((target ?? []) as Array<Record<string, unknown>>);
-    if (targetRows.length > 0) {
+    if (targetRows.length === 0) {
+      /* Carres: no sales profile yet. Check the PERSON belongs to this company first (same gate, judged
+         on their user id), then let Houzs's own user→staff sync make the row (lib/carres-staff-for-user.ts),
+         so a showroom can be set for any member from Team › member › Sales venue. A disabled member gets
+         no row and falls through to the staff_unlinked answer below. */
+      const { scoped } = await scopeStaffRowsToActiveCompany(c, [{ id: `user:${userId}`, user_id: userId }]);
+      if (scoped.length === 0) {
+        return c.json({
+          error: "not_found_in_company",
+          message: "That member isn't in the company you're working in.",
+        }, 404);
+      }
+      try {
+        await ensureStaffRowForUser(c.env.DB, userId);
+      } catch (e) {
+        return c.json({ error: "load_failed", reason: e instanceof Error ? e.message : String(e) }, 500);
+      }
+    } else {
       const { scoped } = await scopeStaffRowsToActiveCompany(c, targetRows);
       if (scoped.length === 0) {
         return c.json({
@@ -504,7 +522,7 @@ staff.patch("/by-user/:userId/showroom", requireHouzsPerm("users.manage"), async
     return c.json({
       error: "staff_unlinked",
       message:
-        "This member has no sales profile yet, so they cannot be parked under a showroom. Ask IT to link their account.",
+        "This member has no sales profile, so a showroom cannot be set. A disabled account must be enabled first.",
     }, 409);
   }
   return c.json({ ok: true, showroomWarehouseId });

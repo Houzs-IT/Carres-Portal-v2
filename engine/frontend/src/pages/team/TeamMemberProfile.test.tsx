@@ -242,3 +242,96 @@ describe("roleOptions", () => {
     expect(roleOptions([], null)).toEqual([]);
   });
 });
+
+/* Carres: Team › member › Sales venue › Showroom (scm.staff.showroom_warehouse_id), which pre-fills a new
+ * Sales Order's Showroom from the salesperson's own. */
+describe("TeamMemberProfile — Sales venue", () => {
+  const SHOWROOMS = [
+    { id: "wh-pj", code: "PJ-HQ", name: "PJ Showroom", venueName: "PJ Showroom", active: true },
+    { id: "wh-old", code: "OLD", name: "Old Showroom", venueName: null, active: false },
+  ];
+  function serve(staff: Array<{ id: string; userId: number; showroomWarehouseId: string | null }>) {
+    get.mockImplementation(async (url: string) => {
+      if (url === "/api/scm/staff/showrooms") return { showrooms: SHOWROOMS };
+      if (url === "/api/scm/staff") return { staff };
+      return {};
+    });
+  }
+  const showroomField = () => screen.getByRole("combobox", { name: "Showroom" }) as HTMLInputElement;
+  function pickShowroom(label: string) {
+    // Opening the picker seeds its search with the current label, so type the new one.
+    fireEvent.focus(showroomField());
+    fireEvent.change(showroomField(), { target: { value: label } });
+    const option = [...document.querySelectorAll("li")].find((li) => li.textContent === label);
+    if (!option) throw new Error(`no Showroom option named ${label}`);
+    fireEvent.mouseDown(option);
+  }
+
+  test("names the member's saved showroom, and offers None plus active showrooms only", async () => {
+    serve([{ id: "s-151", userId: 151, showroomWarehouseId: "wh-pj" }]);
+    mount();
+    await waitFor(() => expect(showroomField().value).toBe("PJ Showroom"));
+    fireEvent.focus(showroomField());
+    fireEvent.change(showroomField(), { target: { value: "" } });
+    const labels = [...document.querySelectorAll("li")].map((li) => li.textContent);
+    expect(labels).toContain("None");
+    expect(labels).toContain("PJ Showroom");
+    expect(labels).not.toContain("Old Showroom");
+  });
+
+  test("a member with no sales profile shows None and can still be given a showroom, saved on its own", async () => {
+    serve([]);
+    mount();
+    await waitFor(() => expect(showroomField().disabled).toBe(false));
+    expect(showroomField().value).toBe("None");
+    pickShowroom("PJ Showroom");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledWith("/api/scm/staff/by-user/151/showroom", {
+      showroomWarehouseId: "wh-pj",
+    });
+    expect(success).toHaveBeenCalledWith("Assignment saved");
+  });
+
+  test("None clears the showroom", async () => {
+    serve([{ id: "s-151", userId: 151, showroomWarehouseId: "wh-pj" }]);
+    mount();
+    await waitFor(() => expect(showroomField().value).toBe("PJ Showroom"));
+    pickShowroom("None");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledWith("/api/scm/staff/by-user/151/showroom", {
+      showroomWarehouseId: null,
+    });
+  });
+
+  test("an assignment edit with the showroom untouched sends no showroom call", async () => {
+    serve([{ id: "s-151", userId: 151, showroomWarehouseId: "wh-pj" }]);
+    mount();
+    await waitFor(() => expect(showroomField().value).toBe("PJ Showroom"));
+    fireEvent.change(screen.getByPlaceholderText("e.g. Driver Fleet"), { target: { value: "Penang" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledWith("/api/users/151", { division: "Penang" });
+  });
+
+  test("a showroom the server refuses is reported, not called saved", async () => {
+    serve([]);
+    patch.mockRejectedValue(new Error("This member has no sales profile, so a showroom cannot be set."));
+    mount();
+    await waitFor(() => expect(showroomField().disabled).toBe(false));
+    pickShowroom("PJ Showroom");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("This member has no sales profile, so a showroom cannot be set."),
+    );
+    expect(success).not.toHaveBeenCalled();
+  });
+
+  test("a viewer who cannot manage members sees the showroom but cannot change it", async () => {
+    serve([{ id: "s-151", userId: 151, showroomWarehouseId: "wh-pj" }]);
+    mount({ canManage: false });
+    await waitFor(() => expect(showroomField().value).toBe("PJ Showroom"));
+    expect(showroomField().disabled).toBe(true);
+  });
+});

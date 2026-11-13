@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { LogIn, KeyRound, Mail, Eye, EyeOff } from "lucide-react";
 import { api } from "../../api/client";
 import {
@@ -34,6 +35,26 @@ import { isExternalPosition, EXTERNAL_POSITION_MESSAGE } from "../../lib/externa
 type ProfileTab = "details" | "permissions" | "activity";
 
 type CompanyOpt = { id: number; code: string; name: string };
+
+/* Carres: the Sales venue section's two reads, the same endpoints the old EditMemberPanel in Team.tsx used.
+ * A Showroom is a scm.warehouses row flagged is_showroom (type showroom); the member's own showroom is
+ * scm.staff.showroom_warehouse_id, joined to the Houzs user by user_id (migration 0066). */
+type ShowroomOption = { id: string; code: string; name: string; venueName: string | null; active: boolean };
+type ScmStaffRow = { id: string; userId: number | null; showroomWarehouseId: string | null };
+
+/** The Showroom picker's options: "None", then every active showroom. The member's current showroom stays
+ *  listed even when it has since been switched off, so the field still names it. */
+export function showroomPickerOptions(
+  showrooms: ShowroomOption[],
+  currentId: string,
+): Array<{ value: string; label: string }> {
+  return [
+    { value: "", label: "None" },
+    ...showrooms
+      .filter((sr) => sr.active || sr.id === currentId)
+      .map((sr) => ({ value: sr.id, label: sr.name })),
+  ];
+}
 
 type ActivityRow = {
   id: number;
@@ -104,7 +125,30 @@ export function TeamMemberProfile({
     company_ids: member.company_ids ?? [],
   }));
 
-  const dirty =
+  /* Carres: Sales venue › Showroom. Pre-fills a new Sales Order's Showroom from the salesperson's own
+     (carres/salePlace.ts). Lives on scm.staff, not on the user record, so it saves with its own PATCH. */
+  const qc = useQueryClient();
+  const showrooms = useQuery<{ showrooms: ShowroomOption[] }>(
+    "/api/scm/staff/showrooms",
+    () => api.get("/api/scm/staff/showrooms"),
+    [],
+    { staleTime: 300_000 },
+  );
+  const scmStaff = useQuery<{ staff: ScmStaffRow[] }>(
+    "/api/scm/staff",
+    () => api.get("/api/scm/staff"),
+    [],
+    { staleTime: 300_000 },
+  );
+  const savedShowroomId =
+    (scmStaff.data?.staff ?? []).find((r) => Number(r.userId) === Number(member.id))
+      ?.showroomWarehouseId ?? "";
+  // null = untouched, so the field follows the saved value as soon as it loads.
+  const [showroomDraft, setShowroomDraft] = useState<string | null>(null);
+  const showroomId = showroomDraft ?? savedShowroomId;
+  const showroomChanged = showroomDraft !== null && showroomDraft !== savedShowroomId;
+
+  const assignmentDirty =
     (draft.name.trim() || null) !== (member.name?.trim() || null) ||
     draft.department_id !== member.department_id ||
     (draft.division.trim() || null) !== divisionOf(member) ||
@@ -113,6 +157,7 @@ export function TeamMemberProfile({
     draft.manager_id !== member.manager_id ||
     JSON.stringify([...draft.company_ids].sort()) !==
       JSON.stringify([...(member.company_ids ?? [])].sort());
+  const dirty = assignmentDirty || showroomChanged;
 
   const multiCompany = companies.length > 1;
   const role = roles.find((r) => r.id === member.role_id) ?? null;
@@ -187,7 +232,23 @@ export function TeamMemberProfile({
         JSON.stringify([...(member.company_ids ?? [])].sort())
       )
         patch.company_ids = draft.company_ids;
-      await api.patch(`/api/users/${member.id}`, patch);
+      if (Object.keys(patch).length > 0) await api.patch(`/api/users/${member.id}`, patch);
+      // Carres: the showroom is a second call, made only when it changed and after the user save worked.
+      // Its failure is reported on its own, never folded into "saved". A member with no sales profile
+      // yet gets one from the server, through Houzs's own user to staff sync.
+      if (showroomChanged) {
+        try {
+          await api.patch(`/api/scm/staff/by-user/${member.id}/showroom`, {
+            showroomWarehouseId: showroomDraft || null,
+          });
+          await qc.invalidateQueries({ queryKey: ["uq", "/api/scm/staff"] });
+          setShowroomDraft(null);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "The showroom could not be saved");
+          if (Object.keys(patch).length > 0) onChanged();
+          return;
+        }
+      }
       toast.success("Assignment saved");
       // Eligibility that was NOT there before this save is the moment an admin
       // needs the PIN box — anything else would leave it to them to remember.
@@ -578,6 +639,31 @@ export function TeamMemberProfile({
                         disabled={!canManage}
                       />
                     </div>
+                  </div>
+                </Field>
+              </div>
+            </div>
+          )}
+
+          {/* Carres: Sales venue. Shown for every member; editable on the same users.manage tier as the
+              rest of this tab (the server checks users.manage too), including on your own profile. */}
+          {tab === "details" && (
+            <div className="rounded-lg border border-border bg-surface shadow-stone">
+              <div className="border-b border-border-subtle px-5 py-3">
+                <Eyebrow>Sales venue</Eyebrow>
+              </div>
+              <div className="grid gap-x-6 gap-y-4 p-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <Field label="Showroom">
+                  <SearchableSelect
+                    className={FIELD_SELECT_CLS}
+                    ariaLabel="Showroom"
+                    value={showroomId}
+                    onChange={(v) => setShowroomDraft(v)}
+                    options={showroomPickerOptions(showrooms.data?.showrooms ?? [], showroomId)}
+                    disabled={!canManage || showrooms.loading || scmStaff.loading}
+                  />
+                  <div className="mt-1 text-[11px] text-ink-muted">
+                    New sales orders by this member start with this showroom.
                   </div>
                 </Field>
               </div>
