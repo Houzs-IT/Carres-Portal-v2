@@ -1,4 +1,4 @@
-// Terminal questions shared by the carres-db scripts (apply.mjs, seed-from-houzs.mjs).
+// Terminal questions shared by the carres-db scripts (apply.mjs, seed-from-houzs.mjs, load-carres-master-data.mjs).
 // askHidden reads one line without echoing it: a connection string typed or pasted here is never logged or written.
 // Piped (non-TTY) input is read once and handed out line by line, so a script can be fed from stdin.
 
