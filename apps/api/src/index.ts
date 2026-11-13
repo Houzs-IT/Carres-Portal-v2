@@ -5,6 +5,7 @@ import analyticsRouter from "./routes/analytics";
 import authRouter from "./routes/auth";
 import deliveryLinksRouter from "./routes/operation/delivery-links";
 import publicDeliveryLinkRouter from "./routes/public/delivery-link";
+import engineStaffAccountsRouter from "./routes/engine-staff-accounts";
 import catalogRouter from "./routes/catalog";
 import dealerRouter from "./routes/dealers";
 import ordersRouter from "./routes/orders";
@@ -133,6 +134,9 @@ app.route("/stripe", stripeWebhookRouter);
 // THE EXTERNAL LOGISTICS LINK (0581) — OUTSIDE the signed-in /api group: the
 // logistics company has no login. The 256-bit token is the trust boundary.
 app.route("/public/delivery-link", publicDeliveryLinkRouter);
+// Staff portal accounts from the engine's Team page (owner, 14 Nov 2026) — OUTSIDE the signed-in /api group:
+// the caller is the engine Worker, and its HMAC signature over the body is the trust boundary.
+app.route("/engine/staff-accounts", engineStaffAccountsRouter);
 // The supplier, warehouse and delivery partner portals, the service case/note routers and the public
 // survey were removed on 12 Nov 2026 (owner): Houzs's engine serves its own pages for them.
 

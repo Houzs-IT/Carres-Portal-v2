@@ -24,6 +24,14 @@ import {
 import { syncSalesRepFromUser } from "../services/salesTeam";
 import { isPosPin, isPosPinPosition, setPosPinForUser } from "../services/posPin";
 import { audit } from "../services/audit";
+// Carres: Team keeps the person's Carres portal login in step (invite, password, disable).
+import {
+  createPortalStaffAccount,
+  portalStaffEnabled,
+  setPortalStaffPassword,
+  setPortalStaffStatus,
+  type PortalCreated,
+} from "../carres/portal-staff";
 import { getBrandingForCompany, resolveCompanyCode } from "../services/branding";
 
 // Invite/reset emails carry the ACTIVE company's identity (the admin's top-bar
@@ -729,7 +737,11 @@ app.post("/invite", requirePermissionOrSalesDirector("users.manage"), async (c) 
     if (!strength.ok) return c.json({ error: strength.error }, 400);
     passwordHash = await hashPassword(directPassword);
   }
-  const activate = !!passwordHash;
+  // Carres: staff sign in on the Carres portal, so the engine member is made ACTIVE with no engine password (single
+  // sign-on links it by email). The password, or Supabase's invite email, goes to the portal login further down.
+  const carresPortal = portalStaffEnabled(c.env);
+  if (carresPortal) passwordHash = null;
+  const activate = !!passwordHash || carresPortal;
 
   const role = await db
     .select({ id: roles.id, name: roles.name })
@@ -804,6 +816,26 @@ app.post("/invite", requirePermissionOrSalesDirector("users.manage"), async (c) 
     if (await isPersonalAddressTaken(c.env.DB, requestedAlias, existing[0]?.id ?? null)) {
       return c.json({ error: `${requestedAlias} is already used by someone else.` }, 409);
     }
+  }
+
+  // Carres: the portal login first (created, or linked when the email already has one), so a refusal or an
+  // unreachable portal leaves no engine member behind.
+  let portalAccount: PortalCreated | null = null;
+  if (carresPortal) {
+    const dept = departmentId
+      ? (await db.select({ name: departments.name }).from(departments).where(eq(departments.id, departmentId)).limit(1))[0]?.name ?? null
+      : null;
+    const made = await createPortalStaffAccount(c.env, {
+      email,
+      name,
+      department: dept,
+      title: null,
+      delivery: directPassword ? "password" : "invite",
+      ...(directPassword ? { password: directPassword } : {}),
+      actor: me.email,
+    });
+    if (!made.ok) return c.json({ error: made.error }, made.status);
+    portalAccount = made.body;
   }
 
   // Create or refresh the placeholder user. Name is preset here ("the
@@ -917,7 +949,9 @@ app.post("/invite", requirePermissionOrSalesDirector("users.manage"), async (c) 
       action: "user.create",
       entityType: "user",
       entityId: email,
-      summary: `Created ${email} as ${role[0].name} (active — password set by admin)`,
+      summary: portalAccount
+        ? `Created ${email} as ${role[0].name} (Carres portal login ${portalAccount.status === "existing" ? "linked" : directPassword ? "made, password set by admin" : "made, invite emailed"})`
+        : `Created ${email} as ${role[0].name} (active — password set by admin)`,
       meta: {
         email,
         role_id: body.role_id,
@@ -926,12 +960,23 @@ app.post("/invite", requirePermissionOrSalesDirector("users.manage"), async (c) 
         manager_id: managerId,
         activated: true,
         pos_pin_set: posPin ? posPinSet : undefined,
+        ...(portalAccount ? { carres_portal: portalAccount.status, carres_portal_role: portalAccount.role } : {}),
       },
     });
     return c.json({
       active: true,
       email,
       email_alias: emailAlias,
+      // Carres: what happened to the portal login, for the modal's message. Never carries the password.
+      ...(portalAccount
+        ? {
+            carres_portal: {
+              status: portalAccount.status,
+              role: portalAccount.role,
+              email_sent: portalAccount.status === "created" && !directPassword ? portalAccount.emailSent === true : false,
+            },
+          }
+        : {}),
       ...(posPin ? { pos_pin_set: posPinSet } : {}),
     });
   }
@@ -1286,10 +1331,14 @@ app.patch("/:id", requirePermissionOrSalesDirector("users.manage"), async (c) =>
 
   // Admin sets / resets the member's password. Validated + hashed; an empty
   // value is ignored (so saving the panel without touching it keeps the old one).
+  // Carres: staff sign in on the Carres portal, so the new password is the PORTAL login's (sent below), and no
+  // second, engine-only password is stored.
+  let carresPortalPassword: string | null = null;
   if (body.password) {
     const strength = validatePasswordStrength(body.password, current[0].email);
     if (!strength.ok) return c.json({ error: strength.error }, 400);
-    set.password_hash = await hashPassword(body.password);
+    if (portalStaffEnabled(c.env)) carresPortalPassword = body.password;
+    else set.password_hash = await hashPassword(body.password);
   }
 
   if (body.manager_id !== undefined) {
@@ -1429,14 +1478,37 @@ app.patch("/:id", requirePermissionOrSalesDirector("users.manage"), async (c) =>
   // A company-only edit is a valid change, so it counts toward the guard below.
   const hasCompanyChange = Array.isArray(body.company_ids);
 
-  if (Object.keys(set).length === 0 && finalDeptIds === null && !hasCompanyChange) {
+  if (Object.keys(set).length === 0 && finalDeptIds === null && !hasCompanyChange && !carresPortalPassword /* Carres */) {
     return c.json({ error: "No fields to update" }, 400);
+  }
+
+  // Carres: the portal login first (new password, disable / enable), so a refusal or an unreachable portal leaves
+  // the engine member unchanged. The portal refuses the principal's and store/supplier/partner logins.
+  let carresPortalChanged = false;
+  if (portalStaffEnabled(c.env)) {
+    const actor = me.email;
+    if (carresPortalPassword) {
+      const r = await setPortalStaffPassword(c.env, { email: current[0].email, password: carresPortalPassword, actor });
+      if (!r.ok) return c.json({ error: r.error }, r.status);
+      carresPortalChanged = true;
+    }
+    if ((body.status === "active" || body.status === "disabled") && body.status !== current[0].status) {
+      const r = await setPortalStaffStatus(c.env, {
+        email: current[0].email,
+        status: body.status,
+        reason: (set.status_reason as string | null | undefined) ?? null,
+        actor,
+      });
+      // No portal account for this email: there is nothing to disable or enable there.
+      if (!r.ok && r.status !== 404) return c.json({ error: r.error }, r.status);
+    }
   }
 
   // Alias ownership is derived data in the mail tables. Atomically revoke the
   // previous assignment/self-grant AND change users.email_alias so neither half
   // can commit without the other.
-  const auditedSet = { ...set };
+  const auditedSet: Record<string, unknown> = { ...set };
+  if (carresPortalChanged) auditedSet.carres_portal_password = "set"; // Carres: the fact, never the password
   let personalMailboxAliasChange: PersonalMailboxAliasChange | null = null;
   if (body.email_alias !== undefined) {
     try {
@@ -1613,6 +1685,15 @@ app.delete("/:id", requirePermission("users.manage"), async (c) => {
     if ((owners[0]?.count ?? 0) <= 1) {
       return c.json({ error: "Cannot remove the last Owner" }, 400);
     }
+  }
+
+  // Carres: removing a member also disables their Carres portal login (never deletes it: the portal keeps its
+  // history). First, so a refusal leaves the member as it was. No portal account = nothing to disable.
+  if (portalStaffEnabled(c.env)) {
+    const r = await setPortalStaffStatus(c.env, {
+      email: target.email, status: "disabled", reason: "Removed in Team", actor: me.email,
+    });
+    if (!r.ok && r.status !== 404) return c.json({ error: r.error }, r.status);
   }
 
   // Revoke sessions (any path). Bust the cached-user entries BEFORE the delete
