@@ -32,6 +32,10 @@ const limitedHome = (role: string | null) => (role === "finance" ? "/operation/s
  * old `/operation/settings/*` addresses open Houzs's own Settings. The Carres Issue Tracker, the Sales invoice lines report and
  * the Payments rows left the Operations menu on 11 Nov 2026 (owner); their old addresses open Sales Orders.
  *
+ * On a phone an engine page is Houzs's own phone app, filling the screen with its bottom tabs and Menu (owner,
+ * 14 Nov 2026: the phone version moves over completely, same as Houzs): the phone header steps aside there, and
+ * the app's `Carres menu` row opens this shell's drawer for the Carres rows. Carres's own pages keep the phone header.
+ *
  * The `hr` role is let in for the System rows only (Team, Mail Center, IT Support; portal-nav SYSTEM_ROLES):
  * any other address sends it to the Team hub. The `finance` role likewise for the Houzs Finance rows only
  * (portal-nav FINANCE_ROLES): any other address sends it to Finance's To do.
@@ -118,7 +122,7 @@ export default function OperationApp() {
       )}
       <ShellHeaderContext.Provider value={shellHost.value}>
       <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-        {phone ? (
+        {phone && enginePage ? null : phone ? (
           <div className="flex h-11 shrink-0 items-center border-b border-c-line bg-white px-2">
             <button
               type="button"
@@ -148,7 +152,7 @@ export default function OperationApp() {
         <div className={`flex min-h-0 min-w-0 flex-1 ${phone || enginePage ? "" : "gap-3 p-3"}`}>
         <main className={`flex min-h-0 min-w-0 flex-1 flex-col ${enginePage ? "overflow-hidden" : "overflow-auto"} ${phone || enginePage ? "" : "rounded-lg"}`}>
           {enginePage ? (
-            <SupplyChainEngine path={enginePage} />
+            <SupplyChainEngine path={enginePage} phone={phone} onMenu={() => setMenuOpen(true)} />
           ) : (
             tabPage()
           )}

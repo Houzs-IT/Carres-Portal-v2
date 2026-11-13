@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { carresPhone } from "../carres/embed";
 
 /** True on phone / tablet-portrait — on TOUCH DEVICES only. A desktop/laptop
  *  (fine primary pointer, non-mobile UA) stays on the PC version at ANY window
@@ -8,7 +9,8 @@ import { useEffect, useState } from "react";
  *  Override on a desktop browser to preview the mobile app: add `?mobile=1` to
  *  the URL (or `?mobile=0` to force desktop). The choice sticks for the session. */
 export function useIsMobile(breakpoint = 1024): boolean {
-  const forced = readForcedOverride();
+  // Carres: inside the portal on a phone, the portal's phone shell decides (carres/embed.ts carresPhone).
+  const forced = carresPhone() ?? readForcedOverride();
   const touchDevice = typeof window !== "undefined" && isTouchDevice();
   const [mobile, setMobile] = useState(
     () => forced ?? (touchDevice && typeof window !== "undefined" && window.innerWidth < breakpoint),
@@ -69,5 +71,5 @@ function readForcedOverride(): boolean | null {
  *  mounts. Same inputs, same order as the hook's initial state. */
 export function isMobileViewportNow(breakpoint = 1024): boolean {
   if (typeof window === "undefined") return false;
-  return readForcedOverride() ?? (isTouchDevice() && window.innerWidth < breakpoint);
+  return carresPhone() ?? readForcedOverride() ?? (isTouchDevice() && window.innerWidth < breakpoint);
 }

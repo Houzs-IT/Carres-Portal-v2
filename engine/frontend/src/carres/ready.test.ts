@@ -16,6 +16,14 @@ describe("firstPageDrawn", () => {
     root.innerHTML = "<main><h1>Sales Orders</h1></main>";
     expect(firstPageDrawn(root)).toBe(true);
   });
+
+  it("counts Houzs's phone app, which has no <main>, once its shell holds something", () => {
+    const root = document.createElement("div");
+    root.innerHTML = '<div class="hz-m"></div>';
+    expect(firstPageDrawn(root)).toBe(false);
+    root.innerHTML = '<div class="hz-m"><nav class="tabbar"></nav></div>';
+    expect(firstPageDrawn(root)).toBe(true);
+  });
 });
 
 describe("reportCarresReady", () => {
