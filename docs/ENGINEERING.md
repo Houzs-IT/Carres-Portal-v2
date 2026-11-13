@@ -172,8 +172,10 @@ announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worke
 geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
 `TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
 
-**Resync from a newer Houzs main** (last done 12 Nov 2026, `efa70b116` → `c780a870b`; migrations 1184–1187
-copied and built on PGlite, NOT YET APPLIED to the engine database):
+**Resync from a newer Houzs main** (last done 14 Nov 2026, `c780a870b` → `b925e297f`; migrations 1188–1189
+copied verbatim and built on PGlite (201 applied, 0 failed); the engine deploy applies them on merge
+(`deploy-engine.yml`, `apply.mjs --ci`, only when `ENGINE_DATABASE_URL` is set; check that run before
+calling them applied):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
    Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:

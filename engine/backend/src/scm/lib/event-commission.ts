@@ -88,7 +88,9 @@ export type CommissionFair = {
 
 export type CommissionSo = {
   docNo: string;
-  projectId: number;
+  /** Its fair (project); null when it has none — by SO date such an order is
+      listed under "No fair" (owner 2026-11-12). */
+  projectId: number | null;
   salesperson: string | null;
   customer: string | null;
   status: string;
@@ -100,6 +102,14 @@ export type CommissionSo = {
   soDate: string | null;
   /** Ref No. — the booklet number typed on the order (customer_so_no). */
   ref?: string | null;
+  /** The order's own brand (its branding): the rate of an order with no fair. */
+  brand?: string | null;
+  /** The brand a person said the bill is for (the order form asks it of a bill
+      whose goods name none, e.g. bed frames alone) — the rate of an order with
+      no fair when its branding has no rate card (owner 2026-11-13, 做). */
+  vpBrand?: string | null;
+  /** The venue typed on the order: shown for an order with no fair. */
+  venue?: string | null;
 };
 
 export type CommissionPayment = { docNo: string; paidAt: string; amountSen: number };
@@ -109,6 +119,8 @@ export type CommissionChange = {
   source: string; changedBy: string | null;
   /** Finance left the order's price changes of this month out (「这次改价不算」) — set by withUncountedChanges. */
   uncounted: boolean;
+  /** The order's price wiped to 0 and not put back yet — set by settledChanges; not a drop sale. */
+  wiped?: true;
 };
 export type CommissionCancel = { docNo: string; at: string };
 
@@ -117,12 +129,12 @@ export type ChangeView = {
   deltaGoodsSen: number;
   kind: 'upsale' | 'drop';
   /** Why it is not an upsale / drop; null when it is one. */
-  notCounted: 'opening_day' | 'first_price' | 'system_fix' | null;
+  notCounted: 'opening_day' | 'first_price' | 'system_fix' | 'price_wiped' | null;
   /** An upsale / drop Finance left out (「这次改价不算」): listed, and moves no commission. */
   uncounted: boolean;
   source: string;
   changedBy: string | null;
-  /** Back-filled from the SO's modification history (1–19 October 2026). */
+  /** Back-filled from the SO's modification history (1 September – 19 October 2026). */
   fromHistory: boolean;
 };
 
@@ -166,6 +178,8 @@ export type SoRow = {
   commissionSen: number;
   /** What 「这次改价不算」 left out of the commission here; absent when nothing. */
   uncountedSen?: number;
+  /** The venue typed on an order with no fair (its fair row is "No fair"). */
+  venue?: string | null;
   changes: ChangeView[];
 };
 
@@ -242,8 +256,11 @@ export type ChangedOrderRow = OrderPlace & {
   /** The goods of the range's changes Finance left out: in Amended, not in the effect. Absent when none. */
   uncountedGoodsSen?: number;
   reachedOn: string | null;
-  /** (Amended less the goods left out) × the brand rate once the order has reached 30% by `to`, else 0. */
+  /** (Amended less the goods left out) × the brand rate once the order has reached 30% by `to`, else 0;
+      an old order with no fair (`oldOrder`): always. */
   effectSen: number;
+  /** An order with no fair opened before NO_FAIR_FROM: only its price changes count. */
+  oldOrder?: true;
   fromHistory: boolean;
 };
 
@@ -263,7 +280,38 @@ export type EventCommissionReport = {
   marked: MarkedOrderRow[];
   /** What the month before moved here (「这个算下个月」); empty unless the range is one month. */
   deferredIn: DeferredInRow[];
-  totals: { payableSen: number; adjustmentsSen: number; monthAdjustmentsSen: number; deferredInSen: number; totalSen: number };
+  /** Finance's own lines for the months the range begins (「手动加一笔」). Absent when none,
+      and on a month closed before they existed. */
+  manualLines?: ManualLineRow[];
+  /** `manualSen` — what Finance's own lines add; absent when there is none. */
+  totals: { payableSen: number; adjustmentsSen: number; monthAdjustmentsSen: number; deferredInSen: number; manualSen?: number; totalSen: number };
+};
+
+/* ── Finance's own lines (owner 2026-11-13, 「做」) ───────────────────────────
+   An amount Finance types on an order for one month, for what the system holds
+   no record of: an upsale made before the order came into the ERP (HC-SO-011254
+   and HC-SO-004110 were raised in AutoCount, so no change of theirs is dated
+   here), or commission to take back by hand. Goods, plus or minus, at the
+   order's own rate — its fair's brand, or with no fair its own brand's card. It
+   stands beside the report: no mark touches it, and it is paid in the month it
+   names. By fair an order with no fair is not listed, so neither is its line. */
+export type CommissionManualLine = {
+  id: string;
+  docNo: string;
+  /** The month it is paid in, YYYY-MM. */
+  month: string;
+  /** Goods, in sen: plus adds commission, minus takes it back. Never 0. */
+  goodsSen: number;
+  reason: string | null;
+  addedBy: string | null;
+  addedAt: string;
+};
+
+/** One of Finance's lines on the page: the order's place, the line, what it earns. */
+export type ManualLineRow = OrderPlace & {
+  line: Pick<CommissionManualLine, 'id' | 'month' | 'reason' | 'addedBy' | 'addedAt'>;
+  goodsSen: number;
+  commissionSen: number;
 };
 
 /** An order Finance marked, with the commission the mark took out of this report. */
@@ -301,11 +349,24 @@ export type MonthAdjustmentRow = {
   brand: string | null;
   salesperson: string | null;
   customer: string | null;
+  /** Ref No. (the booklet number), SO date and status, as on the order tables
+      (owner 2026-11-12: 「这个没有reference no. 吗？」). Absent on rows made before. */
+  ref?: string | null;
+  soDate?: string | null;
+  status?: string;
   /** What that month paid for the order: as closed, plus the adjustments paid since. */
   wasSen: number;
   /** That month recalculated today. */
   nowSen: number;
   adjustmentSen: number;
+  /** What Now is worked on (owner 2026-11-13, 「我看不到goods amount和rate」): the
+      goods the recalculated month pays the order on — its own goods once it has
+      30%, the goods of its counted earlier lines (reaching 30%: its goods; an
+      upsale or drop sale: the change; a cancellation: less its goods), Finance's
+      own lines — and its rate. Absent when the month pays it on nothing; the
+      rate stays where its place has one. */
+  goodsSen?: number;
+  ratePct?: number | null;
 };
 
 /** A closed month as the adjustments need it: what it paid each order, and the
@@ -317,24 +378,46 @@ export type ClosedMonthPaid = {
 };
 
 /** What a month's report pays each order: its fair commission, its earlier
- *  lines and what the month before moved here. The adjustments for closed
- *  months it carries are not the month's own. */
-export function paidByOrder(r: Pick<EventCommissionReport, 'fairs' | 'adjustments'> & { deferredIn?: readonly DeferredInRow[] }): Record<string, number> {
+ *  lines, what the month before moved here and Finance's own lines. The
+ *  adjustments for closed months it carries are not the month's own. */
+export function paidByOrder(
+  r: Pick<EventCommissionReport, 'fairs' | 'adjustments'> & { deferredIn?: readonly DeferredInRow[]; manualLines?: readonly ManualLineRow[] },
+): Record<string, number> {
   const out: Record<string, number> = {};
   const add = (doc: string, sen: number) => { if (sen !== 0) out[doc] = (out[doc] ?? 0) + sen; };
   for (const f of r.fairs) for (const so of f.sos) add(so.docNo, so.commissionSen);
   for (const a of r.adjustments) add(a.docNo, a.commissionSen);
   for (const d of r.deferredIn ?? []) add(d.docNo, d.commissionSen);
+  for (const m of r.manualLines ?? []) add(m.docNo, m.commissionSen);
   return out;
 }
 
 const totalsOf = (t: Omit<EventCommissionReport['totals'], 'totalSen'>): EventCommissionReport['totals'] => ({
-  ...t, totalSen: t.payableSen + t.adjustmentsSen + t.monthAdjustmentsSen + t.deferredInSen,
+  ...t, totalSen: t.payableSen + t.adjustmentsSen + t.monthAdjustmentsSen + t.deferredInSen + (t.manualSen ?? 0),
 });
+
+/** The goods a month's report pays each order on, and the order's rate (see
+ *  MonthAdjustmentRow.goodsSen). An order a mark takes out of the month, a line
+ *  before 30% and a change left out pay on nothing. */
+export function goodsAndRateOf(r: EventCommissionReport): Map<string, { goodsSen: number; ratePct: number | null }> {
+  const out = new Map<string, { goodsSen: number; ratePct: number | null }>();
+  const takenOut = new Set(r.marked.filter((m) => m.mark.kind !== 'exclude_change').map((m) => m.docNo));
+  const put = (doc: string, goods: number, rate: number | null) => {
+    if (takenOut.has(doc)) return;
+    const had = out.get(doc);
+    out.set(doc, { goodsSen: (had?.goodsSen ?? 0) + goods, ratePct: had?.ratePct ?? rate });
+  };
+  const leftOut = new Map(r.changedOrders.filter((o) => o.part === 'range').map((o) => [o.docNo, o.uncountedGoodsSen ?? 0]));
+  for (const f of r.fairs) for (const so of f.sos) if (so.reachedOn != null && !so.mark) put(so.docNo, so.goodsSen - (leftOut.get(so.docNo) ?? 0), f.ratePct);
+  const rateOf = new Map([...r.earlierOrders, ...r.changedOrders].map((o) => [o.docNo, o.ratePct]));
+  for (const a of r.adjustments) if (!a.beforeReach && !a.uncounted) put(a.docNo, a.goodsSen, rateOf.get(a.docNo) ?? null);
+  for (const m of r.manualLines ?? []) put(m.docNo, m.goodsSen, m.ratePct);
+  return out;
+}
 
 /** Each closed month's commission per order, recalculated today (`live`, by
  *  month), against what it paid — as closed plus what later months carried for
- *  it. Only the orders that moved. */
+ *  it. Only the orders that moved, each with the goods and rate Now is worked on. */
 export function monthAdjustmentsOf(closed: readonly ClosedMonthPaid[], live: ReadonlyMap<string, EventCommissionReport>): MonthAdjustmentRow[] {
   const rows: MonthAdjustmentRow[] = [];
   for (const k of closed) {
@@ -346,19 +429,24 @@ export function monthAdjustmentsOf(closed: readonly ClosedMonthPaid[], live: Rea
       for (const c of m.carried) if (c.month === k.month) was[c.docNo] = (was[c.docNo] ?? 0) + c.sen;
     }
     const nowPaid = paidByOrder(now);
-    const where = new Map<string, Omit<MonthAdjustmentRow, 'month' | 'docNo' | 'wasSen' | 'nowSen' | 'adjustmentSen'>>();
+    const worked = goodsAndRateOf(now);
+    const where = new Map<string, Omit<MonthAdjustmentRow, 'month' | 'docNo' | 'wasSen' | 'nowSen' | 'adjustmentSen' | 'goodsSen'>>();
     for (const f of now.fairs) for (const so of f.sos) {
-      where.set(so.docNo, { fairId: f.id, fairName: f.name, brand: f.brand, salesperson: so.salesperson, customer: so.customer });
+      where.set(so.docNo, { fairId: f.id, fairName: f.name, brand: f.brand, salesperson: so.salesperson, customer: so.customer, ref: so.ref, soDate: so.soDate, status: so.status, ratePct: f.ratePct });
     }
-    for (const o of now.earlierOrders) {
-      if (!where.has(o.docNo)) where.set(o.docNo, { fairId: o.fairId, fairName: o.fairName, brand: o.brand, salesperson: o.salesperson, customer: o.customer });
+    for (const o of [...now.earlierOrders, ...(now.manualLines ?? [])]) {
+      if (!where.has(o.docNo)) where.set(o.docNo, { fairId: o.fairId, fairName: o.fairName, brand: o.brand, salesperson: o.salesperson, customer: o.customer, ref: o.ref, soDate: o.soDate, status: o.status, ratePct: o.ratePct });
     }
     for (const doc of new Set([...Object.keys(was), ...Object.keys(nowPaid)])) {
       const w = was[doc] ?? 0;
       const n = nowPaid[doc] ?? 0;
       if (w === n) continue;
-      const at = where.get(doc) ?? { fairId: null, fairName: '', brand: null, salesperson: null, customer: null };
-      rows.push({ month: k.month, docNo: doc, ...at, wasSen: w, nowSen: n, adjustmentSen: n - w });
+      const at = where.get(doc) ?? { fairId: null, fairName: '', brand: null, salesperson: null, customer: null, ref: null, soDate: null };
+      const g = worked.get(doc);
+      rows.push({
+        month: k.month, docNo: doc, ...at, wasSen: w, nowSen: n, adjustmentSen: n - w,
+        ...(g ? { goodsSen: g.goodsSen, ratePct: g.ratePct ?? at.ratePct ?? null } : {}),
+      });
     }
   }
   return rows.sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : a.docNo < b.docNo ? -1 : 1));
@@ -368,6 +456,59 @@ export function monthAdjustmentsOf(closed: readonly ClosedMonthPaid[], live: Rea
 export function withMonthAdjustments(r: EventCommissionReport, rows: MonthAdjustmentRow[]): EventCommissionReport {
   const monthAdjustmentsSen = rows.reduce((s, a) => s + a.adjustmentSen, 0);
   return { ...r, monthAdjustments: rows, totals: totalsOf({ ...r.totals, monthAdjustmentsSen }) };
+}
+
+/** The rate card a brand name answers to, as the card spells it (any case); null when it has none. */
+const cardKeyOf = (cards: ReadonlyMap<string, number | null>, brand: string | null | undefined): string | null => {
+  const b = (brand ?? '').trim();
+  if (!b) return null;
+  if (cards.has(b)) return b;
+  return [...cards.keys()].find((k) => k.trim().toUpperCase() === b.toUpperCase()) ?? null;
+};
+/** The brand an order with no fair earns under: its branding when that has a
+ *  rate card, else the VP brand a person gave it, else its branding as a label
+ *  with no rate (owner 2026-11-13). */
+export const noFairBrandOf = (so: Pick<CommissionSo, 'brand' | 'vpBrand'>, cards: ReadonlyMap<string, number | null>): string =>
+  cardKeyOf(cards, so.brand) ?? cardKeyOf(cards, so.vpBrand) ?? ((so.brand ?? '').trim() || (so.vpBrand ?? '').trim());
+
+/** Finance's own lines as the page lists them: each on its order's place, at
+ *  that place's rate. An order on a fair earns at the fair's brand; one with no
+ *  fair at its own brand's card, by SO date only — by fair it is not listed. A
+ *  line whose order is gone is left out. */
+export function manualLineRows(input: {
+  lines: readonly CommissionManualLine[];
+  sos: readonly CommissionSo[];
+  fairs: readonly CommissionFair[];
+  ratePctByBrand: ReadonlyMap<string, number | null>;
+  basis: CommissionBasis;
+}): ManualLineRow[] {
+  const soOf = new Map(input.sos.map((so) => [so.docNo, so]));
+  const fairOf = new Map(input.fairs.map((f) => [f.id, f]));
+  const rows: ManualLineRow[] = [];
+  for (const l of input.lines) {
+    const so = soOf.get(l.docNo);
+    if (!so || !Number.isFinite(l.goodsSen) || l.goodsSen === 0) continue;
+    const f = so.projectId == null ? undefined : fairOf.get(so.projectId);
+    if (!f && input.basis === 'fair') continue;
+    const brand = f ? f.brand : noFairBrandOf(so, input.ratePctByBrand) || null;
+    const ratePct = input.ratePctByBrand.get((brand ?? '').trim()) ?? null;
+    rows.push({
+      docNo: so.docNo, fairId: f ? f.id : -1, fairName: f ? f.name : NO_FAIR_NAME,
+      brand, organizer: f?.organizer ?? null, venue: f ? (f.venue ?? null) : (so.venue ?? null), state: f?.state ?? null,
+      salesperson: so.salesperson, customer: so.customer, ratePct,
+      ref: so.ref ?? null, soDate: so.soDate, status: so.status,
+      line: { id: l.id, month: l.month, reason: l.reason, addedBy: l.addedBy, addedAt: l.addedAt },
+      goodsSen: l.goodsSen, commissionSen: commissionOf(l.goodsSen, ratePct),
+    });
+  }
+  return rows.sort((a, b) => (a.line.month < b.line.month ? -1 : a.line.month > b.line.month ? 1
+    : a.docNo < b.docNo ? -1 : a.docNo > b.docNo ? 1 : a.line.addedAt < b.line.addedAt ? -1 : 1));
+}
+
+/** The report with Finance's own lines beside it and inside its total. Unchanged when there are none. */
+export function withManualLines(r: EventCommissionReport, rows: ManualLineRow[]): EventCommissionReport {
+  if (rows.length === 0) return r;
+  return { ...r, manualLines: rows, totals: totalsOf({ ...r.totals, manualSen: rows.reduce((s, m) => s + m.commissionSen, 0) }) };
 }
 
 /** The month (YYYY-MM) a report is OF, for Finance's marks: it starts on the
@@ -486,6 +627,8 @@ export function withMarks(r: EventCommissionReport, marks: readonly CommissionMa
       adjustmentsSen: adjustments.reduce((t, a) => t + a.commissionSen, 0),
       monthAdjustmentsSen: r.totals.monthAdjustmentsSen ?? 0,
       deferredInSen: din.reduce((t, d) => t + d.commissionSen, 0),
+      /* Finance's own lines are not the marks' to touch. */
+      ...(r.totals.manualSen != null ? { manualSen: r.totals.manualSen } : {}),
     }),
   };
 }
@@ -522,6 +665,16 @@ export function fairOrder(a: Pick<CommissionFair, 'startDate' | 'endDate' | 'ven
 }
 
 export const COMMISSION_PAID_SHARE = 0.3;
+/* By SO date, every order opened in the range is listed (owner 2026-11-12:
+   「全部列出来，没有展会的标 No fair，要算佣金，然后我检查了不要算的我才自己按
+   don't count」): one with no fair sits under a "No fair" row of its own brand,
+   at that brand's rate, from October 2026 — the first month every confirmed
+   order had to name a fair or "No fair" (2026-10-19). September's orders with no
+   fair were old orders keyed again (补旧单) the owner did not pay (owner
+   2026-11-13, his September sheet: "No fair 改成从 10 月才开始算 … 可以").
+   The old orders before it, many of them showroom sales, stay out. */
+export const NO_FAIR_NAME = 'No fair';
+export const NO_FAIR_FROM = '2026-10-01';
 /** so_total_changes.source of the rows back-filled from the modification history. */
 export const HISTORY = 'history';
 export const HISTORY_IGNORED = 'history-ignored';
@@ -569,6 +722,7 @@ export function changeView(ch: CommissionChange, so: Pick<CommissionSo, 'created
   const notCounted = ch.source === HISTORY_IGNORED ? 'system_fix'
     : date === mytDay(so.createdAt) ? 'opening_day'
     : ch.beforeTotalSen <= FIRST_PRICE_MAX_SEN ? 'first_price'
+    : ch.wiped ? 'price_wiped'
     : null;
   return {
     date, deltaGoodsSen: delta, kind: delta > 0 ? 'upsale' : 'drop', notCounted,
@@ -577,6 +731,51 @@ export function changeView(ch: CommissionChange, so: Pick<CommissionSo, 'created
     source: ch.source, changedBy: ch.changedBy,
     fromHistory: ch.source === HISTORY || ch.source === HISTORY_IGNORED,
   };
+}
+
+/* One order's recorded changes as they really were (owner 2026-11-13, 「要」:
+   a price wiped to 0 and put back was showing as a drop sale, the putting back
+   as nothing — HC-SO-002189 read RM 10,140 less for a price that moved between
+   two lines in two minutes — and one save recorded twice read double).
+     · A row the recorder wrote twice — the same figures as the row just before
+       it, seconds apart, when two saves rolled the order up at once — is read
+       once (HC-SO-010070, 21/10: 3,990 → 0 twice).
+     · A change that takes the whole order to 0 and the later one that prices it
+       again are ONE change, on the day it was priced again, from what it was
+       to what it became: nothing when the same price went back (most of them:
+       an item code changed, the price lost, typed again), an upsale / drop of
+       the difference when it did not (HC-SO-007822: 6,388 → 0 → 3,688 is a
+       drop of 2,700).
+     · Wiped and not priced again yet: not a drop sale (`wiped`); the order is
+       what the wipe left until someone prices it.
+   Only a wipe that would otherwise count is paired — one the system made
+   ('history-ignored') or one on the opening day keeps its own rule. */
+const DOUBLE_WRITE_MS = 5000;
+export function settledChanges(changes: readonly CommissionChange[], so: Pick<CommissionSo, 'createdAt'>): CommissionChange[] {
+  const at = (ch: CommissionChange): number => { const t = Date.parse(ch.changedAt); return Number.isFinite(t) ? t : 0; };
+  const sorted = changes.map((ch, i) => ({ ch, i })).sort((a, b) => at(a.ch) - at(b.ch) || a.i - b.i).map((x) => x.ch);
+  const once: CommissionChange[] = [];
+  for (const ch of sorted) {
+    const prev = once[once.length - 1];
+    const twice = prev != null && prev.beforeGoodsSen === ch.beforeGoodsSen && prev.afterGoodsSen === ch.afterGoodsSen
+      && prev.beforeTotalSen === ch.beforeTotalSen && prev.afterTotalSen === ch.afterTotalSen
+      && (ch.beforeGoodsSen !== ch.afterGoodsSen || ch.beforeTotalSen !== ch.afterTotalSen)
+      && at(ch) - at(prev) <= DOUBLE_WRITE_MS;
+    if (!twice) once.push(ch);
+  }
+  const out: CommissionChange[] = [];
+  for (let i = 0; i < once.length; i += 1) {
+    const ch = once[i]!;
+    const wipe = ch.afterTotalSen <= FIRST_PRICE_MAX_SEN && changeView(ch, so)?.notCounted === null;
+    if (!wipe) { out.push(ch); continue; }
+    const back = once.findIndex((r, j) => j > i && r.beforeTotalSen <= FIRST_PRICE_MAX_SEN && r.afterTotalSen > FIRST_PRICE_MAX_SEN);
+    if (back < 0) { out.push({ ...ch, wiped: true }); continue; }
+    const priced = once[back]!;
+    out.push(...once.slice(i + 1, back));
+    out.push({ ...priced, beforeGoodsSen: ch.beforeGoodsSen, beforeTotalSen: ch.beforeTotalSen });
+    i = back;
+  }
+  return out;
 }
 
 export function buildEventCommission(input: {
@@ -598,7 +797,9 @@ export function buildEventCommission(input: {
     return m;
   };
   const paymentsOf = byDoc(input.payments);
-  const changesOf = byDoc(input.changes);
+  const createdOf = new Map(input.sos.map((so) => [so.docNo, so.createdAt]));
+  const changesOf = new Map([...byDoc(input.changes)].map(([docNo, chs]) =>
+    [docNo, createdOf.has(docNo) ? settledChanges(chs, { createdAt: createdOf.get(docNo)! }) : chs]));
   const cancelOf = new Map<string, string>();
   for (const c of input.cancels) {
     const day = mytDay(c.at);
@@ -607,12 +808,66 @@ export function buildEventCommission(input: {
   }
   const rateOf = (f: CommissionFair): number | null => input.ratePctByBrand.get((f.brand ?? '').trim()) ?? null;
   const fairById = new Map(input.fairs.map((f) => [f.id, f]));
+  /* By SO date, an order with no fair opened from NO_FAIR_FROM goes under a
+     "No fair" row of its brand, at that brand's rate: its branding when that has
+     a rate card (the card's own spelling, any case), else the VP brand a person
+     gave it (owner 2026-11-13: a bed-frame bill, BEDFRAME, VP brand AKEMI, earns
+     AKEMI's rate), else its branding as a label with no rate. Rows numbered
+     -1, -2 … by brand, so a report reads the same each time. */
+  const brandOf = (so: CommissionSo): string => noFairBrandOf(so, input.ratePctByBrand);
+  const noFair = (so: CommissionSo): boolean => basis === 'so_date' && so.projectId == null && so.soDate != null && so.soDate >= NO_FAIR_FROM;
+  /* An OLD order with no fair (opened before NO_FAIR_FROM) never earns on its own
+     amount here, but its upsales and drop sales do, in the month they happen, at
+     its brand's rate, whatever it has been paid (owner 2026-11-13: 「旧的单upsale？
+     应该要算吧」 … 做 — his September sheet paid them and took off their drop
+     sales). Its price changes only: no 30% line, and never an order opened in
+     the range. Under "No fair" like the others.
+     Cancelled, it gives back what it was paid on (owner 2026-11-13, 「要扣」 —
+     his own October file took the August order HC-SO-013367 off, this page
+     took nothing): its goods on the day it was cancelled, at its brand's rate,
+     whatever it had been paid — its own amount was paid before this page, on
+     the owner's sheets, and a deposit a few sen short of 30% was paid on like
+     any other. It is listed with the earlier orders, so Finance can leave one
+     out (Don't count). The month's changes before that day count as on any
+     other; from that day, none. From October 2026 only: September was settled
+     on the owner's sheet. */
+  const oldNoFair = (so: CommissionSo): boolean => basis === 'so_date' && so.projectId == null && so.soDate != null && so.soDate < NO_FAIR_FROM;
+  const changesOnly = new Set(input.sos.filter(oldNoFair).map((so) => so.docNo));
+  const noFairBrands = [...new Set(input.sos.filter((so) => noFair(so) || oldNoFair(so)).map(brandOf))].sort();
+  const noFairId = new Map(noFairBrands.map((b, i) => [b, -(i + 1)]));
+  for (const [b, id] of noFairId) {
+    fairById.set(id, {
+      id, name: NO_FAIR_NAME, brand: b || null, startDate: '', endDate: null, totalSalesRm: null, estimateRm: null,
+      organizer: null, venue: null, state: null,
+    });
+  }
+  const sosIn: CommissionSo[] = input.sos.map((so) => (noFair(so) || oldNoFair(so) ? { ...so, projectId: noFairId.get(brandOf(so))! } : so));
   const placeOf = (so: CommissionSo, f: CommissionFair): OrderPlace => ({
     docNo: so.docNo, fairId: f.id, fairName: f.name,
-    brand: f.brand, organizer: f.organizer ?? null, venue: f.venue ?? null, state: f.state ?? null,
+    brand: f.brand, organizer: f.organizer ?? null, venue: f.id < 0 ? (so.venue ?? null) : (f.venue ?? null), state: f.state ?? null,
     salesperson: so.salesperson, customer: so.customer, ratePct: rateOf(f),
     ref: so.ref ?? null, soDate: so.soDate, status: so.status,
   });
+  /* An order's goods at the end of `day` — or, for a day before it was keyed (a
+     payment dated before the order, an order keyed after the range: HC-SO-2611-050
+     was keyed on 3/11 at RM 4,000 and put right to RM 800 the same day, against
+     payments of 14–16/10), at the end of the day it was keyed: that day's own
+     corrections are the order as it was sold, not a change to walk back. */
+  /* …and a price the system wiped and put back (BUG-63, 'history-ignored'), or
+     the first price of an order keyed with none, is the order's own amount on
+     every day — it was never a change to walk back (owner 2026-11-13: 11 orders
+     paid in September earned nothing because their price was put back, or first
+     set, in October — HC-SO-013496 4,490 put back on 8/10, HC-SO-2609-254 priced
+     6,000 on 1/10). Neither is an upsale either (changeView), so before this the
+     amount never earned at all. */
+  const goodsOn = (so: CommissionSo, chs: readonly CommissionChange[], day: string): number => {
+    const keyed = mytDay(so.createdAt);
+    const real = chs.filter((ch) => {
+      const v = changeView(ch, so);
+      return v == null || (v.notCounted !== 'system_fix' && v.notCounted !== 'first_price');
+    });
+    return goodsAt(so.goodsSen, real, day < keyed ? keyed : day);
+  };
   /* The range's counted changes of an order (before `until`, when it was cancelled). */
   const countedIn = (so: CommissionSo, chs: readonly CommissionChange[], until: string | null = null): ChangeView[] =>
     chs.map((ch) => changeView(ch, so))
@@ -639,7 +894,7 @@ export function buildEventCommission(input: {
     if (counted.length === 0) return;
     const amended = counted.reduce((s, v) => s + v.deltaGoodsSen, 0);
     if (amended === 0) return;
-    const latest = goodsAt(so.goodsSen, chs, to);
+    const latest = goodsOn(so, chs, to);
     const reached = reachedOn(so.totalSen, paymentsOf.get(so.docNo) ?? [], to);
     const place = placeOf(so, f);
     const off = counted.reduce((s, v) => (v.uncounted ? s + v.deltaGoodsSen : s), 0);
@@ -648,8 +903,9 @@ export function buildEventCommission(input: {
       lastChange: counted.reduce((m, v) => (v.date > m ? v.date : m), counted[0]!.date),
       originalSen: latest - amended, latestSen: latest, amendedSen: amended, reachedOn: reached,
       ...(off !== 0 ? { uncountedGoodsSen: off } : {}),
-      effectSen: reached ? commissionOf(amended - off, place.ratePct) : 0,
+      effectSen: reached || changesOnly.has(so.docNo) ? commissionOf(amended - off, place.ratePct) : 0,
       fromHistory: counted.some((v) => v.fromHistory),
+      ...(changesOnly.has(so.docNo) ? { oldOrder: true as const } : {}),
     });
   };
 
@@ -661,7 +917,7 @@ export function buildEventCommission(input: {
     if (so.status === 'CANCELLED' && (!cancelled || cancelled <= to)) return null;
     const pays = paymentsOf.get(so.docNo) ?? [];
     const chs = changesOf.get(so.docNo) ?? [];
-    const goods = goodsAt(so.goodsSen, chs, to);
+    const goods = goodsOn(so, chs, to);
     const paid = pays.filter((p) => mytDay(p.paidAt) <= to).reduce((s, p) => s + (Number(p.amountSen) || 0), 0);
     const reached = reachedOn(so.totalSen, pays, to);
     return {
@@ -678,6 +934,7 @@ export function buildEventCommission(input: {
       paidPct: so.totalSen > 0 ? Math.round((paid / so.totalSen) * 1000) / 10 : 0,
       reachedOn: reached,
       ...(reached ? earnedOn(goods, uncountedGoods(so, chs, to), rate) : { commissionSen: 0 }),
+      ...(so.projectId != null && so.projectId < 0 ? { venue: so.venue ?? null } : {}),
       changes: chs.filter((ch) => mytDay(ch.changedAt) <= to).map((ch) => changeView(ch, so)).filter((v): v is ChangeView => v != null),
     };
   };
@@ -703,12 +960,12 @@ export function buildEventCommission(input: {
   const fairs: FairRow[] = [];
   if (basis === 'fair') {
     for (const f of input.fairs.filter((x) => inRange(x.startDate)).sort(fairOrder)) {
-      fairs.push(fairRowOf(f, input.sos.filter((s) => s.projectId === f.id)));
+      fairs.push(fairRowOf(f, sosIn.filter((s) => s.projectId === f.id)));
     }
   } else {
     const opened = new Map<number, CommissionSo[]>();
-    for (const so of input.sos) {
-      if (!inRange(so.soDate) || !fairById.has(so.projectId)) continue;
+    for (const so of sosIn) {
+      if (so.projectId == null || changesOnly.has(so.docNo) || !inRange(so.soDate) || !fairById.has(so.projectId)) continue;
       const list = opened.get(so.projectId);
       if (list) list.push(so); else opened.set(so.projectId, [so]);
     }
@@ -722,8 +979,8 @@ export function buildEventCommission(input: {
     basis === 'fair' ? f.startDate < from : so.soDate != null && so.soDate < from;
   const adjustments: AdjustmentRow[] = [];
   const earlierOrders: EarlierOrderRow[] = [];
-  for (const so of input.sos) {
-    const f = fairById.get(so.projectId);
+  for (const so of sosIn) {
+    const f = so.projectId == null ? undefined : fairById.get(so.projectId);
     if (!f || !earlier(so, f)) continue;
     const firstLine = adjustments.length;
     if (so.status === 'DRAFT' || so.onHold || so.status === 'ON_HOLD') continue;
@@ -734,19 +991,26 @@ export function buildEventCommission(input: {
        since is live again. */
     const cancelled = so.status === 'CANCELLED' ? cancelOf.get(so.docNo) ?? null : null;
     if (so.status === 'CANCELLED' && cancelled == null) continue; // cancelled, day unknown: never earned here
+    const only = changesOnly.has(so.docNo);
     const reached = reachedOn(so.totalSen, pays);
     const earned = reached != null && (cancelled == null || reached < cancelled);
+    /* A cancellation takes back what the order had earned. An old order with
+       no fair gives back from October 2026, whatever it had been paid; one
+       cancelled before then stays out whole, the month's changes with it, as
+       it was. */
+    const givesBack = cancelled != null && (only ? cancelled >= NO_FAIR_FROM : earned);
+    if (only && cancelled != null && cancelled <= to && !givesBack) continue;
     const base = { docNo: so.docNo, fairId: f.id, fairName: f.name, salesperson: so.salesperson };
-    if (earned && reached! >= from && reached! <= to) {
-      const goods = goodsAt(so.goodsSen, chs, reached!);
+    if (!only && earned && reached! >= from && reached! <= to) {
+      const goods = goodsOn(so, chs, reached!);
       adjustments.push({ ...base, date: reached!, kind: 'reached', goodsSen: goods, ...earnedOn(goods, uncountedGoods(so, chs, reached!), rate), beforeReach: false });
     }
     for (const ch of chs) {
       const v = changeView(ch, so);
       if (!v || v.notCounted || v.date < from || v.date > to) continue;
       if (cancelled != null && v.date >= cancelled) continue;
-      if (reached != null && v.date === reached) continue; // folded into the amount earned that day
-      const after = earned && reached! < v.date;
+      if (!only && reached != null && v.date === reached) continue; // folded into the amount earned that day
+      const after = only || (earned && reached! < v.date);
       const moves = after ? commissionOf(v.deltaGoodsSen, rate) : 0;
       adjustments.push({
         ...base, date: v.date, kind: v.kind, goodsSen: v.deltaGoodsSen,
@@ -755,9 +1019,9 @@ export function buildEventCommission(input: {
         ...(v.uncounted ? { uncounted: true as const, ...(moves !== 0 ? { uncountedSen: moves } : {}) } : {}),
       });
     }
-    if (earned && cancelled != null && cancelled >= from && cancelled <= to) {
+    if (givesBack && cancelled != null && cancelled >= from && cancelled <= to) {
       /* Taken back: what it earned — its goods less the changes left out. */
-      const goods = goodsAt(so.goodsSen, chs, cancelled);
+      const goods = goodsOn(so, chs, cancelled);
       const had = earnedOn(goods, uncountedGoods(so, chs, cancelled), rate);
       adjustments.push({
         ...base, date: cancelled, kind: 'cancelled', goodsSen: goods, commissionSen: -had.commissionSen, beforeReach: false,
@@ -769,7 +1033,7 @@ export function buildEventCommission(input: {
     if (mine.length > 0) {
       const counted = countedIn(so, chs, cancelled);
       const amended = counted.reduce((s, v) => s + v.deltaGoodsSen, 0);
-      const latest = goodsAt(so.goodsSen, chs, to);
+      const latest = goodsOn(so, chs, to);
       earlierOrders.push({
         ...placeOf(so, f),
         events: mine.map((a) => ({ date: a.date, kind: a.kind, beforeReach: a.beforeReach, ...(a.uncounted ? { uncounted: true as const } : {}) })),
@@ -789,9 +1053,9 @@ export function buildEventCommission(input: {
 
   /* 补开单 (owner 2026-11-12, 「上个月展会卖、这个月才开单」): keyed in the range
      for a fair that had ended before it. */
-  const lateBills = input.sos
+  const lateBills = sosIn
     .filter((so) => {
-      const f = fairById.get(so.projectId);
+      const f = so.projectId == null ? undefined : fairById.get(so.projectId);
       const ended = f ? (f.endDate || f.startDate) : '';
       return f != null && ended !== '' && ended < from && inRange(mytDay(so.createdAt));
     })
