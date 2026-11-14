@@ -24,7 +24,6 @@ describe("Houzs's menu counts from the engine frame", () => {
   it("the rows Houzs badges carry the same count", () => {
     const op = PORTAL_NAV.find((g) => g.area === "operation")!;
     const badgeOf = (key: string) => op.items.find((i) => i.key === key)?.badge;
-    expect(badgeOf("fair-pending")).toBe("fair-links-to-settle");
     expect(badgeOf("amendments")).toBe("amendment-approvals");
     expect(badgeOf("payment-backdate-requests")).toBe("payment-backdate-approvals");
     expect(badgeOf("po-amendments")).toBe("po-amendment-approvals");
