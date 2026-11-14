@@ -24,8 +24,7 @@ import {
   HOUZS_ICON_SECTIONS,
   ENGINE_HUBS,
   hubSectionFor,
-  roleMayOpenEngineRow,
-  ENGINE_SETTINGS_HREF,
+  ENGINE_SETTINGS_HREF,
 } from "./portal-nav";
 import { useEngineBadges } from "./engine-badges";
 import {
