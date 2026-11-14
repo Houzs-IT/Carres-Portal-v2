@@ -1,5 +1,7 @@
 # Carres ERP 用户手册
 
+> **English picture manual (main version):** [`Carres-ERP-Computer-Manual-EN.html`](Carres-ERP-Computer-Manual-EN.html) (PDF beside it): Supply Chain step by step, how-to guides, and every menu page with its tabs, buttons and all columns.
+>
 > **有图的版本：** [`Carres-ERP-Computer-Manual-ZH.html`](Carres-ERP-Computer-Manual-ZH.html)（PDF：`Carres-ERP-Computer-Manual-ZH.pdf`）。The Conts 格式：真实画面截图，红色号码对应下面的步骤，重点讲 Supply Chain。2026-11-14。
 
 **适用对象：** Carres 全体员工（Office、销售、采购、仓库、物流、财务、管理层）
