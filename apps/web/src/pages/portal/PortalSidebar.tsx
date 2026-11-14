@@ -25,8 +25,7 @@ import {
   ENGINE_HUBS,
   hubSectionFor,
   roleMayOpenEngineRow,
-  ENGINE_SETTINGS_HREF,
-  IT_SUPPORT_HREF,
+  ENGINE_SETTINGS_HREF,
 } from "./portal-nav";
 import { useEngineBadges } from "./engine-badges";
 import {
@@ -664,9 +663,6 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
         : null;
   const onSettings =
     location.pathname === ENGINE_SETTINGS_HREF || location.pathname.startsWith("/finance/settings");
-  /* Report a problem to IT opens Houzs's IT Support page (owner, 11 Nov 2026), for every role that may open it. */
-  const itSupport = roleMayOpenEngineRow(role, "it-support");
-  const onItSupport = location.pathname === IT_SUPPORT_HREF;
   const roleWord: Record<string, string> = {
     operation: "Operations",
     principal: "Principal",
@@ -798,18 +794,6 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           >
             <MIcon name="settings" size={MODULE_ICON} className={onSettings ? undefined : "text-c-tab"} />
             {!collapsed && <span>Settings</span>}
-          </Link>
-        )}
-        {itSupport && (
-          <Link
-            to={IT_SUPPORT_HREF}
-            data-testid="nav-report-problem"
-            title="Report a problem to IT"
-            aria-label={collapsed ? "Report a problem to IT" : undefined}
-            className={`${ROW} ${collapsed ? "justify-center" : ""} ${ROW_REST}`}
-          >
-            <MIcon name="support_agent" size={MODULE_ICON} className={onItSupport ? undefined : "text-c-tab"} />
-            {!collapsed && <span>Report a problem to IT</span>}
           </Link>
         )}
         <Link

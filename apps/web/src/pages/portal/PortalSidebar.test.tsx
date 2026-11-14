@@ -1927,26 +1927,14 @@ describe("the one Settings row, at the bottom of the menu", () => {
     expect(screen.getByTestId("nav-settings")).toHaveAttribute("href", "/finance/settings");
   });
 
-  /* Report a problem to IT opens Houzs's IT Support page (owner, 11 Nov 2026), not the Carres dialog. */
-  it("Report a problem to IT sits at the bottom and opens Houzs's IT Support row", () => {
-    for (const [role, path] of [["operation", "/operation"], ["principal", "/finance/dashboard"], ["hr", "/operation/sc/hub-team"]] as const) {
+  /* Owner 14 Nov 2026: no separate "Report a problem to IT" row; IT Support sits in the SYSTEM group. */
+  it("has no Report a problem to IT row at the bottom", () => {
+    for (const [role, path] of [["operation", "/operation"], ["principal", "/finance/dashboard"], ["hr", "/operation/sc/hub-team"], ["finance", "/finance/dashboard"]] as const) {
       mockRole = role;
       const view = renderAt(path);
-      const report = screen.getByTestId("nav-report-problem");
-      expect(report.tagName, role).toBe("A");
-      expect(report, role).toHaveAttribute("href", "/operation/sc/it-support");
-      expect(report).toHaveTextContent("Report a problem to IT");
-      fireEvent.click(report);
-      expect(screen.getByTestId("location-probe"), role).toHaveTextContent(/^\/operation\/sc\/it-support$/);
-      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.queryByTestId("nav-report-problem"), role).toBeNull();
       view.unmount();
     }
-  });
-
-  it("a finance-only login, which cannot open Operations, has no Report a problem row", () => {
-    mockRole = "finance";
-    renderAt("/finance/dashboard");
-    expect(screen.queryByTestId("nav-report-problem")).toBeNull();
   });
 
   it("finance has Finance Settings; hr has no Settings page, so no row", () => {

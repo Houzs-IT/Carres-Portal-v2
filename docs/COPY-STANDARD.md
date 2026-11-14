@@ -5190,7 +5190,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
 | Projects | `Project Overview` · `Project List` · `Calendar` · `Project Maintenance` |
 | System (after Supply Chain; owner 11 Nov 2026; completed 12 Nov 2026) | caps `System` · module `Team`: `Directory` · `Org Chart` · `Departments` · `Mailboxes` · `Roles & Permissions` · rows `Mail Center` · `Announcements` · module `IT`: `System Health` · `AI Usage` · rows `Change Log` · `Assistant` · `Agent Console` · `IT Support` · `OCR` |
-| Menu bottom | `Settings` (opens Houzs Settings) · `Report a problem to IT` (opens IT Support) |
+| Menu bottom | `Settings` (opens Houzs Settings). No `Report a problem to IT` row (owner 14 Nov 2026): IT Support is in the SYSTEM group. |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
@@ -6276,76 +6276,6 @@ decision. These words are admitted for the Service Cases page, the case window a
 | Pickup PIC dropdown (Houzs PickupTrackingFields) | Select `Pickup PIC`, placeholder `Pickup PIC`; options are the case supplier as `{name} (Supplier)`, then active drivers by name; a PIC typed earlier shows as typed |
 | Sub-statuses inside a stage (0760, Houzs assr-sub-statuses) | case page label and placeholder `Sub-status`; Service Settings heading `Sub-statuses in {stage}` · help `A case entering this stage starts on the first sub-status in use; staff switch it on the case.` · field `New sub-status`; refused `Pick the stage this sub-status sits in.` · `This sub-status belongs to another stage.` |
 
-### Report a problem to IT (side menu bottom)
+### Report a problem to IT (removed)
 
-The row at the bottom of the side menu (above the person, beside `Settings`, on every module; the Layout Standard 1 top bar is unchanged) and its dialog send a request to the Houzs IT Hub (`/api/it-support/tickets`, Worker secrets `IT_HUB_URL` and `IT_HUB_API_KEY`). Words: **`Report a problem to IT`** · **`What went wrong?`** · **`Tell IT more`** · **`How urgent is it?`** (`Can wait` · `Soon` · `Blocking my work`) · **`Send to IT`** · **`Sent to IT. Your request number is {code}.`** · **`Done`**. This is IT's request, not a Service Case: do not mix it with the Unit and Service `Report a problem`.
-
-## Procurement lists, following Houzs · Weisiang, WhatsApp 1 Nov 2026
-
-| Where | Words |
-|---|---|
-| Procurement Overview | `PO raised` · `Received` · `Total outstanding` · `Breakdown` · `By category` · `By supplier` · `POs` · `Outstanding: how late` · `Late 5+ days` · `Late up to 4 days or due tomorrow` · `Due in 2–7 days` · `Due in 8+ days` · `Overdue` · `Arriving in the next 3 days` · `Still to come` · `Promised` · `Days late` · `Due in` |
-| Suppliers tabs and columns | `All supply categories`; `Name` · `Supply Category` · `Contact` · `Pickup` · `Open POs` · `Received` · `On time` · `Damaged or wrong` · `Delivery record`; hidden until chosen: `Payment Terms` |
-| Purchase Orders tiles | `Total POs` · `Outstanding` · `Received` |
-| Purchase Orders display and row drawer | `Lines`; `Open full page` · `Status` · `Goods`; line columns `SKU` · `Item` · `Order Qty` · `Received Qty` · `Pending Delivery Qty` |
-| Purchase Orders bulk date | `Supplier date` · `Set Supplier date` · `Applies to every line still to deliver. Each PO is saved on its own.` · `Apply to {n} POs` · `Can take a date` · `Yes` · `Result` · `Saved` · `{n} saved · {n} not saved` · `Nothing left to deliver` · `no PO here can take a date` · `This file type is not accepted.` · `This file is too large (max 10 MB).` |
-| PO detail Supplier and side cards | `Contact` · `Email` · `Address`; `Key dates` · `Sent`; `People` · `Supplier contact` · `PO Duty` · `PO Duty not assigned`; `Recent activity` · `No history is recorded yet.` |
-| PO Amendments tabs and date | `Requested` · `Approved` · `Rejected` · `All`; `Created` |
-| Cancellation Requests tabs and columns | `Open` · `All`; `Level 1` · `Level 2` · `Approval Remarks` |
-| Purchase Invoices | `PI No` · `Supplier Invoice No` · `PI Doc Date` · `Supplier` · `Total` · `Paid` · `Owed` · `Due Date` · `Status` · `PO No`; tabs `All` · `Draft` · `Confirmed` · `Partial` · `Paid` · `Cancelled`; tiles `Total PIs` · `Billed` · `Owed` · `Paid`; `New Purchase Invoice` · `From GRN` |
-| Purchase Invoice page and lines | `Bill` · `Supplier Invoice No` · `PI Doc Date` · `Due Date` · `Status` · `PO No` · `Supplier` · `Total` · `Paid` · `Owed`; `Lines` · `Item` · `SKU` · `GRN No` · `Qty` · `Unit Price` · `Amount`; `Show lines` · `Change` · `No lines on this bill.` · `This bill could not be opened` · `The lines could not be read.` |
-| GRN page and register | `Supplier` · `Contact` · `Email` · `Address` · `Not recorded`; Items `Items` · `SKU` · `Received Qty` · `Damaged Qty` · `Wrong Item Qty` · `Extra Qty`; `Convert to PR` · `Convert to PI`; `Print N GRNs` · `N GRNs selected` |
-| Purchase Returns tabs and tiles | `All` · `Confirmed` · `Completed` · `Cancelled`; `Total Returns` · `Pending` · `Settled` |
-| MRP search | `Code, description, SO no, customer…` |
-| MRP filters and columns | `Warehouse` · `Date` · `Delivery Date` · `Proceed Date` · `SO Date` · `From` · `To` · `PO and ETA`; sheets `Items` · `Lines` |
-| Procurement Overview, Lead time & stock | `Overview` · `Lead time & stock` · `Supplier billed`; `Lead time` · `Receipts` · `Supplier takes · average` · `Supplier takes · median` · `On time` · `Late by · average`; `Stock` · `On hand` · `For an order` · `For no order` · `For no order 90+ days`; drill columns `PO` · `Supplier` · `Item` · `Category` · `Ordered` · `Received` · `Still to come` · `Promised` · `PI No` · `Total` · `PI Doc Date` |
-| Procurement Overview empty and count words | `No goods received in this period.`, `{n} PIs` |
-| Supplier detail | `Open supplier` · `Back to Suppliers`; tabs `Details` · `Lead Times` · `Items` · `Purchase Orders`; `Production Days` · `Working days` · `Supplier work week` · `Change these on Purchasing Settings.` · `Set a number`; `Their code` · `Our code` · `Our name` |
-| New Supplier, Batch edit | `New Supplier` · `Name` · `Pickup` · `Own Logistics` · `Factory Pickup` · `Add Supplier`; `Batch edit` · `Payment Terms (days)` · `Channel` · `Leave as it is` · `Email` · `WhatsApp` · `Apply`; `{n} suppliers saved` · `{n} of {m} suppliers saved` |
-
-## Projects words · Weisiang's decision (Mr Lim, WhatsApp 2026-10-22; Jess was not part of this decision) · migration 0750 · BUILT ON BRANCH `houzs/projects-port`, NOT APPLIED
-
-Fairs, exhibitions and solo roadshows, following Houzs Projects. These words are admitted for the `Projects` side menu module and its `Project List` page.
-
-| Meaning | Use exactly |
-|---|---|
-| Module and page | `Projects` · `Project List` · `Project` |
-| List filters | `Live projects` · `Archived` · `All statuses` |
-| List and detail fields | `Code` · `Name` · `Status` · `Stage` · `Event type` · `Brand` · `State` · `Venue` · `Venue address` · `Organizer` · `Contractor` · `Booth no` · `Size (sqm)` · `Start` · `End` · `Days` · `PIC` · `Notes` · `None` |
-| Stages | `Draft` · `Setup` · `Live` · `Dismantle` · `Completed` |
-| Statuses | `Pending` · `Confirmed` · `Cancelled` |
-| Event types | `Exhibition` · `Solo` |
-| Buttons | `New project` · `Edit project` · `Save` · `Cancel` · `Archive` · `Unarchive` · `Add note` |
-| Form hints | `Leave empty to use STATE [BRAND] ORGANIZER @ VENUE.` · `Leave empty for a solo event.` |
-| Detail panels and activity | `Details` · `Activity` · `Write a note` · `No activity yet.` · activity rows `Created` · `Stage` · `Status` · `Archived` · `Unarchived` · `Note` |
-| Archived project | `This project is archived. Unarchive it to change its status.` |
-| Empty and failure | `No projects yet. Use New project to add the first fair or exhibition.` · `This page could not be loaded. Try again.` · `Not saved. Try again.` · `This project could not be found.` |
-| Refusals | `Unarchive the project to change its status.` · `That is already on the list.` |
-| Project Maintenance (0751) | `Project Maintenance` · lists `Brands` · `Venues` · `Organizers` · `Contractors` · `Contractor` · `Add` · `In use` · `Stop using` · `Use again` · `Nothing here yet. Add the first one above.` |
-| Project team (0751) | `Team` · `Role` · placeholder `For example onsite or sales` · `Add to team` · `Remove` · `No one on the team yet.` |
-| Checklist (0752) | `Checklist` · `N% done` · statuses `To do` · `Done` · `Not needed` · `Blocked` · `Section` · `Task` · `Due (days from start)` · hint `Use a minus number for days before the start.` · `Start day` · `N days before start` · `N days after start` · `Add task` · `No tasks yet.` |
-| Checklist templates (0752) | `Checklist template` · `Checklist templates` · `Add template tasks` · `New projects of this type` · `N tasks` |
-| Sales Orders at a project (0753) | `Sales Orders` · `SO No` · `Add Sales Order` · `No Sales Orders on this project yet.` · `No value` · `Cancelled` · `Paid RM · Balance RM` · `N orders · RM · Paid RM · Balance RM` · refusals `No Sales Order has that number.` · `This Sales Order is on another project. Remove it there first.` |
-| Project sheet (slice 7, PDF) | button `Print` · failure `The project sheet could not be made. Try again.` · on the paper: `PROJECT SHEET` · `Printed {date}` · `D to D Mon YYYY` · `PIC {name}` · `Overview` · `Event type` · `Brand` · `Venue` · `Venue address` · `State` · `Organizer` · `Contractor` · `Booth no` · `Size (sqm)` · `Days` · `Team` · `Sales Orders` · `SO No` · `Customer` · `Total (RM)` · `Paid (RM)` · `Balance (RM)` · `No value` · `Cancelled` · `TOTAL · 1 order, cancelled left out` · `TOTAL · N orders, cancelled left out` · `Checklist · N% done` · `Task` · `Due` · `Status` · `Finished` · `Notes` · `This is a computer generated document. No signature is required.` · `Page n of m` |
-
-## Supply Chain frame words · owner decisions (6 and 9 Nov 2026) · engine/
-
-The supply chain and service case screens run as their own site (engine/), framed inside the portal. The Service Cases and Supply Chain sidebar rows that have an engine page open it (portal-nav `ENGINE_PAGES`); their row words are unchanged. These words are admitted for the frame; the screens inside it keep their own words.
-
-| Meaning | Use exactly |
-|---|---|
-| Frame | `Supply Chain` (read aloud) |
-| While it opens | `Opening Supply Chain` (read aloud) |
-| Failure | `Supply Chain could not be opened. Try again.` · `Supply Chain is not set up on this environment yet.` · `Supply Chain could not be reached. Try again in a moment.` · `Your account does not have access to Supply Chain.` · button `Try again` |
-| On a phone, the row at the foot of Houzs's Menu sheet that opens the portal menu (owner 14 Nov 2026: the phone version is Houzs's own phone app) | group `Carres` · row `Carres menu` |
-
-On a phone (below 768px) an engine page is Houzs's own phone app filling the screen (bottom tabs `Orders` · `Service` · Menu · `Calendar` · `Profile`, Houzs's words); the portal's phone header steps aside there and `Carres menu` opens the portal's drawer for the Carres rows. Carres's own pages keep the portal phone header.
-
-## Old supply chain removed · owner decisions (10 and 11 Nov 2026)
-
-The old Carres Service, Projects and Supply Chain pages are removed from the portal (11 Nov 2026); their old addresses open the nearest engine page. Starting a new order in the old order book (sales portal, POS, imports, rental) is still refused on the server (`OLD_ORDER_FLOWS`). These words are admitted for that refusal.
-
-| Meaning | Use exactly |
-|---|---|
-| A new order refused (sales portal, POS, imports, rental) | `New orders are turned off here for now. Orders are made in Supply Chain.` |
-| A new case refused (service case, service note, guarantee claim) | `New service cases are turned off here for now. Cases are made in Service Cases.` |
+Removed from the side menu bottom on 14 Nov 2026 (owner): it duplicated the `IT Support` row in the SYSTEM group, which opens Houzs's IT Support page. The help menu on Carres pages still links to IT Support.
