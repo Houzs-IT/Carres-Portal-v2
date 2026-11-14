@@ -134,6 +134,31 @@ describe("MobileDoHeaderEdit — an open delivery order", () => {
   });
 });
 
+describe("MobileDoHeaderEdit — four address lines (Carres, mig 2011)", () => {
+  it("shows and saves address lines 3 and 4, and locks them with the rest of the address", async () => {
+    detail = { ...DOO, address2: "Unit 8-3", address3: "Menara Suria", address4: "Taman Maju" };
+    const { onSaved } = mount();
+    await waitFor(() => expect(input("Address line 3").value).toBe("Menara Suria"));
+    expect(input("Address line 2").value).toBe("Unit 8-3");
+    expect(input("Address line 4").value).toBe("Taman Maju");
+    await userEvent.clear(input("Address line 4"));
+    await userEvent.type(input("Address line 4"), "Blok B");
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const header = patches().filter((c) => c.url === "/delivery-orders-mfg/do-1");
+    expect(bodyOf(header[0])).toMatchObject({ address2: "Unit 8-3", address3: "Menara Suria", address4: "Blok B" });
+  });
+
+  it("an invoiced DO disables lines 3 and 4 like lines 1 and 2", async () => {
+    detail = { ...DOO, address3: "Menara Suria", address4: "Taman Maju", has_children: true };
+    mount();
+    await waitFor(() => expect(input("Address line 3").value).toBe("Menara Suria"));
+    expect(input("Address line 1").disabled).toBe(true);
+    expect(input("Address line 3").disabled).toBe(true);
+    expect(input("Address line 4").disabled).toBe(true);
+  });
+});
+
 describe("MobileDoHeaderEdit — locked by a Sales Invoice (owner ruling 2026-09-14)", () => {
   it("disables exactly the fields the server locks, and sends only the open ones", async () => {
     detail = { ...DOO, has_children: true };

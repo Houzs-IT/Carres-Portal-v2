@@ -128,6 +128,8 @@ type SiRow = {
   email: string | null;
   address1: string | null;
   address2: string | null;
+  address3?: string | null; // Carres: mig 2011
+  address4?: string | null;
   city: string | null;
   postcode: string | null;
   customer_state: string | null;
@@ -538,7 +540,7 @@ function DetailDrawer({
                 <RowKV
                   k="Address"
                   v={
-                    [row.address1, row.address2, row.city, row.postcode, row.customer_state]
+                    [row.address1, row.address2, row.address3, row.address4, row.city, row.postcode, row.customer_state]
                       .filter(Boolean)
                       .join(", ") || "—"
                   }

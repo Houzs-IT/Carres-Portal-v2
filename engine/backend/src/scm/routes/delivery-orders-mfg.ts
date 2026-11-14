@@ -97,6 +97,7 @@ import { scopeToCompany, scopeToAllowedCompanies, activeCompanyId, stampCompany,
 import { stampSoRefsCamel } from '../lib/so-ref-lookup';
 import type { getSupabaseService } from '../../db/supabase';
 import { SO_CONVERT_HEADER, soHeaderToDoSource, missingSourceFields } from '../lib/so-to-do-fields';
+import { addressLinesOf, addressLinesFromBody } from '../lib/address-lines'; // Carres
 import { canViewAllSales, canViewScmFinance } from '../lib/houzs-perms';
 import { SO_ITEM_FINANCE_KEYS } from '../lib/finance-keys';
 import { freezeShipCost } from '../lib/fulfillment-costing';
@@ -323,7 +324,7 @@ const HEADER =
   'id, do_number, so_doc_no, debtor_code, debtor_name, do_date, expected_delivery_at, ' +
   'customer_delivery_date, signed_at, delivered_at, dispatched_at, ' +
   'driver_id, driver_name, vehicle, time_range, m3_total_milli, ' +
-  'address1, address2, city, state, postcode, phone, ' +
+  'address1, address2, address3, address4, city, state, postcode, phone, ' + // Carres: 4 lines (mig 2011)
   'salesperson_id, agent, email, customer_type, building_type, branding, venue, venue_id, ref, ' +
   'customer_so_no, po_doc_no, sales_location, customer_state, customer_country, note, ' +
   'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, ' +
@@ -3083,8 +3084,8 @@ deliveryOrdersMfg.post('/', async (c) => {
     driver_id: (body.driverId as string) ?? null,
     driver_name: (body.driverName as string) ?? null,
     vehicle: (body.vehicle as string) ?? null,
-    address1: (body.address1 as string) ?? null,
-    address2: (body.address2 as string) ?? null,
+    // Carres: all four address lines (mig 2011).
+    ...addressLinesFromBody(body),
     city: (body.city as string) ?? null,
     state: (body.state as string) ?? (body.customerState as string) ?? null,
     customer_state: (body.customerState as string) ?? (body.state as string) ?? null,
@@ -3601,8 +3602,6 @@ export const createDoFromSoLinesHandler = async (c: Context<{ Bindings: Env; Var
   if (!loaded.head) return c.json({ error: 'not_found' }, 404);
   const head = loaded.head;
 
-  const doAddress2 = (head.address2 as string | null)
-    ?? ([head.address3, head.address4].filter(Boolean).join(', ') || null);
   const phoneRaw = head.phone as string | null;
   const emPhoneRaw = head.emergency_contact_phone as string | null;
   const today = todayMyt();
@@ -3639,8 +3638,9 @@ export const createDoFromSoLinesHandler = async (c: Context<{ Bindings: Env; Var
     do_date: (head.customer_delivery_date as string | null) ?? today,
     expected_delivery_at: (head.customer_delivery_date as string | null) ?? today,
     customer_delivery_date: (head.customer_delivery_date as string | null) ?? today,
-    address1: (head.address1 as string | null) ?? null,
-    address2: doAddress2,
+    // Carres: the SO's four address lines copy one to one (mig 2011) — folding 3 + 4
+    // into an empty line 2 dropped them whenever line 2 was used.
+    ...addressLinesOf(head),
     city: (head.city as string | null) ?? null,
     state: (head.customer_state as string | null) ?? null,
     customer_state: (head.customer_state as string | null) ?? null,
@@ -3994,6 +3994,7 @@ deliveryOrdersMfg.patch('/:id', async (c) => {
     ['salesLocation', 'sales_location'], ['ref', 'ref'], ['poDocNo', 'po_doc_no'],
     ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
     ['address1', 'address1'], ['address2', 'address2'],
+    ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
     ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
     ['note', 'note'], ['notes', 'notes'],
     ['soDate', 'do_date'], ['doDate', 'do_date'], ['currency', 'currency'],

@@ -61,6 +61,7 @@ import { useSalesOrderPayments, useMfgSalesOrderDetail } from '../../vendor/scm/
 import { useSoConversionSource } from '../../vendor/scm/lib/delivery-order-queries';
 import styles from './SalesOrderDetail.module.css';
 import { PageHeader } from '../../components/Layout';
+import { SoAddressLines } from '../../components/SoAddressLines'; // Carres
 import { fmtMoneySen } from '@2990s/shared';
 import { sourceDocPath } from '../../lib/returnToSource';
 
@@ -146,6 +147,9 @@ export const SalesInvoiceNew = () => {
   // ── Address ──
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
+  // Carres: lines 3 and 4 (mig 2011) — the same four lines as the SO form.
+  const [address3, setAddress3] = useState('');
+  const [address4, setAddress4] = useState('');
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
   const [postcode, setPostcode] = useState('');
@@ -196,6 +200,8 @@ export const SalesInvoiceNew = () => {
     setNote((doc.note as string) ?? '');
     setAddress1((doc.address1 as string) ?? '');
     setAddress2((doc.address2 as string) ?? '');
+    setAddress3((doc.address3 as string) ?? '');
+    setAddress4((doc.address4 as string) ?? '');
     setState((doc.customer_state as string) ?? (doc.state as string) ?? '');
     setCity((doc.city as string) ?? '');
     setPostcode((doc.postcode as string) ?? '');
@@ -283,6 +289,8 @@ export const SalesInvoiceNew = () => {
     setCustomerDeliveryDate((so.customerDeliveryDate ?? '').slice(0, 10));
     setAddress1(so.address1 ?? '');
     setAddress2(so.address2 ?? '');
+    setAddress3(so.address3 ?? '');
+    setAddress4(so.address4 ?? '');
     setState(so.customerState ?? '');
     setCity(so.city ?? '');
     setPostcode(so.postcode ?? '');
@@ -431,6 +439,8 @@ export const SalesInvoiceNew = () => {
         branding: branding || undefined,
         address1: address1 || undefined,
         address2: address2 || undefined,
+        address3: address3 || undefined,
+        address4: address4 || undefined,
         customerState: state || undefined,
         state: state || undefined,
         city: city || undefined,
@@ -703,14 +713,11 @@ export const SalesInvoiceNew = () => {
         <header className={styles.cardHeader}><h2 className={styles.cardTitle}>Billing / Delivery Address</h2></header>
         <div className={styles.cardBody}>
           <div className={styles.formGrid4}>
-            <label className={styles.field} style={{ gridColumn: 'span 4' }}>
-              <span className={styles.fieldLabel}>Address Line 1</span>
-              <input className={styles.fieldInput} value={address1} onChange={(e) => setAddress1(e.target.value)} placeholder="Unit, street, area" />
-            </label>
-            <label className={styles.field} style={{ gridColumn: 'span 4' }}>
-              <span className={styles.fieldLabel}>Address Line 2</span>
-              <input className={styles.fieldInput} value={address2} onChange={(e) => setAddress2(e.target.value)} placeholder="Apt, floor, building (optional)" />
-            </label>
+            {/* Carres: the SO form's four address lines (shared SoAddressLines, mig 2011). */}
+            <SoAddressLines lines={[address1, address2, address3, address4]}
+              onChange={(line, v) => ({ 1: setAddress1, 2: setAddress2, 3: setAddress3, 4: setAddress4 })[line](v)}
+              fieldClassName={styles.field} labelClassName={styles.fieldLabel}
+              inputClassName={() => styles.fieldInput} />
             {/* Owner spec 2026-07-23 — StatePicker (MY-default, click Others for CN/SG, Search). Same shared component as Warehouse / Supplier / Venue / MobileNewSO / SalesOrderNew. No `(legacy)` sneak-through, no free-text fallback. */}
             <label className={styles.field}>
               <span className={styles.fieldLabel}>State</span>

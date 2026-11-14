@@ -41,7 +41,7 @@ loadingList.use('*', supabaseAuth);
    The storekeeper loads goods; the value of those goods is not their business. */
 const HEADER =
   'id, do_number, status, debtor_code, debtor_name, ' +
-  'address1, address2, city, state, postcode, phone, ' +
+  'address1, address2, address3, address4, city, state, postcode, phone, ' + // Carres: 4 lines (mig 2011)
   'do_date, customer_delivery_date, expected_delivery_at, ' +
   'driver_name, vehicle, warehouse_id, is_dropship, line_count, branding, note, so_doc_no';
 

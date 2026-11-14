@@ -278,7 +278,7 @@ const mostCommon = (xs: readonly string[]): string | null => {
 
 /** The regions of DOs read by id (a 3PL bill naming another month's DOs). */
 async function readDoRegions(sb: any, companyId: number, ids: string[]): Promise<{ ok: true; regions: Map<string, RegionCode> } | { ok: false; what: string; reason: string }> {
-  const res = await chunkIn<Row>(ids, (b, lo, hi) => sb.from('delivery_orders').select('id, state, city, postcode, address1, address2')
+  const res = await chunkIn<Row>(ids, (b, lo, hi) => sb.from('delivery_orders').select('id, state, city, postcode, address1, address2, address3, address4') // Carres: mig 2011
     .eq('company_id', companyId).in('id', b).order('id').range(lo, hi));
   if (res.error) return { ok: false, what: 'delivery orders', reason: res.error.message };
   return {
@@ -286,7 +286,7 @@ async function readDoRegions(sb: any, companyId: number, ids: string[]): Promise
     regions: new Map(res.data.map((d) => [String(d.id), regionOfDo({
       state: d.state == null ? null : String(d.state), city: d.city == null ? null : String(d.city),
       postcode: d.postcode == null ? null : String(d.postcode),
-      address: [d.address1, d.address2].filter((x) => x != null && x !== '').join(' | ') || null,
+      address: [d.address1, d.address2, d.address3, d.address4].filter((x) => x != null && x !== '').join(' | ') || null,
     }).code] as const)),
   };
 }

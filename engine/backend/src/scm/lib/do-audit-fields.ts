@@ -31,6 +31,7 @@ export const DO_AUDIT_FIELDS: AuditFieldMap = [
   ['salesLocation', 'sales_location'], ['ref', 'ref'], ['poDocNo', 'po_doc_no'],
   ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
   ['address1', 'address1'], ['address2', 'address2'],
+  ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
   ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
   ['note', 'note'], ['notes', 'notes'],
   ['doDate', 'do_date'], ['currency', 'currency'],
