@@ -83,7 +83,7 @@ describe("the approved hierarchy", () => {
     ]);
   });
 
-  it("Transportation draws its six direct rows, then the one Maintenance group", () => {
+  it("Transportation draws its five direct rows, then the one Maintenance group", () => {
     const blocks = moduleChildBlocks(delivery);
     expect(blocks.map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
       "Logistic Overview",
@@ -91,7 +91,6 @@ describe("the approved hierarchy", () => {
       "Last Mile Delivery (Driver)",
       "DP Orders",
       "Last Mile Delivery",
-      "Crew Leave",
       "Maintenance",
     ]);
     const group = blocks.find((b) => b.kind === "group");

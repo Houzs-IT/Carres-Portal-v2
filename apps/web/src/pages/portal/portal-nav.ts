@@ -30,7 +30,6 @@ import {
   ReceiptText,
   Banknote,
   CalendarClock,
-  CalendarOff,
   CreditCard,
   Landmark,
   BookOpenText,
@@ -453,7 +452,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "delivery-planning-driver", label: "Last Mile Delivery (Driver)", icon: ClipboardList, path: "/operation/sc/delivery-planning-driver", section: "Delivery" },
       { key: "dp-orders", label: "DP Orders", icon: ClipboardList, path: "/operation/sc/dp-orders", section: "Delivery" },
       { key: "fleet-day", label: "Last Mile Delivery", icon: MapPinned, path: "/operation/sc/fleet-day", section: "Delivery" },
-      { key: "crew-leave", label: "Crew Leave", icon: CalendarOff, path: "/operation/sc/crew-leave", section: "Delivery" },
+      /* No Crew Leave row: Carres has no leave (owner, 14 Nov 2026). */
       { key: "coverage-fleet", label: "Coverage & Fleet", icon: MapIcon, path: "/operation/sc/coverage-fleet", section: "Delivery", pageGroup: "transportation-maintenance" },
       { key: "delivery-zones", label: "Delivery Zones", icon: MapPinned, path: "/operation/sc/delivery-zones", section: "Delivery", pageGroup: "transportation-maintenance" },
       { key: "rate-cards", label: "Carriers & Rates", icon: Handshake, path: "/operation/sc/rate-cards", section: "Delivery", pageGroup: "transportation-maintenance" },

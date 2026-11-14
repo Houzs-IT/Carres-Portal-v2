@@ -36,7 +36,7 @@ describe("the Houzs tree", () => {
           "Sales Order: Sales Orders · Sales Order Amendment · Payment Backdate Requests · Delivery Orders · Sales Invoices · Delivery Returns · Subscription",
           "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Order · Product Request · Purchase Consignment Receive · Purchase Consignment Return",
           "Procurement: Procurement Overview · Products & Maintenance · Suppliers · MRP · Stock Status · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns",
-          "Transportation: Logistic Overview · Delivery Planning · Last Mile Delivery (Driver) · DP Orders · Last Mile Delivery · Crew Leave · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
+          "Transportation: Logistic Overview · Delivery Planning · Last Mile Delivery (Driver) · DP Orders · Last Mile Delivery · Coverage & Fleet · Delivery Zones · Carriers & Rates · Fleet Health",
           "Warehouse: Loading List · Warehouses · Racks & Bins · Inventory · Adjustments · Transfers · Stock Take",
         ],
       },
