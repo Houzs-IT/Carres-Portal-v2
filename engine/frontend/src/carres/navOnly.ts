@@ -22,6 +22,8 @@ const KEEP = new Set([
 export const CARRES_HIDDEN_PATHS: readonly string[] = [
   "/scm/hr",
   "/autocount-sync", "/pos-admin",
+  // No fairs at Carres: every order is a Showroom or a Project (owner, 13 Nov 2026), so nothing waits on a fair link.
+  "/scm/fair-pending",
 ];
 
 /** True when this address (a path, or a menu `to` with a query) belongs to a switched-off module. */

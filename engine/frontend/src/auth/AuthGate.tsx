@@ -11,6 +11,7 @@ import {
 import { useIsMobile } from "../mobile/useIsMobile";
 import { CARRES_EMBEDDED } from "../carres/embed";
 import { reportCarresSignedOut } from "../carres/ready";
+import { CARRES_PORTAL_LOGIN, sendSignInToPortal } from "../carres/portalLogin";
 
 // Code-split the mobile app: desktop users never download it, and it stays out
 // of the initial JS bundle (keeps the bundle-budget CI gate green).
@@ -119,7 +120,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     if (CARRES_EMBEDDED && !loading && !user) reportCarresSignedOut();
   }, [loading, user]);
 
+  // Carres: signed out on this app's own address → the portal's sign-in, the one place staff sign in (carres/portalLogin.ts).
+  const toPortal = !loading && !user && hasUsers !== false && sendSignInToPortal(CARRES_EMBEDDED, hash, window.location.hostname);
+  useEffect(() => {
+    if (toPortal) window.location.replace(CARRES_PORTAL_LOGIN);
+  }, [toPortal]);
+
   // Initial loading state — neutral splash. Carres: inside the portal its own skeleton is the one loading state.
+  if (toPortal) return <AuthSplash />;
   if (loading) {
     return CARRES_EMBEDDED ? null : <AuthSplash />;
   }
