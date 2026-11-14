@@ -324,8 +324,6 @@ exports[`POST / (create DO) — pinned > draft success 1`] = `
         {
           "address1": null,
           "address2": null,
-          "address3": null,
-          "address4": null,
           "agent": null,
           "arrives_em_warehouse_date": null,
           "branding": null,
@@ -796,8 +794,6 @@ exports[`POST /from-sos — pinned > draft success over two lines of one order 1
         {
           "address1": null,
           "address2": null,
-          "address3": null,
-          "address4": null,
           "agent": null,
           "branding": null,
           "building_type": null,

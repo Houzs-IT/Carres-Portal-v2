@@ -147,8 +147,6 @@ type SiHeader = {
   customer_country: string | null;
   address1: string | null;
   address2: string | null;
-  address3?: string | null; // Carres: mig 2011
-  address4?: string | null;
   city: string | null;
   postcode: string | null;
   customer_type: string | null;
@@ -1587,8 +1585,6 @@ export function SalesInvoiceDetailV2() {
                     {[
                       salesInvoice.address1,
                       salesInvoice.address2,
-                      salesInvoice.address3,
-                      salesInvoice.address4,
                       [salesInvoice.city, salesInvoice.postcode]
                         .filter(Boolean)
                         .join(" "),

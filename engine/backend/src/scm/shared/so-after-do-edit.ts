@@ -37,8 +37,8 @@ export const SO_EDIT_AFTER_DO_PERMISSION = 'scm.so.edit_after_do';
 export const SO_EDIT_PRICE_AFTER_DO_PERMISSION = 'scm.so.edit_price_after_do';
 
 /** SO header column -> the Delivery Order column it is copied into (null = the
- *  DO has no such column; the SO change still saves). Carres: the DO has all
- *  four address lines since migration 2011, so each line copies one to one. */
+ *  DO has no such column; the SO change still saves). address3/4 fold into the
+ *  DO's address2 the way the DO create does. */
 export const SO_AFTER_DO_CUSTOMER_COLS: Readonly<Record<string, string | null>> = {
   debtor_name: 'debtor_name',
   customer_id: null,
@@ -46,8 +46,8 @@ export const SO_AFTER_DO_CUSTOMER_COLS: Readonly<Record<string, string | null>> 
   email: 'email',
   address1: 'address1',
   address2: 'address2',
-  address3: 'address3',
-  address4: 'address4',
+  address3: 'address2',
+  address4: 'address2',
   city: 'city',
   postcode: 'postcode',
   ship_to_address: null,
@@ -126,6 +126,13 @@ export function afterDoBlockedCols(changedLocked: ReadonlyArray<string>): string
   return changedLocked.filter((col) => !(col in SO_AFTER_DO_CUSTOMER_COLS));
 }
 
+/** The DO's address2, from the SO row the same way the DO create builds it. */
+export function soDoAddress2(so: Record<string, unknown>): string | null {
+  const a2 = so.address2 as string | null | undefined;
+  if (a2 != null) return a2;
+  return [so.address3, so.address4].filter(Boolean).join(', ') || null;
+}
+
 /** The DO header columns (DB names) carrying the SAVED order's customer details,
  *  for the SO columns this change touched. */
 export function doHeaderPatchFromSo(so: Record<string, unknown>, changedCols: ReadonlyArray<string>): Record<string, unknown> {
@@ -133,7 +140,7 @@ export function doHeaderPatchFromSo(so: Record<string, unknown>, changedCols: Re
   for (const col of changedCols) {
     const target = SO_AFTER_DO_CUSTOMER_COLS[col];
     if (!target) continue;
-    out[target] = so[col] ?? null;
+    out[target] = target === 'address2' ? soDoAddress2(so) : (so[col] ?? null);
   }
   return out;
 }

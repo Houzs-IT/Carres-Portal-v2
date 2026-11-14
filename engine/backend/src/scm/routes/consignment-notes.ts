@@ -53,7 +53,6 @@ import { SO_ITEM_FINANCE_KEYS } from '../lib/finance-keys';
 import { sourceUnitCostByItemId } from '../lib/source-cost';
 import { assertSourceLinesInCompany } from '../lib/ref-in-company';
 import { foldTargetsIntoOwnBuckets, stockBucketKeyResolver } from '../lib/stock-bucket-key';
-import { addressLinesFromBody } from '../lib/address-lines'; // Carres
 
 export const consignmentNotes = new Hono<{ Bindings: Env; Variables: Variables }>();
 consignmentNotes.use('*', supabaseAuth);
@@ -90,7 +89,7 @@ const HEADER =
   'id, do_number, consignment_so_doc_no, debtor_code, debtor_name, do_date, expected_delivery_at, ' +
   'customer_delivery_date, signed_at, delivered_at, dispatched_at, ' +
   'driver_id, driver_name, vehicle, m3_total_milli, ' +
-  'address1, address2, address3, address4, city, state, postcode, phone, ' + // Carres: 4 lines (mig 2011)
+  'address1, address2, city, state, postcode, phone, ' +
   'salesperson_id, agent, email, customer_type, building_type, branding, venue, venue_id, ref, ' +
   'customer_so_no, po_doc_no, sales_location, customer_state, customer_country, note, ' +
   'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, ' +
@@ -785,7 +784,8 @@ consignmentNotes.post('/', async (c) => {
     driver_id: (body.driverId as string) ?? null,
     driver_name: (body.driverName as string) ?? null,
     vehicle: (body.vehicle as string) ?? null,
-    ...addressLinesFromBody(body), // Carres: all four address lines (mig 2011)
+    address1: (body.address1 as string) ?? null,
+    address2: (body.address2 as string) ?? null,
     city: (body.city as string) ?? null,
     state: (body.state as string) ?? (body.customerState as string) ?? null,
     customer_state: (body.customerState as string) ?? (body.state as string) ?? null,
@@ -856,7 +856,6 @@ consignmentNotes.patch('/:id', async (c) => {
     ['salesLocation', 'sales_location'], ['ref', 'ref'], ['poDocNo', 'po_doc_no'],
     ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
     ['address1', 'address1'], ['address2', 'address2'],
-    ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
     ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
     ['note', 'note'], ['notes', 'notes'],
     ['soDate', 'do_date'], ['doDate', 'do_date'], ['currency', 'currency'],

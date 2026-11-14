@@ -1862,12 +1862,12 @@ async function scheduleOntoTrip(
     if (type === 'do') {
       doId = id;
       const { data: doRow } = await sb.from('delivery_orders')
-        .select('local_total_sen, debtor_name, address1, address2, address3, address4, warehouse_id').eq('id', id).maybeSingle(); // Carres: mig 2011
+        .select('local_total_sen, debtor_name, address1, address2, warehouse_id').eq('id', id).maybeSingle();
       if (doRow) {
         const r = doRow as Record<string, unknown>;
         revenueSen = Number((r.localTotalSen ?? r.local_total_sen) ?? 0);
         customerName = (r.debtorName ?? r.debtor_name ?? null) as string | null;
-        address = [r.address1, r.address2, r.address3, r.address4].filter(Boolean).join(', ') || null;
+        address = [r.address1, r.address2].filter(Boolean).join(', ') || null;
         if (!tripWarehouseId) tripWarehouseId = (r.warehouseId ?? r.warehouse_id ?? null) as string | null;
       }
     } else {

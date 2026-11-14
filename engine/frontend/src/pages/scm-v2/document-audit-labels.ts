@@ -46,7 +46,6 @@ const CUSTOMER_FIELDS: Record<string, string> = {
   salesLocation: 'Sales location', ref: 'Ref No.', poDocNo: 'Customer PO no',
   venue: 'Venue', venueId: 'Venue', branding: 'Branding',
   address1: 'Address line 1', address2: 'Address line 2',
-  address3: 'Address line 3', address4: 'Address line 4', // Carres: mig 2011
   city: 'City', state: 'State', postcode: 'Postcode', phone: 'Phone',
   email: 'Email', customerType: 'Customer type',
   customerState: 'Customer state', customerCountry: 'Customer country',

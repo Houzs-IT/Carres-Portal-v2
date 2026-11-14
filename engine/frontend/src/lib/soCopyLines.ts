@@ -49,7 +49,7 @@ export function soCopyHeaderSeed(h: SoCopySource) {
     debtorCode: h.debtor_code ?? '', debtorName: h.debtor_name ?? '', phone: h.phone ?? '', email: h.email ?? '',
     salespersonId: h.salesperson_id != null ? String(h.salesperson_id) : '',
     customerType: h.customer_type ?? '', buildingType: h.building_type ?? '', note: h.note ?? '',
-    address1: h.address1 ?? '', address2: h.address2 ?? '', address3: h.address3 ?? '', address4: h.address4 ?? '',
+    address1: h.address1 ?? '', address2: h.address2 ?? '', address3: '', address4: '', // Carres: a copy carries the two lines the form shows (owner 14 Nov 2026)
     state: h.customer_state ?? '', city: h.city ?? h.address3 ?? '', postcode: h.postcode ?? h.address4 ?? '',
     emergencyName: h.emergency_contact_name ?? '', emergencyRel: h.emergency_contact_relationship ?? '', emergencyPhone: h.emergency_contact_phone ?? '',
   };

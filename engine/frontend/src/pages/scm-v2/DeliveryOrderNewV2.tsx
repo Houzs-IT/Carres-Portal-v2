@@ -595,9 +595,6 @@ export function DeliveryOrderNewV2() {
   const [salespersonId, setSalespersonId] = useState("");
   const [addr1, setAddr1] = useState("");
   const [addr2, setAddr2] = useState("");
-  // Carres: address lines 3 and 4 (mig 2011), same four lines as the SO form.
-  const [addr3, setAddr3] = useState("");
-  const [addr4, setAddr4] = useState("");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
   const [postcode, setPostcode] = useState("");
@@ -793,8 +790,6 @@ export function DeliveryOrderNewV2() {
     setSalespersonId(so.salespersonId ?? "");
     setAddr1(so.address1 ?? "");
     setAddr2(so.address2 ?? "");
-    setAddr3(so.address3 ?? "");
-    setAddr4(so.address4 ?? "");
     setState(so.customerState ?? "");
     setCity(so.city ?? "");
     setPostcode(so.postcode ?? "");
@@ -888,7 +883,7 @@ export function DeliveryOrderNewV2() {
     const f = seedDoHeaderForm(doo, todayMyt());
     setCustomerName(f.customerName); setDebtorCode(f.debtorCode); setCustomerSoRef(f.customerSoRef);
     setPhone(f.phone); setEmail(f.email); setCustomerType(f.customerType); setSalespersonId(f.salespersonId);
-    setAddr1(f.address1); setAddr2(f.address2); setAddr3(f.address3); setAddr4(f.address4); setState(f.state); setCity(f.city); setPostcode(f.postcode);
+    setAddr1(f.address1); setAddr2(f.address2); setState(f.state); setCity(f.city); setPostcode(f.postcode);
     setSalesLocation(f.salesLocation); setEcName(f.ecName); setEcRelationship(f.ecRelationship); setEcPhone(f.ecPhone);
     setDoDate(f.doDate); setDriver(f.driver); setVehicle(f.vehicle); setBuildingType(f.buildingType);
     setVenue(f.venue); setBranding(f.branding); setExpectedDate(f.expectedDate); setCustomerDelDate(f.customerDelDate);
@@ -995,7 +990,7 @@ export function DeliveryOrderNewV2() {
      sheet sends the same one. On a locked DO the locked keys are dropped. */
   const buildHeaderBody = () => buildDoHeaderBody({
     customerName, debtorCode, customerSoRef, phone, email, customerType, salespersonId,
-    address1: addr1, address2: addr2, address3: addr3, address4: addr4, state, city, postcode, salesLocation,
+    address1: addr1, address2: addr2, state, city, postcode, salesLocation,
     ecName, ecRelationship, ecPhone, doDate, driver, vehicle, buildingType, venue, branding,
     expectedDate, customerDelDate, note,
   }, salesStaff, { locked: headerLocked });
@@ -1374,24 +1369,6 @@ export function DeliveryOrderNewV2() {
                 onChange={setAddr2}
                 disabled={lk("address2")}
                 placeholder="Apt, floor, building (optional)"
-              />
-            </div>
-            <div>
-              <Label text="Address line 3" />
-              <TextInput
-                value={addr3}
-                onChange={setAddr3}
-                disabled={lk("address3")}
-                placeholder="Optional"
-              />
-            </div>
-            <div>
-              <Label text="Address line 4" />
-              <TextInput
-                value={addr4}
-                onChange={setAddr4}
-                disabled={lk("address4")}
-                placeholder="Optional"
               />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">

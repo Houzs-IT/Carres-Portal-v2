@@ -39,7 +39,6 @@ import { applyCustomerCreditToSi } from './customer-credits';
 import { recomputeSiPaid } from './si-order-deposit';
 import { recordEntityAudit, compactChanges, fieldChange, type AuditActor } from './entity-audit';
 import { enqueueConvert } from './autocount-outbox';
-import { addressLinesOf } from './address-lines'; // Carres
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- PostgREST client; `sb` is `any` throughout the SI route this was lifted from */
 type Db = any;
@@ -424,7 +423,7 @@ export async function createSalesInvoiceFromDoLines(sb: Db, input: SiFromDoInput
   const DO_HEADER =
     'id, status, do_number, company_id, so_doc_no, debtor_code, debtor_name, customer_delivery_date, ' +
     'salesperson_id, agent, email, customer_type, building_type, branding, venue, venue_id, ref, ' +
-    'customer_so_no, po_doc_no, sales_location, customer_state, customer_country, note, address1, address2, address3, address4, city, state, postcode, phone, currency, ' + // Carres: 4 lines (mig 2011)
+    'customer_so_no, po_doc_no, sales_location, customer_state, customer_country, note, address1, address2, city, state, postcode, phone, currency, ' +
     'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship';
   // HEADER half of the same source document — same predicate as the lines.
   const { data: doHeaderRow, error: hLoadErr } = await scopeToCompanyIdOrOpen(sb
@@ -452,7 +451,8 @@ export async function createSalesInvoiceFromDoLines(sb: Db, input: SiFromDoInput
     debtor_name: (head.debtor_name as string | null) ?? 'Customer',
     invoice_date: dateOrNull(input.invoiceDate) ?? todayMyt(),
     customer_delivery_date: (head.customer_delivery_date as string | null) ?? null,
-    ...addressLinesOf(head), // Carres: all four DO address lines (mig 2011)
+    address1: (head.address1 as string | null) ?? null,
+    address2: (head.address2 as string | null) ?? null,
     city: (head.city as string | null) ?? null,
     state: (head.state as string | null) ?? (head.customer_state as string | null) ?? null,
     customer_state: (head.customer_state as string | null) ?? (head.state as string | null) ?? null,

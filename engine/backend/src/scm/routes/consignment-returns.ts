@@ -47,7 +47,6 @@ import { sourceUnitCostByItemId } from '../lib/source-cost';
 import { assertSourceLinesInCompany } from '../lib/ref-in-company';
 import { unlinkedEditRefusal } from '../lib/unlinked-line-edit-guard';
 import { foldTargetsIntoOwnBuckets, stockBucketKeyResolver } from '../lib/stock-bucket-key';
-import { addressLinesFromBody } from '../lib/address-lines'; // Carres
 
 export const consignmentReturns = new Hono<{ Bindings: Env; Variables: Variables }>();
 consignmentReturns.use('*', supabaseAuth);
@@ -58,7 +57,7 @@ const HEADER =
   'received_at, inspected_at, refunded_at, refund_sen, inspection_notes, ' +
   'salesperson_id, agent, email, customer_type, building_type, branding, venue, venue_id, ref, ' +
   'customer_so_no, sales_location, customer_state, customer_country, note, ' +
-  'address1, address2, address3, address4, city, state, postcode, phone, ' + // Carres: 4 lines (mig 2011)
+  'address1, address2, city, state, postcode, phone, ' +
   'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, ' +
   'mattress_sofa_sen, bedframe_sen, accessories_sen, others_sen, ' +
   'mattress_sofa_cost_sen, bedframe_cost_sen, accessories_cost_sen, others_cost_sen, ' +
@@ -669,7 +668,8 @@ async function insertHeader(sb: any, userId: string, body: Record<string, unknow
     debtor_name: (body.debtorName ?? body.customerName) as string,
     return_date: dateOrNull(body.returnDate) ?? todayMyt(),
     reason: (body.reason as string) ?? null,
-    ...addressLinesFromBody(body), // Carres: all four address lines (mig 2011)
+    address1: (body.address1 as string) ?? null,
+    address2: (body.address2 as string) ?? null,
     city: (body.city as string) ?? null,
     state: (body.state as string) ?? (body.customerState as string) ?? null,
     customer_state: (body.customerState as string) ?? (body.state as string) ?? null,
@@ -915,7 +915,6 @@ consignmentReturns.patch('/:id', async (c) => {
     ['salesLocation', 'sales_location'], ['ref', 'ref'],
     ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
     ['address1', 'address1'], ['address2', 'address2'],
-    ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
     ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
     ['note', 'note'], ['notes', 'notes'], ['reason', 'reason'],
     ['returnDate', 'return_date'], ['currency', 'currency'],

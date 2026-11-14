@@ -470,7 +470,7 @@ reports.get('/delivery-order-detail-listing', async (c) => {
         delivery_orders!inner (
           id, do_number, so_doc_no, debtor_code, debtor_name, do_date,
           expected_delivery_at, signed_at, delivered_at, dispatched_at,
-          driver_name, vehicle, address1, address2, address3, address4, city, state, postcode, phone,
+          driver_name, vehicle, address1, address2, city, state, postcode, phone,
           status, notes, m3_total_milli
         )
       `);
@@ -1313,13 +1313,13 @@ export const fairReportHandler = async (c: FairCtx) => {
     // DOs whose SO is in the fair (link by so_doc_no text — no FK to embed on).
     const { data: doData, error: doErr } = await chunkIn(docNos, (batch: string[], pFrom: number, pTo: number) => scopeToCompany(sb
       .from('delivery_orders')
-      .select('id, do_number, so_doc_no, do_date, delivered_at, status, address1, address2, address3, address4, city, postcode, state, warehouse_id, sales_location') // Carres: mig 2011
+      .select('id, do_number, so_doc_no, do_date, delivered_at, status, address1, address2, city, postcode, state, warehouse_id, sales_location')
       .in('so_doc_no', batch), c)
       .range(pFrom, pTo));
     if (doErr) return c.json({ error: 'load_failed', reason: doErr.message }, 500);
     const doDocs = (doData ?? []) as Array<{
       id: string; do_number: string; so_doc_no: string | null; do_date: string | null; delivered_at: string | null; status: string | null;
-      address1: string | null; address2: string | null; address3: string | null; address4: string | null; city: string | null; postcode: string | null; state: string | null;
+      address1: string | null; address2: string | null; city: string | null; postcode: string | null; state: string | null;
       warehouse_id: string | null; sales_location: string | null;
     }>;
     /* Each stage by its own date: only the deliveries dated in the window — by
@@ -1372,7 +1372,7 @@ export const fairReportHandler = async (c: FairCtx) => {
         location: bookSpellingOrOwn(
           warehouseLabel(d.warehouse_id ? whById.get(d.warehouse_id) : null) ?? d.sales_location, LOCATION_MAP),
         delivery_location: joinParts([d.city, d.state], ', '),
-        delivery_address: joinParts([d.address1, d.address2, d.address3, d.address4, joinParts([d.postcode, d.city], ' '), d.state], ', '),
+        delivery_address: joinParts([d.address1, d.address2, joinParts([d.postcode, d.city], ' '), d.state], ', '),
         qty: doCost.qty,
         // The linked SO's amount (product + service) — same value the SO tab
         // shows in its Amount column, so the two stages reconcile per SO.
