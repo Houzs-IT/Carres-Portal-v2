@@ -50,7 +50,7 @@ import {
   useSetStateDeliveryRegions,
 } from '../../vendor/scm/lib/delivery-planning-regions-queries';
 import { SalespersonHandover } from './SalespersonHandover';
-import { FairRulesSection } from './FairRulesSection';
+// Carres: FairRulesSection is not shown (no fairs at Carres).
 import { sortByText } from '../../vendor/scm/lib/sort-options';
 import {
   useLocalities, distinctStates,
@@ -76,7 +76,7 @@ const SECTIONS = [
   { key: 'venues', label: 'Venues' },
   { key: 'geo', label: 'Geo & Warehouses' },
   { key: 'dropdowns', label: 'Dropdowns' },
-  { key: 'fair-rules', label: 'Fair rules' },
+  // Carres: no Fair rules section, Carres has no fairs (owner, 13 Nov 2026).
 ] as const;
 const ALL_SECTION_KEYS = SECTIONS.map((s) => s.key);
 
@@ -1055,11 +1055,7 @@ const MaintenanceBody = ({ canEdit, open }: { canEdit: boolean; open: ReturnType
         <DropdownsSection canEdit={canEdit} />
       </CollapsibleSection>
 
-      {/* Fair rules (owner 2026-10-19): whether "Venue differs" on a scanned order is a
-          flag or stops Confirm. Owner / Finance only; the API enforces and logs it. */}
-      <CollapsibleSection id="fair-rules" title="Fair rules" open={open.isOpen('fair-rules')} onToggle={() => open.toggle('fair-rules')}>
-        <FairRulesSection />
-      </CollapsibleSection>
+      {/* Carres: no Fair rules section here, Carres has no fairs (owner, 13 Nov 2026). */}
 
       {/* Salesperson handover (owner 2026-08-17, on a resignation). Gated on the
           same permission the API enforces, so a maintainer who may not
