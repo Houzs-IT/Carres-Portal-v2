@@ -374,7 +374,6 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "child-overview",
       "child-orders-shortcut",
       "child-work",
-      "child-leave",
       "group-head-operations",
       "module-customer-care",
       "module-projects",
@@ -397,7 +396,6 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "child-overview",
       "child-orders-shortcut",
       "child-work",
-      "child-leave",
       "group-head-operations",
       "module-customer-care",
       "module-projects",
@@ -433,9 +431,9 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
     }
   });
 
-  it("single pages stay plain rows — no caret on Sales Orders, Workspace, Leave, Mail Center, IT Support", () => {
+  it("single pages stay plain rows — no caret on Sales Orders, Workspace, Mail Center, IT Support", () => {
     renderAt("/operation");
-    for (const key of ["orders-shortcut", "work", "leave", "mail-center", "it-support"]) {
+    for (const key of ["orders-shortcut", "work", "mail-center", "it-support"]) {
       const row = child(key);
       expect(row.tagName).toBe("A");
       expect(row.getAttribute("aria-expanded")).toBeNull();
@@ -994,7 +992,7 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(child("amendments").className).not.toContain("bg-c-select-pill");
   });
 
-  it("Workspace starts with Houzs's Overview, then the Sales Orders shortcut, Workspace and Leave", () => {
+  it("Workspace starts with Houzs's Overview, then the Sales Orders shortcut and Workspace (no Leave row)", () => {
     renderAt("/operation");
     // Houzs's Overview opens the engine's landing page at its own address (owner, 11 Nov 2026).
     expect(child("overview")).toHaveTextContent(/^Overview$/);
@@ -1004,9 +1002,10 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(shortcut.closest("[data-testid='nav-fold-children-supply-chain']")).toBeNull();
     expect(
       Array.from(screen.getByTestId("portal-sidebar-list").querySelectorAll("[data-testid^='nav-child-']"))
-        .slice(0, 4)
+        .slice(0, 3)
         .map((el) => el.getAttribute("data-testid")),
-    ).toEqual(["nav-child-overview", "nav-child-orders-shortcut", "nav-child-work", "nav-child-leave"]);
+    ).toEqual(["nav-child-overview", "nav-child-orders-shortcut", "nav-child-work"]);
+    expect(screen.queryByTestId("nav-child-leave")).toBeNull();
     // The old Carres Overview dashboard row is removed (owner, 11 Nov 2026).
     expect(screen.queryByTestId("nav-child-dashboard")).toBeNull();
   });

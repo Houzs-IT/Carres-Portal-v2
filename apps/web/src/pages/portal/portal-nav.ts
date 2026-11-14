@@ -397,9 +397,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
         roles: ["operation", "principal", "hr"],
         needs: "payment-requester",
       },
-      // Carres-only: My Work / Team Work and a person's own leave (0670).
+      // Carres-only: My Work / Team Work. No Leave row (owner 14 Nov 2026: Carres does not use leave here).
       { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
-      { key: "leave", label: "Leave", icon: CalendarOff, mIcon: "event_busy", section: "Workspace" },
 
       /* SERVICE CASES */
       { key: "service-quality", label: "Quality Overview", icon: ShieldCheck, path: "/operation/sc/service-quality", section: "Customer Care" },
