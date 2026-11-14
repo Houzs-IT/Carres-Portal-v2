@@ -951,7 +951,6 @@ describe("PortalSidebar — the Sales Order module", () => {
     const rows = Array.from(group.querySelectorAll("[data-testid^='nav-child-']"));
     expect(rows.map((r) => r.textContent?.trim())).toEqual([
       "Sales Orders",
-      "Fair Links to Settle",
       "Sales Order Amendment",
       "Payment Backdate Requests",
       "Delivery Orders",

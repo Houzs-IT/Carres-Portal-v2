@@ -417,7 +417,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
 
       /* SUPPLY CHAIN · SALES ORDER */
       { key: "orders", label: "Sales Orders", crumb: "Sales Order", icon: ShoppingCart, path: "/operation/sc/orders", section: "Sales" },
-      { key: "fair-pending", label: "Fair Links to Settle", icon: MapPinned, path: "/operation/sc/fair-pending", badge: "fair-links-to-settle", section: "Sales" },
+      /* No Fair Links to Settle row: Carres has no fairs, every order is a Showroom or a Project (owner, 13 Nov 2026). */
       { key: "amendments", label: "Sales Order Amendment", icon: History, path: "/operation/sc/amendments", badge: "amendment-approvals", section: "Sales" },
       { key: "payment-backdate-requests", label: "Payment Backdate Requests", icon: ClipboardCheck, path: "/operation/sc/payment-backdate-requests", badge: "payment-backdate-approvals", section: "Sales" },
       { key: "delivery-orders", label: "Delivery Orders", icon: Send, path: "/operation/sc/delivery-orders", section: "Sales" },

@@ -45,7 +45,6 @@ describe("the approved Sales Orders navigation", () => {
     const pages = block!.kind === "module" ? block!.pages : [];
     expect(pages.map((p) => p.label)).toEqual([
       "Sales Orders",
-      "Fair Links to Settle",
       "Sales Order Amendment",
       "Payment Backdate Requests",
       "Delivery Orders",
