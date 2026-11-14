@@ -68,6 +68,9 @@ export interface SoConversionSource {
   agent: string | null;
   address1: string | null;
   address2: string | null;
+  // Carres: the DO carries all four SO address lines (migration 2011).
+  address3: string | null;
+  address4: string | null;
   city: string | null;
   customerState: string | null;
   postcode: string | null;
@@ -89,8 +92,9 @@ export interface SoConversionSource {
  *
  * The derivations mirror what POST /from-sos writes onto the DO row, so what the
  * form previews is what the commit would store:
- *   · address2 falls back to address3 + address4 joined (the DO has two address
- *     lines, the SO has four).
+ *   · the four address lines copy across one to one (Carres: since migration
+ *     2011 the DO has four lines like the SO; joining 3 + 4 into an empty line 2
+ *     silently dropped them whenever line 2 was used).
  *   · salesperson prefers the human `agent` label and falls back to the id.
  *   · customerSoRef prefers the customer's own SO number over the generic ref.
  * `currency` is the one field with a default, and it is the SAME default the
@@ -110,7 +114,9 @@ export function soHeaderToDoSource(head: Record<string, unknown>): SoConversionS
     salespersonId: str(head.salesperson_id),
     agent: str(head.agent),
     address1: str(head.address1),
-    address2: str(head.address2) ?? str([head.address3, head.address4].filter(Boolean).join(', ')),
+    address2: str(head.address2),
+    address3: str(head.address3),
+    address4: str(head.address4),
     city: str(head.city),
     customerState: str(head.customer_state),
     postcode: str(head.postcode),
@@ -138,6 +144,8 @@ const REPORTED_FIELDS: ReadonlyArray<readonly [keyof SoConversionSource, string]
   ['salesperson', 'Salesperson'],
   ['address1', 'Address Line 1'],
   ['address2', 'Address Line 2'],
+  /* Carres: lines 3 and 4 are optional on the source order, so their absence is
+     not reported as "not on the source order". */
   ['customerState', 'State'],
   ['city', 'City'],
   ['postcode', 'Postcode'],

@@ -119,6 +119,8 @@ type DrHeader = {
   customer_country: string | null;
   address1: string | null;
   address2: string | null;
+  address3?: string | null; // Carres: mig 2011
+  address4?: string | null;
   city: string | null;
   postcode: string | null;
   customer_type: string | null;
@@ -593,6 +595,8 @@ function DeliveryReturnDetailV2ReadOnly() {
                no customer address on it (owner UI audit Item #9). */
             address1: deliveryReturn.address1,
             address2: deliveryReturn.address2,
+            address3: deliveryReturn.address3 ?? null,
+            address4: deliveryReturn.address4 ?? null,
             city: deliveryReturn.city,
             state: deliveryReturn.customer_state,
             postcode: deliveryReturn.postcode,
@@ -1093,6 +1097,8 @@ function DeliveryReturnDetailV2ReadOnly() {
                     {[
                       deliveryReturn.address1,
                       deliveryReturn.address2,
+                      deliveryReturn.address3,
+                      deliveryReturn.address4,
                       [deliveryReturn.city, deliveryReturn.postcode]
                         .filter(Boolean)
                         .join(" "),

@@ -52,6 +52,9 @@ export const DO_HEADER_LOCKED_FIELDS: readonly DoHeaderLockField[] = [
   { col: 'customer_type', body: ['customerType'], label: 'customer type' },
   { col: 'address1', body: ['address1'], label: 'address line 1' },
   { col: 'address2', body: ['address2'], label: 'address line 2' },
+  // Carres: lines 3 and 4 (mig 2011) lock with the rest of the address.
+  { col: 'address3', body: ['address3'], label: 'address line 3' },
+  { col: 'address4', body: ['address4'], label: 'address line 4' },
   { col: 'city', body: ['city'], label: 'city' },
   { col: 'state', body: ['state'], label: 'state' },
   { col: 'customer_state', body: ['customerState'], label: 'state' },

@@ -22,7 +22,7 @@ export const SI_HEADER_COLS =
   'subtotal_sen, discount_sen, tax_sen, total_sen, paid_sen, ' +
   'salesperson_id, agent, email, customer_type, building_type, branding, venue, venue_id, ref, ' +
   'customer_so_no, po_doc_no, sales_location, customer_state, customer_country, note, ' +
-  'address1, address2, city, state, postcode, phone, ' +
+  'address1, address2, address3, address4, city, state, postcode, phone, ' + // Carres: 4 lines (mig 2011)
   'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, ' +
   'mattress_sofa_sen, bedframe_sen, accessories_sen, others_sen, service_sen, ' +
   'mattress_sofa_cost_sen, bedframe_cost_sen, accessories_cost_sen, others_cost_sen, service_cost_sen, ' +

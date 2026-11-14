@@ -94,6 +94,9 @@ type DoHeader = {
   vehicle: string | null;
   address1: string | null;
   address2: string | null;
+  /** Carres: lines 3 and 4 (mig 2011); optional so a pre-2011 row prints as before. */
+  address3?: string | null;
+  address4?: string | null;
   city: string | null;
   state: string | null;
   postcode: string | null;
@@ -426,6 +429,8 @@ function drawInfoPanel(doc: Doc, top: number, header: DoHeader): number {
   const address = [
     header.address1,
     header.address2,
+    header.address3,
+    header.address4,
     [header.postcode, header.city, header.state]
       .map((s) => (typeof s === 'string' ? s.trim() : ''))
       .filter(Boolean)

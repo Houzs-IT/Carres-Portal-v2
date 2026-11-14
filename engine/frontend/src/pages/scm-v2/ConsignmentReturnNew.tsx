@@ -48,6 +48,7 @@ import { sortByText, sortByNumeric } from '../../vendor/scm/lib/sort-options';
 import { SearchableSelect } from '../../vendor/scm/components/SearchableSelect';
 import { SoLineCard, emptySoLine, type SoLineDraft } from '../../vendor/scm/components/SoLineCard';
 import styles from './SalesOrderDetail.module.css';
+import { SoAddressLines } from '../../components/SoAddressLines'; // Carres
 import { PageHeader } from '../../components/Layout';
 import { fmtMoneySen } from '@2990s/shared';
 import { DateField } from "../../vendor/scm/components/DateField";
@@ -117,6 +118,9 @@ export const ConsignmentReturnNew = () => {
   // ── Address ──
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
+  // Carres: lines 3 and 4 (mig 2011) — the same four lines as the SO form.
+  const [address3, setAddress3] = useState('');
+  const [address4, setAddress4] = useState('');
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
   const [postcode, setPostcode] = useState('');
@@ -153,6 +157,8 @@ export const ConsignmentReturnNew = () => {
     setNote(str(cn.note));
     setAddress1(str(cn.address1));
     setAddress2(str(cn.address2));
+    setAddress3(str(cn.address3));
+    setAddress4(str(cn.address4));
     setState(str(cn.customer_state ?? cn.state));
     setCity(str(cn.city));
     setPostcode(str(cn.postcode));
@@ -276,6 +282,8 @@ export const ConsignmentReturnNew = () => {
         branding: branding || undefined,
         address1: address1 || undefined,
         address2: address2 || undefined,
+        address3: address3 || undefined,
+        address4: address4 || undefined,
         customerState: state || undefined,
         state: state || undefined,
         city: city || undefined,
@@ -471,14 +479,11 @@ export const ConsignmentReturnNew = () => {
         <header className={styles.cardHeader}><h2 className={styles.cardTitle}>Delivery Address</h2></header>
         <div className={styles.cardBody}>
           <div className={styles.formGrid4}>
-            <label className={styles.field} style={{ gridColumn: 'span 4' }}>
-              <span className={styles.fieldLabel}>Address Line 1</span>
-              <input className={styles.fieldInput} value={address1} onChange={(e) => setAddress1(e.target.value)} placeholder="Unit, street, area" />
-            </label>
-            <label className={styles.field} style={{ gridColumn: 'span 4' }}>
-              <span className={styles.fieldLabel}>Address Line 2</span>
-              <input className={styles.fieldInput} value={address2} onChange={(e) => setAddress2(e.target.value)} placeholder="Apt, floor, building (optional)" />
-            </label>
+            {/* Carres: the SO form's four address lines (shared SoAddressLines, mig 2011). */}
+            <SoAddressLines lines={[address1, address2, address3, address4]}
+              onChange={(line, v) => ({ 1: setAddress1, 2: setAddress2, 3: setAddress3, 4: setAddress4 })[line](v)}
+              fieldClassName={styles.field} labelClassName={styles.fieldLabel}
+              inputClassName={() => styles.fieldInput} />
             {/* Owner spec 2026-07-23 — StatePicker (MY-default, click Others for CN/SG, Search). Same shared component as Warehouse / Supplier / Venue / MobileNewSO / SalesOrderNew / SalesOrderDetail. No `(legacy)` sneak-through, no free-text fallback. */}
             <label className={styles.field}>
               <span className={styles.fieldLabel}>State</span>

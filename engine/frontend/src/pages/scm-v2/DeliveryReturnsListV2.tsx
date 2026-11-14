@@ -112,6 +112,8 @@ type DrRow = {
   email: string | null;
   address1: string | null;
   address2: string | null;
+  address3?: string | null; // Carres: mig 2011
+  address4?: string | null;
   city: string | null;
   postcode: string | null;
   customer_state: string | null;
@@ -519,7 +521,7 @@ function DetailDrawer({
                 <RowKV
                   k="Address"
                   v={
-                    [row.address1, row.address2, row.city, row.postcode, row.customer_state]
+                    [row.address1, row.address2, row.address3, row.address4, row.city, row.postcode, row.customer_state]
                       .filter(Boolean)
                       .join(", ") || "—"
                   }
@@ -1230,6 +1232,27 @@ export function DeliveryReturnsListV2() {
       getValue: (r) => r.address2 ?? "",
       render: (r) => (
         <span className="text-[12.5px] text-ink-secondary">{r.address2 || "—"}</span>
+      ),
+    },
+    // Carres: address lines 3 and 4 (mig 2011).
+    {
+      key: "address3",
+      label: "Address 3",
+      width: "180px",
+      defaultHidden: true,
+      getValue: (r) => r.address3 ?? "",
+      render: (r) => (
+        <span className="text-[12.5px] text-ink-secondary">{r.address3 || "—"}</span>
+      ),
+    },
+    {
+      key: "address4",
+      label: "Address 4",
+      width: "180px",
+      defaultHidden: true,
+      getValue: (r) => r.address4 ?? "",
+      render: (r) => (
+        <span className="text-[12.5px] text-ink-secondary">{r.address4 || "—"}</span>
       ),
     },
     {

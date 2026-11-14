@@ -76,7 +76,7 @@ export const DEFAULT_FAIR_INCOME_BP = 100;
 export async function readMonthDos(sb: any, companyId: number, wholeFrom: string, wholeTo: string): Promise<
   { ok: true; dos: LogisticsDo[]; charges: Row[] } | { ok: false; what: string; reason: string }
 > {
-  const DO_COLS = 'id, do_number, so_doc_no, status, state, city, postcode, address1, address2, do_date, customer_delivery_date';
+  const DO_COLS = 'id, do_number, so_doc_no, status, state, city, postcode, address1, address2, address3, address4, do_date, customer_delivery_date'; // Carres: 4 lines (mig 2011)
   const [scheduled, unscheduled] = await Promise.all([
     paginateAll<Row>((lo, hi) => sb.from('delivery_orders').select(DO_COLS).eq('company_id', companyId).neq('status', 'CANCELLED')
       .gte('customer_delivery_date', wholeFrom).lte('customer_delivery_date', wholeTo).order('id').range(lo, hi)),
@@ -122,7 +122,7 @@ export async function readMonthDos(sb: any, companyId: number, wholeFrom: string
       id, doNumber: String(d.do_number ?? id), soDocNo: d.so_doc_no == null ? null : String(d.so_doc_no), day: when,
       state: d.state == null ? null : String(d.state),
       city: d.city == null ? null : String(d.city), postcode: d.postcode == null ? null : String(d.postcode),
-      address: [...linesOf(d, ['address1', 'address2']),
+      address: [...linesOf(d, ['address1', 'address2', 'address3', 'address4']),
         ...linesOf(d.so_doc_no == null ? undefined : orderOf.get(String(d.so_doc_no)), ADDRESS_COLS)].join(' | ') || null,
       valueSen: valueOf.get(id) ?? 0,
       crewLorryId: k?.lorry_id == null ? null : String(k.lorry_id), crewPlate: k?.lorry_plate == null ? null : String(k.lorry_plate),

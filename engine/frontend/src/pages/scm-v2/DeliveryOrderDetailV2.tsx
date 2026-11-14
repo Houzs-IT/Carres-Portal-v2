@@ -132,6 +132,8 @@ type DoHeader = HoldFields & {
   warehouse_id: string | null;
   address1: string | null;
   address2: string | null;
+  address3?: string | null; // Carres: mig 2011
+  address4?: string | null;
   city: string | null;
   postcode: string | null;
   customer_state: string | null;
@@ -317,6 +319,8 @@ const shipTo = (h: DoHeader): string[] =>
   [
     h.address1,
     h.address2,
+    h.address3,
+    h.address4,
     [h.city, h.postcode].filter(Boolean).join(" "),
     [h.customer_state, h.customer_country].filter(Boolean).join(", "),
   ].filter((s): s is string => !!s && s.trim().length > 0);

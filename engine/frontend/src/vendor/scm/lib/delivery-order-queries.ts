@@ -160,6 +160,8 @@ export type SoConversionSource = {
   agent: string | null;
   address1: string | null;
   address2: string | null;
+  address3: string | null; // Carres: mig 2011
+  address4: string | null;
   city: string | null;
   customerState: string | null;
   postcode: string | null;

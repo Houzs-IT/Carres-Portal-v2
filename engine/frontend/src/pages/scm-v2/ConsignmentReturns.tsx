@@ -64,6 +64,8 @@ type CrnRow = {
   building_type: string | null;
   address1: string | null;
   address2: string | null;
+  address3?: string | null; // Carres: mig 2011
+  address4?: string | null;
   customer_state: string | null;
   customer_country: string | null;
   city: string | null;
@@ -417,7 +419,7 @@ export function ConsignmentReturnDrawer({
               <DrawerKV k="Email" v={row.email || '—'} />
               <DrawerKV
                 k="Address"
-                v={[row.address1, row.address2, row.city, row.postcode, row.customer_state].filter(Boolean).join(', ') || '—'}
+                v={[row.address1, row.address2, row.address3, row.address4, row.city, row.postcode, row.customer_state].filter(Boolean).join(', ') || '—'}
               />
               {row.note ? <DrawerKV k="Note" v={row.note} /> : null}
             </div>
@@ -924,6 +926,17 @@ const buildColumns = (staffById: Map<string, string>, canFinance: boolean): Grid
     key: 'address2', label: 'Address 2', width: 180, sortable: true, defaultHidden: true,
     accessor: (r) => r.address2 ?? '',
     searchValue: (r) => r.address2 ?? '',
+  },
+  // Carres: address lines 3 and 4 (mig 2011).
+  {
+    key: 'address3', label: 'Address 3', width: 180, sortable: true, defaultHidden: true,
+    accessor: (r) => r.address3 ?? '',
+    searchValue: (r) => r.address3 ?? '',
+  },
+  {
+    key: 'address4', label: 'Address 4', width: 180, sortable: true, defaultHidden: true,
+    accessor: (r) => r.address4 ?? '',
+    searchValue: (r) => r.address4 ?? '',
   },
   {
     key: 'customer_state', label: 'State', width: 130, sortable: true, groupable: true, defaultHidden: true,

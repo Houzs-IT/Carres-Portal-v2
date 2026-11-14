@@ -56,6 +56,7 @@ export type SiHeader = {
      exist on sales_invoices. So this is the billing address as captured; the
      delivery address for the same goods lives on the DO, which prints its own. */
   address1?: string | null; address2?: string | null;
+  address3?: string | null; address4?: string | null; // Carres: mig 2011
   city?: string | null; state?: string | null; postcode?: string | null;
   phone?: string | null; email?: string | null;
   /* The CUSTOMER's own reference — distinct from `so_doc_no`, which is OUR SO
@@ -154,6 +155,8 @@ export async function renderSalesInvoiceInto(
   const addressValue = [
     header.address1,
     header.address2,
+    header.address3,
+    header.address4,
     [header.postcode, header.city, header.state]
       .map((s) => (typeof s === 'string' ? s.trim() : ''))
       .filter(Boolean)

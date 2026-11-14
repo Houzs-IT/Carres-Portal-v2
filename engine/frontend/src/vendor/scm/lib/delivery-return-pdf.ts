@@ -38,6 +38,7 @@ type DrHeader = {
      through `as never`) keep compiling; drawInfoColumns skips a blank row
      so a record with no address prints exactly as it did before. */
   address1?: string | null; address2?: string | null;
+  address3?: string | null; address4?: string | null; // Carres: mig 2011
   city?: string | null; state?: string | null; postcode?: string | null;
   phone?: string | null; email?: string | null;
   /* Consignment Returns spread their header (which stores the state as
@@ -94,6 +95,8 @@ export async function renderDeliveryReturnInto(
   const addressValue = [
     header.address1,
     header.address2,
+    header.address3,
+    header.address4,
     [header.postcode, header.city, header.state ?? header.customer_state]
       .map((s) => (typeof s === 'string' ? s.trim() : ''))
       .filter(Boolean)
