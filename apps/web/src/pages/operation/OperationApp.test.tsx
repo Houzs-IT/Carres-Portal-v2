@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 /**
@@ -11,7 +11,11 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
  * Children are stubbed: this suite owns routing only.
  */
 vi.mock("./SupplyChainEngine", () => ({
-  default: ({ path }: { path: string }) => <div data-testid="engine-stub" data-path={path}>engine</div>,
+  default: ({ path, phone, onMenu }: { path: string; phone?: boolean; onMenu?: () => void }) => (
+    <div data-testid="engine-stub" data-path={path} data-phone={phone ? "1" : "0"}>
+      engine<button type="button" data-testid="engine-carres-menu" onClick={onMenu}>Carres menu</button>
+    </div>
+  ),
 }));
 vi.mock("@/pages/portal/PortalSidebar", () => ({ default: () => <div data-testid="sidebar-stub">sidebar</div> }));
 vi.mock("./components/ShellTasks", () => ({
@@ -151,4 +155,45 @@ describe("OperationApp — hr opens the System rows only", () => {
       expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-path", "/team?tab=hub");
     },
   );
+});
+
+describe("OperationApp — on a phone an engine page is Houzs's own phone app", () => {
+  const phoneWidth = (matches: boolean) => {
+    window.matchMedia = ((query: string) => ({
+      matches, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  };
+  const original = window.matchMedia;
+  afterEach(() => { window.matchMedia = original; });
+
+  it("draws no portal header over the frame and asks the engine for its phone app", () => {
+    phoneWidth(true);
+    renderApp("/operation/sc/orders");
+    expect(screen.queryByTestId("phone-menu-button")).toBeNull();
+    expect(screen.queryByTestId("shell-header")).toBeNull();
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-phone", "1");
+  });
+
+  it("opens the portal drawer when the phone app's Carres menu row asks", () => {
+    phoneWidth(true);
+    renderApp("/operation/sc/orders");
+    expect(screen.getByTestId("phone-menu")).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(screen.getByTestId("engine-carres-menu"));
+    expect(screen.getByTestId("phone-menu")).toHaveAttribute("aria-hidden", "false");
+  });
+
+  it("keeps the phone header on Carres's own pages", () => {
+    phoneWidth(true);
+    renderApp("/operation?tab=work");
+    expect(screen.getByTestId("phone-menu-button")).toBeInTheDocument();
+    expect(screen.getByTestId("work-stub")).toBeInTheDocument();
+  });
+
+  it("leaves the computer shell as it was", () => {
+    phoneWidth(false);
+    renderApp("/operation/sc/orders");
+    expect(screen.getByTestId("engine-stub")).toHaveAttribute("data-phone", "0");
+    expect(screen.getByTestId("sidebar-stub")).toBeInTheDocument();
+  });
 });

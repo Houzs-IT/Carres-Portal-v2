@@ -77,6 +77,12 @@ export default defineConfig(async () => {
           // instance, and only that one file ever writes to it.
           d1Databases: ["DB", "DB_PARITY"],
           kvNamespaces: ["SESSION_CACHE"],
+          // Carres: wrangler.toml binds the Carres portal API Worker (CARRES_PORTAL), which does not exist in the test
+          // runtime. Stand it in with a stub so the pool starts; tests never reach it (no CARRES_SSO_SECRET here,
+          // so src/carres/portal-staff.ts stays off).
+          serviceBindings: {
+            CARRES_PORTAL: () => new Response("Carres portal is not available in tests", { status: 503 }),
+          },
           bindings: {
             TEST_BASELINE_SQL: baselineSql,
             TEST_MIGRATIONS: migrations,

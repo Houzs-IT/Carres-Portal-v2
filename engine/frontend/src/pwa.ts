@@ -29,7 +29,11 @@ export function registerPwa() {
   // module graph cache-first, so edits "don't show" after a refresh until the
   // SW + caches are cleared by hand. Tear down any SW a previous prod/PWA visit
   // left registered, and wipe its caches.
-  if (import.meta.env.DEV) {
+  // Carres: no service worker. Staff reach these pages through the Carres portal, which is the installed app;
+  // the offline shell only ever served a stale index.html after one of the many same-day deploys (old CSP,
+  // dead asset hashes answered 504 by the worker). Same tear-down as DEV: unregister and wipe the caches.
+  const CARRES_NO_SERVICE_WORKER = true;
+  if (import.meta.env.DEV || CARRES_NO_SERVICE_WORKER) {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
         .getRegistrations()

@@ -51,6 +51,16 @@ ENGINE_PUBLIC_URL = "https://carres-scm.pages.dev"
 EMAIL_FROM = "Carres <noreply@carresofficial.com>"
 SO_ITEM_PHOTOS_BUCKET_NAME = "carres-scm"
 SENTRY_ENVIRONMENT = "production"
+# Carres: the Carres portal API that Team > Invite Member, Set a new password and Disable account keep in step
+# (src/carres/portal-staff.ts). Reached through the CARRES_PORTAL service binding below; this origin is the fallback.
+CARRES_PORTAL_API = "https://api.carresofficial.com"
+
+# Carres: the Carres portal API Worker, for staff portal logins made from Team (src/carres/portal-staff.ts). The
+# portal binds back to this Worker as SCM_ENGINE (apps/api/wrangler.toml); a public call between two Workers of one
+# account can be refused, so both directions go through a binding.
+[[services]]
+binding = "CARRES_PORTAL"
+service = "carres-portal-v2-api"
 
 # The engine's own Supabase project, connected as its own role (scm_engine). Caching off.
 [[hyperdrive]]

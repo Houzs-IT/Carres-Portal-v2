@@ -327,7 +327,12 @@ export async function changePersonalMailboxAliasAtomically(
 /** "first.last" from a display name (ASCII letters and digits only); one word
  *  stays one word. null when nothing usable is left. */
 export function defaultPersonalLocalPart(name: string | null | undefined): string | null {
-  const words = (name ?? "")
+  // Carres: a member whose name is still their login email ("weisiang329@gmail.com")
+  // got "weisiang329.com" (first word + the email domain's last word). Use the
+  // email's local part only, kept as one word, never the email's domain.
+  const raw = name ?? "";
+  if (raw.includes("@")) return emailLocalPartSuggestion(raw);
+  const words = raw
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
@@ -335,6 +340,22 @@ export function defaultPersonalLocalPart(name: string | null | undefined): strin
     .filter(Boolean);
   if (words.length === 0) return null;
   return words.length === 1 ? words[0] : `${words[0]}.${words[words.length - 1]}`;
+}
+
+// Carres: the local part of a login email as a valid mailbox name (letters,
+// digits, single . _ - between them, at most 40). null when nothing usable is left.
+export function emailLocalPartSuggestion(email: string | null | undefined): string | null {
+  const local = (email ?? "")
+    .split("@")[0]
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, ".")
+    .replace(/[._-]{2,}/g, (m) => m[0])
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 40)
+    .replace(/[._-]+$/g, "");
+  return local.length >= 2 ? local : null;
 }
 
 /** Another person's alias or login, a mailbox someone else owns, or a

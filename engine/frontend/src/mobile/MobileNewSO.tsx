@@ -2562,14 +2562,9 @@ export function MobileNewSO({
                       <input className="fld-i" value={addr1} disabled={custLocked} {...addressLineProps(setAddr1, { value: addr2, set: setAddr2 })} onChange={(e) => setAddr1(e.target.value)} placeholder="Unit, street, area" />
                     </Field>
                     <Field label="Address Line 2">
-                      <input className="fld-i" value={addr2} disabled={custLocked} {...addressLineProps(setAddr2, { value: addr3, set: setAddr3 })} onChange={(e) => setAddr2(e.target.value)} placeholder="Apt, floor, building (optional)" />
+                      <input className="fld-i" value={addr2} disabled={custLocked} {...addressLineProps(setAddr2, null)} onChange={(e) => setAddr2(e.target.value)} placeholder="Apt, floor, building (optional)" />
                     </Field>
-                    <Field label="Address Line 3">
-                      <input className="fld-i" value={addr3} disabled={custLocked} {...addressLineProps(setAddr3, { value: addr4, set: setAddr4 })} onChange={(e) => setAddr3(e.target.value)} placeholder="Optional" />
-                    </Field>
-                    <Field label="Address Line 4">
-                      <input className="fld-i" value={addr4} disabled={custLocked} {...addressLineProps(setAddr4, null)} onChange={(e) => setAddr4(e.target.value)} placeholder="Optional" />
-                    </Field>
+                    {/* Carres: two address lines, like the Delivery Order (owner 14 Nov 2026); line 2 spills nowhere. */}
                     {/* FIX A — cascading State → City → Postcode from my_localities
                         (desktop parity). When the dataset is present these are
                         dependent dropdowns; when it's empty they fall back to

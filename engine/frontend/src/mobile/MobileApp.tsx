@@ -20,6 +20,9 @@ import { useAnnouncementUnread } from "./useAnnouncementUnread";
 import { MobileCrashBoundary } from "./MobileCrashBoundary";
 import { IosInstallGuide } from "../components/IosInstallGuide";
 import { AndroidInstallGuide } from "../components/AndroidInstallGuide";
+import { CARRES_EMBEDDED } from "../carres/embed";
+import { carresScreenPath, carresTabFor, useCarresMobileUrl } from "../carres/mobileUrl";
+import { CarresMenuRow } from "../carres/CarresMenuRow";
 // Heavy mobile screens are lazy-loaded so the initial mobile chunk stays small
 // (desktop routes were already lazy — this closes the mobile gap that made the
 // first mobile paint download/parse a ~10k-line monolith). Rendered under the
@@ -615,8 +618,9 @@ export function MobileApp() {
                 webviews, Chrome post-decline) got NO install path at all —
                 the guides self-guard on platform/standalone/cool-off, and
                 the Android one defers to PwaBanners' one-tap Install. */}
-            <IosInstallGuide />
-            <AndroidInstallGuide />
+            {/* Carres: inside the portal the portal is the installed app, so no install coach here. */}
+            {!CARRES_EMBEDDED && <IosInstallGuide />}
+            {!CARRES_EMBEDDED && <AndroidInstallGuide />}
             <MobileAppInner />
           </ChoiceProvider>
         </PromptProvider>
@@ -726,6 +730,13 @@ function MobileAppInner() {
      here — serialise the state itself, which is a small discriminated union. */
   const screenKey = JSON.stringify(screen);
   const back = () => setScreen({ t: "tab" });
+  // Carres: inside the portal the address follows the screen, and Back / the portal's menu open the address's screen.
+  useCarresMobileUrl(carresScreenPath(tab, screen, allKnownDestinations, destinationScreen), (location) => {
+    const carresTab = carresTabFor(location);
+    const route = resolveMobileRoute(location, visibleDestinations, allKnownDestinations);
+    setTab(carresTab ?? (route.t === "tab" ? route.tab : firstTab));
+    setScreen(carresTab ? { t: "tab" } : initialScreenFor(route));
+  });
   const leaveUrlDeadEnd = () => {
     navigate("/", { replace: true });
     setScreen({ t: "tab" });
@@ -844,6 +855,13 @@ function MobileAppInner() {
   // Overlay screens (pushed above the tab bar). These resolve to lazy-loaded
   // components, so the chosen element is returned under a single crash+Suspense
   // boundary (full-screen fallback — an overlay owns the whole viewport anyway).
+  /* A service case's "Raise exchange PO" opens the normal PO create screen (the
+     case seeds it via the exchangePoSeed handoff). Gated by the same create
+     permission as the "+" on the Purchase Orders list; undefined hides the button. */
+  const raiseExchangePo = mayCreatePurchaseDoc("po", can, pageAccess)
+    ? () => setScreen({ t: "purchase-doc-new", key: "mfg-purchase-orders", title: "Purchase Orders", kind: "po" })
+    : undefined;
+
   let overlay: ReactNode = null;
   if (screen.t === "search") overlay = <MobileSearch onBack={back} onNavigate={onSearchNavigate} />;
   else if (screen.t === "so-detail") overlay = <MobileSODetail docNo={screen.docNo} onBack={back} onEdit={(d) => setScreen({ t: "new-so", mode: "edit", docNo: d })} onAddLine={(d) => setScreen({ t: "new-so", mode: "edit", docNo: d, addLine: true })} flowNav={flowNav} onConvert={(convertFrom) => setScreen({ t: "new-so", mode: "new", convertFrom })} />;
@@ -1080,7 +1098,7 @@ function MobileAppInner() {
   else if (screen.t === "mileage-capture") overlay = <MobileMileageCapture onBack={back} />;
   else if (screen.t === "punch") overlay = <MobilePunch onBack={back} />;
   else if (screen.t === "overview") overlay = <MobileOverview kind={screen.kind} onBack={back} />;
-  else if (screen.t === "service") overlay = <MobileServiceCase onBack={back} startNew={screen.startNew} />;
+  else if (screen.t === "service") overlay = <MobileServiceCase onBack={back} startNew={screen.startNew} onRaiseExchangePo={raiseExchangePo} />;
   else if (screen.t === "delivery-planning") overlay = <MobileDeliveryPlanning onBack={back} completedDoNumber={screen.completedDoNumber ?? null} onOpen={(doc) => setScreen({ t: "so-detail", docNo: doc })} onPod={(doNumber, companyCode) => setScreen({ t: "pod", docNo: doNumber, companyCode, from: "delivery-planning" })} />;
   else if (screen.t === "delivery-planning-driver") overlay = <MobileDeliveryPlanning onBack={back} completedDoNumber={screen.completedDoNumber} onOpen={(doc) => setScreen({ t: "so-detail", docNo: doc })} onPod={(doNumber, companyCode) => setScreen({ t: "pod", docNo: doNumber, companyCode, from: "delivery-planning-driver" })} />;
   else if (screen.t === "pms") overlay = (
@@ -1137,7 +1155,7 @@ function MobileAppInner() {
             />
           ) : <TabLocked title="Sales Orders" />)}
           {tab === "service" && (canService
-            ? <MobileServiceCase onBack={() => setTab(firstTab)} />
+            ? <MobileServiceCase onBack={() => setTab(firstTab)} onRaiseExchangePo={raiseExchangePo} />
             : <TabLocked title="Service Cases" />)}
           {tab === "calendar" && (canCalendar ? (
             <MobileCalendar
@@ -1227,6 +1245,8 @@ function MobileAppInner() {
                 </div>
               ))}
               {menuGroups.length === 0 && <div style={{ textAlign: "center", color: "var(--hz-c-ink-soft)", fontSize: 12, padding: "24px 0" }}>No modules available for your position.</div>}
+              {/* Carres: the portal's own menu (Workspace, Leave, Subscription...). */}
+              <CarresMenuRow onOpen={() => setMenuOpen(false)} />
             </div>
           </div>
         </div>

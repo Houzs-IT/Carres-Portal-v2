@@ -20,6 +20,37 @@ describe("engineFrameSrc", () => {
     const json = atob(src.split("#carres=")[1].replace(/-/g, "+").replace(/_/g, "/"));
     expect(JSON.parse(json)).toEqual({ t: "tok", p: "/scm" });
   });
+
+  it("asks for Houzs's phone app with m: 1 on a phone only", () => {
+    const src = engineFrameSrc({ site: "https://scm.test", token: "tok", sessionPass: null }, "/scm", true);
+    const json = atob(src.split("#carres=")[1].replace(/-/g, "+").replace(/_/g, "/"));
+    expect(JSON.parse(json)).toEqual({ t: "tok", p: "/scm", m: 1 });
+  });
+});
+
+describe("the phone app's Carres menu row", () => {
+  const site = "https://scm.test";
+  beforeEach(() => vi.mocked(apiFetch).mockResolvedValue({ site, token: "tok", sessionPass: null }));
+
+  it("opens the portal menu on carres:menu from the engine, and only from the engine", async () => {
+    const onMenu = vi.fn();
+    const view = render(<SupplyChainEngine path="/scm/sales-orders" phone onMenu={onMenu} />);
+    await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
+    expect(view.container.querySelector("iframe")!.src).toContain("#carres=");
+    act(() => { window.dispatchEvent(new MessageEvent("message", { origin: "https://evil.example", data: { type: "carres:menu" } })); });
+    expect(onMenu).not.toHaveBeenCalled();
+    act(() => { window.dispatchEvent(new MessageEvent("message", { origin: site, data: { type: "carres:menu" } })); });
+    expect(onMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it("reopens the frame on the same page when the width crosses the phone width", async () => {
+    const view = render(<SupplyChainEngine path="/scm/sales-orders" />);
+    await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
+    const hand = () => JSON.parse(atob(view.container.querySelector("iframe")!.src.split("#carres=")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    expect(hand().m).toBeUndefined();
+    view.rerender(<SupplyChainEngine path="/scm/sales-orders" phone />);
+    expect(hand()).toEqual({ t: "tok", p: "/scm/sales-orders", m: 1 });
+  });
 });
 
 describe("enginePath", () => {

@@ -53,6 +53,19 @@ against a real session.
 ### FROZEN RULES
 - **Team is the ONE door that creates an internal account.** The principal's Accounts screen was
   narrowed to dealer/showroom store accounts.
+  - **Where Team lives now (owner, 14 Nov 2026 — BUILT ON BRANCH `feat/team-invite-portal-account`, NOT DEPLOYED):**
+    Team is the engine's Team › Invite Member screen. Inviting creates the engine member AND the
+    person's portal login through `POST /engine/staff-accounts` (apps/api/src/routes/engine-staff-accounts.ts),
+    signed by the engine Worker with the existing SSO secret. "Set a password now" sets the portal
+    password; otherwise Supabase emails an invite that lands on `erp.carresofficial.com/update-password`.
+    The member drawer's "Set a new password", "Disable account" and remove reach the portal login too.
+    The portal role is derived from the engine department (Finance/Accounts → finance, Business
+    Development → bd, HR → hr, everything else → operation); **principal is never given from Team**, and
+    dealer/showroom/supplier/partner logins cannot be made, reset or disabled from it (those stay in
+    Admin › Accounts, as does any later role change). An email that already has a portal account is
+    linked and left unchanged. The engine member is created active with no engine password: staff
+    sign in on the portal only. The engine's own "Email a reset link" still sends the engine's reset
+    page, not the portal's (open follow-up).
 - **Permissions follow the POSITION, not the person and never an email.** `org_duties` +
   `org_position_duties`; five email hardcodes were retired behind a one-release fallback that
   logged every hit.

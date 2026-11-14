@@ -27,14 +27,16 @@ export function SoAddressLines({ lines, onChange, fieldClassName, labelClassName
   style?: CSSProperties;
   disabled?: boolean;
 }) {
+  // Carres: an order has two address lines, like the Delivery Order it becomes (owner 14 Nov 2026) — lines 3
+  // and 4 stay in the database but get no input, and line 2 spills nowhere, so nothing typed is lost on SO -> DO.
   return (
     <>
-      {lines.map((value, i) => { const line = (i + 1) as Line; return (
+      {lines.slice(0, 2).map((value, i) => { const line = (i + 1) as Line; return (
         <label key={i} className={fieldClassName} style={{ gridColumn: 'span 4', ...style }}>
           <span className={labelClassName}>Address Line {line}</span>
           <input className={inputClassName(i)} value={value} placeholder={PLACEHOLDERS[i]}
             autoComplete="houzs-no-autofill" disabled={disabled}
-            {...addressLineProps((v) => onChange(line, v), line < 4 ? { value: lines[i + 1] ?? '', set: (v) => onChange((line + 1) as Line, v) } : null)}
+            {...addressLineProps((v) => onChange(line, v), line < 2 ? { value: lines[i + 1] ?? '', set: (v) => onChange((line + 1) as Line, v) } : null)}
             onChange={(e) => onChange(line, e.target.value)} />
         </label>
       ); })}

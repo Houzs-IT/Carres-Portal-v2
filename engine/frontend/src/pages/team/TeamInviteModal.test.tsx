@@ -109,3 +109,24 @@ describe("TeamInviteModal — outsourced Title nudge", () => {
     expect(screen.queryByText(/belongs in Fleet/i)).toBeNull();
   });
 });
+
+// Carres: the invite also makes (or links) the person's Carres portal login; the success panel says which.
+describe("TeamInviteModal — Carres portal login", () => {
+  test("an invite email from the portal reads as an email to set the password and sign in to the portal", async () => {
+    post.mockResolvedValueOnce({ active: true, carres_portal: { status: "created", role: "operation", email_sent: true } } as never);
+    mount();
+    fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "new@carres.test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
+    expect(await screen.findByText("Invitation emailed to new@carres.test")).toBeTruthy();
+    expect(screen.getByText(/sign in to the Carres portal/)).toBeTruthy();
+  });
+
+  test("an email that already had a portal account says it was linked and its password is unchanged", async () => {
+    post.mockResolvedValueOnce({ active: true, carres_portal: { status: "existing", role: "finance", email_sent: false } } as never);
+    mount();
+    fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "old@carres.test" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
+    expect(await screen.findByText("Member added for old@carres.test")).toBeTruthy();
+    expect(screen.getByText(/portal password is unchanged/)).toBeTruthy();
+  });
+});

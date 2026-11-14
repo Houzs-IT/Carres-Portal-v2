@@ -22,6 +22,12 @@ try {
   process.exit(1);
 }
 
+// Carres: the worker only retires itself (public/sw.js); there is no cache version to check.
+if (source.includes("Carres: this service worker only retires itself")) {
+  console.log("[service-worker] Carres retire-only worker; nothing to check.");
+  process.exit(0);
+}
+
 if (source.includes("__SW_BUILD_ID__")) {
   console.error("[service-worker] build id token was not stamped; old and new deploys could share a cache.");
   process.exit(1);

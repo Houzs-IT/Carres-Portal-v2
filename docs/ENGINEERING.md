@@ -136,7 +136,7 @@ Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bo
 **Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
 migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
-**Sales Order: Carres rulings (owner, 12 Nov 2026).** Three places where the engine's SO (desktop New SO and
+**Sales Order: Carres rulings (owner, 12 Nov 2026).** Four places where the engine's SO (desktop New SO and
 edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
 1. *Deposit before Proceed / Processing Date is 50%*: `processingDateThresholdFor` (backend
    `scm/shared/order-rules.ts`) gives the HOUZS row 2990's 50%. It BLOCKS (owner, 12 Nov 2026; Houzs dropped
@@ -156,6 +156,15 @@ edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `/
 3. *Sale type: Outright or Subscription* (default Outright) on `scm.mfg_sales_orders.sale_type`, migration
    `2006_so_sale_type.sql` (also re-creates the list view with the column). On the SO form, detail, quick view,
    list (column + server funnel), phone and PDF. Subscription billing is not built.
+4. *Two address lines (owner, 14 Nov 2026, reversing PR #2301).* The SO and the DO both use Address Line 1
+   and 2, the same as Houzs. The SO form (desktop `components/SoAddressLines.tsx`, phone `MobileNewSO`), the
+   phone detail, the print (`soStreetTail` in `vendor/scm/lib/order-address.ts`) and Copy as new
+   (`lib/soCopyLines.ts`) show or carry lines 1 and 2 only, and line 2 no longer spills into line 3, so nothing
+   typed on an order is lost on SO -> DO -> SI. `mfg_sales_orders.address3/address4` stay; old rows keep their
+   values. Migration `2011_four_address_lines_on_documents.sql` (applied to the engine database before the
+   reversal) added `address3`/`address4` to `delivery_orders`, `sales_invoices`, `delivery_returns`,
+   `consignment_delivery_orders` and `consignment_delivery_returns`; those columns exist but nothing reads or
+   writes them, by owner decision. Do not drop them without a new migration and the owner's word.
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits
@@ -172,8 +181,10 @@ announcement translation), `vars.ENGINE_GOOGLE_MAPS_API_KEY` at build plus Worke
 geocoding, routes), `RESEND_API_KEY` (mail), `CONNECT_WEBHOOK_URL`/`_KEY` (chat), `SENTRY_DSN`, `APNS_*` (iPhone push), `VELOCITY_*`, `ONEMAP_*`.
 `TOTP_ENCRYPTION_KEY` is different: without it two-step codes still work but their secrets are stored unsealed.
 
-**Resync from a newer Houzs main** (last done 12 Nov 2026, `efa70b116` → `c780a870b`; migrations 1184–1187
-copied and built on PGlite, NOT YET APPLIED to the engine database):
+**Resync from a newer Houzs main** (last done 14 Nov 2026, `c780a870b` → `b14535068`; migrations 1188–1189
+copied verbatim and built on PGlite (201 applied, 0 failed); the engine deploy applies them on merge
+(`deploy-engine.yml`, `apply.mjs --ci`, only when `ENGINE_DATABASE_URL` is set; check that run before
+calling them applied):
 1. Replace `engine/{frontend,backend,scripts}` with `git archive <houzs-sha>` of the same folders; commit unchanged.
 2. `node engine/scripts/carres-recolor.mjs engine/frontend/src engine/frontend/index.html engine/frontend/tailwind.config.js`; commit.
    Since Houzs's dark mode (#5636) the palette lives in `engine/frontend/src/theme.css` as `--hz-*` channels:
@@ -214,6 +225,15 @@ schema (on the houzs_local server, dropped afterwards) only to read columns. The
 `2008_carres_master_data.sql`, which the engine deploy applies with `ENGINE_DATABASE_URL` (`apply.mjs --ci`). It is
 generated: to change the data, regenerate into the NEXT number, never edit an applied file. Stock balances are not in
 it; the owner loads them later.
+**Team in the engine** (migration `2010_carres_team.sql`, owner decisions 13 Nov 2026): Houzs's roles and titles
+(copied from `houzs_local`, no people; Houzs's "HR" and "New Member (no access)" roles are NOT copied because
+`carres/sso.ts` makes its own starting roles by those names), the four departments Management · Operation · Warehouse ·
+Business Development, the titles COO · Administration Assistant · Business Development (Owner is Houzs's), the real
+staff pre-created by lower-case email so their first portal visit links to that row (sso.ts finds by email), and the
+Kelana Jaya showroom KJ-SR (street blank for the owner). New members start on their department's role: Management →
+the full-access Owner role · Operation → Ops Exec · Warehouse → Storekeeper · Business Development → BD Exec; an
+existing account keeps its role unless it is still on "New member". A person reaches the engine only when their
+portal role is in `ENGINE_ROLES` (operation, principal, hr, finance).
 
 ---
 
