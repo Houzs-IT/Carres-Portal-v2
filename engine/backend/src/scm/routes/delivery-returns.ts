@@ -45,7 +45,6 @@ import { resolveSalesScopeIds, salesDocOutOfScope, resolveCallerStaffId } from '
 import { enrichLinesWithFabricSupplierCode } from '../lib/fabric-supplier-code';
 import { isSoLineOverDelivered } from '../lib/so-remaining-by-item';
 import { creditNoteHold, loadReturnCredit } from '../lib/cn-from-return';
-import { addressLinesOf, addressLinesFromBody } from '../lib/address-lines'; // Carres
 import {
   DR_FINANCE_KEYS,
   DR_HEADER_COLS,
@@ -576,7 +575,8 @@ async function insertHeader(sb: any, userId: string, body: Record<string, unknow
     debtor_name: (body.debtorName ?? body.customerName) as string,
     return_date: dateOrNull(body.returnDate) ?? todayMyt(),
     reason: (body.reason as string) ?? null,
-    ...addressLinesFromBody(body), // Carres: all four address lines (mig 2011)
+    address1: (body.address1 as string) ?? null,
+    address2: (body.address2 as string) ?? null,
     city: (body.city as string) ?? null,
     state: (body.state as string) ?? (body.customerState as string) ?? null,
     customer_state: (body.customerState as string) ?? (body.state as string) ?? null,
@@ -1015,7 +1015,7 @@ export const convertDoLinesToReturn = async (c: any) => {
   const { data: doHeader, error: dhErr } = await scopeToCompany(sb.from('delivery_orders')
     .select('id, do_number, debtor_code, debtor_name, phone, email, salesperson_id, agent, ' +
             'customer_type, building_type, branding, venue, venue_id, ref, customer_so_no, ' +
-            'sales_location, customer_state, customer_country, address1, address2, address3, address4, city, state, postcode, ' + // Carres: mig 2011
+            'sales_location, customer_state, customer_country, address1, address2, city, state, postcode, ' +
             'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, ' +
             'warehouse_id, currency, note')
     .eq('id', firstDoId), c).maybeSingle();
@@ -1042,7 +1042,8 @@ export const convertDoLinesToReturn = async (c: any) => {
     salesLocation: doh.sales_location,
     customerState: doh.customer_state,
     customerCountry: doh.customer_country,
-    ...addressLinesOf(doh), // Carres: all four DO address lines (mig 2011)
+    address1: doh.address1,
+    address2: doh.address2,
     city: doh.city,
     state: doh.state,
     postcode: doh.postcode,
@@ -1137,7 +1138,6 @@ deliveryReturns.patch('/:id', async (c) => {
     ['salesLocation', 'sales_location'], ['ref', 'ref'],
     ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
     ['address1', 'address1'], ['address2', 'address2'],
-    ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
     ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
     ['note', 'note'], ['notes', 'notes'], ['reason', 'reason'],
     ['returnDate', 'return_date'], ['currency', 'currency'],

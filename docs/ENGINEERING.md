@@ -136,7 +136,7 @@ Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bo
 **Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
 migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
-**Sales Order: Carres rulings (owner, 12 Nov 2026).** Three places where the engine's SO (desktop New SO and
+**Sales Order: Carres rulings (owner, 12 Nov 2026).** Four places where the engine's SO (desktop New SO and
 edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
 1. *Deposit before Proceed / Processing Date is 50%*: `processingDateThresholdFor` (backend
    `scm/shared/order-rules.ts`) gives the HOUZS row 2990's 50%. It BLOCKS (owner, 12 Nov 2026; Houzs dropped
@@ -156,6 +156,15 @@ edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `/
 3. *Sale type: Outright or Subscription* (default Outright) on `scm.mfg_sales_orders.sale_type`, migration
    `2006_so_sale_type.sql` (also re-creates the list view with the column). On the SO form, detail, quick view,
    list (column + server funnel), phone and PDF. Subscription billing is not built.
+4. *Two address lines (owner, 14 Nov 2026, reversing PR #2301).* The SO and the DO both use Address Line 1
+   and 2, the same as Houzs. The SO form (desktop `components/SoAddressLines.tsx`, phone `MobileNewSO`), the
+   phone detail, the print (`soStreetTail` in `vendor/scm/lib/order-address.ts`) and Copy as new
+   (`lib/soCopyLines.ts`) show or carry lines 1 and 2 only, and line 2 no longer spills into line 3, so nothing
+   typed on an order is lost on SO -> DO -> SI. `mfg_sales_orders.address3/address4` stay; old rows keep their
+   values. Migration `2011_four_address_lines_on_documents.sql` (applied to the engine database before the
+   reversal) added `address3`/`address4` to `delivery_orders`, `sales_invoices`, `delivery_returns`,
+   `consignment_delivery_orders` and `consignment_delivery_returns`; those columns exist but nothing reads or
+   writes them, by owner decision. Do not drop them without a new migration and the owner's word.
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits

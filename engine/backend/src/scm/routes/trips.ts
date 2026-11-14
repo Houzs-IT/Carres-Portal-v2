@@ -1009,12 +1009,12 @@ trips.post('/:id/stops', async (c) => {
 
   if (p.doId) {
     const { data: doRow } = await sb.from('delivery_orders')
-      .select('local_total_sen, debtor_name, address1, address2, address3, address4').eq('id', p.doId).maybeSingle(); // Carres: mig 2011
+      .select('local_total_sen, debtor_name, address1, address2').eq('id', p.doId).maybeSingle();
     if (doRow) {
       const r = doRow as Record<string, unknown>;
       if (revenue == null) revenue = Number(dual(r, 'local_total_sen') ?? 0);
       if (customerName == null) customerName = (dual<string>(r, 'debtor_name') ?? null);
-      if (address == null) address = [dual<string>(r, 'address1'), dual<string>(r, 'address2'), dual<string>(r, 'address3'), dual<string>(r, 'address4')].filter(Boolean).join(', ') || null;
+      if (address == null) address = [dual<string>(r, 'address1'), dual<string>(r, 'address2')].filter(Boolean).join(', ') || null;
     }
   } else if (p.soDocNo) {
     // SO lookup by doc_no → its uuid id + snapshots + grand total.

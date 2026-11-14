@@ -61,7 +61,7 @@ export const DR_HEADER_COLS =
   'received_at, inspected_at, refunded_at, refund_sen, inspection_notes, ' +
   'salesperson_id, agent, email, customer_type, building_type, branding, venue, venue_id, ref, ' +
   'customer_so_no, sales_location, customer_state, customer_country, note, ' +
-  'address1, address2, address3, address4, city, state, postcode, phone, ' + // Carres: 4 lines (mig 2011)
+  'address1, address2, city, state, postcode, phone, ' +
   'emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, ' +
   'mattress_sofa_sen, bedframe_sen, accessories_sen, others_sen, ' +
   'mattress_sofa_cost_sen, bedframe_cost_sen, accessories_cost_sen, others_cost_sen, ' +

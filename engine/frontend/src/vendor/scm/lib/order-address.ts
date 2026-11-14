@@ -16,6 +16,9 @@
 
 import { sameState } from './localities-queries';
 
+// Carres: the Sales Order uses Address Line 1 and 2 only (owner 14 Nov 2026).
+const CARRES_TWO_ADDRESS_LINES: boolean = true;
+
 export type OrderAddressFields = {
   ship_to_address?: string | null;
   address1?: string | null;
@@ -36,6 +39,8 @@ export type OrderAddressFields = {
  * order's own state (sameState knows its spellings). Display only.
  */
 export function soStreetTail(h: OrderAddressFields): string[] {
+  // Carres: an order shows two address lines, like the Delivery Order (owner 14 Nov 2026); 3 and 4 never print.
+  if (CARRES_TWO_ADDRESS_LINES) return [];
   const state = (h.customer_state ?? '').trim();
   if (!(h.postcode ?? '').trim() || !state) return [];
   const lines = [h.address1, h.address2, h.address3, h.address4].map((s) => (s ?? '').trim());

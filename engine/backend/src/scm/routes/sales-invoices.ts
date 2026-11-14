@@ -80,7 +80,6 @@ import { recordSiAutoCountSource } from '../lib/si-autocount-source';
 import { refuseMigratedSources } from '../lib/migrated-chain';
 import { withSoRefDocNos } from '../lib/so-ref-search';
 import { noWriteUntilMarked, writesFromHere } from '../lib/no-write-refusal';
-import { addressLinesFromBody } from '../lib/address-lines'; // Carres
 
 /* ERP -> AutoCount Sales Invoice edit. AutoCount calls it IV
    (AcSyncService.cs:443). See queueAcDoEdit for the shape. */
@@ -130,7 +129,6 @@ const SI_AUDIT_FIELDS: Array<[string, string]> = [
   ['salesLocation', 'sales_location'], ['ref', 'ref'], ['poDocNo', 'po_doc_no'],
   ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
   ['address1', 'address1'], ['address2', 'address2'],
-  ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
   ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
   ['note', 'note'], ['notes', 'notes'],
   ['invoiceDate', 'invoice_date'], ['dueDate', 'due_date'], ['currency', 'currency'],
@@ -774,7 +772,8 @@ export const createSalesInvoiceHandler = async (c: Context<{ Bindings: Env; Vari
     invoice_date: dateOrNull(body.invoiceDate) ?? todayMyt(),
     due_date: dateOrNull(body.dueDate),
     customer_delivery_date: dateOrNull(body.customerDeliveryDate),
-    ...addressLinesFromBody(body), // Carres: all four address lines (mig 2011)
+    address1: (body.address1 as string) ?? null,
+    address2: (body.address2 as string) ?? null,
     city: (body.city as string) ?? null,
     state: (body.state as string) ?? (body.customerState as string) ?? null,
     customer_state: (body.customerState as string) ?? (body.state as string) ?? null,
@@ -1154,7 +1153,6 @@ salesInvoices.patch('/:id', async (c) => {
     ['salesLocation', 'sales_location'], ['ref', 'ref'], ['poDocNo', 'po_doc_no'],
     ['venue', 'venue'], ['venueId', 'venue_id'], ['branding', 'branding'],
     ['address1', 'address1'], ['address2', 'address2'], ['note', 'note'], ['notes', 'notes'],
-    ['address3', 'address3'], ['address4', 'address4'], // Carres: mig 2011
     ['city', 'city'], ['state', 'state'], ['postcode', 'postcode'], ['phone', 'phone'],
     ['invoiceDate', 'invoice_date'], ['dueDate', 'due_date'], ['currency', 'currency'],
     ['customerState', 'customer_state'], ['customerCountry', 'customer_country'],

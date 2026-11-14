@@ -28,9 +28,6 @@ export interface DoHeaderForm {
   salespersonId: string;
   address1: string;
   address2: string;
-  // Carres: lines 3 and 4 (mig 2011) — the DO carries the SO's four lines.
-  address3: string;
-  address4: string;
   state: string;
   city: string;
   postcode: string;
@@ -65,8 +62,6 @@ export function seedDoHeaderForm(doo: Record<string, unknown>, today: string): D
     salespersonId: str(doo.salesperson_id),
     address1: str(doo.address1),
     address2: str(doo.address2),
-    address3: str(doo.address3),
-    address4: str(doo.address4),
     state: str(doo.customer_state),
     city: str(doo.city),
     postcode: str(doo.postcode),
@@ -103,8 +98,6 @@ export function buildDoHeaderBody(
     agent: salesStaff.find((s) => s.id === f.salespersonId)?.name ?? '',
     address1: f.address1,
     address2: f.address2,
-    address3: f.address3,
-    address4: f.address4,
     customerState: f.state,
     city: f.city,
     postcode: f.postcode,

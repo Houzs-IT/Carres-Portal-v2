@@ -64,8 +64,6 @@ export function deliveryReturnPdfBundle(data: {
       sales_invoice_id: null,
       address1: (h.address1 as string | null) ?? null,
       address2: (h.address2 as string | null) ?? null,
-      address3: (h.address3 as string | null) ?? null, // Carres: mig 2011
-      address4: (h.address4 as string | null) ?? null,
       city: (h.city as string | null) ?? null,
       state: (h.customer_state as string | null) ?? (h.state as string | null) ?? null,
       postcode: (h.postcode as string | null) ?? null,

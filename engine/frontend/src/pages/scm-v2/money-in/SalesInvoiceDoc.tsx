@@ -127,7 +127,7 @@ export const SalesInvoiceDoc = () => {
       notice={failure ? <div role="alert" className={`${s.note} ${s.toneLate}`}>The invoice was not printed — {failure}</div> : null}
       party={{
         label: 'Bill to', name: header.debtor_name,
-        lines: [header.debtor_code, header.address1, header.address2, header.address3, header.address4, cityLine, header.state, [header.phone, header.email].filter(Boolean).join(' · ')],
+        lines: [header.debtor_code, header.address1, header.address2, cityLine, header.state, [header.phone, header.email].filter(Boolean).join(' · ')],
       }}
       amount={{ label: 'Amount', value: fmtSen(total), sub: outstanding > 0 ? `${fmtSen(outstanding)} outstanding` : null }}
       facts={facts}

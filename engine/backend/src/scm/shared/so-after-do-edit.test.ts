@@ -38,10 +38,9 @@ describe('the customer details', () => {
     expect(afterDoBlockedCols(['phone', 'address1', 'postcode', 'customer_state', 'branding', 'ref'])).toEqual(['customer_state', 'branding', 'ref']);
   });
 
-  test('the DO patch carries only what changed, each address line to the same DO line (Carres: mig 2011)', () => {
-    const so = { phone: '+60123456789', address1: '1 Jalan', address2: 'Lorong 2', address3: 'Taman A', address4: 'Blok B', email: 'x@y.z' };
-    expect(doHeaderPatchFromSo(so, ['phone', 'address3'])).toEqual({ phone: '+60123456789', address3: 'Taman A' });
-    expect(doHeaderPatchFromSo(so, ['address2', 'address4'])).toEqual({ address2: 'Lorong 2', address4: 'Blok B' });
+  test('the DO patch carries only what changed, address3/4 folded into address2 like the DO create', () => {
+    const so = { phone: '+60123456789', address1: '1 Jalan', address2: null, address3: 'Taman A', address4: 'Blok B', email: 'x@y.z' };
+    expect(doHeaderPatchFromSo(so, ['phone', 'address3'])).toEqual({ phone: '+60123456789', address2: 'Taman A, Blok B' });
   });
 
   test('a column the DO has no copy of saves on the SO only', () => {

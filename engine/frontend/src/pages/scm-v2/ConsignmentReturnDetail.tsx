@@ -53,7 +53,6 @@ import { usePickableStaff } from '../../vendor/scm/lib/admin-queries';
 import { sortByText, sortByNumeric } from '../../vendor/scm/lib/sort-options';
 import { SearchableSelect } from '../../vendor/scm/components/SearchableSelect';
 import styles from './SalesOrderDetail.module.css';
-import { SoAddressLines } from '../../components/SoAddressLines'; // Carres
 import { DetailLoadFailure } from './DetailLoadFailure';
 import { PageHeader } from '../../components/Layout';
 import { PrintPreviewModal, usePrintPreview } from '../../components/scm-v2/PrintPreviewModal';
@@ -95,8 +94,6 @@ type CrnHeader = {
   customer_country: string | null;
   address1: string | null;
   address2: string | null;
-  address3?: string | null; // Carres: mig 2011
-  address4?: string | null;
   city: string | null;
   postcode: string | null;
   phone: string | null;
@@ -646,8 +643,6 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
     phone: h.phone ?? '',
     address1: h.address1 ?? '',
     address2: h.address2 ?? '',
-    address3: h.address3 ?? '',
-    address4: h.address4 ?? '',
     city: h.city ?? '',
     postcode: h.postcode ?? '',
     state: h.customer_state ?? '',
@@ -691,8 +686,6 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
     phone: form.phone,
     address1: form.address1,
     address2: form.address2,
-    address3: form.address3,
-    address4: form.address4,
     city: form.city,
     postcode: form.postcode,
     customerState: form.state,
@@ -871,11 +864,18 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
         <header className={styles.cardHeader}><h2 className={styles.cardTitle}>Delivery Address</h2></header>
         <div className={styles.cardBody}>
           <div className={styles.formGrid4}>
-            {/* Carres: the SO form's four address lines (shared SoAddressLines, mig 2011). */}
-            <SoAddressLines lines={[form.address1, form.address2, form.address3, form.address4]}
-              onChange={(line, v) => set(`address${line}`, v)}
-              fieldClassName={styles.field} labelClassName={styles.fieldLabel}
-              inputClassName={() => styles.fieldInput} disabled={inputsDisabled} />
+            <label className={styles.field} style={{ gridColumn: 'span 4' }}>
+              <span className={styles.fieldLabel}>Address Line 1</span>
+              <input className={styles.fieldInput} value={form.address1}
+                placeholder="Unit, street, area" disabled={inputsDisabled}
+                onChange={(e) => set('address1', e.target.value)} />
+            </label>
+            <label className={styles.field} style={{ gridColumn: 'span 4' }}>
+              <span className={styles.fieldLabel}>Address Line 2</span>
+              <input className={styles.fieldInput} value={form.address2}
+                placeholder="Apt, floor, building (optional)" disabled={inputsDisabled}
+                onChange={(e) => set('address2', e.target.value)} />
+            </label>
             {/* Owner spec 2026-07-23 — StatePicker (MY-default, click Others for CN/SG, Search). Same shared component as Warehouse / Supplier / Venue / MobileNewSO / SalesOrderNew / SalesOrderDetail. No `(legacy)` sneak-through, no free-text fallback. */}
             <label className={styles.field}>
               <span className={styles.fieldLabel}>State</span>

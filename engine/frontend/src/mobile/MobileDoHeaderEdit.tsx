@@ -238,9 +238,6 @@ export function MobileDoHeaderEdit({ id, onBack, onSaved }: {
       {section("Delivery address")}
       {text("Address line 1", "address1", "address1", { placeholder: "Unit, street, area" })}
       {text("Address line 2", "address2", "address2", { placeholder: "Apt, floor, building (optional)" })}
-      {/* Carres: lines 3 and 4 (mig 2011). */}
-      {text("Address line 3", "address3", "address3", { placeholder: "Optional" })}
-      {text("Address line 4", "address4", "address4", { placeholder: "Optional" })}
       {field("State", (
         <StatePicker value={form.state} disabled={addrLocked} placeholder="Pick state" selectClassName="cal-sel"
           onChange={(next) => {

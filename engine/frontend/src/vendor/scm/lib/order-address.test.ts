@@ -10,13 +10,14 @@ describe('a street that runs on into lines 3 and 4 prints', () => {
     postcode: '47820', city: 'Petaling Jaya', customer_state: 'Selangor',
   };
 
-  test('line 3 follows line 2, then the locality', () => {
+  // Carres: an order prints Address Line 1 and 2 only, like its Delivery Order (owner 14 Nov 2026).
+  test('Carres: line 3 does not print; line 2 is followed by the locality', () => {
     expect(orderAddressLines(SPILLED)).toEqual([
       "A-05-07, D'Clover Residences, A-UG1-11,",
       'Dataran Sentral Damansara, No 3,',
-      'Jalan PJU 8/8B',
       '47820 Petaling Jaya Selangor',
     ]);
+    expect(soStreetTail(SPILLED)).toEqual([]);
   });
 
   test('a cutover town line naming the postcode is not street', () => {

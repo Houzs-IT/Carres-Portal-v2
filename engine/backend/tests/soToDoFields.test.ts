@@ -93,26 +93,14 @@ describe("soHeaderToDoSource — every field the owner listed arrives", () => {
     expect(s.postcode).toBe("55100");
   });
 
-  /* Carres (owner bug 14 Nov 2026, mig 2011): the DO has four lines like the SO.
-     The old fold kept line 2 and dropped 3 + 4 whenever line 2 was used. */
-  test("all four SO address lines carry to the DO one to one — lines 3 and 4 are never lost", () => {
+  test("address2 folds the SO's extra lines — the DO has two, the SO has four", () => {
     const fourLine = {
       ...nativeSo,
+      address2: null,
       address3: "Block B",
       address4: "Level 12",
     };
-    const s = soHeaderToDoSource(fourLine);
-    expect(s.address1).toBe("12 Jalan Bukit Bintang");
-    expect(s.address2).toBe("Unit 8-3, Menara Suria");
-    expect(s.address3).toBe("Block B");
-    expect(s.address4).toBe("Level 12");
-  });
-
-  test("a two-line SO converts as before — lines 3 and 4 are null, not invented", () => {
-    const s = soHeaderToDoSource({ ...nativeSo, address3: null, address4: "  " });
-    expect(s.address2).toBe("Unit 8-3, Menara Suria");
-    expect(s.address3).toBeNull();
-    expect(s.address4).toBeNull();
+    expect(soHeaderToDoSource(fourLine).address2).toBe("Block B, Level 12");
   });
 
   test("sales location and the rest of the header snapshot", () => {

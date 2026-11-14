@@ -35,7 +35,7 @@ import { getBrandingForCompany } from '../../services/branding';
    keys nothing an SCM DO can reach. */
 const DO_EMAIL_COLS =
   'id, company_id, do_number, email, debtor_name, do_email_sent_at, ' +
-  'address1, address2, address3, address4, city, postcode, state, ' + // Carres: 4 lines (mig 2011)
+  'address1, address2, city, postcode, state, ' +
   'customer_delivery_date, expected_delivery_at, driver_name, vehicle';
 
 export interface DoEmailRow {
@@ -47,8 +47,6 @@ export interface DoEmailRow {
   do_email_sent_at: string | null;
   address1: string | null;
   address2: string | null;
-  address3?: string | null; // Carres: mig 2011
-  address4?: string | null;
   city: string | null;
   postcode: string | null;
   state: string | null;
@@ -70,7 +68,7 @@ export function buildDeliveryOrderEmail(
   if (!to || !to.includes('@')) return null;
 
   const docNo = row.do_number ?? row.id;
-  const addr = [row.address1, row.address2, row.address3, row.address4, row.city, row.postcode, row.state]
+  const addr = [row.address1, row.address2, row.city, row.postcode, row.state]
     .map((s) => (s ?? '').trim())
     .filter(Boolean)
     .join(', ');
