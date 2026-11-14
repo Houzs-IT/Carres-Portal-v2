@@ -24,6 +24,8 @@ export const CARRES_HIDDEN_PATHS: readonly string[] = [
   "/autocount-sync", "/pos-admin",
   // No fairs at Carres: every order is a Showroom or a Project (owner, 13 Nov 2026), so nothing waits on a fair link.
   "/scm/fair-pending",
+  // No leave at Carres (owner, 14 Nov 2026): the Crew Leave page is off too.
+  "/scm/driver-leave",
 ];
 
 /** True when this address (a path, or a menu `to` with a query) belongs to a switched-off module. */

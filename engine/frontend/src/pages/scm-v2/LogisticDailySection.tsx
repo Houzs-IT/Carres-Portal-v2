@@ -117,12 +117,12 @@ export function LorrySection({ lorries, days, recorded, total, region, day, onLo
           </p>
         )}
         <table className="w-full border-collapse">
-          <thead><tr><Th left>Lorry</Th><Th left> </Th><Th>Delivery trips</Th><Th>Fair trips</Th><Th>Stock trips</Th><Th>Total trips</Th><Th>Day in use</Th><Th left>Capacity</Th><Th>Orders</Th><Th>Revenue</Th><Th>Per delivery trip</Th><Th>Per order</Th></tr></thead>
+          <thead><tr><Th left>Lorry</Th><Th left> </Th><Th>Delivery trips</Th>{/* Carres: no Fair trips column, Carres has no fairs (owner, 13 Nov 2026). */}<Th>Stock trips</Th><Th>Total trips</Th><Th>Day in use</Th><Th left>Capacity</Th><Th>Orders</Th><Th>Revenue</Th><Th>Per delivery trip</Th><Th>Per order</Th></tr></thead>
           <tbody>{lorries.map((l) => (
             <tr key={l.lorry} className="cursor-pointer hover:bg-surface-2/50" onClick={() => onLorry(l.lorry)}>
               <Td left className="font-semibold">{l.lorry}</Td>
               <Td left className="text-[11px] text-ink-muted">{l.internal ? "own" : "3PL"}</Td>
-              <Td>{l.daysOut}</Td><Td>{l.fairTrips}</Td><Td>{l.stockTrips}</Td><Td className="font-semibold">{l.trips}</Td>
+              <Td>{l.daysOut}</Td><Td>{l.stockTrips}</Td><Td className="font-semibold">{l.trips}</Td>
               <Td>{l.usedDays} / {l.workingDays}{l.downDays > 0 && <span className="ml-1 text-[11px] text-warning-text">{l.downDays} in workshop</span>}</Td>
               <Td left className="w-[22%]">
                 <div className="flex items-center gap-2">

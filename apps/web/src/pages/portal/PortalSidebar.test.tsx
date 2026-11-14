@@ -720,9 +720,8 @@ describe("the tree line", () => {
 
   it("the trunk stops at the last page of EACH group", () => {
     renderAt("/operation/sc/fleet-health"); // Maintenance holds the page, so it is open
-    expect(trunk("fleet-day").style.height).toBe("100%");
-    // Crew Leave is the last page before the group word: the line stops there.
-    expect(trunk("crew-leave").style.height).toBe("calc(50% - 8px)");
+    // Last Mile Delivery is the last page before the group word: the line stops there.
+    expect(trunk("fleet-day").style.height).toBe("calc(50% - 8px)");
     expect(trunk("coverage-fleet").style.height).toBe("100%");
     expect(trunk("rate-cards").style.height).toBe("100%");
     expect(trunk("fleet-health").style.height).toBe("calc(50% - 8px)");
@@ -1557,7 +1556,7 @@ describe("PortalSidebar — the Maintenance group", () => {
   it("a group shut by hand does not outlive the page it was shut on", () => {
     function Jump() {
       const navigate = useNavigate();
-      return <button type="button" onClick={() => navigate("/operation/sc/crew-leave")}>jump</button>;
+      return <button type="button" onClick={() => navigate("/operation/sc/dp-orders")}>jump</button>;
     }
     render(
       <MemoryRouter initialEntries={["/operation/sc/fleet-day"]}>
@@ -1691,7 +1690,6 @@ describe("PortalSidebar — the Transportation module", () => {
       "Last Mile Delivery (Driver)",
       "DP Orders",
       "Last Mile Delivery",
-      "Crew Leave",
       "Coverage & Fleet",
       "Delivery Zones",
       "Carriers & Rates",
@@ -1707,7 +1705,6 @@ describe("PortalSidebar — the Transportation module", () => {
       "delivery-planning-driver",
       "dp-orders",
       "fleet-day",
-      "crew-leave",
       "coverage-fleet",
       "delivery-zones",
       "rate-cards",
