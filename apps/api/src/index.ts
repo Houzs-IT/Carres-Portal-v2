@@ -6,6 +6,7 @@ import authRouter from "./routes/auth";
 import deliveryLinksRouter from "./routes/operation/delivery-links";
 import publicDeliveryLinkRouter from "./routes/public/delivery-link";
 import engineStaffAccountsRouter from "./routes/engine-staff-accounts";
+import engineSupplierFinanceRouter from "./routes/engine-supplier-finance";
 import catalogRouter from "./routes/catalog";
 import dealerRouter from "./routes/dealers";
 import ordersRouter from "./routes/orders";
@@ -137,6 +138,10 @@ app.route("/public/delivery-link", publicDeliveryLinkRouter);
 // Staff portal accounts from the engine's Team page (owner, 14 Nov 2026) — OUTSIDE the signed-in /api group:
 // the caller is the engine Worker, and its HMAC signature over the body is the trust boundary.
 app.route("/engine/staff-accounts", engineStaffAccountsRouter);
+// Subscription collections for the Supplier Platform's Finance pages (owner, 15 Nov 2026) — OUTSIDE the signed-in
+// /api group for the same reason: the caller is the engine Worker and its HMAC signature is the trust boundary.
+// Read-only, and never reachable by a supplier's browser.
+app.route("/engine/supplier-finance", engineSupplierFinanceRouter);
 // The supplier, warehouse and delivery partner portals, the service case/note routers and the public
 // survey were removed on 12 Nov 2026 (owner): Houzs's engine serves its own pages for them.
 

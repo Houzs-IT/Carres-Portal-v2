@@ -51,6 +51,12 @@ export const BROWSER_STORAGE_KEY_REGISTRY: readonly StorageKeyRegistration[] = [
   { id: "auth-token", classification: "AUTH", storage: ["localStorage", "sessionStorage"], keyFamily: "auth:token", matches: exact("auth:token") },
   { id: "auth-pass", classification: "AUTH", storage: ["localStorage", "sessionStorage"], keyFamily: "auth:pass (session pass, mirrors auth:token store)", matches: exact("auth:pass") },
   { id: "auth-local-suppression", classification: "AUTH", storage: ["sessionStorage"], keyFamily: "auth:local-token-suppressed", matches: exact("auth:local-token-suppressed") },
+  // Carres: a supplier person's own session (carres/supplier/api.ts). It is NOT the staff token: only the Supplier
+  // Platform's API accepts it, and no staff code reads it. Kept for the tab only, so closing the tab on a shared
+  // warehouse computer signs the person out.
+  { id: "carres-supplier-session", classification: "AUTH", storage: ["sessionStorage"], keyFamily: "carres.supplier.session", matches: exact("carres.supplier.session") },
+  // Carres: the portal's phone flag for this tab (carres/embed.ts), so a reload inside the frame keeps the phone app.
+  { id: "carres-embed-phone", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "carres:phone", matches: exact("carres:phone") },
   { id: "active-company", classification: "AUTH", storage: ["localStorage", "sessionStorage"], keyFamily: "houzs.activeCompanyId.v2 (durable, keyed u<user>) + houzs.activeCompanyId.tab (this tab) + pre-v2 ownerless keys, cleanup only", matches: prefix("houzs.activeCompanyId") },
   { id: "remembered-login", classification: "AUTH", storage: ["localStorage"], keyFamily: "houzs:login:lastEmail:v1 (+ legacy aliases)", matches: (key) => ["houzs:login:lastEmail:v1", "auth:lastEmail", "houzs_remember_email"].includes(key) },
   { id: "mail-drafts", classification: "DRAFT_UI", storage: ["localStorage"], keyFamily: "houzs-mail-local:v1|v2:u<user>:c<company>", matches: (key) => key === "houzs-mail-local:v1" || key.startsWith("houzs-mail-local:v2:") },
@@ -166,6 +172,10 @@ export const PRODUCTION_STORAGE_CALLERS = [
   // a reload does not clear sessionStorage, so sign-out would otherwise keep the
   // sticky list/calendar filters. Removes by key in a loop, never .clear().
   "auth/AuthContext.tsx",
+  // Carres: the portal's phone flag for this tab (carres-embed-phone).
+  "carres/embed.ts",
+  // Carres: the Supplier Platform's own session token (carres-supplier-session). Its own key, its own API.
+  "carres/supplier/api.ts",
   "components/AndroidInstallGuide.tsx",
   "components/announcementLocalAcks.ts",
   "components/AssistantLauncher.tsx",

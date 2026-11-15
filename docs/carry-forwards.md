@@ -1,3 +1,64 @@
+## `supplier-platform-separation-is-code-only` — OPEN by the owner's choice, 2026-11-15
+
+**What.** The Supplier Platform (ERP-ARCHITECTURE §6.6) runs inside the engine: its API is in the engine
+Worker and reads the engine database with the engine's own account, which can read everything. What
+keeps a supplier to its own orders is the code in `engine/backend/src/carres/supplier/` and its tests,
+not the database. The supplier pages share a web address with the staff engine.
+
+**Owner ruling (Loo, 2026-11-15).** Offered three choices and took A, go live as built. Not built:
+B, a database account for the supplier API that may only run the two scope functions and touch the
+platform's own tables, plus a web address of its own; C, a separate small server and site.
+
+**Do B when** a second supplier with a different scope goes live, an outside party must review the
+security, or a Houzs resync breaks `tests/carresSupplierPlatformGuards.test.ts`. The functions and the
+tests carry over unchanged.
+
+## `access-findings-2026-11-15` — OPEN, reported to the owner 2026-11-15
+
+**What.** Two access findings on logins and tables that existed before the Supplier Platform, measured
+read-only while building it: one on the portal database, one on the engine database. Neither is part
+of the Supplier Platform, and its people do not use those logins.
+
+**Where the detail is.** With the owner (Loo), given on 2026-11-15. It is deliberately not written
+here: this repository is public.
+
+**Fix (needs the owner’s word: it changes RLS and disables accounts).** One portal migration and one
+engine migration, each explained before it runs. Measure again first; do not work from this note.
+
+## `supplier-sign-in-cannot-see-the-caller-address` — OPEN, known limit, 2026-11-15
+
+**What.** The engine site forwards `/api/*` to the Worker from another Cloudflare zone, so every
+browser arrives at the Worker under Cloudflare's one address (`2a06:98c0:3600::103`). The supplier
+sign-in therefore cannot tell one caller from another. It limits wrong passwords per EMAIL (five in 15
+minutes, each try written before it is counted) and counts nothing per address, because a count on an
+address everyone shares would let one outsider lock every supplier out (`credentials.ts`
+`callerAddress`, `session.ts` `takeTry`, tested in `tests-pg/carresSupplierPlatform.pg.test.ts`).
+
+**What that leaves (found by the independent review, 2026-11-15).** A per-email limit is the whole
+limit. So a person's sign-in page can be held locked by someone who knows their email. Carres lets
+them back in with a new set-password link: the link signs the person in, so they are in even while
+the wrong tries go on, and a session already open keeps working. And nothing slows one caller across
+many emails beyond each email's own five tries. Where a sign-in came from is not recorded for anyone
+who arrives through the site.
+
+**Fix when it matters.** The site's `/api` function passes the browser's address under a secret that
+the Worker checks; a header by itself proves nothing, since anyone's Worker arrives under the same
+address. Then the lock is kept per email AND address, with a looser one per email. Separately, put
+the engine behind a custom domain so a Cloudflare rate-limiting rule can sit in front of the sign-in
+paths (`pages.dev` and `workers.dev` addresses cannot carry one). The staff sign-in has the same
+limits.
+
+## `supplier-reads-every-shared-order-and-leaves-no-trace` — OPEN, owner's decision, 2026-11-15
+
+**What.** A supplier's login reads every shared order past Draft, old and cancelled ones included,
+with the customer's name and address, for as long as its access is on. Reads are not recorded and
+not slowed: after a stolen password, the record shows the sign-in and nothing of what was read.
+
+**Decision.** How long an order stays shared is the owner's (ERP-ARCHITECTURE §6.6, question 1;
+recommendation: 90 days after it is delivered, closed or cancelled). The step that follows it is one
+`WHERE` in `carres_supplier_scope_orders` in a new engine migration. Recording reads is engineering
+and can follow: one row a day per person and page is enough to say who looked.
+
 ## `do-number-collision` — ✅ FIXED 2026-09-24, PR #1550 (0575). Kept for its evidence only
 
 **THE FIX.** The number is now DRAWN from the Delivery Order's own pool

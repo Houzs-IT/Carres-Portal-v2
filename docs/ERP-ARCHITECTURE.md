@@ -1316,6 +1316,113 @@ Owners: Delivery owns the confirmation contact and the first-leg handover refusa
 timing"); Sales Orders' DO gate reads that one clock unchanged. **PROPOSAL / NOT LAW:** no COD
 approval for outstation orders. Falsifier: the owner approves an outstation COD case.
 
+## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT ON BRANCH)
+
+**RULING (Loo, 2026-11-15).** A supplier signs in to pages of its own and sees only what Carres
+shares with it. Carres collects goods at the supplier's warehouse, so the supplier's warehouse must
+see the orders coming and the pickups Carres asks for; its finance people must see the subscription
+money the supplier has a share in. The first supplier is Diglant.
+
+**The security rule, in the owner's words (2026-11-15):** the supplier's login must not be a way to
+look at Carres's database or its private and confidential data, and nothing, payment included, may
+be followed from those pages into Carres's system. The customer's name and delivery address may be
+shown (same day).
+
+**Two roles, held by a supplier's person, one or both:**
+
+```
+Warehouse and Operation   Sales Orders · Forecast · Pickup Requests
+Finance                   Finance (subscription orders, months collected, share, who is behind)
+```
+
+**What a supplier sees, the whole list.** An order is shared when it is past Draft and has at least
+one line that matches the supplier's scope: a product category, a product model, a single item, or
+the items bound to that supplier. Of that order the supplier sees: SO No, SO Date, stage, sale type,
+Processing Date, Delivery Date, the customer's name and delivery address, its OWN lines (item,
+specification, unit, quantity), when each stage was reached, and its own pickup requests. Of a
+subscription order it has a share in: agreement and SO number, customer name, item, term, monthly
+instalment, share rate, each instalment's due day, whether and when it was received, the amount,
+and the share. **Never:** a price, cost or margin of a Sales Order, a payment method or reference,
+a Stripe id, a commission, a phone number, an email, a remark or note, a staff name, another
+supplier's lines or requests.
+
+**The specification is what the goods are, and stops there.** A line's second description ends with
+`SPECIAL: …` (the add-ons, with the salesperson's free-text note among them) and `FREE · …` (the
+line cost the customer nothing). The note is free text and `FREE` is a price signal, so the supplier
+reads the text only up to the first of the two: size, colour, heights. The add-ons the customer
+picked are cut with the note, because the two share one text. The Purchase Order is still where a
+supplier is told what to make.
+
+**Ownership (Laws A–D).** Everything a supplier reads is a SUMMARY and has no form:
+
+```
+Sales Order facts          owned by Sales Orders (the engine)      read through two database functions
+Subscription money         owned by Rental / Finance (the portal)  worked out there, once (Law D):
+                                                                   packages/shared supplier-finance.ts
+                                                                   reads the stored share of a paid
+                                                                   month, never works it out again
+Pickup request             owned HERE, the one record this surface adds
+```
+
+**The pickup request.** Carres ticks the Sales Order lines it will come for and names the day
+(`REQUESTED`); the supplier accepts (`ACCEPTED`); Carres records that the lorry has the goods
+(`COLLECTED`); Carres may cancel with a reason until then (`CANCELLED`). A line sits on one live
+request at a time. **It is a notice and its answer. It moves no stock** and is not evidence of
+receipt, ownership or a Unit's handover: goods still enter Carres's books through the Purchase
+Order and its goods receipt, and the Unit handover facts of Rental §5.8 and Stock stay with their
+owners (§6.3). Carres staff with Purchase Orders access send, collect and cancel; the supplier may
+only accept its own.
+
+**How it is kept apart (FACT, built).**
+
+1. A supplier's person is not staff and not a portal account. Its sign-in, session and password
+   live in tables of their own; a supplier token is refused by every staff route and a staff token
+   by the supplier routes.
+2. The supplier is taken from the session only, never from the address or the request.
+3. The columns that may leave are named in two database functions (engine migration 2012) that no
+   outside caller of the database may run; the supplier routes read orders through them and nowhere
+   else. A pickup request is answered field by named field. Tests plant a marker in every field
+   that must stay inside and fail if one appears in an answer.
+4. Subscription figures come from the portal over a signed server-to-server call; the supplier's
+   browser never calls the portal.
+5. Nothing is shared until Settings › Supplier Access turns a supplier on. Turning it off, or
+   disabling a person, ends their sessions on the next request.
+
+**RULING (Loo, 2026-11-15): the in-engine design is accepted (choice A).** The supplier pages and
+their API run inside the engine (site and Worker), with the engine's own database account. The
+separation above is kept by code and its tests. **PROPOSAL / NOT BUILT, offered the same day and
+not taken:** (B) a database account for the supplier API that may run only the two functions, so the
+database itself refuses anything else, plus a web address of its own for the supplier pages; (C) a
+separate small server and site. Falsifier for staying on A: a second supplier with a different
+scope goes live, an outside security review is required, or a Houzs resync breaks a guard test.
+
+**Rollout.** Deploying the code opens nothing. Giving a supplier its first production login (turning
+its access on, adding a person, sending the one-time link) is the external cutover of §6.4 and needs
+the owner's word for that supplier.
+
+**PROPOSAL / NOT LAW (2026-11-15), two questions for the owner before the first supplier signs in.**
+Neither blocks the build; both are about how much is shared.
+
+```
+1. How long an order stays shared   Today a supplier reads EVERY shared order past Draft, the delivered,
+                                    closed and cancelled ones included, each with the customer's name and
+                                    address, for as long as its access is on. One stolen password is that
+                                    whole list. Recommendation: stop sharing an order 90 days after it is
+                                    delivered, closed or cancelled. Falsifier: the supplier must look up
+                                    an older order for a claim or a return.
+2. The add-ons the customer picked  Cut today together with the free-text note (above). Recommendation:
+                                    leave it so, the Purchase Order carries them. Falsifier: the supplier's
+                                    warehouse prepares goods from these pages and needs the add-ons there;
+                                    then they are shown as their own list, without the note.
+```
+
+**Gaps (FACT, 2026-11-15).** Subscription plans do not name their supplier yet (Rental §0), so one
+supplier at a time is marked as the one paid the subscription share. Subscription billing is not
+built in the engine: the Finance pages read the portal's rental agreements, and production refuses
+a new agreement there while the old order book is off (`apps/api/src/lib/old-order-flows.ts`), so
+the pages show real figures only once signing has a home. Engineering detail and how to run it:
+`ENGINEERING.md` §2. Words: COPY-STANDARD "Supplier Platform words".
+
 ---
 
 # §7 · What Orders V1 leaves behind

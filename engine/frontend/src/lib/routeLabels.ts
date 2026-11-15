@@ -84,6 +84,8 @@ export const SCM_SEGMENT_LABELS: Record<string, SegmentLabel> = {
   "mrp": "MRP",
   "suppliers": ["Suppliers", "Supplier"],
   "supplier-maintenance": "Supplier Maintenance",
+  // Carres: pickup requests to a supplier (carres/supplier-staff/SupplierPickupsPage.tsx).
+  "supplier-pickups": "Supplier Pickups",
   "payment-listing": "Payment Listing",
   // Warehouse / stock
   "warehouses": ["Warehouses", "Warehouse"],

@@ -1,0 +1,129 @@
+/* Carres only: the Supplier Platform's three structural guards, read off the source (src/carres/supplier/).
+ *
+ * The owner's rule (15 Nov 2026): a supplier's login must never be a way into Carres's system. Three things make
+ * that true by where code sits rather than by what it checks, and an edit elsewhere could undo each one quietly:
+ *
+ *   1. the suppliers' API is mounted BEFORE the staff sign-in gate (a supplier is not staff), while the Carres side
+ *      of it is mounted AFTER (a supplier must never reach it);
+ *   2. the suppliers' router answers EVERY path under it, so a request never falls through to a staff route, and
+ *      its own session gate sits in front of every data route;
+ *   3. no statement binds a JSON string straight to a jsonb parameter (the driver would encode it twice and the
+ *      list would read as empty: docs/jsonb-double-encoding-coe.md). The repo's own scanner does not see through
+ *      the helper this folder uses, so the rule is pinned here. */
+import { readFileSync, readdirSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const INDEX = read('../src/index.ts');
+const ROUTES = read('../src/carres/supplier/routes.ts');
+
+const at = (source: string, needle: string): number => {
+  const i = source.indexOf(needle);
+  expect(i, `missing: ${needle}`).toBeGreaterThan(-1);
+  return i;
+};
+
+describe('Carres supplier platform: where the routes sit', () => {
+  it('the suppliers API is before the staff sign-in gate; the Carres side is after it', () => {
+    const gate = at(INDEX, 'app.use("/api/*", auth);');
+    expect(at(INDEX, 'app.route("/api/carres-supplier", carresSupplier);')).toBeLessThan(gate);
+    expect(at(INDEX, 'app.route("/api/carres/supplier-access", carresSupplierAccess);')).toBeGreaterThan(gate);
+    expect(at(INDEX, 'app.route("/api/carres/supplier-pickups", carresSupplierPickups);')).toBeGreaterThan(gate);
+  });
+
+  it('the suppliers router answers every path, behind its own session gate', () => {
+    at(ROUTES, 'app.all("*", (c) => c.json({ error: "Not found." }, 404));');
+    const gate = at(ROUTES, 'app.use("*", session);');
+    // Only signing in and the one-time link come before the gate, by any way a route can be added.
+    const before = ROUTES.slice(0, gate).match(/app\.(get|post|put|patch|delete|all|on|route|mount)\("([^"]+)"/g) ?? [];
+    expect(before).toEqual(['app.post("/auth/login"', 'app.post("/auth/link"', 'app.post("/auth/link/use"']);
+    // The one thing wrapped around every answer before the gate sets a header and reads nothing.
+    expect(ROUTES.slice(0, gate).match(/app\.use\(/g) ?? []).toHaveLength(1);
+    at(ROUTES.slice(0, gate), 'c.header("Cache-Control", "no-store");');
+    for (const route of ['app.get("/orders"', 'app.get("/forecast"', 'app.get("/pickups"', 'app.get("/finance/summary"', 'app.get("/auth/me"']) {
+      expect(at(ROUTES, route)).toBeGreaterThan(gate);
+    }
+  });
+
+  it('no supplier route takes the supplier from the request: it comes from the session', () => {
+    expect(ROUTES).not.toMatch(/req\.(query|param)\(\s*["']supplierId["']\s*\)/);
+    expect(ROUTES).not.toMatch(/\bb\?\.supplierId\b/);
+  });
+
+  it('the suppliers router never imports the staff sign-in or the Carres-side functions that take any supplier', () => {
+    expect(ROUTES).not.toMatch(/from "\.\.\/\.\.\/middleware\/auth"/);
+    expect(ROUTES).not.toMatch(/from "\.\/access"/);
+    expect(ROUTES).not.toMatch(/from "\.\/staff-routes"/);
+    for (const name of ['createPickup', 'collectPickup', 'cancelPickup', 'eligibleLines']) expect(ROUTES).not.toContain(name);
+    // Nor the two readers that answer for EVERY supplier when no supplier is given: the suppliers' routes read
+    // through the ones that require the supplier.
+    expect(ROUTES).not.toMatch(/\b(getPickup|listPickups|forSupplier)\b/);
+    expect(ROUTES).toMatch(/\bgetSupplierPickup\b/);
+    expect(ROUTES).toMatch(/\blistSupplierPickups\b/);
+  });
+
+  it('no limit on these routes is kept per address', () => {
+    // Behind the site's proxy every browser arrives under one address: a count on it is a switch one outsider can
+    // throw for every supplier, and a count on anything else stops only a caller who chose to be stopped.
+    expect(ROUTES).not.toContain('checkRateLimit');
+    expect(read('../src/carres/supplier/session.ts')).not.toMatch(/\bf\.ip\s*=/);
+  });
+});
+
+describe('Carres supplier platform: statements', () => {
+  const dir = new URL('../src/carres/supplier/', import.meta.url);
+  const sources = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
+
+  it('reads its source files', () => {
+    expect(sources).toEqual(expect.arrayContaining(['access.ts', 'orders.ts', 'pickups.ts', 'session.ts', 'routes.ts']));
+  });
+
+  it('no JSON string is bound as jsonb without going through text', () => {
+    for (const f of sources) {
+      expect(readFileSync(new URL(f, dir), 'utf8').match(/\$\d+::jsonb/g) ?? [], f).toEqual([]);
+    }
+  });
+
+  it('the order-by column is looked up in a Map, never in a plain object', () => {
+    // A plain object answers for "constructor" and "__proto__" too, and what it answers would be spliced into the
+    // statement. Not text an outsider chooses, so not an injection, but a 500 and a rule that only looked closed.
+    const orders = read('../src/carres/supplier/orders.ts');
+    at(orders, 'const sortColumn = SORTS.get(input.sort ?? "") ?? DEFAULT_SORT;');
+    expect(orders).not.toMatch(/SORTS\[/);
+  });
+
+  it('no statement is assembled from a request value', () => {
+    // The only text spliced into a statement in this folder is a constant: a column list, or the order-by picked
+    // from a fixed map. A `${...}` that reads the request (c.req, input.q, body) would be an injection.
+    for (const f of sources) {
+      const source = readFileSync(new URL(f, dir), 'utf8');
+      const spliced = [...source.matchAll(/`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b[^`]*`/g)].flatMap((m) => m[0].match(/\$\{[^}]+\}/g) ?? []);
+      for (const s of spliced) {
+        expect(s, `${f}: ${s}`).toMatch(/^\$\{(USER_COLUMNS|ORDER_COLUMNS|REQUEST_COLUMNS|PERSON_COLUMNS|LINE_SELECT|FRESH|sortColumn|direction|ts\("[a-z_.()]+"\))\}$/);
+      }
+    }
+  });
+
+  it('a statement that reads a password is never one a cache may answer', () => {
+    // The engine's database link caches an answer for a minute unless that is turned off, and never caches a
+    // statement that asks the time. An old password answered from a cache would outlive its reset.
+    const session = readFileSync(new URL('session.ts', dir), 'utf8');
+    at(session, 'const FRESH = "NOW() IS NOT NULL";');
+    // A read is a statement that starts with SELECT. A write that looks a password up (the session is opened by an
+    // INSERT ... SELECT that compares it) is never cached and is not one of these.
+    const reads = [...session.matchAll(/`\s*SELECT\b[^`]*`/g)].map((m) => m[0]).filter((s) => /password_hash(?! IS NOT NULL)/.test(s));
+    expect(reads.length).toBeGreaterThanOrEqual(2);
+    for (const s of reads) expect(s, s).toContain('${FRESH}');
+  });
+
+  it('a session is opened only by the statement that checks the password is still the stored one', () => {
+    // One INSERT into the sessions table in the whole folder, and it reads the person's row under a lock, so a
+    // sign-in with a password that a reset has just replaced cannot leave a session behind.
+    const inserts = sources.flatMap((f) => [...readFileSync(new URL(f, dir), 'utf8').matchAll(/`[^`]*INSERT INTO public\.carres_supplier_sessions[^`]*`/g)].map((m) => m[0]));
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toContain('u.password_hash = $6');
+    expect(inserts[0]).toContain('FOR SHARE OF u');
+    expect(inserts[0]).toContain("u.status = 'active'");
+    expect(inserts[0]).toContain('a.enabled');
+  });
+});

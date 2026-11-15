@@ -10,6 +10,7 @@ export type AppSurface =
   | "privacy"
   | "contractor"
   | "brand"
+  | "supplier" // Carres: the Supplier Platform (carres/supplier/SupplierApp.tsx)
   | "staff";
 
 /**
@@ -20,6 +21,9 @@ export type AppSurface =
  * new URL trapped inside the old public-only route tree.
  */
 export function appSurfaceForPath(pathname: string): AppSurface {
+  // Carres: the Supplier Platform. A supplier is not staff: its pages sit OUTSIDE the staff sign-in and carry their
+  // own (carres/supplier/). The whole segment must match, so the staff /scm/suppliers pages are untouched.
+  if (pathname === "/supplier" || pathname.startsWith("/supplier/")) return "supplier";
   if (pathname.startsWith("/survey/")) return "survey";
   if (
     pathname === "/track" ||

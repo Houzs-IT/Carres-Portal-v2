@@ -132,7 +132,9 @@ describe("executable route contract", () => {
     // invoices, holds its switch (Claude Design, batch 5 step 5).
     // 194 since 2026-11-08: /scm/payment-listing — the day's payments with their banks.
     // 195 since 2026-11-10: /scm/ap-invoices/duplicates — supplier bills booked twice, for Finance to review.
-    expect(STAFF_ROUTE_PATTERNS).toHaveLength(195);
+    // Carres: 196 = Houzs's 195 plus /scm/supplier-pickups (15 Nov 2026), the Carres side of the Supplier
+    // Platform's pickup requests. On a Houzs resync keep this at Houzs's number plus one.
+    expect(STAFF_ROUTE_PATTERNS).toHaveLength(196);
     expect(new Set(STAFF_ROUTE_PATTERNS).size).toBe(STAFF_ROUTE_PATTERNS.length);
     expect([...STAFF_ROUTE_PATTERNS].sort()).toEqual([...appPages].sort());
   });
@@ -200,7 +202,9 @@ describe("executable route contract", () => {
     // 204 since 2026-11-03 — Setup › Deposit invoices (+1), /scm/deposit-invoices a legacy redirect.
     // 205 since 2026-11-08 — /scm/payment-listing; see the staff-route count above.
     // 206 since 2026-11-10 — /scm/ap-invoices/duplicates; see the staff-route count above.
-    expect(ROUTE_CONTRACT).toHaveLength(206);
+    // Carres: 207 = Houzs's 206 plus /scm/supplier-pickups; see the staff-route count above. The suppliers' own
+    // pages (/supplier/*) are a surface of their own and are pinned in carres/supplier/supplierSurface.test.tsx.
+    expect(ROUTE_CONTRACT).toHaveLength(207);
   });
 
   it("keeps every desktop nav destination on a live staff route", () => {

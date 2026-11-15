@@ -45,7 +45,13 @@ const CSP_REPORT_ONLY = [
   "form-action 'self'",
 ].join("; ");
 
-export const onRequest = async ({ next }: PagesContext): Promise<Response> => {
+// Carres: the supplier pages (/supplier, src/carres/supplier/) are never shown inside another page. The portal
+// frames the staff pages only. So this one rule is ENFORCED for them, not report-only: no site, the portal
+// included, may put a supplier page in a frame and draw over it to take a click or a typed password. It names
+// frames and nothing else, so it cannot block anything the pages load.
+export const isSupplierPage = (url: string): boolean => /^\/supplier(\/|$)/.test(new URL(url).pathname);
+
+export const onRequest = async ({ request, next }: PagesContext): Promise<Response> => {
   const response = await next();
   const contentType = response.headers.get("Content-Type") || "";
   // Only decorate HTML documents — the CSP that matters governs the page, and
@@ -53,6 +59,10 @@ export const onRequest = async ({ next }: PagesContext): Promise<Response> => {
   if (!contentType.includes("text/html")) return response;
   const headers = new Headers(response.headers);
   headers.set("Content-Security-Policy-Report-Only", CSP_REPORT_ONLY);
+  if (isSupplierPage(request.url)) {
+    headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+    headers.set("X-Frame-Options", "DENY");
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

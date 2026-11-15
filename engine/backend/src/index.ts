@@ -29,6 +29,10 @@ import clientErrors from "./routes/clientErrors";
 import udf from "./routes/udf";
 import authRoutes from "./routes/auth";
 import carresSso from "./carres/sso";
+// Carres: the Supplier Platform (src/carres/supplier/). `carresSupplier` is the suppliers' own API, with its own
+// sign-in; the other two are the Carres side, for signed-in staff.
+import carresSupplier from "./carres/supplier/routes";
+import { supplierAccess as carresSupplierAccess, supplierPickups as carresSupplierPickups } from "./carres/supplier/staff-routes";
 import totpRoutes from "./routes/totp";
 import users from "./routes/users";
 import fieldPinAdmin from "./routes/fieldPinAdmin";
@@ -333,6 +337,10 @@ app.get("/health", (c) => {
 app.route("/api/auth", authRoutes);
 // Carres: sign-on from the Carres portal, server to server, proven by a shared secret (src/carres/sso.ts).
 app.route("/api/carres-sso", carresSso);
+// Carres: the Supplier Platform's own API. Mounted BEFORE the staff sign-in gate on purpose: a supplier is not staff
+// and never gets a staff session. Its router answers every path under it and checks its own session
+// (carres_supplier_sessions), so nothing here falls through to the staff routes below.
+app.route("/api/carres-supplier", carresSupplier);
 
 // Public customer survey — unauthenticated, token-based. Lives under
 // /api/survey (not /survey) so it doesn't collide with the SPA route
@@ -606,6 +614,9 @@ app.route("/api/fleet-maintenance", fleetMaintenance);
 app.route("/api/fleet-work-order-files", fleetWorkOrderFiles);
 app.route("/api/fleet-breakdown-files", fleetBreakdownFiles);
 app.route("/api/settings", settings);
+// Carres: Settings › Supplier Access and the pickup requests, for signed-in staff (each router gates itself).
+app.route("/api/carres/supplier-access", carresSupplierAccess);
+app.route("/api/carres/supplier-pickups", carresSupplierPickups);
 app.route("/api/branding", branding);
 app.route("/api/inbox", inbox);
 // Mail Center (authed) — reads/reply/compose/label gate on mailbox SCOPE

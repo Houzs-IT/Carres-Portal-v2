@@ -1174,19 +1174,23 @@ describe("PortalSidebar — the Sales Order module", () => {
  * consignment rows live in Consignment. The Carres-only rows (Supplier items,
  * SO Batch, Forecast and Manual Purchase, Supplier Claims, Repair Orders) left
  * with the old Carres pages (owner, 11 Nov 2026); every row is an engine page.
+ *
+ * One Carres row follows Houzs's ten (owner, 15 Nov 2026): Supplier Pickups, the
+ * Supplier Platform's pickup requests, a Carres page inside the engine. It sits
+ * last, as Subscription sits after Houzs's Sales Order rows.
  */
 describe("PortalSidebar — the Procurement map", () => {
-  it("opens onto ten direct rows — no drawer, no Report, no hairline", () => {
+  it("opens onto Houzs's ten direct rows and Carres's one — no drawer, no Report, no hairline", () => {
     renderAt("/operation/sc/purchase-orders");
     const tree = screen.getByTestId("nav-children-purchasing");
     // Every child of the tree line IS a page row — no group word sits among them.
     expect(tree.querySelectorAll("[data-testid^='nav-group-']")).toHaveLength(0);
-    expect(tree.querySelectorAll("[data-testid^='nav-child-']")).toHaveLength(10);
+    expect(tree.querySelectorAll("[data-testid^='nav-child-']")).toHaveLength(11);
     // Reports moved to the central Reports area, so the rule above them went too.
     expect(tree.querySelector(".border-t")).toBeNull();
   });
 
-  it("ten pages in the Houzs order, and not an eleventh", () => {
+  it("Houzs's ten pages in the Houzs order, then Supplier Pickups, and not a twelfth", () => {
     renderAt("/operation/sc/purchase-orders");
     const tree = screen.getByTestId("nav-children-purchasing");
     const rows = Array.from(tree.querySelectorAll("[data-testid^='nav-child-']")).map(
@@ -1204,7 +1208,17 @@ describe("PortalSidebar — the Procurement map", () => {
       "Goods Receipt",
       "Purchase Invoices",
       "Purchase Returns",
+      /* Carres's own row (owner, 15 Nov 2026). */
+      "Supplier Pickups",
     ]);
+  });
+
+  it("Supplier Pickups opens its engine page and lights its own row", () => {
+    renderAt("/operation/sc/supplier-pickups");
+    expect(child("supplier-pickups")).toHaveTextContent(/^Supplier Pickups$/);
+    expect(child("supplier-pickups")).toHaveAttribute("href", "/operation/sc/supplier-pickups");
+    expect(child("supplier-pickups")).toHaveAttribute("aria-current", "page");
+    expect(child("purchase-orders")).not.toHaveAttribute("aria-current");
   });
 
   /* THE EIGHT ROWS THE OWNER DELETED. Each one was a destination the rail

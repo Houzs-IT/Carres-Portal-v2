@@ -68,7 +68,7 @@ describe("the page groups", () => {
 });
 
 describe("the approved hierarchy", () => {
-  it("Procurement draws ten direct rows, in the Houzs order", () => {
+  it("Procurement draws Houzs's ten direct rows in the Houzs order, then Carres's Supplier Pickups", () => {
     expect(moduleChildBlocks(purchasing).map((b) => (b.kind === "page" ? b.item.label : b.group.label))).toEqual([
       "Procurement Overview",
       "Products & Maintenance",
@@ -80,6 +80,9 @@ describe("the approved hierarchy", () => {
       "Goods Receipt",
       "Purchase Invoices",
       "Purchase Returns",
+      /* Carres's own row, last (owner, 15 Nov 2026): the Supplier Platform's pickup requests. Houzs has no such
+         page, so it follows Houzs's ten the way Subscription follows Houzs's Sales Order rows. */
+      "Supplier Pickups",
     ]);
   });
 
@@ -102,8 +105,9 @@ describe("the approved hierarchy", () => {
     ]);
   });
 
-  it("is exactly ten pages", () => {
-    expect(purchasing).toHaveLength(10);
+  it("is exactly Houzs's ten pages and Carres's one", () => {
+    expect(purchasing).toHaveLength(11);
+    expect(purchasing.filter((i) => i.key !== "supplier-pickups")).toHaveLength(10);
   });
 
   it("no row carries a hairline — Reports are central, not a Purchasing row", () => {
@@ -146,7 +150,7 @@ describe("the approved hierarchy", () => {
 
 /** THE ROUTE TRUTH — the Card's own minimum assertion. Words moved; no address did. */
 describe("the live destinations keep their exact current addresses", () => {
-  it("ten live pages, each at its own engine address", () => {
+  it("eleven live pages, each at its own engine address", () => {
     expect(
       purchasing
         .filter((item) => !item.soon)
@@ -163,6 +167,7 @@ describe("the live destinations keep their exact current addresses", () => {
       ["Goods Receipt", "/operation/sc/receiving"],
       ["Purchase Invoices", "/operation/sc/purchase-invoices"],
       ["Purchase Returns", "/operation/sc/purchase-returns"],
+      ["Supplier Pickups", "/operation/sc/supplier-pickups"],
     ]);
   });
 
