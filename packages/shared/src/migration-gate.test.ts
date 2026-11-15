@@ -11,7 +11,17 @@ import * as collisions from "../../../scripts/migration-collisions.mjs";
 // @ts-expect-error -- untyped .mjs tooling module
 import * as destructive from "../../../scripts/migration-destructive.mjs";
 
+// @ts-expect-error -- untyped .mjs tooling module
+import * as openPolicy from "../../../scripts/migration-open-policy.mjs";
+
 const { isDestructiveSql } = destructive as { isDestructiveSql: (sql: string) => boolean };
+
+interface OpenPolicy { policy: string; table: string; clause: string; expression: string }
+const { findOpenPolicies, openPolicyMessage, normaliseExpression } = openPolicy as {
+  findOpenPolicies: (sql: string) => OpenPolicy[];
+  openPolicyMessage: (file: string, found: OpenPolicy[]) => string;
+  normaliseExpression: (expression: string) => string;
+};
 
 const { findCollisions, staleBaselineEntries, collisionMessage, groupByNumber } =
   collisions as {
@@ -155,6 +165,108 @@ describe("what the gate calls destructive SQL", () => {
   it("does not read a comment, or a revoke of truncate", () => {
     expect(isDestructiveSql("-- it used to delete from orders\nselect 1;\n")).toBe(false);
     expect(isDestructiveSql("revoke truncate on public.orders from authenticated;\n")).toBe(false);
+  });
+});
+
+/**
+ * A POLICY MUST SAY WHO, NOT ONLY "SOMEBODY SIGNED IN" (0776 / 0777).
+ *
+ * The control is the repository's own history: the migrations that carried the
+ * mistake must be flagged, and the two that replaced it must not. A rule that
+ * passed 0002 would have passed all thirty-one.
+ */
+describe("what the gate calls a policy that admits every signed-in account", () => {
+  const migration = (name: string) => readFileSync(join(REPO, "supabase", "migrations", name), "utf8");
+  const names = (sql: string) => findOpenPolicies(sql).map((p) => `${p.table}.${p.policy}`);
+
+  it("flags the three shapes the mistake was written in, in the files that wrote them", () => {
+    // `(select auth.uid()) is not null` — where it started: six reads and the three history inserts.
+    expect(names(migration("0002_rls.sql"))).toEqual(
+      expect.arrayContaining([
+        "product_models.catalog_read_all",
+        "product_skus.skus_read_all",
+        "warehouses.warehouses_read_all",
+        "order_history.order_history_insert",
+        "po_history.po_history_insert",
+        "audit_log.audit_self_insert",
+      ]),
+    );
+    // `true`, for the authenticated role.
+    expect(names(migration("0722_office_staff_edit_the_state_city_and_postcode_lists.sql"))).toContain(
+      "public.address_list_overrides.address_list_overrides_read",
+    );
+    // `auth.role() = 'authenticated'`.
+    expect(names(migration("0303_purchasing_settings.sql"))).toContain(
+      "public.purchasing_settings.purchasing_settings_read",
+    );
+  });
+
+  it("flags a write the same way: with check is a door too", () => {
+    const found = findOpenPolicies(
+      "create policy order_history_insert on public.order_history\n  for insert with check ((select auth.uid()) is not null);\n",
+    );
+    expect(found).toEqual([
+      { policy: "order_history_insert", table: "public.order_history", clause: "with check", expression: "(select auth.uid()) is not null" },
+    ]);
+  });
+
+  it("flags an alter policy that opens one", () => {
+    expect(names("alter policy t_read on public.t using (true);\n")).toEqual(["public.t.t_read"]);
+  });
+
+  it("passes the two migrations that replaced them", () => {
+    expect(findOpenPolicies(migration("0776_only_carres_and_seller_logins_read_the_catalogue_and_settings.sql"))).toEqual([]);
+    expect(findOpenPolicies(migration("0777_history_rows_and_internal_functions_ask_who_is_calling.sql"))).toEqual([]);
+  });
+
+  it("passes a policy that says who", () => {
+    const sql = [
+      "create policy a_read on public.a for select to authenticated using ((select public.is_carres_or_seller()));",
+      "create policy b_read on public.b for select using ((select public.is_internal()));",
+      "create policy c_read on public.c for select using (dealer_id = (select public.app_dealer_id()));",
+      // Signed in AND something else is a rule about the row, not about being signed in.
+      "create policy d_read on public.d for select using (auth.uid() is not null and owner_id = auth.uid());",
+    ].join("\n");
+    expect(findOpenPolicies(sql)).toEqual([]);
+  });
+
+  it("does not report a restrictive policy, a server-only policy, or a comment", () => {
+    const sql = [
+      "create policy r on public.t as restrictive for select using (true);",
+      "create policy s on public.t for all to service_role using (true) with check (true);",
+      "-- create policy old on public.t for select using (true);",
+      "/* create policy older on public.t using (auth.uid() is not null); */",
+    ].join("\n");
+    expect(findOpenPolicies(sql)).toEqual([]);
+  });
+
+  it("reads through spacing, case, wrapping parentheses and a text cast", () => {
+    expect(normaliseExpression("( ( SELECT auth.uid() ) IS NOT NULL )")).toBe("(selectauth.uid())isnotnull");
+    expect(normaliseExpression("(auth.role() = 'authenticated'::text)")).toBe("auth.role()='authenticated'");
+    expect(names('create policy "Any Member" on public.t\n  FOR SELECT\n  TO authenticated\n  USING ( TRUE );\n')).toEqual([
+      "public.t.Any Member",
+    ]);
+  });
+
+  it("the message names the policy and what to ask instead", () => {
+    const msg = openPolicyMessage("supabase/migrations/0999_x.sql", findOpenPolicies("create policy t_read on public.t using (true);"));
+    expect(msg).toContain("0999_x.sql");
+    expect(msg).toContain("t_read on public.t");
+    expect(msg).toContain("is_carres_or_seller");
+    expect(msg).toContain("is_internal");
+  });
+
+  it("the shipped gate runs it on every migration a branch adds", () => {
+    const src = readFileSync(SCRIPT, "utf8");
+    expect(src).toContain("const openPolicies = findOpenPolicies(sql);");
+    expect(src).toContain("if (openPolicies.length) throw new Error(openPolicyMessage(file, openPolicies));");
+  });
+
+  it("the four functions 0777 taught to ask who is calling are pinned against a rebuild", () => {
+    const src = readFileSync(SCRIPT, "utf8");
+    for (const fn of ["dealers_with_stats_list", "dealer_with_stats", "rental_current_agreement_template", "order_stamp_stair_carry"]) {
+      expect(src, fn).toContain(`fn: "${fn}"`);
+    }
   });
 });
 
