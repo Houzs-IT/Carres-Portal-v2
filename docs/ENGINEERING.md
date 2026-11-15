@@ -315,6 +315,50 @@ The old HV Portal has 130 policies and a lagging dashboard. Do not repeat it.
 Baseline, passed and still enforced: dealer 50 active orders < 100ms · principal dashboard
 summary < 500ms · operation 4-column kanban < 200ms.
 
+### Who a policy and a function answer — measured and repaired 15 Nov 2026 (0776 · 0777)
+
+Everything in `public` is reachable by name through the data API with nothing but a signed-in token: a
+table through its policies, a function if the role may execute it, and a new function is executable by
+every signed-in account unless a migration says otherwise. **A signed-in account is not yet a Carres
+account.** It may be an outside party's login, a disabled login whose token has not run out, or an
+account with no row in `app_users`. Thirty-one policies and thirty-eight functions gave such an account
+the same answer as a member of staff; the first policy was written in `0002` and the rest were copied
+from it, because nothing failed.
+
+- **A policy says who.** `(select public.is_carres_or_seller())` for what Carres and the stores both use
+  (an ACTIVE principal, operation, finance, bd, hr, dealer, salesperson or showroom account);
+  `(select public.is_internal())` for Carres only; or a rule that names the row's owner. Never
+  `auth.uid() is not null`, `true`, or `auth.role() = 'authenticated'`: `pnpm ci:migrations` refuses a
+  new one (`scripts/migration-open-policy.mjs`). These helpers read `app_users`, wrapped in a
+  sub-select so they run once per query (rule 2). Rule 1's token claims scope rows; they do not decide
+  whether an account is one of ours, because a role in a token outlives the row that granted it.
+- **A function that runs as its owner asks who is calling, or a person cannot call it.** A helper that
+  only other functions call: `revoke all on function … from public, anon, authenticated` (functions
+  that run as their owner still reach it, and so does the service key). One the server also runs asks
+  `is_internal() or is_server_call()`.
+- **A view that runs as its owner asks in its `WHERE`** (`rental_plans_pos`, `fin_order_departments`,
+  `gl_line_departments`).
+- **`scripts/check-open-access.sql`** asks all three questions of the live database, read-only; each
+  block should return nothing. Run it after a migration that adds `SECURITY DEFINER` functions and
+  before any release that gives an outside party a login. CI cannot read a function's privileges
+  (carry-forward `a-new-function-is-callable-by-every-signed-in-account`).
+
+Who was measured reading the 28 tables `0776` narrowed (`apps/api` routes and their guards, 15 Nov
+2026): the POS catalogue bundle (`GET /api/catalog`) and the order-edit recomputes read 23 of them for
+dealer, salesperson, showroom, bd and the internal roles; `company_profile` is read for every session
+and the page falls back to built-in values without it; `address_list_overrides` by the POS address
+fields; `catalog_config_history` and `product_sku_identity_history` by Catalog Maintenance only;
+`warehouses` and `delivery_partners` by internal routes. Supplier, partner and warehouse logins have
+had no app here since 12 Nov 2026 and read none of them. `GET /api/catalog` has no role guard of its
+own and answers 500, not 403, to a role that cannot read `floor_config`; no page of such a role calls it.
+
+The engine database is closed the other way round. `engine/backend/scripts/carres-db/engine-owns-all.sql`
+runs after every apply: row-level security on for every table in `public`, no privilege on any for the
+two public roles, and the next table the admin makes is not granted to them. The engine reads `public`
+as the tables' owner and `scm` with the service key, so it is not affected. Twenty-one tables that
+Houzs steps had created were readable and writable with the project's public key until then (all
+empty). Test: `engine/backend/tests-pg/carresPublicKeysReachNothing.pg.test.ts`.
+
 ---
 
 ## 4 · Code conventions
@@ -582,6 +626,7 @@ timeout.** Run twice before calling anything a regression.
 | Web | `https://carres-portal.pages.dev` · `pos.carresofficial.com` (dealer/showroom/bd) · `erp.carresofficial.com` (internal). **TWO Pages projects, ONE build** |
 | API | `https://carres-portal-v2-api.wwch.workers.dev` + `api.carresofficial.com` |
 | DB | Supabase `kfprgpjpaffedghytstl` — staging IS production |
+| Migration tail (2026-11-15, access repair) | **`0776_only_carres_and_seller_logins_read_the_catalogue_and_settings`** (tracker `20261115143257`, file md5 `eaef5a3748e6220afe40ce0d9671a4d8`) and **`0777_history_rows_and_internal_functions_ask_who_is_calling`** (tracker `20261115145016`, md5 `9939f7a5c10fdaff0de97fc18a0cf647`). Each was run whole inside one rolled-back `do` block on production first, read as every role (and for 0777 as the service key and as a direct session) with a control proving the door was open before, then applied as the exact file through `apply_migration`; tracker md5 equals the committed blob for both. What they change and why is §3. **Measured the same day: the tracker's highest numbered row before these was `0705`, while objects of `0750` and `0766` are live.** Later files have been applied outside the tracker, so the tracker tail is not the applied tail: number from the repository and every branch as well (these took 0776 and 0777 because a branch holds a 0775). |
 | Migration tail (2026-10-14, Forecast Purchase #2052, merged `7e9d3d147`, deployed) | **`0695_a_forecast_purchase_is_asked_once_through_the_request_door`** — additive only: table `forecast_purchase_requests` (row security on, no policy, no direct grant), one index, and five functions (`purchasing_submit_forecast_requests`, `purchasing_forecast_requests_in_progress`, `purchasing_forecast_request_marks`, `purchasing_forecast_submission`, internal `_purchasing_forecast_in_progress_rows`). No existing object changed. Numbered from the MAX across tracker (0693), main (0693) and every branch: `0694` is held by `build/internal-tasks` (not applied, not merged), so this file took `0695`. The file is plain ASCII so the applied text can be compared byte for byte. **Proven on a full-chain replay** with the real doors (first ask, retry with the same key, stale ask, another person's key, no sign-in, a refusal from the existing door taking the whole submission, and six simultaneous submissions of which exactly one went through; control without the door: six). **Rolled-back production probe 2026-10-14** (`probe_0695_rolled_back_do_not_track`, one `do` statement; the embedded text's md5 equalled the file's): as a real Operation person, one request through the existing door with approval required and not approved, the retry answered with the same request, the stale ask refused `forecast_in_progress_changed`, no sign-in refused `42501`; afterwards the table, the functions, the probe's request and any tracker row were absent. **APPLIED 2026-10-14** through `apply_migration`: tracker `20261014024103`, `md5(statements[1])` = `md5(git show HEAD:<file>)` = `636014f49f5eb42ed84b0c0b0219fb38`; all five function bodies equal the replay's by CR-normalised `md5(prosrc)`; callable by `authenticated`, not by `anon` (the internal one by neither); table not readable by either; zero rows. **Recovery:** nothing calls these names until #2052 is deployed; if the page is reverted the objects stay unused. **Next free number: `0696`** (`0694` is the internal tasks row below, merged in #2055) — re-measure across every branch before writing. |
 | Migration tail (2026-10-14, internal tasks) | **`0694_a_person_adds_an_internal_task_for_a_colleague`**: `internal_tasks` + `internal_task_events`, read for Operation and Principal, no client write, doors `internal_task_add` · `internal_task_mark_done` · `internal_tasks_open` · `internal_task_read`. No existing table, function or policy is touched. Numbered from the MAX across tracker (0693), main (0693) and every branch; Purchasing then took 0695. **APPLIED 2026-10-14** through the governed path (rolled-back production probe, then the exact file): `md5(statements[1])` = file md5 `87602bb5feda62d9c6222686d8baeaf7`, five function bodies reconciled. The file holds neither `drop` nor `delete`, and `apply_migration` accepted it. Evidence: Workspace MASTER §1 "Employee-created internal tasks". |
 | Migration tail (2026-10-10, Settings completion #1996) | **`0669`–`0674` · `0677`–`0680`** (Company, Office calendar, leave + colleague recording, monthly PO/GRN rota, Saturday on-call, outstation collection pair, Delivery Rules leads, one Settings editor gate, activity windows, stored Office working day in SQL, Issue Tracker settings record). Numbered from the MAX across tracker (0676), main and every branch; Finance then took 0681/0682. ⚠️ **The Supabase MCP `apply_migration` returned `declined` for every file containing `drop`/`delete`** in the Claude desktop app, in Auto, Bypass and Manual modes alike (its destructive-statement confirmation is never shown there; a non-destructive rolled-back probe ran normally). Never wrap a file in `do`/`execute` to slip past that confirmation. **APPLIED 2026-10-10 by the owner in the Supabase SQL editor**: the exact committed files, concatenated in order, pasted from a UTF-8 clipboard (`LC_ALL=en_US.UTF-8 pbcopy`; without it the clipboard turns `—`/`→` into Mac Roman mojibake). Then ONE `tracker_backfill_rows_for_applied_untracked_0669_to_0680` (versions `20261010000001`–`…10`, marker statements with each file md5). All 60 function bodies equal the full-chain replay (aggregate `md5` `5f46bd82c8f0f242a240fe093b3addde`); tables, columns, 14 policies, trigger and private bucket present. Rolled-back synthetic acceptance on production passed (Settings save/refusal, colleague leave without approval or proof, history, today's PO cover, recorder cannot cancel). #1996 squash message carried an old `[skip ci]` line, so the push deploy did not start; it was deployed with `workflow_dispatch` `expected_sha=b437c2293…` and production converged (later `b21f32683`). |

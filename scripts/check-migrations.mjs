@@ -6,6 +6,7 @@ import {
   collisionMessage,
 } from "./migration-collisions.mjs";
 import { isDestructiveSql } from "./migration-destructive.mjs";
+import { findOpenPolicies, openPolicyMessage } from "./migration-open-policy.mjs";
 
 /* The directory is overridable so the gate's own regression test can run THE
    SHIPPED SCRIPT against a fixture instead of a copy of its logic. */
@@ -178,6 +179,12 @@ for (const line of changed.filter((entry) => entry.startsWith("A\t"))) {
   if (isDestructiveSql(sql) && !isReviewedDestructive(file)) {
     throw new Error(`${file} contains destructive SQL and requires the governed manual review/apply path.`);
   }
+  /* A policy that asks only "is this account signed in?" answers a supplier's
+     login, a disabled login and an account with no app_users row the same way
+     (0776/0777: thirty-one of them, copied from 0002 for six months). What
+     counts is defined once, in scripts/migration-open-policy.mjs. */
+  const openPolicies = findOpenPolicies(sql);
+  if (openPolicies.length) throw new Error(openPolicyMessage(file, openPolicies));
 }
 
 /**
@@ -326,6 +333,30 @@ const REBUILT_GUARDS = [
     story:
       "0536 asked it with one-argument btrim(), which trims the space character only, " +
       "so a description of one tab or one newline saved; 0552 widened the test",
+  },
+  /* 0777 · four functions that run as their owner and are called by name
+     through the data API answered every signed-in account. Each now asks who is
+     calling; a rebuild from an older body would stop asking, and nothing else
+     would fail. */
+  {
+    fn: "dealers_with_stats_list",
+    needle: "is_internal",
+    story: "0130 listed every store's sales to any signed-in account; 0777 asks is_internal() or the server",
+  },
+  {
+    fn: "dealer_with_stats",
+    needle: "is_internal",
+    story: "0130 gave any store's sales to any signed-in account; 0777 asks is_internal(), the server, or the store itself",
+  },
+  {
+    fn: "rental_current_agreement_template",
+    needle: "is_carres_or_seller",
+    story: "0279 returned the agreement wording to any signed-in account; 0777 asks is_carres_or_seller() or the server",
+  },
+  {
+    fn: "order_stamp_stair_carry",
+    needle: "is_server_call",
+    story: "0394 let any signed-in account re-price any order's stair carry; 0777 asks who may edit that order",
   },
 ];
 

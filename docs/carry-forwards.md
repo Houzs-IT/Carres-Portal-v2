@@ -13,17 +13,32 @@ platform's own tables, plus a web address of its own; C, a separate small server
 security, or a Houzs resync breaks `tests/carresSupplierPlatformGuards.test.ts`. The functions and the
 tests carry over unchanged.
 
-## `access-findings-2026-11-15` — OPEN, reported to the owner 2026-11-15
+## `a-new-function-is-callable-by-every-signed-in-account` — OPEN, cross-lane decision, 2026-11-15
 
-**What.** Two access findings on logins and tables that existed before the Supplier Platform, measured
-read-only while building it: one on the portal database, one on the engine database. Neither is part
-of the Supplier Platform, and its people do not use those logins.
+**What.** In the portal database a function created in `public` is executable by `anon` and
+`authenticated` from the moment it exists (the project's default privileges), and the data API calls
+any function by name. So a helper that only other functions were meant to call is a public door until
+a migration closes it. `0777` closed the ones that mattered on 15 Nov 2026: thirty-four helpers lost
+`EXECUTE` for the two public roles, and four that the app calls for its users gained a caller check.
+`0776` did the same for thirty-one policies. What a policy and a function must ask is in
+ENGINEERING §3; `pnpm ci:migrations` refuses a new open policy.
 
-**Where the detail is.** With the owner (Loo), given on 2026-11-15. It is deliberately not written
-here: this repository is public.
+**What is not done.** The default itself. Changing it
+(`alter default privileges … revoke execute on functions from anon, authenticated`, and from `public`)
+would make every later migration grant `EXECUTE` explicitly, and a migration already written by
+another lane that relies on the default would create a function the app cannot call. That is a rule
+for every lane, so it is decided with them, not slipped in here.
 
-**Fix (needs the owner’s word: it changes RLS and disables accounts).** One portal migration and one
-engine migration, each explained before it runs. Measure again first; do not work from this note.
+**Until then.** Run `scripts/check-open-access.sql` (read-only; three blocks, each should return
+nothing) after a migration that adds `SECURITY DEFINER` functions and before any release that gives an
+outside party a login. It is a screen read off the source, not a proof: a function it passes can
+still ask the wrong question.
+
+## `access-follow-ups-2026-11-15` — OPEN, with the owner
+
+**What.** Two things left from the access repair of 15 Nov 2026 that only the owner can settle: one
+project setting outside the database, and whether two remaining logins are removed. They were given
+to the owner (Loo) on 2026-11-15 and are deliberately not written here: this repository is public.
 
 ## `supplier-sign-in-cannot-see-the-caller-address` — OPEN, known limit, 2026-11-15
 
