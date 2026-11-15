@@ -79,6 +79,15 @@ function internalOnly(c: { var: { auth: { role: string } } }) {
   }
 }
 
+// A plan, an offer and an agreement carry the supplier's share of the rent beside the rent itself. That is for
+// the roles that see cost (owner, 16 Nov 2026: bd sells these, and does not see it). The database says the same
+// about these tables (0780), so a role refused here would have read nothing anyway.
+function costRolesOnly(c: { var: { auth: { role: string } } }) {
+  if (!seesCost(c.var.auth.role)) {
+    throw new HTTPException(403, { message: "principal, operation or finance only" });
+  }
+}
+
 function principalOnly(c: { var: { auth: { role: string } } }) {
   if (c.var.auth.role !== "principal") {
     throw new HTTPException(403, { message: RENTAL_PRINCIPAL_MSG });
@@ -182,7 +191,7 @@ async function syncPlanStripe(
 // option-pools branch: packages by (sort_order, name), plans by created_at.
 // ---------------------------------------------------------------------------
 rentalRouter.get("/config", async (c) => {
-  internalOnly(c);
+  costRolesOnly(c);
   const sb = userClient(c.env, c.var.auth.jwt);
   // 0264 — the tab now authors OFFERS (one per model) with their rent lines,
   // buy prices and attached service packages. The five reads are independent;
@@ -990,7 +999,7 @@ type AgreementRowWithCustomer = DB.RentalAgreementRow & {
 // the full list is loaded). Embeds the customer's name+phone via the single
 // customer_id FK — no disambiguation needed (one FK on this table).
 rentalRouter.get("/agreements", async (c) => {
-  internalOnly(c);
+  costRolesOnly(c);
   const sb = userClient(c.env, c.var.auth.jwt);
   const [listR, troubleR] = await Promise.all([
     sb.from(RENTAL_AGREEMENTS)
@@ -1106,7 +1115,7 @@ rentalRouter.get("/month", async (c) => {
 // This is the schedule, the money against it, and the running total versus the
 // contract value — the arithmetic Loo's law is stated in.
 rentalRouter.get("/agreements/:id/collections", async (c) => {
-  internalOnly(c);
+  costRolesOnly(c);
   const idCheck = AGREEMENT_ID.safeParse(c.req.param("id"));
   if (!idCheck.success) throw new HTTPException(404, { message: "Agreement not found" });
   const sb = userClient(c.env, c.var.auth.jwt);

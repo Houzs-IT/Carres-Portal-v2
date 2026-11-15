@@ -338,8 +338,8 @@ from it, because nothing failed.
   `is_internal() or is_server_call()`.
 - **A view that runs as its owner asks in its `WHERE`** (`rental_plans_pos`, `fin_order_departments`,
   `gl_line_departments`).
-- **`scripts/check-open-access.sql`** asks these three questions of the live database (and a fourth,
-  below), read-only; each block should return nothing. Run it after a migration that adds `SECURITY DEFINER` functions and
+- **`scripts/check-open-access.sql`** asks these three questions of the live database (and two more
+  about cost, below), read-only; each of its five blocks should return nothing. Run it after a migration that adds `SECURITY DEFINER` functions and
   before any release that gives an outside party a login. CI cannot read a function's privileges
   (carry-forward `a-new-function-is-callable-by-every-signed-in-account`).
 
@@ -352,57 +352,88 @@ fields; `catalog_config_history` and `product_sku_identity_history` by Catalog M
 had no app here since 12 Nov 2026 and read none of them. `GET /api/catalog` has no role guard of its
 own and answers 500, not 403, to a role that cannot read `floor_config`; no page of such a role calls it.
 
-### What Carres pays and who Carres buys from — owner, 16 Nov 2026 (0778 · 0779)
+### What Carres pays and who Carres buys from — owner, 16 Nov 2026 (0778 · 0779 · 0780)
 
-**The rule.** A cost, a supplier and a supplier's own item code are for Carres's internal roles:
-principal, operation, finance, bd (`COST_ROLES` in `packages/shared/src/cost-visibility.ts`, the same
-four as the database's `is_internal()`). A store login (dealer, salesperson, showroom) sells; it never
-receives them. A role added later receives none until it is named there.
+**The rule.** A cost, a supplier and a supplier's own item code are for three roles: principal,
+operation, finance (`COST_ROLES` in `packages/shared/src/cost-visibility.ts`; the database's twin is
+`sees_cost()`). Nobody who sells receives them: not a store login (dealer, salesperson, showroom) and
+not bd, which is one of Carres's own roles but whose work is selling and looking after the stores.
+A role added later receives none until it is named in both places.
 
-**Why two layers.** A store needs the product tables to sell, and the same rows hold the cost.
-Row-level security chooses rows, never columns. So:
+**Why more than one layer.** Everyone who sells needs the product tables, and the same rows hold the
+cost. Row-level security chooses rows, never columns. So:
 
 1. **The API leaves the fields out.** `GET /api/catalog` sends a role that does not see cost
    `catalogWithoutCost(...)`: `cost`, `supplierId`, `supplierCode` on a SKU, `costByHeight` on a sofa
    combo, `cost` on a special add-on, `cost` / `supplierCode` / `stock` on a fabric, all `null`. The
-   rental sign-up answer drops the supplier's share. `cost-visibility.test.ts` walks the catalogue's
-   shape for every key that names a cost or a supplier: adding one fails until it is hidden.
-2. **The database answers such a role on those tables only through the API.** `product_skus`,
-   `catalog_fabrics`, `sofa_combo_pricing`, `special_addons`, `purchasing_settings` read
-   `is_internal() or (is_carres_or_seller() and is_through_carres_api())`; a store's read of
-   `order_supplier_threads` has the same condition. `is_through_carres_api()` is true when the request
-   carries, in `x-carres-api`, the one value in `private.carres_api_secret` (a schema the data API does
-   not serve). Only the service key can read that value (`carres_api_secret()`), and only the API
-   Worker holds the service key. A store's own direct read of those tables finds no rows.
+   rental sign-up answer drops the supplier's share, and the three rental reads that return it
+   (`/rental/config`, `GET /rental/agreements`, `/rental/agreements/:id/collections`) are for the roles
+   that see cost. `cost-visibility.test.ts` walks the catalogue's shape for every key that names a cost
+   or a supplier: adding one fails until it is hidden.
+2. **The buying side answers such a role not at all.** Eighty tables carry one more policy, the same on
+   each and RESTRICTIVE, `cost_and_supplier_are_internal`:
+   `sees_cost() or not is_carres_or_seller()`. It is ANDed with whatever the table already allows, so
+   no existing policy was rewritten and a later permissive policy cannot undo it. In words: an active
+   Carres or store account reads or writes the table only if it sees cost; any other kind of account
+   (a supplier's, a partner's, a warehouse's) is left to the table's own policies. The tables: suppliers
+   and their offers and settings; purchase requests, demands and purchase orders with everything hung
+   on them; receiving; supplier claims, purchase returns and repair orders; what Carres owes and pays
+   its suppliers; `order_line_costs`, `fin_opening_stock`, `catalog_config_history`, `service_cases`;
+   stock units (`ops_stock_items` names each unit's supplier, and the stock views read it as their
+   caller); and the four rental tables that hold the supplier's share. The list is in `0780` and again
+   in block 4 of `scripts/check-open-access.sql`; a test keeps the two equal.
+3. **The six tables needed in order to sell answer such a role only through the API.** `product_skus`,
+   `catalog_fabrics`, `sofa_combo_pricing`, `special_addons`, `purchasing_settings` and
+   `order_supplier_threads` carry the same restrictive policy with one more way through:
+   `or is_through_carres_api()`. That is true when the request carries, in `x-carres-api`, the one value
+   in `private.carres_api_secret` (a schema the data API does not serve). Only the service key can read
+   that value (`carres_api_secret()`), and only the API Worker holds the service key. A direct read of
+   those tables by a store or by bd finds no rows, whatever the tables' other policies say.
 
 **The door opens per route, never per account** (`apps/api/src/lib/api-door.ts`, `DOOR_ROUTES`;
 `middleware/api-door.ts` puts the value on that one request's copy of `env`, which every route already
 hands to `userClient`). Open: `GET /api/catalog`, `/api/orders/*`, `/api/pwp-codes/*`. These are the
-store routes that read the product tables (measured 16 Nov 2026: the catalogue, and the price,
-lead-time, delivery-fee and promotion checks an order runs), and what they send back carries no cost.
-On every other route a store's read of those tables finds nothing, so a route written for the office
-cannot hand a store its cost by accident. Internal roles never need the door; their requests are not
-touched.
+routes a store and bd sell through that read the product tables (measured 16 Nov 2026: the catalogue,
+and the price, lead-time, delivery-fee and promotion checks an order runs), and what they send back
+carries no cost. On every other route such a role's read of those tables finds nothing, so a route
+written for the office cannot hand over a cost by accident. A role that sees cost never needs the
+door; its requests are not touched.
 
-- **A new store route that must read a product table** joins `DOOR_ROUTES`, after checking what it
-  sends back. Until then its read is empty for a store: the safe way to be wrong.
-- **A new table that holds a cost or a supplier beside something a store needs** gets the same policy
-  and joins block 4 of `scripts/check-open-access.sql`. One a store has no need of is simply internal.
-- **A later migration that rewrites one of the six policies must keep the condition**:
-  `pnpm ci:migrations` reads the last statement that writes each (`REBUILT_POLICIES`).
-- **If the Worker cannot read the value**, a store's request on a door route is answered `503
-  server_not_ready` and retried, never run against tables that answer "nothing" (an order would be
-  priced wrong). Internal roles are never refused. `GET /health/api-door` says whether the header
-  reaches the database and matches; it is asked with the service key and says nothing about an account.
+- **A new route that must read a product table for someone who sells** joins `DOOR_ROUTES`, after
+  checking what it sends back. Until then its read is empty for them: the safe way to be wrong.
+- **A new table that names a cost or a supplier** gets the restrictive policy and joins block 4 of
+  `scripts/check-open-access.sql`. Block 5 finds one that was forgotten, by the names of its columns and
+  what it points at; a table it reports that is not buying-side joins block 5's short reviewed list with
+  the reason. If someone who sells must read part of such a table, give them a function that runs as
+  its owner and returns only that part, or put the table behind the API door. Never a column filter in
+  the page.
+- **A later migration that rewrites one of the six `_read` policies must keep the condition**
+  (`pnpm ci:migrations`, `REBUILT_POLICIES`). The restrictive policies are written by a loop and have
+  no statement of their own to pin: block 4 reads them live.
+- **A function that runs as its owner and returns a cost or a supplier asks `sees_cost()`**, not
+  `is_internal()`, which answers bd. Two did not: `catalog_fabrics_set_cost` (now `sees_cost()`, pinned
+  in `REBUILT_GUARDS`) and `create_rental_agreement`, which handed the supplier's share back to whoever
+  signed the customer up (it now does so only for an account that sees cost).
+- **If the Worker cannot read the value**, a request on a door route from a role that does not see cost
+  is answered `503 server_not_ready` and retried, never run against tables that answer "nothing" (an
+  order would be priced wrong). A role that sees cost is never refused. `GET /health/api-door` says
+  whether the header reaches the database and matches; it is asked with the service key and says
+  nothing about an account.
 - **Replacing the value** (`update private.carres_api_secret set token = replace(gen_random_uuid()::text
   || gen_random_uuid()::text, '-', ''), set_at = now()`): each Worker isolate re-reads within five
-  minutes. Until it does, a store's door routes read nothing, so do it outside selling hours and read
-  `/health/api-door` after.
+  minutes. Until it does, door routes read nothing for a store and for bd, so do it outside selling
+  hours and read `/health/api-door` after.
 
-Measured the same day: every one of the 34 functions that run as their owner and mention a cost or a
-supplier refuses a dealer and a showroom login (`42501`); no view and no other policy reads the five
-tables; the web app reads no table directly. Not changed: bd is an internal role and reads purchase
-orders and costs as before (a question for the owner, not an engineering default).
+**What bd still does, unchanged** (measured 16 Nov 2026): its pages call the same routes a store's do,
+plus its own for stores and accounts. Every order function they call runs as its owner, so placing and
+changing an order never depended on what bd itself could read. What bd lost is direct reading of the
+buying side, the stock views, and the three rental reads above; none of its pages used them. bd cannot
+sign on to the engine (`routes/operation/scm-engine.ts`).
+
+Measured the same day, by calling them as each account: of 34 functions that run as their owner and
+mention a cost or a supplier, 33 refuse a dealer, a showroom and a bd login (`42501`) and the other
+(`pickup_event_render_payload`) fails before it answers anyone, on a table that no longer exists. No
+view and no other policy reads the five product tables. The web app reads no table directly.
 
 The engine database is closed the other way round. `engine/backend/scripts/carres-db/engine-owns-all.sql`
 runs after every apply: row-level security on for every table in `public`, no privilege on any for the

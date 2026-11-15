@@ -4,12 +4,16 @@ import { COST_ROLES, catalogWithoutCost, rentalAgreementWithoutSupplierShare, se
 import { catalogResponseSchema, type CatalogResponse } from "./schemas/catalog";
 import { APP_ROLES } from "./schemas/principal-accounts";
 
-/* Owner, 16 Nov 2026: what Carres pays and who Carres buys from are for Carres's internal roles. A store login
- * (dealer, salesperson, showroom) never receives them. */
+/* Owner, 16 Nov 2026: what Carres pays and who Carres buys from are for principal, operation and finance. Nobody
+ * who sells receives them: not a store login (dealer, salesperson, showroom), and not bd. */
 
 describe("who sees cost", () => {
-  it("is Carres's four internal roles, the ones the database's is_internal() names", () => {
-    expect([...COST_ROLES].sort()).toEqual(["bd", "finance", "operation", "principal"]);
+  it("is three roles, the ones the database's sees_cost() names", () => {
+    expect([...COST_ROLES].sort()).toEqual(["finance", "operation", "principal"]);
+  });
+
+  it("is not bd: one of Carres's own roles, but its work is selling", () => {
+    expect(seesCost("bd")).toBe(false);
   });
 
   it("is never a store login, and never a role nobody decided about", () => {

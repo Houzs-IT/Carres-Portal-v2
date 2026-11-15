@@ -30,7 +30,7 @@ would make every later migration grant `EXECUTE` explicitly, and a migration alr
 another lane that relies on the default would create a function the app cannot call. That is a rule
 for every lane, so it is decided with them, not slipped in here.
 
-**Until then.** Run `scripts/check-open-access.sql` (read-only; four blocks, each should return
+**Until then.** Run `scripts/check-open-access.sql` (read-only; five blocks, each should return
 nothing) after a migration that adds `SECURITY DEFINER` functions and before any release that gives an
 outside party a login. It is a screen read off the source, not a proof: a function it passes can
 still ask the wrong question.
@@ -40,11 +40,6 @@ still ask the wrong question.
 **What.** Two things left from the access repair of 15 Nov 2026 that only the owner can settle: one
 project setting outside the database, and whether two remaining logins are removed. They were given
 to the owner (Loo) on 2026-11-15 and are deliberately not written here: this repository is public.
-
-A third joined on 2026-11-16, with the rule that a store never sees what Carres pays or who Carres
-buys from (ENGINEERING §3): whether bd, an internal role, keeps seeing cost and purchase orders. It
-does today, unchanged. Closing it means the Purchasing tables, not only the catalogue, so it waits for
-the owner's word.
 
 ## `supplier-sign-in-cannot-see-the-caller-address` — OPEN, known limit, 2026-11-15
 

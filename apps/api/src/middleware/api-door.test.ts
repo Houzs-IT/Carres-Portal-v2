@@ -10,8 +10,8 @@ import type { AppEnv } from "../types";
 import { apiDoorMiddleware } from "./api-door";
 import { _setJwksForTesting, authMiddleware } from "./auth";
 
-/* Owner, 16 Nov 2026: a store login never sees what Carres pays or who Carres buys from. The product tables
- * answer a role that does not see cost only on a route where this middleware opens the API door for it. */
+/* Owner, 16 Nov 2026: nobody who sells (a store login, or bd) sees what Carres pays or who Carres buys from. The
+ * product tables answer a role that does not see cost only on a route where this middleware opens the API door. */
 
 const SUPABASE_URL = "https://test.supabase.co";
 const env = {
@@ -36,12 +36,12 @@ async function call(role: string, method: string, path: string, withEnv: object 
 beforeEach(() => useTestJwks());
 afterAll(() => _setJwksForTesting(null));
 
-const COST = ["principal", "operation", "finance", "bd"];
+const COST = ["principal", "operation", "finance"];
 const NO_COST = APP_ROLES.filter((role) => !COST.includes(role));
 
 describe("the API door, per request", () => {
   it("opens for every role that does not see cost on the routes a store sells through", async () => {
-    expect(NO_COST).toEqual(expect.arrayContaining(["dealer", "salesperson", "showroom", "hr"]));
+    expect(NO_COST).toEqual(expect.arrayContaining(["dealer", "salesperson", "showroom", "bd", "hr"]));
     for (const role of NO_COST) {
       for (const [method, path] of [["GET", "/api/catalog"], ["POST", "/api/orders"], ["GET", "/api/orders/abc"], ["POST", "/api/pwp-codes/reserve"]] as const) {
         const { status, body } = await call(role, method, path);
@@ -63,7 +63,7 @@ describe("the API door, per request", () => {
     }
   });
 
-  it("is never needed by an internal role: their requests are handed nothing extra, on any route", async () => {
+  it("is never needed by a role that sees cost: their requests are handed nothing extra, on any route", async () => {
     for (const role of COST) {
       for (const path of ["/api/catalog", "/api/orders", "/api/operation/orders"]) {
         const { status, body } = await call(role, "GET", path);
@@ -97,7 +97,7 @@ describe("the API door, per request", () => {
       expect(body.ran).toBeUndefined();
     });
 
-    it("still serves a store's other routes, and every internal role everywhere", async () => {
+    it("still serves a store's other routes, and every role that sees cost everywhere", async () => {
       expect((await call("dealer", "GET", "/api/dealers/me")).status).toBe(200);
       for (const role of COST) expect((await call(role, "POST", "/api/orders")).status).toBe(200);
     });

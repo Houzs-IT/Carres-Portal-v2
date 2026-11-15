@@ -1428,10 +1428,11 @@ the pages show real figures only once signing has a home. Engineering detail and
 ## §6.7 · What Carres pays and who Carres buys from — owner ruling 2026-11-16 (BUILT · DEPLOYED 2026-11-16)
 
 **RULING (Loo, 2026-11-16).** A dealer and a salesperson must not be able to see the cost of an item
-or who Carres buys it from. A store sells: it sees every selling price and nothing of what Carres pays.
+or who Carres buys it from. Asked the same day whether bd should: "Bd also don't need to view."
+Whoever sells sees every selling price and nothing of what Carres pays.
 
-**Who does see them.** Carres's internal roles: principal, operation, finance, bd. A store login
-(dealer, salesperson, showroom) never does, and neither does any role added later until it is named
+**Who does see them.** Three roles: principal, operation, finance. Nobody who sells does: not a store
+login (dealer, salesperson, showroom), not bd, and not any role added later until it is named
 (`COST_ROLES`, `packages/shared/src/cost-visibility.ts`).
 
 **What counts.** A cost in any form (a SKU's cost, a sofa combination's cost by height, a special
@@ -1440,15 +1441,18 @@ code, and the supplier's share of a rental. The price a customer pays for a rewa
 price) is a selling price and is not one of them.
 
 **What this means for every module (Law A, Law B).** Cost and supplier are Purchasing's and Catalog's
-facts. A store-facing surface may summarise a product; it may never carry these facts along, shown or
-not shown: what reaches a store's browser is what a store can read. A new store-facing route, page,
-document or export is checked against this before it ships.
+facts. A surface for someone who sells may summarise a product; it may never carry these facts along,
+shown or not shown: what reaches their browser is what they can read. A new route, page, document or
+export for a store or for bd is checked against this before it ships.
+
+**The buying side is closed to them as a whole.** Suppliers, purchase requests and orders, receiving,
+supplier claims, purchase returns, repair orders, what Carres owes and pays its suppliers, stock units
+(each names its supplier) and the supplier's share of a rental: a role that does not see cost reads
+none of it. bd remains an internal role for everything else it does (stores, accounts, orders).
 
 **How it is enforced** is engineering and lives in `ENGINEERING.md` §3: the API leaves the fields out
-of what it sends a store, and the database answers a store on the product tables only through the API.
-
-**OPEN, with the owner.** bd is an internal role and sees cost and purchase orders as before. Whether
-it should is a business question and has not been ruled.
+of what it sends, the database answers on the product tables only through the API, and on the buying
+side not at all.
 
 ---
 
