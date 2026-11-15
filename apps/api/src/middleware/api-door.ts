@@ -18,7 +18,8 @@ export const apiDoorMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   }
   const secret = await carresApiSecret(c.env);
   if (!secret) {
-    return c.json({ error: "server_not_ready", message: "The server is not ready. Try again." }, 503);
+    // Words a store may be shown: plain, and nothing about how the system is built.
+    return c.json({ error: "server_not_ready", message: "Not ready yet. Try again." }, 503);
   }
   c.env = { ...c.env, CARRES_API_SECRET: secret };
   await next();

@@ -93,7 +93,7 @@ describe("the API door, per request", () => {
     it("refuses a store's request on a door route instead of running it against empty product tables", async () => {
       const { status, body } = await call("dealer", "POST", "/api/orders");
       expect(status).toBe(503);
-      expect(body).toEqual({ error: "server_not_ready", message: "The server is not ready. Try again." });
+      expect(body).toEqual({ error: "server_not_ready", message: "Not ready yet. Try again." });
       expect(body.ran).toBeUndefined();
     });
 
