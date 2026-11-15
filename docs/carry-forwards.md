@@ -20,8 +20,9 @@ tests carry over unchanged.
 any function by name. So a helper that only other functions were meant to call is a public door until
 a migration closes it. `0777` closed the ones that mattered on 15 Nov 2026: thirty-four helpers lost
 `EXECUTE` for the two public roles, and four that the app calls for its users gained a caller check.
-`0776` did the same for thirty-one policies. What a policy and a function must ask is in
-ENGINEERING §3; `pnpm ci:migrations` refuses a new open policy.
+The same two migrations replaced the thirty-one policies that asked only whether an account was
+signed in (twenty-eight reads in `0776`, three inserts in `0777`). What a policy and a function must
+ask is in ENGINEERING §3; `pnpm ci:migrations` refuses a new open policy.
 
 **What is not done.** The default itself. Changing it
 (`alter default privileges … revoke execute on functions from anon, authenticated`, and from `public`)
