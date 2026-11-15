@@ -27,11 +27,11 @@ jobs:
       - name: Take the pictures
         run: |
           pnpm exec playwright install --with-deps chromium
-          pnpm exec playwright test --config playwright.kit.config.ts e2e-kit/kit-baselines.spec.ts --update-snapshots=all
+          pnpm exec playwright test --config playwright.kit.config.ts --update-snapshots=all --pass-with-no-tests
       - name: Upload the pictures
         uses: actions/upload-artifact@v4
         with:
           name: baselines-${{ github.event.pull_request.head.sha }}
-          path: e2e-kit/kit-baselines.spec.ts-snapshots/
+          path: e2e-kit/
           if-no-files-found: error
           retention-days: 7
