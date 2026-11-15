@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import postgres, { type Sql } from 'postgres';
+import postgres, { type ReservedSql, type Sql } from 'postgres';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { assertDisposableTestDatabase } from './lib/doc-no-fixture';
 
@@ -14,6 +14,11 @@ import { assertDisposableTestDatabase } from './lib/doc-no-fixture';
  * The fixture first reproduces the open state (a table with no row-level security, granted to both roles, and the
  * default that grants the next one) and PROVES it is open, so a script that did nothing could not pass.
  *
+ * LEAVES NOTHING BEHIND. The script changes the owner of every table and the privileges of two roles, which is
+ * exactly what it is for and exactly what the next test file must not inherit. So the whole file runs inside ONE
+ * transaction on one connection and rolls it back at the end: roles, owners, privileges and the fixture all go.
+ * Each attempt as another role is a savepoint, so `set local role` and a refused statement are both undone.
+ *
  * Needs a disposable database: TEST_DATABASE_URL=postgres://...@127.0.0.1/houzs_test. SKIPPED without it. */
 
 const url = process.env.TEST_DATABASE_URL ?? '';
@@ -23,35 +28,47 @@ const PUBLIC_ROLES = ['anon', 'authenticated'] as const;
 const PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] as const;
 
 let sql: Sql;
+let db: ReservedSql;
 
-/** What one role can do to one table, tried for real rather than read off the catalogue. */
-async function attempt(role: string, statement: string): Promise<'done' | 'refused'> {
+/** Runs `work` as `role` inside a savepoint and undoes it: the role, and whatever the statements did. */
+async function as<T>(role: string, work: () => Promise<T>): Promise<T | 'refused'> {
+  await db.unsafe('savepoint as_role');
   try {
-    await sql.begin(async (tx) => {
-      await tx.unsafe(`set local role ${role}`);
-      await tx.unsafe(statement);
-      throw new Error('ROLL_BACK');
-    });
+    await db.unsafe(`set local role ${role}`);
+    return await work();
   } catch (e) {
-    const err = e as { message?: string; code?: string };
-    if (err.message === 'ROLL_BACK') return 'done';
-    if (err.code === '42501') return 'refused';
+    if ((e as { code?: string }).code === '42501') return 'refused';
     throw e;
+  } finally {
+    await db.unsafe('rollback to savepoint as_role');
   }
-  return 'done';
 }
 
-/** Every table in public a public role still holds any privilege on. */
+/** What one role can do to one table, tried for real rather than read off the catalogue. */
+const attempt = (role: string, statement: string) =>
+  as(role, async () => {
+    await db.unsafe(statement);
+    return 'done' as const;
+  });
+
+/** Every table or view in public a public role still holds any privilege on. */
 async function reachable(): Promise<string[]> {
-  const rows = await sql<{ t: string }[]>`
+  const rows = await db.unsafe<{ t: string }[]>(`
     select distinct c.relname as t
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
-     cross join unnest(${sql.array([...PUBLIC_ROLES])}::text[]) as r(role)
-     cross join unnest(${sql.array([...PRIVILEGES])}::text[]) as p(priv)
+     cross join unnest(array[${PUBLIC_ROLES.map((r) => `'${r}'`).join(', ')}]) as r(role)
+     cross join unnest(array[${PRIVILEGES.map((p) => `'${p}'`).join(', ')}]) as p(priv)
      where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm')
        and has_table_privilege(r.role, c.oid, p.priv)
-     order by 1`;
+     order by 1`);
+  return rows.map((r) => r.t);
+}
+
+async function withoutRowSecurity(): Promise<string[]> {
+  const rows = await db.unsafe<{ t: string }[]>(`
+    select c.relname as t from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity`);
   return rows.map((r) => r.t);
 }
 
@@ -59,7 +76,9 @@ describePg('Carres engine: the data API\'s public keys reach no table in public'
   beforeAll(async () => {
     assertDisposableTestDatabase(url);
     sql = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
-    await sql.unsafe(`
+    db = await sql.reserve();
+    await db.unsafe('begin');
+    await db.unsafe(`
       do $$ begin
         if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
         if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
@@ -69,7 +88,6 @@ describePg('Carres engine: the data API\'s public keys reach no table in public'
       end $$;
       create schema if not exists scm;
       grant usage on schema public to anon, authenticated, service_role, scm_engine;
-      drop table if exists public.zzt_open_table, public.zzt_later_table;
       -- The open state, as a Houzs step leaves it on Supabase: no row-level security, both public roles granted,
       -- and the default that hands them the next table too.
       alter default privileges in schema public grant all on tables to anon, authenticated;
@@ -78,13 +96,16 @@ describePg('Carres engine: the data API\'s public keys reach no table in public'
   });
 
   afterAll(async () => {
-    if (!sql) return;
-    await sql.unsafe('drop table if exists public.zzt_open_table, public.zzt_later_table');
-    await sql.end();
+    if (db) {
+      await db.unsafe('rollback');
+      db.release();
+    }
+    if (sql) await sql.end();
   });
 
   test('before the script the fixture really is open (or this suite proves nothing)', async () => {
     expect(await reachable()).toContain('zzt_open_table');
+    expect(await withoutRowSecurity()).toContain('zzt_open_table');
     for (const role of PUBLIC_ROLES) {
       expect(await attempt(role, 'select * from public.zzt_open_table')).toBe('done');
       expect(await attempt(role, "insert into public.zzt_open_table values (2, 'x')")).toBe('done');
@@ -92,12 +113,9 @@ describePg('Carres engine: the data API\'s public keys reach no table in public'
   });
 
   test('after it, row-level security is on for every table and neither public role holds a privilege', async () => {
-    await sql.unsafe(await readFile(SCRIPT, 'utf8'));
+    await db.unsafe(await readFile(SCRIPT, 'utf8'));
 
-    const off = await sql<{ t: string }[]>`
-      select c.relname as t from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity`;
-    expect(off.map((r) => r.t)).toEqual([]);
+    expect(await withoutRowSecurity()).toEqual([]);
     expect(await reachable()).toEqual([]);
 
     for (const role of PUBLIC_ROLES) {
@@ -109,20 +127,20 @@ describePg('Carres engine: the data API\'s public keys reach no table in public'
   });
 
   test('the engine still reads and writes its own tables: it is their owner', async () => {
-    const owner = await sql<{ o: string }[]>`
-      select pg_get_userbyid(relowner) as o from pg_class where oid = 'public.zzt_open_table'::regclass`;
+    const owner = await db.unsafe<{ o: string }[]>(
+      `select pg_get_userbyid(relowner) as o from pg_class where oid = 'public.zzt_open_table'::regclass`);
     expect(owner[0]?.o).toBe('scm_engine');
 
-    const seen = await sql.begin(async (tx) => {
-      await tx.unsafe('set local role scm_engine');
-      await tx.unsafe("insert into public.zzt_open_table values (3, 'ZZT-ENGINE-WRITE')");
-      return tx<{ note: string }[]>`select note from public.zzt_open_table order by id`;
+    const seen = await as('scm_engine', async () => {
+      await db.unsafe("insert into public.zzt_open_table values (3, 'ZZT-ENGINE-WRITE')");
+      const rows = await db.unsafe<{ note: string }[]>('select note from public.zzt_open_table order by id');
+      return rows.map((r) => r.note);
     });
-    expect(seen.map((r) => r.note)).toEqual(['ZZT-ENGINE-ROW', 'ZZT-ENGINE-WRITE']);
+    expect(seen).toEqual(['ZZT-ENGINE-ROW', 'ZZT-ENGINE-WRITE']);
   });
 
   test('a table the admin makes afterwards is not handed to the public roles', async () => {
-    await sql.unsafe('create table public.zzt_later_table (id int primary key)');
+    await db.unsafe('create table public.zzt_later_table (id int primary key)');
     expect(await reachable()).toEqual([]);
     for (const role of PUBLIC_ROLES) {
       expect(await attempt(role, 'select * from public.zzt_later_table')).toBe('refused');
@@ -131,11 +149,9 @@ describePg('Carres engine: the data API\'s public keys reach no table in public'
 
   test('running it again changes nothing and still closes a table made in between', async () => {
     // zzt_later_table was made with no row-level security: the next run turns it on.
-    await sql.unsafe(await readFile(SCRIPT, 'utf8'));
-    const off = await sql<{ t: string }[]>`
-      select c.relname as t from pg_class c join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind in ('r', 'p') and not c.relrowsecurity`;
-    expect(off.map((r) => r.t)).toEqual([]);
+    expect(await withoutRowSecurity()).toEqual(['zzt_later_table']);
+    await db.unsafe(await readFile(SCRIPT, 'utf8'));
+    expect(await withoutRowSecurity()).toEqual([]);
     expect(await reachable()).toEqual([]);
   });
 });
