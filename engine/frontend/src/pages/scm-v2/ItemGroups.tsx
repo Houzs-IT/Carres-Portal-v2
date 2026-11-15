@@ -149,7 +149,9 @@ export const ItemGroupsTab = () => {
   if (activeCo == null) return <div className={sp.page}><div className={sp.problem}>No company grants resolve for this session.</div></div>;
 
   const rows = groupsQ.data.groups;
-  const coCode = companies.find((co) => co.id === activeCo)?.code ?? String(activeCo);
+  // Carres: the company's name on screen, not its internal code (owner, 15 Nov 2026).
+  const activeCompany = companies.find((co) => co.id === activeCo) as { code?: string; name?: string } | undefined;
+  const coCode = activeCompany?.name ?? activeCompany?.code ?? String(activeCo);
 
   const draftOf = (code: string, saved: ItemGroupBinding | undefined): ItemGroupBinding =>
     pick(drafts, code) ?? saved ?? pick(SUGGESTED, code) ?? EMPTY;

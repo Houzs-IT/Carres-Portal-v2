@@ -85,8 +85,8 @@ describe("permission filtering — before display, never after", () => {
 
   it("a recent destination the role lost is dropped, not replayed from storage", () => {
     const opsDoors = permittedDestinations("operation");
-    expect(resolveRecents(["principal:approvals", "operation:work"], opsDoors)).toEqual([
-      opsDoors.find((d) => d.id === "operation:work"),
+    expect(resolveRecents(["principal:approvals", "operation:orders"], opsDoors)).toEqual([
+      opsDoors.find((d) => d.id === "operation:orders"),
     ]);
   });
 });
@@ -96,7 +96,7 @@ describe("the empty query", () => {
     localStorage.setItem(
       "carres-jump-recent",
       JSON.stringify([
-        "operation:work",
+        "operation:announcements",
         "operation:orders",
         "operation:stock",
         "operation:mail-center",
@@ -120,7 +120,7 @@ describe("the empty query", () => {
      * entry, the sidebar's own word. ⌘K composes from `visibleItems`, so the rail and the jump surface
      * can never drift into two words for one destination. */
     expect(labels.slice(0, 5)).toEqual([
-      "WorkspaceOperations",
+      "AnnouncementsOperations",
       "Sales OrdersOperations",
       "InventoryOperations",
       // Houzs's Mail Center, a plain System row (owner, 11 Nov 2026).

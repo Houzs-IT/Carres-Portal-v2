@@ -28,8 +28,6 @@ vi.mock("./components/GlobalTopBar", () => ({
   default: () => <div data-testid="global-topbar-stub">topbar</div>,
   TopBarIcons: () => <div data-testid="topbar-icons-stub">icons</div>,
 }));
-vi.mock("./tasks/WorkspaceTasks", () => ({ default: () => <div data-testid="work-stub">work</div> }));
-vi.mock("./OperationLeave", () => ({ default: () => <div data-testid="leave-stub">leave</div> }));
 vi.mock("./OperationRental", () => ({ default: () => <div data-testid="rental-stub">rental</div> }));
 import { useAuth } from "@/lib/auth";
 import OperationApp from "./OperationApp";
@@ -101,8 +99,6 @@ describe("OperationApp — retired Carres addresses move to the nearest engine r
 
 describe("OperationApp — Carres's own pages stay", () => {
   it.each([
-    ["/operation?tab=work", "work-stub"],
-    ["/operation?tab=leave", "leave-stub"],
     ["/operation?tab=rental", "rental-stub"],
   ])("%s mounts its page", (path, id) => {
     renderApp(path);
@@ -110,6 +106,11 @@ describe("OperationApp — Carres's own pages stay", () => {
     expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("shell-header")).toHaveLength(1);
     expect(screen.getByTestId("shell-tasks-stub")).toBeInTheDocument();
+  });
+
+  it.each(["/operation?tab=work", "/operation?tab=leave"])("%s (retired Workspace and Leave) opens Houzs's Overview", (path) => {
+    renderApp(path);
+    expect(at()).toBe("/operation/sc/overview");
   });
 
   it("the retired Payments desk forwards to the Finance monitor with its order", () => {
@@ -185,9 +186,9 @@ describe("OperationApp — on a phone an engine page is Houzs's own phone app", 
 
   it("keeps the phone header on Carres's own pages", () => {
     phoneWidth(true);
-    renderApp("/operation?tab=work");
+    renderApp("/operation?tab=rental");
     expect(screen.getByTestId("phone-menu-button")).toBeInTheDocument();
-    expect(screen.getByTestId("work-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("rental-stub")).toBeInTheDocument();
   });
 
   it("leaves the computer shell as it was", () => {

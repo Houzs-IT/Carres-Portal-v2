@@ -35,7 +35,6 @@ import {
   BookOpenText,
   Hourglass,
   TrendingUp,
-  Home,
   ShoppingCart,
   Warehouse,
   Handshake,
@@ -396,8 +395,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
         roles: ["operation", "principal", "hr"],
         needs: "payment-requester",
       },
-      // Carres-only: My Work / Team Work. No Leave row (owner 14 Nov 2026: Carres does not use leave here).
-      { key: "work", label: "Workspace", icon: Home, mIcon: "home", section: "Workspace" },
+      /* No Carres Workspace (My Work / Team Work) or Leave row (owner 14-15 Nov 2026): Houzs's Overview is the home. */
 
       /* SERVICE CASES */
       { key: "service-quality", label: "Quality Overview", icon: ShieldCheck, path: "/operation/sc/service-quality", section: "Customer Care" },

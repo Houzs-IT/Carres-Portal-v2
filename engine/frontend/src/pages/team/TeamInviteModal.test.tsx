@@ -56,10 +56,10 @@ afterEach(() => {
 });
 
 describe("TeamInviteModal — Role", () => {
-  test("defaults to the baseline role and sends the one the admin picks", async () => {
+  test("starts with no role picked (Carres) and sends the one the admin picks", async () => {
     mount();
     const select = screen.getByLabelText("Role") as HTMLSelectElement;
-    expect(select.value).toBe("328");
+    expect(select.value).toBe("");
 
     fireEvent.change(select, { target: { value: "8" } });
     fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "new.member@houzs.test" } });
@@ -77,6 +77,7 @@ describe("TeamInviteModal — Role", () => {
     fireEvent.change(screen.getByPlaceholderText("Full name"), { target: { value: "Nur Aina Rahman" } });
     expect(screen.getByPlaceholderText("nur.rahman@houzscentury.com")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "aina@houzs.test" } });
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "328" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect((post.mock.calls[0] as unknown as [string, Record<string, unknown>])[1].email_alias).toBeUndefined();
@@ -86,6 +87,7 @@ describe("TeamInviteModal — Role", () => {
     mount();
     fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "aina@houzs.test" } });
     fireEvent.change(screen.getByPlaceholderText("first.last@houzscentury.com"), { target: { value: "aina.r@houzscentury.com" } });
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "328" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect((post.mock.calls[0] as unknown as [string, Record<string, unknown>])[1].email_alias).toBe("aina.r@houzscentury.com");
@@ -116,6 +118,7 @@ describe("TeamInviteModal — Carres portal login", () => {
     post.mockResolvedValueOnce({ active: true, carres_portal: { status: "created", role: "operation", email_sent: true } } as never);
     mount();
     fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "new@carres.test" } });
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "328" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
     expect(await screen.findByText("Invitation emailed to new@carres.test")).toBeTruthy();
     expect(screen.getByText(/sign in to the Carres portal/)).toBeTruthy();
@@ -125,6 +128,7 @@ describe("TeamInviteModal — Carres portal login", () => {
     post.mockResolvedValueOnce({ active: true, carres_portal: { status: "existing", role: "finance", email_sent: false } } as never);
     mount();
     fireEvent.change(screen.getByPlaceholderText("name@carresofficial.com"), { target: { value: "old@carres.test" } });
+    fireEvent.change(screen.getByLabelText("Role"), { target: { value: "328" } });
     fireEvent.click(screen.getByRole("button", { name: /Send invite/i }));
     expect(await screen.findByText("Member added for old@carres.test")).toBeTruthy();
     expect(screen.getByText(/portal password is unchanged/)).toBeTruthy();

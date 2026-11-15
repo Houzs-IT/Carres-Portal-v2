@@ -161,9 +161,10 @@ export const itemGroupsList = async (c: any): Promise<Response> => {
     byGroup.set(b.group_code, at);
   }
 
-  const companies = ((c.get('companies') as Array<{ id: number; code: string }> | undefined) ?? [])
+  // Carres: the name goes with the code, so the page can show "Carres" rather than the internal code.
+  const companies = ((c.get('companies') as Array<{ id: number; code: string; name?: string }> | undefined) ?? [])
     .filter((co) => ids.includes(co.id))
-    .map((co) => ({ id: co.id, code: co.code }));
+    .map((co) => ({ id: co.id, code: co.code, name: co.name }));
 
   return c.json({
     companies,
