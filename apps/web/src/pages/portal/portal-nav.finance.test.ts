@@ -1,8 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
-import { PORTAL_MODULES, PORTAL_NAV, engineAddressFor, engineFor, navBlocks, navItemHref, roleMayOpenEngineRow, visibleItems } from "./portal-nav";
+import { PORTAL_NAV, engineAddressFor, engineFor, navItemHref, roleMayOpenEngineRow, visibleItems } from "./portal-nav";
 
 /**
  * ⭐ THE FINANCE MODULES — the Houzs tree (Weisiang, WhatsApp 2026-11-01;
@@ -25,14 +22,6 @@ import { PORTAL_MODULES, PORTAL_NAV, engineAddressFor, engineFor, navBlocks, nav
  * so every page keeps its address.
  */
 
-const FINANCE = PORTAL_NAV.find((g) => g.area === "finance")!;
-
-const shape = (role: "finance" | "principal") =>
-  navBlocks(FINANCE, role).map((b) =>
-    b.kind === "module"
-      ? `${b.module.label}: ${b.pages.map((p) => p.label).join(" · ")}`
-      : b.item.label,
-  );
 
 /* The old Carres Finance area is removed (owner, 16 Nov 2026); its rail tests went with it. */
 describe("Payment Requests in the Operations rail", () => {
