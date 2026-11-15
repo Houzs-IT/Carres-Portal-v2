@@ -31,8 +31,9 @@ import type { SyncStatusResponse, Paginated, ExecutionLog } from "../types";
 import { CARRES_AUTOCOUNT } from "../carres/navOnly"; // Carres: no AutoCount, no Sync tab
 import { correlatedFetch } from "../lib/requestCorrelation";
 import { DocumentTypesTab } from "./settings/DocumentTypesTab";
+import { SupplierAccessTab } from "../carres/supplier-staff/SupplierAccessTab"; // Carres: Settings › Supplier Access
 
-type SettingsTab = "connection" | "sync" | "email" | "branding" | "documents" | "logs";
+type SettingsTab = "connection" | "sync" | "email" | "branding" | "documents" | "suppliers" | "logs"; // Carres: + suppliers
 
 const SETTINGS_KEYS = ["tab"] as const;
 
@@ -47,7 +48,7 @@ export function Settings() {
 
   const raw = params.get("tab") as SettingsTab | null;
   const active: SettingsTab =
-    raw && ["connection", "sync", "email", "branding", "documents", "logs"].includes(raw) && (CARRES_AUTOCOUNT || raw !== "sync") // Carres
+    raw && ["connection", "sync", "email", "branding", "documents", "suppliers", "logs"].includes(raw) && (CARRES_AUTOCOUNT || raw !== "sync") // Carres
       ? raw
       : "connection";
 
@@ -66,6 +67,7 @@ export function Settings() {
     { value: "email", label: "Email" },
     { value: "branding", label: "Branding" },
     { value: "documents", label: "Documents" },
+    { value: "suppliers", label: "Supplier Access" }, // Carres
     { value: "logs", label: "Activity Log" },
   ];
 
@@ -95,6 +97,12 @@ export function Settings() {
       description:
         "The document-type registry behind reference numbers ([DEPT]-[TYPE]-[YYMM]-[NNNN]) and the attachment-required-before-submit policy per type.",
     },
+    // Carres: who among the suppliers may sign in to their own pages, and what each is shared.
+    suppliers: {
+      title: "Supplier Access",
+      description:
+        "Which suppliers may sign in to their own pages, which Sales Orders each one sees, and its people. Suppliers are not Team members and get no staff access.",
+    },
     logs: {
       title: "Activity Log",
       description: "Execution history across every sync and scheduled job.",
@@ -122,6 +130,7 @@ export function Settings() {
       {active === "email" && <EmailTab />}
       {active === "branding" && <BrandingTab />}
       {active === "documents" && <DocumentTypesTab />}
+      {active === "suppliers" && <SupplierAccessTab />}
       {active === "logs" && <ActivityLog />}
 
       {/* Third-party asset attribution (owner 2026-07-24: keep the Icons8

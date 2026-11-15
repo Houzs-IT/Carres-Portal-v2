@@ -87,9 +87,17 @@ const AcceptInviteScreen = lazy(() => import("./auth/AuthScreens").then((m) => (
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy").then((m) => ({ default: m.PrivacyPolicy })));
 const ContractorCalendar = lazy(() => import("./pages/ContractorCalendar").then((m) => ({ default: m.ContractorCalendar })));
 const BrandCalendar = lazy(() => import("./pages/ContractorCalendar").then((m) => ({ default: m.BrandCalendar })));
+// Carres: the Supplier Platform, a public surface with its own sign-in (carres/supplier/SupplierApp.tsx).
+const SupplierApp = lazy(() => import("./carres/supplier/SupplierApp").then((m) => ({ default: m.SupplierApp })));
 
 function PublicFallback() {
   return <div className="flex min-h-screen items-center justify-center text-sm text-ink-muted">Loading</div>;
+}
+
+/* Carres: the install prompt offers the STAFF app ("Install Carres · ERP") and asks the staff API for its branding.
+   A supplier's pages are not the staff app, so a supplier is shown neither. Every other surface is as Houzs has it. */
+function StaffPwaBanners() {
+  return useAppSurface() === "supplier" ? null : <PwaBanners />;
 }
 
 // Register the service worker + capture installability events.
@@ -194,6 +202,15 @@ if (LOGIN_AS_HOSTS.has(window.location.hostname)) {
 // short-circuit it into the dashboard.
 function RootApp() {
   const surface = useAppSurface();
+  if (surface === "supplier") {
+    /* Carres: a supplier's own pages. Outside AuthProvider and AuthGate on purpose: a supplier is not staff, holds
+       no staff session and must never be shown (or redirected to) the staff sign-in. */
+    return (
+      <LazySlot resetKey={`public:${surface}`} fallback={<PublicFallback />}>
+        <SupplierApp />
+      </LazySlot>
+    );
+  }
   if (surface === "survey") {
     return (
       <LazySlot resetKey={`public:${surface}`} fallback={<PublicFallback />}>
@@ -336,7 +353,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
        <DialogProvider>
         <RootApp />
         <LazySlot resetKey="leave-guard" fallback={null}><LeaveGuardBridge /></LazySlot>
-        <PwaBanners />
+        <StaffPwaBanners />
        </DialogProvider>
       </ToastProvider>
     </BrowserRouter>

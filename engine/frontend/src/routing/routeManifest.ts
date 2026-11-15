@@ -37,6 +37,7 @@ export const STAFF_ROUTE_PATTERNS = [
   "/mail-center",
   "/mail-center/:id",
   "/scm/suppliers",
+  "/scm/supplier-pickups", // Carres: the Carres side of the Supplier Platform's pickup requests
   "/scm/purchase-orders",
   "/scm/purchase-orders/new",
   "/scm/purchase-orders/from-so",
