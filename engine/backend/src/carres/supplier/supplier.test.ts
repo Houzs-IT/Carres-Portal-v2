@@ -1,0 +1,219 @@
+import { describe, expect, it } from "vitest";
+import { addressLines, buildMap, buildTrail, foldForecast, orderPickupState, type OrderLine } from "./orders";
+import { cleanAccessInput } from "./access";
+import {
+  WORKER_SUBREQUEST_ADDRESS, callerAddress, decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
+} from "./credentials";
+import { pickAgreement, pickSummary, signFinanceBody } from "./finance";
+import { forSupplier, todayMyt, type StaffPickup } from "./pickups";
+
+const line = (state: OrderLine["pickup"]["state"], requestNo: string | null = null): OrderLine => ({
+  soItemId: "i", lineNo: 0, itemCode: "M1", description: "Mattress", spec: null, category: "MATTRESS", modelName: null, uom: "UNIT", qty: 1,
+  pickup: { state, requestId: requestNo ? "r" : null, requestNo, expectedDate: null },
+});
+
+describe("orderPickupState", () => {
+  it("names where an order's shared lines stand", () => {
+    expect(orderPickupState({ lines: 2, requested: 0, accepted: 0, collected: 0 })).toBe("none");
+    expect(orderPickupState({ lines: 2, requested: 1, accepted: 0, collected: 0 })).toBe("requested");
+    expect(orderPickupState({ lines: 2, requested: 1, accepted: 1, collected: 0 })).toBe("requested");
+    expect(orderPickupState({ lines: 2, requested: 0, accepted: 2, collected: 0 })).toBe("accepted");
+    // One line accepted and one not asked for yet: still waiting on something.
+    expect(orderPickupState({ lines: 2, requested: 0, accepted: 1, collected: 0 })).toBe("requested");
+    expect(orderPickupState({ lines: 2, requested: 0, accepted: 1, collected: 1 })).toBe("part_collected");
+    expect(orderPickupState({ lines: 2, requested: 0, accepted: 0, collected: 2 })).toBe("collected");
+    expect(orderPickupState({ lines: 0, requested: 0, accepted: 0, collected: 0 })).toBe("none");
+  });
+});
+
+describe("addressLines", () => {
+  it("shows the two street lines, then one line of postcode, city and state", () => {
+    expect(addressLines({ address1: " 12, Jalan  Satu ", address2: "Taman Dua", postcode: "47000", city: "Klang", customer_state: "Selangor" }))
+      .toEqual(["12, Jalan Satu", "Taman Dua", "47000 Klang Selangor"]);
+  });
+  it("does not repeat a part the street lines already carry, or a city that is also the state", () => {
+    expect(addressLines({ address1: "1 Jalan A, 50000 Kuala Lumpur", address2: null, postcode: "50000", city: "Kuala Lumpur", customer_state: "Kuala Lumpur" }))
+      .toEqual(["1 Jalan A, 50000 Kuala Lumpur"]);
+    expect(addressLines({ address1: "1 Jalan A", postcode: "", city: "Labuan", customer_state: "Labuan" })).toEqual(["1 Jalan A", "Labuan"]);
+    expect(addressLines({})).toEqual([]);
+  });
+});
+
+describe("buildTrail", () => {
+  it("starts with the order coming in, tells each stage once, and never shows Draft", () => {
+    const trail = buildTrail("2026-11-01T00:00:00Z", [
+      { at: "2026-11-02T00:00:00Z", status: "IN_PRODUCTION" },
+      { at: "2026-11-01T00:00:00Z", status: "DRAFT" },
+      { at: "2026-11-01T01:00:00Z", status: "confirmed" },
+      { at: "2026-11-02T00:00:01Z", status: "IN_PRODUCTION" },
+      { at: "2026-11-05T00:00:00Z", status: "" },
+    ], []);
+    expect(trail.map((t) => t.code)).toEqual(["RECEIVED", "CONFIRMED", "IN_PRODUCTION"]);
+  });
+  it("a stage that is entered again after another is told again", () => {
+    const trail = buildTrail(null, [
+      { at: "2026-11-01T00:00:00Z", status: "ON_HOLD" },
+      { at: "2026-11-02T00:00:00Z", status: "CONFIRMED" },
+      { at: "2026-11-03T00:00:00Z", status: "ON_HOLD" },
+    ], []);
+    expect(trail.map((t) => t.code)).toEqual(["ON_HOLD", "CONFIRMED", "ON_HOLD"]);
+  });
+  it("weaves the pickup request in by time and keeps the order coming in first whatever the clocks say", () => {
+    const trail = buildTrail("2026-11-20T00:00:00Z", [{ at: "2026-11-02T00:00:00Z", status: "IN_PRODUCTION" }], [{
+      requestNo: "CR-PKR-2611-001", expectedDate: "2026-11-10", requestedAt: "2026-11-03T00:00:00Z", acceptedAt: "2026-11-04T00:00:00Z",
+      collectedAt: "2026-11-10T00:00:00Z", cancelledAt: null,
+    }]);
+    expect(trail.map((t) => t.code)).toEqual(["RECEIVED", "IN_PRODUCTION", "PICKUP_REQUESTED", "PICKUP_ACCEPTED", "PICKUP_COLLECTED"]);
+    expect(trail[2]).toMatchObject({ ref: "CR-PKR-2611-001", detail: "2026-11-10" });
+  });
+});
+
+describe("buildMap", () => {
+  it("is five tiles: the order, its pickup request, collected, out for delivery, delivered", () => {
+    const map = buildMap({ docNo: "CR-SO-2611-001", status: "CONFIRMED", pickupState: "none", lines: [line("none")] }, []);
+    expect(map.map((n) => [n.type, n.state])).toEqual([
+      ["Sales Order", "current"], ["Pickup Request", "pending"], ["Collected", "pending"], ["Out for Delivery", "pending"], ["Delivered", "pending"],
+    ]);
+    expect(map[1]!.doc).toBe("Not requested");
+  });
+  it("names the request, and says when more than one touches the order", () => {
+    const one = buildMap({ docNo: "S", status: "IN_PRODUCTION", pickupState: "requested", lines: [line("requested", "CR-PKR-2611-001")] }, []);
+    expect(one[1]).toMatchObject({ doc: "CR-PKR-2611-001", state: "done", meta: "Waiting for you to accept" });
+    const two = buildMap({ docNo: "S", status: "IN_PRODUCTION", pickupState: "accepted", lines: [line("accepted", "CR-PKR-2611-001"), line("accepted", "CR-PKR-2611-002")] }, []);
+    expect(two[1]).toMatchObject({ doc: "CR-PKR-2611-001 +1", meta: "Accepted" });
+  });
+  it("marks collected, shipped and delivered from the order's own facts", () => {
+    const trail = buildTrail(null, [{ at: "2026-11-08T02:00:00Z", status: "SHIPPED" }, { at: "2026-11-09T02:00:00Z", status: "DELIVERED" }], [{
+      requestNo: "R", expectedDate: null, requestedAt: "2026-11-03T00:00:00Z", acceptedAt: null, collectedAt: "2026-11-05T00:00:00Z", cancelledAt: null,
+    }]);
+    const map = buildMap({ docNo: "S", status: "DELIVERED", pickupState: "collected", lines: [line("collected", "R")] }, trail);
+    expect(map.map((n) => n.state)).toEqual(["current", "done", "done", "done", "done"]);
+    expect(map.slice(2).map((n) => n.meta)).toEqual(["2026-11-05", "2026-11-08", "2026-11-09"]);
+  });
+});
+
+describe("foldForecast", () => {
+  it("folds months into one row an item and its specification, largest first, undated last", () => {
+    const base = { description: "Cloud", modelName: "Cloud", category: "MATTRESS", uom: "UNIT" };
+    const f = foldForecast([
+      { ...base, itemCode: "M1", spec: "Queen", month: "2026-12", incoming: 2, processing: 0 },
+      { ...base, itemCode: "M1", spec: "Queen", month: "", incoming: 1, processing: 0 },
+      { ...base, itemCode: "M1", spec: "Queen", month: "2027-01", incoming: 0, processing: 3 },
+      { ...base, itemCode: "M1", spec: "King", month: "2026-12", incoming: 1, processing: 0 },
+    ]);
+    expect(f.months).toEqual(["2026-12", "2027-01", ""]);
+    expect(f.rows.map((r) => [r.spec, r.incoming, r.processing, r.total])).toEqual([["Queen", 3, 3, 6], ["King", 1, 0, 1]]);
+    expect(f.rows[0]!.byMonth).toEqual({ "2026-12": 2, "": 1, "2027-01": 3 });
+  });
+});
+
+describe("credentials", () => {
+  it("a token is long and random, and only its hash is ever comparable", async () => {
+    const a = newToken();
+    const b = newToken();
+    expect(a).not.toBe(b);
+    expect(a.length).toBeGreaterThanOrEqual(43);
+    expect(await sha256Hex(a)).toMatch(/^[0-9a-f]{64}$/);
+    expect(await sha256Hex(a)).not.toBe(await sha256Hex(b));
+    expect(await sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+  it("normalises and checks an email", () => {
+    expect(normEmail("  Ana@Supplier.COM ")).toBe("ana@supplier.com");
+    expect(normEmail({ $ne: null })).toBe("");
+    expect(isEmail("ana@supplier.com")).toBe(true);
+    expect(isEmail("ana@supplier")).toBe(false);
+    expect(isEmail(`${"a".repeat(250)}@x.co`)).toBe(false);
+  });
+  it("refuses a short, an endless, a one-letter and an email password", () => {
+    expect(passwordProblem("short", "a@b.co")).toMatch(/at least 10/);
+    expect(passwordProblem("x".repeat(201), "a@b.co")).toMatch(/at most 200/);
+    expect(passwordProblem("aaaaaaaaaaaa", "a@b.co")).toMatch(/more than one/);
+    expect(passwordProblem("Ana@Supplier.com", "ana@supplier.com")).toMatch(/email/);
+    expect(passwordProblem(["correct horse battery"], "a@b.co")).not.toBeNull();
+    expect(passwordProblem("correct horse battery", "a@b.co")).toBeNull();
+  });
+  it("an address every caller shares is not an address: it is neither counted nor recorded", () => {
+    // Through the engine site's /api proxy every browser arrives under Cloudflare's one Worker-to-Worker address.
+    expect(callerAddress(WORKER_SUBREQUEST_ADDRESS)).toBeNull();
+    expect(callerAddress("2A06:98C0:3600::103 ")).toBeNull();
+    expect(callerAddress("unknown")).toBeNull();
+    expect(callerAddress("")).toBeNull();
+    expect(callerAddress(undefined)).toBeNull();
+    expect(callerAddress(null)).toBeNull();
+    // A caller's own address is kept as it came, lower-cased, and never longer than an address can be.
+    expect(callerAddress(" 203.0.113.9 ")).toBe("203.0.113.9");
+    expect(callerAddress("2001:DB8::1")).toBe("2001:db8::1");
+    expect(callerAddress("1".repeat(200))).toHaveLength(64);
+  });
+  it("the decoy is a real hash that no password opens", async () => {
+    const decoy = await decoyHash();
+    expect(decoy).toBe(await decoyHash());
+    expect(await verifyPassword("anything at all", decoy)).toBe(false);
+    const real = await hashPassword("correct horse battery");
+    expect(await verifyPassword("correct horse battery", real)).toBe(true);
+    expect(await verifyPassword("correct horse batterx", real)).toBe(false);
+  });
+});
+
+describe("cleanAccessInput", () => {
+  const input = (over: Record<string, unknown> = {}) => ({ enabled: true, ownItems: false, subscriptionShare: false, categories: ["mattress"], modelIds: [], skuCodes: [], ...over });
+  it("upper-cases categories and drops repeats", () => {
+    expect(cleanAccessInput(input({ categories: ["mattress", "MATTRESS", " sofa "] }))).toMatchObject({ ok: true, value: { categories: ["MATTRESS", "SOFA"] } });
+  });
+  it("only a true switch is on", () => {
+    expect(cleanAccessInput(input({ enabled: "true", subscriptionShare: 1, ownItems: "yes" }))).toMatchObject({ ok: true, value: { enabled: false, subscriptionShare: false, ownItems: false } });
+  });
+  it("refuses access switched on with nothing to share, and a scope that is not a list of words", () => {
+    expect(cleanAccessInput(input({ categories: [] }))).toMatchObject({ ok: false });
+    expect(cleanAccessInput(input({ categories: "MATTRESS" }))).toMatchObject({ ok: false });
+    expect(cleanAccessInput(input({ skuCodes: [{ code: "x" }] }))).toMatchObject({ ok: false });
+    expect(cleanAccessInput(input({ modelIds: ["not-a-uuid"] }))).toMatchObject({ ok: false });
+    expect(cleanAccessInput(input({ enabled: false, categories: [] }))).toMatchObject({ ok: true });
+  });
+});
+
+describe("finance", () => {
+  it("passes on only the fields it names, whatever else the portal answers", () => {
+    const summary = pickSummary({
+      asOf: "2026-11-15", secret: "LEAK",
+      totals: { orders: 1, contractValue: 3540, shareTotal: 1734.6, commissionTotal: 708, stripe: "LEAK" },
+      months: [{ month: "2026-11", due: 59, dueShare: 28.91, commission: 11.8 }],
+      orders: [{ id: "a", agreementNo: "RA-1", customerName: "Tan", ratePct: 49, stripeCustomerId: "cus_LEAK", phone: "0127770001", commissionBasePct: 20 }],
+    });
+    const text = JSON.stringify(summary);
+    for (const word of ["LEAK", "commission", "stripe", "0127770001", "phone"]) expect(text).not.toContain(word);
+    expect(summary.orders[0]).toMatchObject({ agreementNo: "RA-1", customerName: "Tan", ratePct: 49, soNo: null, collected: 0 });
+    expect(summary.totals.orders).toBe(1);
+  });
+  it("one order's months keep to the same list", () => {
+    const a = pickAgreement({
+      asOf: "2026-11-15", order: { id: "a", agreementNo: "RA-1" },
+      instalments: [{ seq: 1, dueDate: "2026-06-07", amountDue: 59, state: "paid", paidOn: "2026-06-07", paidAmount: 59, share: 28.91, daysLate: 0, reference: "REF-LEAK", stripeInvoiceId: "in_LEAK", method: "stripe" }],
+    });
+    expect(JSON.stringify(a)).not.toMatch(/LEAK|method|reference/);
+    expect(Object.keys(a.instalments[0]!).sort()).toEqual(["amountDue", "daysLate", "dueDate", "paidAmount", "paidOn", "seq", "share", "state"]);
+  });
+  it("a body that is not what was expected answers empty figures, not an error", () => {
+    expect(pickSummary(null)).toMatchObject({ asOf: "", months: [], orders: [] });
+    expect(pickSummary({ orders: "x", totals: [] }).orders).toEqual([]);
+  });
+  it("signs with its own purpose word", async () => {
+    const a = await signFinanceBody("s".repeat(32), "{}", 1_700_000_000_000);
+    const b = await signFinanceBody("s".repeat(32), "{}", 1_700_000_000_000);
+    expect(a).toEqual(b);
+    expect(a.ts).toBe("1700000000000");
+    expect((await signFinanceBody("t".repeat(32), "{}", 1_700_000_000_000)).signature).not.toBe(a.signature);
+  });
+});
+
+describe("pickups", () => {
+  it("the supplier's copy of a request leaves out the Carres staff names", () => {
+    const p = { id: "1", requestNo: "CR-PKR-2611-001", requestedByName: "Jess", collectedByName: "Ali", cancelledByName: null, acceptedByName: "Ana", lines: [] } as unknown as StaffPickup;
+    const out = forSupplier(p) as unknown as Record<string, unknown>;
+    expect(Object.keys(out).sort()).toEqual(["acceptedByName", "id", "lines", "requestNo"]);
+  });
+  it("today is the Kuala Lumpur day", () => {
+    expect(todayMyt(Date.parse("2026-11-15T15:59:59Z"))).toBe("2026-11-15");
+    expect(todayMyt(Date.parse("2026-11-15T16:00:00Z"))).toBe("2026-11-16");
+  });
+});
