@@ -29,14 +29,34 @@ engine migration, each explained before it runs. Measure again first; do not wor
 
 **What.** The engine site forwards `/api/*` to the Worker from another Cloudflare zone, so every
 browser arrives at the Worker under Cloudflare's one address (`2a06:98c0:3600::103`). The supplier
-sign-in therefore cannot count wrong passwords per caller or record where a sign-in came from; it
-counts them per email (five in 15 minutes), which still stops guessing. It deliberately does not count
-that shared address, because a count everyone shares would let one outsider lock every supplier out
-(`credentials.ts` `callerAddress`, tested in `tests-pg/carresSupplierPlatform.pg.test.ts`).
+sign-in therefore cannot tell one caller from another. It limits wrong passwords per EMAIL (five in 15
+minutes, each try written before it is counted) and counts nothing per address, because a count on an
+address everyone shares would let one outsider lock every supplier out (`credentials.ts`
+`callerAddress`, `session.ts` `takeTry`, tested in `tests-pg/carresSupplierPlatform.pg.test.ts`).
 
-**Fix when it matters.** Have the site's `/api` function pass the browser's address in a header of its
-own and let the supplier routes trust it only for a call that came through a Worker. The staff
-sign-in has the same limit and keys its count by email and address together.
+**What that leaves (found by the independent review, 2026-11-15).** A per-email limit is the whole
+limit. So a person's sign-in can be held locked by someone who knows their email: Carres lets them
+back in with a new set-password link, and a session already open keeps working. And nothing slows one
+caller across many emails beyond each email's own five tries. Where a sign-in came from is not
+recorded for anyone who arrives through the site.
+
+**Fix when it matters.** The site's `/api` function passes the browser's address under a secret that
+the Worker checks; a header by itself proves nothing, since anyone's Worker arrives under the same
+address. Then the lock is kept per email AND address, with a looser one per email. Separately, put
+the engine behind a custom domain so a Cloudflare rate-limiting rule can sit in front of the sign-in
+paths (`pages.dev` and `workers.dev` addresses cannot carry one). The staff sign-in has the same
+limits.
+
+## `supplier-reads-every-shared-order-and-leaves-no-trace` — OPEN, owner's decision, 2026-11-15
+
+**What.** A supplier's login reads every shared order past Draft, old and cancelled ones included,
+with the customer's name and address, for as long as its access is on. Reads are not recorded and
+not slowed: after a stolen password, the record shows the sign-in and nothing of what was read.
+
+**Decision.** How long an order stays shared is the owner's (ERP-ARCHITECTURE §6.6, question 1;
+recommendation: 90 days after it is delivered, closed or cancelled). The step that follows it is one
+`WHERE` in `carres_supplier_scope_orders` in a new engine migration. Recording reads is engineering
+and can follow: one row a day per person and page is enough to say who looked.
 
 ## `do-number-collision` — ✅ FIXED 2026-09-24, PR #1550 (0575). Kept for its evidence only
 

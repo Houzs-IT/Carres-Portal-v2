@@ -15,7 +15,10 @@
 --     so Supabase's data API reads nothing. scm_engine owns the tables (scripts/carres-db/engine-owns-all.sql runs
 --     after every apply) and the Worker is the only reader.
 --   * What a supplier may read is decided HERE, in the two functions at the bottom: they name every column that
---     leaves the database. No price, cost, margin, payment, phone, email, remark or staff name is in them.
+--     leaves the database. No price, cost, margin, payment, phone, email, remark or staff name is in them, and a
+--     line's specification leaves without its add-on note and without the word that it was given free.
+--   * The two functions can be run by the engine's own role only: PUBLIC, anon and authenticated lose EXECUTE, so
+--     the data API does not offer them.
 --
 -- RE-RUN: safe (IF NOT EXISTS / CREATE OR REPLACE throughout).
 -- REVERSAL: DROP FUNCTION public.carres_supplier_scope_orders(uuid), public.carres_supplier_scope_items(uuid);
@@ -98,8 +101,9 @@ CREATE TABLE IF NOT EXISTS public.carres_supplier_links (
 );
 CREATE INDEX IF NOT EXISTS carres_supplier_links_user_idx ON public.carres_supplier_links (user_id);
 
--- Who signed in, who failed to, and every change made through the platform. Failed sign-ins are counted from here
--- (per email and per address), so the lock does not depend on a cache.
+-- Who signed in, who failed to, and every change made through the platform. Failed sign-ins are counted from here,
+-- per email, so the lock does not depend on a cache. `ip` is a record of where a try came from when the request
+-- says; nothing is counted by it.
 CREATE TABLE IF NOT EXISTS public.carres_supplier_events (
   id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   at               timestamptz NOT NULL DEFAULT now(),
@@ -112,7 +116,6 @@ CREATE TABLE IF NOT EXISTS public.carres_supplier_events (
   detail           jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS carres_supplier_events_subject_idx ON public.carres_supplier_events (kind, subject, at DESC);
-CREATE INDEX IF NOT EXISTS carres_supplier_events_ip_idx ON public.carres_supplier_events (kind, ip, at DESC);
 CREATE INDEX IF NOT EXISTS carres_supplier_events_supplier_idx ON public.carres_supplier_events (supplier_id, at DESC);
 
 -- ── 3. Pickup requests ──────────────────────────────────────────────────────────────────────────────────────────
@@ -201,6 +204,12 @@ END $$;
 -- The order lines shared with a supplier. Returns nothing while its access is off. Every caller (the supplier's order
 -- list, order page, forecast, and the pickup request picker on the Carres side) reads lines through this function,
 -- so "which lines" has one answer. The columns are the whole list a supplier may see of a line: no price, no cost.
+--
+-- THE SPECIFICATION (spec) is the line's second description cut short. That text is built as
+-- "<size / colour / heights ...> / SPECIAL: <add-ons + the salesperson's free-text note> / FREE · <campaign>"
+-- (src/scm/shared/variant-summary.ts: SPECIAL and FREE always come last). The note is free text and FREE says the
+-- line cost the customer nothing; a supplier reads neither a note nor a price signal, so the text is cut at the
+-- first of the two. What is left is what the goods are.
 CREATE OR REPLACE FUNCTION public.carres_supplier_scope_items(p_supplier uuid)
 RETURNS TABLE (
   so_item_id  uuid,
@@ -223,7 +232,7 @@ AS $$
          i.line_no,
          i.item_code,
          i.description,
-         i.description2,
+         nullif(btrim(regexp_replace(coalesce(i.description2, ''), '(^| / )(SPECIAL: |FREE( · |$)).*$', '', 'i')), ''),
          upper(coalesce(p.category::text, i.item_group, '')),
          p.model_id,
          m.model_code,
@@ -301,3 +310,22 @@ AS $$
     ) x ON x.doc_no = so.doc_no
    WHERE so.status::text <> 'DRAFT'
 $$;
+
+-- ── 6. The two functions are the engine's alone ─────────────────────────────────────────────────────────────────
+-- A function in public can be run by anyone unless that is taken away, and the data API offers every function it
+-- may run. Both run with the caller's own rights, so an outsider would already be stopped at the tables; this
+-- takes the door away too. The engine's role keeps EXECUTE (scripts/carres-db/engine-owns-all.sql grants it again
+-- after every apply).
+REVOKE ALL ON FUNCTION public.carres_supplier_scope_items(uuid), public.carres_supplier_scope_orders(uuid) FROM PUBLIC;
+DO $$
+DECLARE r text;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+      EXECUTE format('REVOKE ALL ON FUNCTION public.carres_supplier_scope_items(uuid), public.carres_supplier_scope_orders(uuid) FROM %I', r);
+    END IF;
+  END LOOP;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'scm_engine') THEN
+    GRANT EXECUTE ON FUNCTION public.carres_supplier_scope_items(uuid), public.carres_supplier_scope_orders(uuid) TO scm_engine;
+  END IF;
+END $$;

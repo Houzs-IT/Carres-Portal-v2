@@ -90,10 +90,34 @@ function toPickup(r: Row, lines: PickupLine[]): StaffPickup {
   };
 }
 
-/** What the supplier reads of a request: everything but the names of the Carres staff who worked on it. */
-export function forSupplier(p: StaffPickup): Pickup {
-  const { requestedByName: _r, collectedByName: _c, cancelledByName: _x, ...rest } = p;
-  return rest;
+/** A request as the supplier reads it: no Carres staff name and no internal supplier id. */
+export type SupplierPickup = Omit<Pickup, "supplierId">;
+
+/** What the supplier reads of a request, NAMED FIELD BY FIELD. A column added to the request later reaches the
+ *  supplier only when it is added here; nothing passes by default. */
+export function forSupplier(p: StaffPickup): SupplierPickup {
+  return {
+    id: p.id,
+    requestNo: p.requestNo,
+    supplierName: p.supplierName,
+    expectedDate: p.expectedDate,
+    expectedTime: p.expectedTime,
+    note: p.note,
+    status: p.status,
+    requestedAt: p.requestedAt,
+    acceptedAt: p.acceptedAt,
+    acceptedByName: p.acceptedByName,
+    collectedAt: p.collectedAt,
+    cancelledAt: p.cancelledAt,
+    cancelReason: p.cancelReason,
+    soDocNos: [...p.soDocNos],
+    lineCount: p.lineCount,
+    unitCount: p.unitCount,
+    lines: p.lines.map((l) => ({
+      soDocNo: l.soDocNo, soItemId: l.soItemId, itemCode: l.itemCode, description: l.description, spec: l.spec,
+      modelName: l.modelName, uom: l.uom, qty: l.qty,
+    })),
+  };
 }
 
 async function linesFor(db: Db, requestIds: string[]): Promise<Map<string, PickupLine[]>> {
@@ -119,7 +143,8 @@ async function linesFor(db: Db, requestIds: string[]): Promise<Map<string, Picku
 
 export interface PickupFilter { supplierId?: string | null; status?: string | null }
 
-/** Requests, newest expected day first among the live ones. `supplierId` is REQUIRED on the supplier's side. */
+/** CARRES'S SIDE: requests, newest expected day first among the live ones, of every supplier unless one is named.
+ *  The supplier's own routes never call this: they read through listSupplierPickups below. */
 export async function listPickups(db: Db, filter: PickupFilter): Promise<StaffPickup[]> {
   const status = (PICKUP_STATUSES as readonly string[]).includes(filter.status ?? "") ? filter.status : null;
   const rows = await db.query(
@@ -139,7 +164,8 @@ export async function listPickups(db: Db, filter: PickupFilter): Promise<StaffPi
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (v: unknown): v is string => typeof v === "string" && UUID.test(v);
 
-/** One request. With `supplierId`, only when it belongs to that supplier. */
+/** CARRES'S SIDE: one request. With `supplierId`, only when it belongs to that supplier. The supplier's own routes
+ *  never call this: they read through getSupplierPickup below. */
 export async function getPickup(db: Db, id: string, supplierId?: string | null): Promise<StaffPickup | null> {
   if (!isUuid(id)) return null;
   const rows = await db.query(
@@ -152,6 +178,21 @@ export async function getPickup(db: Db, id: string, supplierId?: string | null):
   if (!rows[0]) return null;
   const lines = await linesFor(db, [id]);
   return toPickup(rows[0], lines.get(id) ?? []);
+}
+
+// ── The supplier's side of reading ──────────────────────────────────────────────────────────────────────────────
+// The supplier id is REQUIRED here and is the one in the session. Without a real one these answer nothing, so a
+// forgotten argument can never widen a read to every supplier's requests.
+
+export async function listSupplierPickups(db: Db, supplierId: string, status?: string | null): Promise<SupplierPickup[]> {
+  if (!isUuid(supplierId)) return [];
+  return (await listPickups(db, { supplierId, status })).map(forSupplier);
+}
+
+export async function getSupplierPickup(db: Db, id: string, supplierId: string): Promise<SupplierPickup | null> {
+  if (!isUuid(supplierId)) return null;
+  const pickup = await getPickup(db, id, supplierId);
+  return pickup ? forSupplier(pickup) : null;
 }
 
 // ── Carres side ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -328,9 +369,9 @@ export async function cancelPickup(db: Db, id: string, reason: unknown, actor: S
 /** The supplier accepts a request: it will have the goods ready on the day. Only its own request, only once. */
 export async function acceptPickup(
   db: Db, id: string, supplier: { supplierId: string; userId: number; userName: string; ip: string | null },
-): Promise<Outcome<{ pickup: Pickup }>> {
-  if (!isUuid(id)) return { ok: false, status: 404, error: "Pickup request not found." };
-  return db.tx(async (tx): Promise<Outcome<{ pickup: Pickup }>> => {
+): Promise<Outcome<{ pickup: SupplierPickup }>> {
+  if (!isUuid(id) || !isUuid(supplier.supplierId)) return { ok: false, status: 404, error: "Pickup request not found." };
+  return db.tx(async (tx): Promise<Outcome<{ pickup: SupplierPickup }>> => {
     const moved = await tx.query(
       `UPDATE public.carres_pickup_requests
           SET status = 'ACCEPTED', accepted_at = now(), accepted_by = $3, accepted_by_name = $4

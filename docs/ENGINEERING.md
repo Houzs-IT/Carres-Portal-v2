@@ -185,16 +185,28 @@ pages inside the engine, a Carres addition, each Houzs file it touches marked `/
   (`CARRES_SSO_SECRET` on the engine, `SCM_ENGINE_SSO_SECRET` on the portal) under its own purpose word, over the
   `CARRES_PORTAL` binding. Arithmetic: `packages/shared/src/supplier-finance.ts`. No new secret, binding or
   portal migration.
-- *Sign-in limits.* Five wrong passwords lock an email for 15 minutes, counted in the database. A count per
-  address applies only to a caller's own address: behind the site's `/api` proxy every browser arrives as
-  Cloudflare's one Worker address, which is neither counted nor recorded (`credentials.ts` `callerAddress`).
-  A session lasts 12 hours; a set-password link 72 hours, once.
-- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts); frontend `src/main.tsx`,
+- *Sign-in limits.* Five wrong passwords lock an EMAIL for 15 minutes, counted in the database
+  (`session.ts` `takeTry`). Each try is written before it is counted, so tries sent at the same moment cannot
+  all slip under the limit. A new set-password link is how Carres lets a locked person back in: the count starts
+  again when the person signs in or chooses a password. A wrong current password on `Change password` is counted
+  at that door, and past the limit every session of the person ends. Nothing is counted per address: behind
+  the site's `/api` proxy every browser arrives as Cloudflare's one Worker address, which is not written down
+  either (`credentials.ts` `callerAddress`; open risk in `carry-forwards.md`). A session lasts 12 hours; a
+  set-password link 72 hours, once.
+- *What else guards it.* A supplier page is sent with `frame-ancestors 'none'` and `X-Frame-Options: DENY`
+  (`functions/_middleware.ts`), enforced, so no site can frame it; the staff pages stay frameable by the portal.
+  The supplier API answers carry no `Server-Timing`. The two scope functions can be run by the engine's database
+  role only. The supplier pages read the company's public name from the public `GET /api/track/company` and
+  everything else from `/api/carres-supplier`.
+- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts),
+  `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`
-  says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`.
+  says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`,
+  `functions/_middleware.ts` (the frame rule).
 - *Tests.* Backend `src/carres/supplier/supplier.test.ts`, `tests/carresSupplierPlatformGuards.test.ts` (where the
   routes sit; every statement parameterised) and `tests-pg/carresSupplierPlatform.pg.test.ts` (real Postgres,
-  `TEST_DATABASE_URL`, skipped without it); frontend `src/carres/supplier/supplierSurface.test.tsx`; portal
+  `TEST_DATABASE_URL`, skipped without it; it re-runs step 2012 first, so it tests the file as it is); frontend
+  `src/carres/supplier/supplierSurface.test.tsx`, `functions/supplierFrame.test.ts`; portal
   `apps/api/src/routes/engine-supplier-finance.test.ts`, `packages/shared/src/supplier-finance.test.ts`. The
   engine's own suites are not part of `ci.yml`: run them by hand before merging an engine change.
 - *Giving a supplier access.* Settings › Supplier Access: choose the supplier, tick what it sees, tick

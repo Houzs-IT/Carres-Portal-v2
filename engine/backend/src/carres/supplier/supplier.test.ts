@@ -207,10 +207,22 @@ describe("finance", () => {
 });
 
 describe("pickups", () => {
-  it("the supplier's copy of a request leaves out the Carres staff names", () => {
-    const p = { id: "1", requestNo: "CR-PKR-2611-001", requestedByName: "Jess", collectedByName: "Ali", cancelledByName: null, acceptedByName: "Ana", lines: [] } as unknown as StaffPickup;
+  it("the supplier's copy of a request is named field by field: staff names, the supplier id and anything new stay behind", () => {
+    const line = { soDocNo: "CR-SO-1", soItemId: "i1", itemCode: "M1", description: "Cloud Queen", spec: "QUEEN", modelName: "Cloud", uom: "UNIT", qty: 2 };
+    const p = {
+      id: "1", requestNo: "CR-PKR-2611-001", supplierId: "sup-1", supplierName: "Maker", expectedDate: "2026-11-20", expectedTime: null,
+      note: null, status: "ACCEPTED", requestedAt: "t1", acceptedAt: "t2", acceptedByName: "Ana", collectedAt: null, cancelledAt: null,
+      cancelReason: null, soDocNos: ["CR-SO-1"], lineCount: 1, unitCount: 2,
+      // A column a later edit adds to a line or to the request, and the names of the Carres staff who worked on it.
+      lines: [{ ...line, unitCostSen: 12345 }], requestedByName: "Jess", collectedByName: "Ali", cancelledByName: null, internalNote: "margin 40%",
+    } as unknown as StaffPickup;
     const out = forSupplier(p) as unknown as Record<string, unknown>;
-    expect(Object.keys(out).sort()).toEqual(["acceptedByName", "id", "lines", "requestNo"]);
+    expect(Object.keys(out).sort()).toEqual([
+      "acceptedAt", "acceptedByName", "cancelReason", "cancelledAt", "collectedAt", "expectedDate", "expectedTime", "id", "lineCount", "lines",
+      "note", "requestNo", "requestedAt", "soDocNos", "status", "supplierName", "unitCount",
+    ]);
+    expect(out.lines).toEqual([line]);
+    expect(JSON.stringify(out)).not.toMatch(/Jess|Ali|sup-1|12345|margin/);
   });
   it("today is the Kuala Lumpur day", () => {
     expect(todayMyt(Date.parse("2026-11-15T15:59:59Z"))).toBe("2026-11-15");

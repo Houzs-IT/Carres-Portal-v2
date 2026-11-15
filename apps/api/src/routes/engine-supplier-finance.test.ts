@@ -33,7 +33,7 @@ vi.mock("../lib/supabase", () => ({ adminClient: () => ({ from }) }));
 
 import app from "../index";
 import { signStaffRequest } from "./engine-staff-accounts";
-import { signFinanceRequest, verifyFinanceRequest } from "./engine-supplier-finance";
+import { MAX_BODY_BYTES, signFinanceRequest, verifyFinanceRequest } from "./engine-supplier-finance";
 
 const SECRET = "s".repeat(32);
 const env = {
@@ -113,6 +113,35 @@ describe("trust: only the engine Worker, with the shared secret", () => {
   it("there is no way in without a signature: GET and the signed-in API do not serve it", async () => {
     expect((await app.fetch(new Request("http://t/engine/supplier-finance"), env)).status).toBe(404);
     expect((await app.fetch(new Request("http://t/api/engine/supplier-finance", { method: "POST", body: "{}" }), env)).status).toBe(401);
+  });
+
+  it("a call with no signature or an old one is refused before its body is read", async () => {
+    // The body can be read once. Still unread after the answer means the route never touched it.
+    const unsigned = new Request("http://t/engine/supplier-finance", { method: "POST", body: "x".repeat(50_000) });
+    expect((await app.fetch(unsigned, env)).status).toBe(401);
+    expect(unsigned.bodyUsed).toBe(false);
+
+    const body = JSON.stringify({ view: "summary" });
+    const old = await signFinanceRequest(SECRET, body, Date.now() - 5 * 60_000);
+    const stale = new Request("http://t/engine/supplier-finance", {
+      method: "POST", headers: { "x-carres-engine-ts": old.ts, "x-carres-engine-signature": old.signature }, body,
+    });
+    expect((await app.fetch(stale, env)).status).toBe(401);
+    expect(stale.bodyUsed).toBe(false);
+    expect(reads).toEqual([]);
+  });
+
+  it("a body longer than the engine ever sends is refused, whether or not it says how long it is", async () => {
+    const big = JSON.stringify({ view: "summary", pad: "x".repeat(MAX_BODY_BYTES) });
+    const signed = await signFinanceRequest(SECRET, big);
+    const headers = { "x-carres-engine-ts": signed.ts, "x-carres-engine-signature": signed.signature };
+    // Correctly signed, so it is the size that refuses it.
+    const declared = new Request("http://t/engine/supplier-finance", { method: "POST", headers: { ...headers, "content-length": String(big.length) }, body: big });
+    expect((await app.fetch(declared, env)).status).toBe(401);
+    const stream = new ReadableStream<Uint8Array>({ start(ctrl) { ctrl.enqueue(new TextEncoder().encode(big)); ctrl.close(); } });
+    const streamed = new Request("http://t/engine/supplier-finance", { method: "POST", headers, body: stream, duplex: "half" } as RequestInit);
+    expect((await app.fetch(streamed, env)).status).toBe(401);
+    expect(reads).toEqual([]);
   });
 });
 

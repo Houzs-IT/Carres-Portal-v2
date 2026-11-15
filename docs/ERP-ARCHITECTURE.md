@@ -1346,6 +1346,13 @@ and the share. **Never:** a price, cost or margin of a Sales Order, a payment me
 a Stripe id, a commission, a phone number, an email, a remark or note, a staff name, another
 supplier's lines or requests.
 
+**The specification is what the goods are, and stops there.** A line's second description ends with
+`SPECIAL: …` (the add-ons, with the salesperson's free-text note among them) and `FREE · …` (the
+line cost the customer nothing). The note is free text and `FREE` is a price signal, so the supplier
+reads the text only up to the first of the two: size, colour, heights. The add-ons the customer
+picked are cut with the note, because the two share one text. The Purchase Order is still where a
+supplier is told what to make.
+
 **Ownership (Laws A–D).** Everything a supplier reads is a SUMMARY and has no form:
 
 ```
@@ -1372,8 +1379,9 @@ only accept its own.
    live in tables of their own; a supplier token is refused by every staff route and a staff token
    by the supplier routes.
 2. The supplier is taken from the session only, never from the address or the request.
-3. The columns that may leave are named in two database functions (engine migration 2012); the
-   supplier routes read orders through them and nowhere else. Tests plant a marker in every field
+3. The columns that may leave are named in two database functions (engine migration 2012) that only
+   the engine's database role may run; the supplier routes read orders through them and nowhere
+   else. A pickup request is answered field by named field. Tests plant a marker in every field
    that must stay inside and fail if one appears in an answer.
 4. Subscription figures come from the portal over a signed server-to-server call; the supplier's
    browser never calls the portal.
@@ -1391,6 +1399,22 @@ scope goes live, an outside security review is required, or a Houzs resync break
 **Rollout.** Deploying the code opens nothing. Giving a supplier its first production login (turning
 its access on, adding a person, sending the one-time link) is the external cutover of §6.4 and needs
 the owner's word for that supplier.
+
+**PROPOSAL / NOT LAW (2026-11-15), two questions for the owner before the first supplier signs in.**
+Neither blocks the build; both are about how much is shared.
+
+```
+1. How long an order stays shared   Today a supplier reads EVERY shared order past Draft, the delivered,
+                                    closed and cancelled ones included, each with the customer's name and
+                                    address, for as long as its access is on. One stolen password is that
+                                    whole list. Recommendation: stop sharing an order 90 days after it is
+                                    delivered, closed or cancelled. Falsifier: the supplier must look up
+                                    an older order for a claim or a return.
+2. The add-ons the customer picked  Cut today together with the free-text note (above). Recommendation:
+                                    leave it so, the Purchase Order carries them. Falsifier: the supplier's
+                                    warehouse prepares goods from these pages and needs the add-ons there;
+                                    then they are shown as their own list, without the note.
+```
 
 **Gaps (FACT, 2026-11-15).** Subscription plans do not name their supplier yet (Rental §0), so one
 supplier at a time is marked as the one paid the subscription share. Subscription billing is not

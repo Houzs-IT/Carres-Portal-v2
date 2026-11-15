@@ -11,10 +11,9 @@ export const SESSION_HOURS = 12;
 /** A set-password link works once, within this many hours. */
 export const LINK_HOURS = 72;
 
-/** Wrong passwords for one email inside the window before that email is refused (whether or not it exists). */
+/** Wrong passwords for one email inside the window before that email is refused (whether or not it exists).
+ *  Nothing is counted per address: see callerAddress below. */
 export const MAX_FAILS_PER_EMAIL = 5;
-/** Wrong passwords from one address inside the window before that address is refused. */
-export const MAX_FAILS_PER_IP = 30;
 export const FAIL_WINDOW_MINUTES = 15;
 
 export const MIN_PASSWORD = 10;
@@ -36,11 +35,15 @@ export async function sha256Hex(value: string): Promise<string> {
 export const WORKER_SUBREQUEST_ADDRESS = "2a06:98c0:3600::103";
 
 /**
- * The caller's own address, or null when the request does not tell one caller from another.
+ * The caller's own address, or null when the request does not tell one caller from another. It is WRITTEN DOWN
+ * beside a sign-in or a wrong try, as a record. It is never counted and never decides anything.
  *
- * WHY NULL AND NOT THE SHARED ADDRESS. Wrong passwords are counted per address as well as per email. Counted under
- * an address every caller shares, thirty wrong tries by one outsider would refuse every supplier's sign-in. An
- * address that names nobody is therefore not counted and not recorded; the per-email lock still holds.
+ * WHY NOTHING IS COUNTED PER ADDRESS. Anyone may send their tries through the engine site's proxy, or through a
+ * Worker of their own, and arrive under the shared address: a limit per address would stop only a caller who chose
+ * to be stopped. And a count kept on an address every caller shares is a switch: thirty wrong tries by one outsider
+ * would refuse every supplier's sign-in, and it would become that switch by itself the day Cloudflare changes the
+ * address below. The limit that holds is the one per email (./session.ts takeTry). A limit per caller needs the
+ * site's proxy to hand over the browser's address under a secret the Worker checks (docs/carry-forwards.md).
  */
 export function callerAddress(connectingIp: string | null | undefined): string | null {
   const ip = (connectingIp ?? "").trim().toLowerCase();

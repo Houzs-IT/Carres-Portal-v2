@@ -34,9 +34,12 @@ describe('Carres supplier platform: where the routes sit', () => {
   it('the suppliers router answers every path, behind its own session gate', () => {
     at(ROUTES, 'app.all("*", (c) => c.json({ error: "Not found." }, 404));');
     const gate = at(ROUTES, 'app.use("*", session);');
-    // Only signing in and the one-time link come before the gate.
-    const before = ROUTES.slice(0, gate).match(/app\.(get|post|put|patch|delete)\("([^"]+)"/g) ?? [];
+    // Only signing in and the one-time link come before the gate, by any way a route can be added.
+    const before = ROUTES.slice(0, gate).match(/app\.(get|post|put|patch|delete|all|on|route|mount)\("([^"]+)"/g) ?? [];
     expect(before).toEqual(['app.post("/auth/login"', 'app.post("/auth/link"', 'app.post("/auth/link/use"']);
+    // The one thing wrapped around every answer before the gate sets a header and reads nothing.
+    expect(ROUTES.slice(0, gate).match(/app\.use\(/g) ?? []).toHaveLength(1);
+    at(ROUTES.slice(0, gate), 'c.header("Cache-Control", "no-store");');
     for (const route of ['app.get("/orders"', 'app.get("/forecast"', 'app.get("/pickups"', 'app.get("/finance/summary"', 'app.get("/auth/me"']) {
       expect(at(ROUTES, route)).toBeGreaterThan(gate);
     }
@@ -52,6 +55,18 @@ describe('Carres supplier platform: where the routes sit', () => {
     expect(ROUTES).not.toMatch(/from "\.\/access"/);
     expect(ROUTES).not.toMatch(/from "\.\/staff-routes"/);
     for (const name of ['createPickup', 'collectPickup', 'cancelPickup', 'eligibleLines']) expect(ROUTES).not.toContain(name);
+    // Nor the two readers that answer for EVERY supplier when no supplier is given: the suppliers' routes read
+    // through the ones that require the supplier.
+    expect(ROUTES).not.toMatch(/\b(getPickup|listPickups|forSupplier)\b/);
+    expect(ROUTES).toMatch(/\bgetSupplierPickup\b/);
+    expect(ROUTES).toMatch(/\blistSupplierPickups\b/);
+  });
+
+  it('no limit on these routes is kept per address', () => {
+    // Behind the site's proxy every browser arrives under one address: a count on it is a switch one outsider can
+    // throw for every supplier, and a count on anything else stops only a caller who chose to be stopped.
+    expect(ROUTES).not.toContain('checkRateLimit');
+    expect(read('../src/carres/supplier/session.ts')).not.toMatch(/\bf\.ip\s*=/);
   });
 });
 
@@ -69,6 +84,14 @@ describe('Carres supplier platform: statements', () => {
     }
   });
 
+  it('the order-by column is looked up in a Map, never in a plain object', () => {
+    // A plain object answers for "constructor" and "__proto__" too, and what it answers would be spliced into the
+    // statement. Not text an outsider chooses, so not an injection, but a 500 and a rule that only looked closed.
+    const orders = read('../src/carres/supplier/orders.ts');
+    at(orders, 'const sortColumn = SORTS.get(input.sort ?? "") ?? DEFAULT_SORT;');
+    expect(orders).not.toMatch(/SORTS\[/);
+  });
+
   it('no statement is assembled from a request value', () => {
     // The only text spliced into a statement in this folder is a constant: a column list, or the order-by picked
     // from a fixed map. A `${...}` that reads the request (c.req, input.q, body) would be an injection.
@@ -76,8 +99,18 @@ describe('Carres supplier platform: statements', () => {
       const source = readFileSync(new URL(f, dir), 'utf8');
       const spliced = [...source.matchAll(/`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b[^`]*`/g)].flatMap((m) => m[0].match(/\$\{[^}]+\}/g) ?? []);
       for (const s of spliced) {
-        expect(s, `${f}: ${s}`).toMatch(/^\$\{(USER_COLUMNS|ORDER_COLUMNS|REQUEST_COLUMNS|PERSON_COLUMNS|LINE_SELECT|sortColumn|direction|ts\("[a-z_.()]+"\))\}$/);
+        expect(s, `${f}: ${s}`).toMatch(/^\$\{(USER_COLUMNS|ORDER_COLUMNS|REQUEST_COLUMNS|PERSON_COLUMNS|LINE_SELECT|FRESH|sortColumn|direction|ts\("[a-z_.()]+"\))\}$/);
       }
     }
+  });
+
+  it('a statement that reads a password is never one a cache may answer', () => {
+    // The engine's database link caches an answer for a minute unless that is turned off, and never caches a
+    // statement that asks the time. An old password answered from a cache would outlive its reset.
+    const session = readFileSync(new URL('session.ts', dir), 'utf8');
+    at(session, 'const FRESH = "NOW() IS NOT NULL";');
+    const reads = [...session.matchAll(/`[^`]*\bSELECT\b[^`]*`/g)].map((m) => m[0]).filter((s) => /password_hash(?! IS NOT NULL)/.test(s));
+    expect(reads.length).toBeGreaterThanOrEqual(2);
+    for (const s of reads) expect(s, s).toContain('${FRESH}');
   });
 });

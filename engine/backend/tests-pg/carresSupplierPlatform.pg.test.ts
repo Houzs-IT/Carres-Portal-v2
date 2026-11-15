@@ -8,9 +8,9 @@ import { assertDisposableTestDatabase } from './lib/doc-no-fixture';
 import { dbOver, useDbForTests, type Db } from '../src/carres/supplier/db';
 import { addPerson, getAccess, previewAccess, saveAccess } from '../src/carres/supplier/access';
 import { getForecast, getOrder, listOrders } from '../src/carres/supplier/orders';
-import { acceptPickup, cancelPickup, collectPickup, createPickup, eligibleLines, getPickup } from '../src/carres/supplier/pickups';
-import { resolveSession, signIn, useLink } from '../src/carres/supplier/session';
-import { MAX_FAILS_PER_EMAIL, MAX_FAILS_PER_IP, WORKER_SUBREQUEST_ADDRESS, sha256Hex } from '../src/carres/supplier/credentials';
+import { acceptPickup, cancelPickup, collectPickup, createPickup, eligibleLines, getPickup, getSupplierPickup, listSupplierPickups } from '../src/carres/supplier/pickups';
+import { changePassword, issueLink, resolveSession, signIn, useLink } from '../src/carres/supplier/session';
+import { MAX_FAILS_PER_EMAIL, WORKER_SUBREQUEST_ADDRESS, sha256Hex } from '../src/carres/supplier/credentials';
 import supplierApp from '../src/carres/supplier/routes';
 import { supplierAccess, supplierPickups } from '../src/carres/supplier/staff-routes';
 import type { Env } from '../src/types';
@@ -31,7 +31,15 @@ const migrationsDir = fileURLToPath(new URL('../scripts/carres-db/migrations/', 
 
 /** Planted in every money field: it must never leave. */
 const MONEY = '7770';
-const SECRETS = ['0127770001', 'zzt-secret@customer.test', 'ZZT-INTERNAL-REMARK', 'ZZT-INTERNAL-NOTE', 'ZZT-SECRET-STAGE-NOTE', 'ZZT-FIELD-CHANGE', 'ZZT Staff Member'];
+const SECRETS = [
+  '0127770001', 'zzt-secret@customer.test', 'ZZT-INTERNAL-REMARK', 'ZZT-INTERNAL-NOTE', 'ZZT-SECRET-STAGE-NOTE', 'ZZT-FIELD-CHANGE', 'ZZT Staff Member',
+  // The two parts of a line's second description that are not the goods: the salesperson's add-on note and the
+  // word that the line was given free.
+  'ZZT-ADDON-NOTE', 'ZZT-CAMPAIGN', 'SPECIAL:', 'FREE ·',
+];
+/** Every seeded line's second description: what the goods are, then a note (with a phone number in it) and a free
+ *  campaign. Only the first part may leave. */
+const DESCRIPTION_2 = 'ZZT SPEC / SPECIAL: Right Drawer + ZZT-ADDON-NOTE call 0127770001 / FREE · ZZT-CAMPAIGN';
 
 let sql: Sql;
 let db: Db;
@@ -62,13 +70,11 @@ async function buildSchemaIfEmpty(s: Sql): Promise<void> {
     }
     return;
   }
-  // A database built before this step existed: apply just this step.
-  const fn = await s`select to_regprocedure('public.carres_supplier_scope_items(uuid)')::text as f`;
-  if (!fn[0]?.f) {
-    const files = (await readdir(migrationsDir)).filter((x) => x.endsWith('_supplier_platform.sql'));
-    if (files.length !== 1) throw new Error(`expected one *_supplier_platform.sql, found ${files.length}`);
-    await s.begin(async (tx) => { await tx.unsafe(await readFile(join(migrationsDir, files[0]!), 'utf8')); });
-  }
+  // A database built earlier: run this step again. It is written to be re-run, and running it here means the
+  // functions and grants under test are the ones in the file, not the ones an older build left behind.
+  const files = (await readdir(migrationsDir)).filter((x) => x.endsWith('_supplier_platform.sql'));
+  if (files.length !== 1) throw new Error(`expected one *_supplier_platform.sql, found ${files.length}`);
+  await s.begin(async (tx) => { await tx.unsafe(await readFile(join(migrationsDir, files[0]!), 'utf8')); });
 }
 
 async function clean(s: Sql): Promise<void> {
@@ -131,7 +137,7 @@ async function seed(s: Sql): Promise<void> {
 
   const line = (docNo: string, lineNo: number, group: string, code: string, description: string, qty: number, extra: Record<string, unknown> = {}) => s`
     insert into scm.mfg_sales_order_items ${s({
-      doc_no: docNo, line_no: lineNo, item_group: group, item_code: code, description, description2: 'ZZT SPEC', uom: 'UNIT', qty,
+      doc_no: docNo, line_no: lineNo, item_group: group, item_code: code, description, description2: DESCRIPTION_2, uom: 'UNIT', qty,
       unit_price_sen: 777021, total_sen: 777022, unit_cost_sen: 777023, line_cost_sen: 777024, line_margin_sen: 777025,
       remark: 'ZZT-INTERNAL-REMARK', ...extra,
     })}`;
@@ -285,6 +291,42 @@ describePg('Carres supplier platform', () => {
       expect(docNos(page.rows)).toEqual(['ZZT-SO-2']);
       // A sort word that is not on the list falls back to the default instead of reaching the statement.
       expect((await listOrders(db, supA, { sort: 'o.doc_no; drop table scm.suppliers' })).total).toBe(4);
+      // So do the names every object answers for: they are not columns either.
+      for (const sort of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+        expect((await listOrders(db, supA, { sort })).total).toBe(4);
+      }
+      // A page far past the end is an empty page, not an error; a page that is not a number is the first page.
+      expect((await listOrders(db, supA, { page: 1e308 })).rows).toEqual([]);
+      expect((await listOrders(db, supA, { page: Number.POSITIVE_INFINITY })).rows).toEqual([]);
+      expect((await listOrders(db, supA, { page: Number.NaN })).rows).toHaveLength(4);
+      expect((await listOrders(db, supA, { page: -5 })).rows).toHaveLength(4);
+    });
+
+    test('the specification leaves without the add-on note and without the word that the line was free', async () => {
+      const one = (await getOrder(db, supA, 'ZZT-SO-2'))!;
+      expect(one.lines.map((l) => l.spec)).toEqual(['ZZT SPEC']);
+      const line = await sql`select id from scm.mfg_sales_order_items where doc_no = 'ZZT-SO-2' and item_code = 'ZZT-M2-K'`;
+      const specOf = async (description2: string | null) => {
+        await sql`update scm.mfg_sales_order_items set description2 = ${description2} where id = ${line[0]!.id}`;
+        return (await getOrder(db, supA, 'ZZT-SO-2'))!.lines[0]!.spec;
+      };
+      try {
+        // What the goods are stays, whatever follows it.
+        expect(await specOf('QUEEN / COVE-13 / SEAT 24 / LEG 6"')).toBe('QUEEN / COVE-13 / SEAT 24 / LEG 6"');
+        expect(await specOf('QUEEN / COVE-13 / SPECIAL: Right Drawer (10") + ZZT-ADDON-NOTE')).toBe('QUEEN / COVE-13');
+        expect(await specOf('QUEEN / COVE-13 / FREE')).toBe('QUEEN / COVE-13');
+        expect(await specOf('QUEEN / FREE · ZZT-CAMPAIGN')).toBe('QUEEN');
+        expect(await specOf('QUEEN / special: zzt-addon-note / free · zzt-campaign')).toBe('QUEEN');
+        // Nothing but a note or a free word: no specification at all.
+        expect(await specOf('SPECIAL: ZZT-ADDON-NOTE')).toBeNull();
+        expect(await specOf('FREE · ZZT-CAMPAIGN')).toBeNull();
+        expect(await specOf('FREE')).toBeNull();
+        expect(await specOf(null)).toBeNull();
+        // A colour that only starts with the word is still a colour.
+        expect(await specOf('QUEEN / FREEDOM-01 / SEAT 24')).toBe('QUEEN / FREEDOM-01 / SEAT 24');
+      } finally {
+        await sql`update scm.mfg_sales_order_items set description2 = ${DESCRIPTION_2} where id = ${line[0]!.id}`;
+      }
     });
 
     test('the stage history tells each stage once, with no note, field change or staff name', async () => {
@@ -432,22 +474,23 @@ describePg('Carres supplier platform', () => {
       await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
     });
 
-    test('behind the site proxy every browser shares one address: an outsider\'s wrong tries lock nobody else out', async () => {
+    test('nothing is counted per address: an outsider\'s wrong tries, from any address, lock nobody else out', async () => {
       const env = {} as Env;
       // Cloudflare gives a Worker that calls another zone this one address, so behind the engine site's /api proxy
       // it is the address of EVERY supplier's browser. Counted as one caller, it would be a switch that turns every
       // supplier's sign-in off.
       const post = (b: unknown, ip: string = WORKER_SUBREQUEST_ADDRESS) => supplierApp.request('/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'CF-Connecting-IP': ip }, body: JSON.stringify(b) }, env);
-      for (let i = 0; i < MAX_FAILS_PER_IP + 2; i++) {
+      for (let i = 0; i < 32; i++) {
         expect((await post({ email: `outsider${i}@zzt.test`, password: 'nope nope nope' })).status).toBe(401);
       }
       expect((await post({ email: 'ana@zzt.test', password: PASSWORD })).status).toBe(200);
-      // Nothing was counted, or written down, against the shared address.
+      // The shared address names nobody, so it is not written down.
       expect((await sql`select count(*)::int as n from public.carres_supplier_events where ip = ${WORKER_SUBREQUEST_ADDRESS}`)[0]!.n).toBe(0);
-      // A caller's OWN address is still counted: that many wrong tries from one address refuse that address only.
-      for (let i = 0; i < MAX_FAILS_PER_IP; i++) await post({ email: `spray${i}@zzt.test`, password: 'nope nope nope' }, '203.0.113.50');
-      expect((await post({ email: 'ana@zzt.test', password: PASSWORD }, '203.0.113.50')).status).toBe(429);
-      expect((await post({ email: 'ana@zzt.test', password: PASSWORD }, '203.0.113.51')).status).toBe(200);
+      // A caller's own address is written down, and still decides nothing: an address that sent many wrong tries
+      // for other emails signs in with a right password like any other.
+      for (let i = 0; i < 32; i++) await post({ email: `spray${i}@zzt.test`, password: 'nope nope nope' }, '203.0.113.50');
+      expect((await sql`select count(*)::int as n from public.carres_supplier_events where ip = '203.0.113.50'`)[0]!.n).toBe(32);
+      expect((await post({ email: 'ana@zzt.test', password: PASSWORD }, '203.0.113.50')).status).toBe(200);
       await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
     }, 120_000);
 
@@ -479,6 +522,84 @@ describePg('Carres supplier platform', () => {
       expect((await sql`select count(*)::int as n from public.carres_supplier_sessions s join public.carres_supplier_users u on u.id = s.user_id where u.email = 'ana@zzt.test'`)[0]!.n).toBe(0);
       await saveAccess(db, supA, scope(['MATTRESS'], { subscriptionShare: true }), staffId);
       await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+    });
+
+    test('tries sent at the same moment cannot outrun the limit', async () => {
+      const burst = await Promise.all(Array.from({ length: 12 }, () =>
+        signIn(db, { email: 'ana@zzt.test', password: 'not the password', ip: null, userAgent: null })));
+      const checked = burst.filter((r) => !r.ok && r.status === 401).length;
+      const locked = burst.filter((r) => !r.ok && r.status === 429).length;
+      expect(checked + locked).toBe(12);
+      // Each 401 is one real password check. Counted BEFORE they were written, all twelve tries read a count of
+      // nought and all twelve were checked; written first, no more than the limit ever are.
+      expect(checked).toBeLessThanOrEqual(MAX_FAILS_PER_EMAIL);
+      expect(await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 429 });
+    });
+
+    test('a new link is how Carres lets a locked person back in', async () => {
+      // Still locked by the burst above.
+      const person = await sql`select id from public.carres_supplier_users where email = 'ana@zzt.test'`;
+      const link = await issueLink(db, { userId: Number(person[0]!.id), staffUserId: staffId });
+      expect(link).not.toBeNull();
+      expect(await useLink(db, { token: link!.token, password: PASSWORD, ip: null })).toMatchObject({ ok: true, email: 'ana@zzt.test' });
+      expect((await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).ok).toBe(true);
+      // The wrong tries are still on record. They only stopped counting.
+      const kept = await sql`select count(*)::int as n from public.carres_supplier_events where kind = 'signin_failed' and subject = 'ana@zzt.test'`;
+      expect(kept[0]!.n).toBeGreaterThanOrEqual(MAX_FAILS_PER_EMAIL);
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+    });
+
+    test('a wrong current password is counted at its own door, and past the limit every session ends', async () => {
+      const opened = await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null });
+      expect(opened.ok).toBe(true);
+      if (!opened.ok) return;
+      // An outsider's wrong sign-ins lock the sign-in door for this email ...
+      for (let i = 0; i < MAX_FAILS_PER_EMAIL; i++) {
+        await signIn(db, { email: 'ana@zzt.test', password: 'not the password', ip: null, userAgent: null });
+      }
+      expect(await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 429 });
+      // ... and do not throw out the person who is signed in: the session lives, and the right current password
+      // still changes the password.
+      expect(await resolveSession(db, opened.token)).not.toBeNull();
+      const changed = await changePassword(db, opened.user, { current: PASSWORD, next: 'a brand new pass phrase', ip: null, userAgent: null });
+      expect(changed.ok).toBe(true);
+      if (!changed.ok) return;
+      expect(await resolveSession(db, opened.token)).toBeNull();
+      // Wrong current passwords: the limit's worth are answered, and the session is still there.
+      for (let i = 0; i < MAX_FAILS_PER_EMAIL; i++) {
+        expect(await changePassword(db, opened.user, { current: `a wrong guess ${i}`, next: 'whatever comes next', ip: null, userAgent: null }))
+          .toMatchObject({ ok: false, status: 400 });
+      }
+      expect(await resolveSession(db, changed.token)).not.toBeNull();
+      // One more try, even with the right password, ends every session: whoever is at that keyboard is guessing.
+      expect(await changePassword(db, opened.user, { current: 'a brand new pass phrase', next: 'whatever comes next', ip: null, userAgent: null }))
+        .toMatchObject({ ok: false, status: 401 });
+      expect(await resolveSession(db, changed.token)).toBeNull();
+      expect((await sql`select count(*)::int as n from public.carres_supplier_sessions s join public.carres_supplier_users u on u.id = s.user_id where u.email = 'ana@zzt.test'`)[0]!.n).toBe(0);
+
+      // Put the password back for the tests that follow, the way Carres would: a new link.
+      const person = await sql`select id from public.carres_supplier_users where email = 'ana@zzt.test'`;
+      const link = await issueLink(db, { userId: Number(person[0]!.id), staffUserId: staffId });
+      expect(await useLink(db, { token: link!.token, password: PASSWORD, ip: null })).toMatchObject({ ok: true });
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+    });
+
+    test('a Finance person opens no Warehouse page, and a supplier that is paid no share reads no figures', async () => {
+      // Supplier B has access (sofas) and is not the subscription supplier.
+      const made = await addPerson(db, supB, { name: 'Fin B', email: 'fin@zzt.test', canOperation: false, canFinance: true }, staffId);
+      expect(made.ok).toBe(true);
+      if (!made.ok) return;
+      expect(await useLink(db, { token: made.link.token, password: PASSWORD, ip: null })).toMatchObject({ ok: true });
+      const fin = await signIn(db, { email: 'fin@zzt.test', password: PASSWORD, ip: null, userAgent: null });
+      expect(fin.ok).toBe(true);
+      if (!fin.ok) return;
+      const env = {} as Env;
+      const get = (path: string) => supplierApp.request(path, { headers: { Authorization: `Bearer ${fin.token}` } }, env);
+      for (const path of ['/orders', '/orders/ZZT-SO-1', '/forecast', '/pickups']) expect((await get(path)).status).toBe(403);
+      const summary = await get('/finance/summary');
+      expect(summary.status).toBe(200);
+      expect(await summary.json()).toEqual({ shared: false });
+      expect((await get('/finance/orders/11111111-1111-4111-8111-111111111111')).status).toBe(404);
     });
   });
 
@@ -530,6 +651,19 @@ describePg('Carres supplier platform', () => {
       expectClean(body);
       expect(Object.keys(body.pickup)).not.toContain('requestedByName');
       expect(Object.keys(body.pickup)).not.toContain('supplierId');
+      // The keys of a request are exactly the ones named for a supplier: a new column does not travel by default.
+      expect(Object.keys(body.pickup).sort()).toEqual([
+        'acceptedAt', 'acceptedByName', 'cancelReason', 'cancelledAt', 'collectedAt', 'expectedDate', 'expectedTime', 'id', 'lineCount',
+        'lines', 'note', 'requestNo', 'requestedAt', 'soDocNos', 'status', 'supplierName', 'unitCount',
+      ]);
+      expect(Object.keys((body.pickup.lines as Array<Record<string, unknown>>)[0]!).sort()).toEqual([
+        'description', 'itemCode', 'modelName', 'qty', 'soDocNo', 'soItemId', 'spec', 'uom',
+      ]);
+      // The supplier's side reads with the supplier in hand, or reads nothing.
+      expect(await getSupplierPickup(db, requestId, supB)).toBeNull();
+      expect(await getSupplierPickup(db, requestId, '')).toBeNull();
+      expect(await listSupplierPickups(db, '')).toEqual([]);
+      expect((await listSupplierPickups(db, supA)).map((p) => p.requestNo)).toEqual(['CR-PKR-2611-001']);
       expect(await getPickup(db, requestId, supB)).toBeNull();
       expect(await acceptPickup(db, requestId, { supplierId: supB, userId: 1, userName: 'Other', ip: null })).toMatchObject({ ok: false, status: 404 });
       // The order now says a pickup is waiting.
@@ -601,6 +735,16 @@ describePg('Carres supplier platform', () => {
           const rows = await sql.unsafe(`select has_table_privilege('${role}', 'public.${t}', 'SELECT') as can,
             (select relrowsecurity from pg_class where oid = 'public.${t}'::regclass) as rls`);
           expect({ role, t, can: rows[0]!.can, rls: rows[0]!.rls }).toEqual({ role, t, can: false, rls: true });
+        }
+      }
+    });
+
+    test('nobody but the engine may run the two functions that decide what a supplier reads', async () => {
+      for (const fn of ['public.carres_supplier_scope_items(uuid)', 'public.carres_supplier_scope_orders(uuid)']) {
+        // `public` here is every role there is or will be.
+        for (const role of ['public', 'anon', 'authenticated']) {
+          const rows = await sql.unsafe(`select has_function_privilege('${role}', '${fn}', 'EXECUTE') as can`);
+          expect({ fn, role, can: rows[0]!.can }).toEqual({ fn, role, can: false });
         }
       }
     });

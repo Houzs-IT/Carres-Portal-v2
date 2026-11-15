@@ -139,15 +139,20 @@ function toOrder(r: Row, lines: OrderLine[]): OrderRow {
   };
 }
 
-const SORTS: Record<string, string> = {
-  date: "o.so_date",
-  docNo: "o.doc_no",
-  customer: "o.customer_name",
-  status: "o.status",
-  processing: "o.processing_date",
-  delivery: "o.customer_delivery_date",
-  units: "o.unit_count",
-};
+/** The columns a list may be sorted by. A Map, not a plain object: a plain object also answers for the names every
+ *  object inherits ("constructor", "__proto__"), and what it answers is not a column. */
+const SORTS: ReadonlyMap<string, string> = new Map([
+  ["date", "o.so_date"],
+  ["docNo", "o.doc_no"],
+  ["customer", "o.customer_name"],
+  ["status", "o.status"],
+  ["processing", "o.processing_date"],
+  ["delivery", "o.customer_delivery_date"],
+  ["units", "o.unit_count"],
+]);
+const DEFAULT_SORT = "o.so_date";
+/** No list is this long; a page past it is a mistake or a probe, and a huge one would not even be a number. */
+const MAX_PAGE = 100_000;
 
 export interface ListInput { view?: string; q?: string; page?: number; pageSize?: number; sort?: string; dir?: string }
 
@@ -159,9 +164,9 @@ export async function listOrders(db: Db, supplierId: string, input: ListInput): 
   const view: OrderView = (ORDER_VIEWS as readonly string[]).includes(input.view ?? "") ? (input.view as OrderView) : "all";
   const q = (input.q ?? "").trim().slice(0, 80);
   const pageSize = Math.min(200, Math.max(1, Math.trunc(input.pageSize ?? 50) || 50));
-  const page = Math.max(1, Math.trunc(input.page ?? 1) || 1);
+  const page = Math.min(MAX_PAGE, Math.max(1, Math.trunc(input.page ?? 1) || 1));
   // The order-by text is picked from the fixed list above, never taken from the request.
-  const sortColumn = SORTS[input.sort ?? ""] ?? SORTS.date;
+  const sortColumn = SORTS.get(input.sort ?? "") ?? DEFAULT_SORT;
   const direction = input.dir === "asc" ? "ASC" : "DESC";
   const statuses = view === "all" ? null : jsonList(VIEW_STATUSES[view]);
 

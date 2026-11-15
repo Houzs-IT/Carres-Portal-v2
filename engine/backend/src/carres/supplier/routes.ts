@@ -9,12 +9,12 @@
 // Answers are never cached (Cache-Control: no-store).
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import type { Env } from "../../types";
-import { checkRateLimit, clientIp } from "../../middleware/rateLimit";
+import { clientIp } from "../../middleware/rateLimit";
 import { dbFor, type Db } from "./db";
-import { MAX_EMAIL, callerAddress, normEmail } from "./credentials";
+import { callerAddress } from "./credentials";
 import { changePassword, readLink, resolveSession, signIn, signOut, useLink, type SupplierUser } from "./session";
 import { getForecast, getOrder, listOrders } from "./orders";
-import { acceptPickup, forSupplier, getPickup, listPickups, pickupsWaiting, type Pickup, type StaffPickup } from "./pickups";
+import { acceptPickup, getSupplierPickup, listSupplierPickups, pickupsWaiting } from "./pickups";
 import { financeAgreement, financeSummary } from "./finance";
 
 type Vars = { supplier: SupplierUser; sdb: Db; stoken: string };
@@ -32,20 +32,14 @@ app.onError((err, c) => {
   return c.json({ error: "Something went wrong. Try again in a moment." }, 500);
 });
 
-/** The engine's rate-limit helpers are typed for a context with no variables; they read only headers and the cache. */
+/** The engine's address helper is typed for a context with no variables; it reads only a header. */
 const plain = (c: Ctx): Context<{ Bindings: Env }> => c as unknown as Context<{ Bindings: Env }>;
 
 /** The caller's OWN address, or null when the request arrives under an address every caller shares: through the
- *  engine site's /api proxy that is every browser (./credentials.ts callerAddress). */
+ *  engine site's /api proxy that is every browser. It is written down beside a sign-in. It is never counted and
+ *  never a limit (./credentials.ts callerAddress says why): what limits guessing is the count per email in
+ *  ./session.ts, and a link's secret is 32 random bytes, which needs no limit to stay unguessed. */
 const caller = (c: Ctx): string | null => callerAddress(clientIp(plain(c)));
-
-/** The one-time link's speed bump, by the caller's own address. A link's secret is 32 random bytes, so this is not
- *  what keeps a link from being guessed: it only slows one address hammering the route. No own address, no bump,
- *  because a count every caller shares would let one outsider stop every person choosing a password. */
-async function linkLimit(c: Ctx): Promise<Response | null> {
-  const ip = caller(c);
-  return ip ? checkRateLimit(plain(c), "carres-supplier-link", ip, 60, 900) : null;
-}
 
 const bearer = (c: Ctx): string => {
   const header = c.req.header("Authorization") || "";
@@ -95,24 +89,12 @@ const me = (u: SupplierUser, pickupsToAccept: number) => ({
   badges: { pickupsToAccept },
 });
 
-/** A request as the supplier reads it: no Carres staff names, no internal supplier id. */
-const supplierPickup = (p: StaffPickup): Omit<Pickup, "supplierId"> => {
-  const { supplierId: _id, ...rest } = forSupplier(p);
-  return rest;
-};
-
 // ── No session needed: sign in, and choosing a password through a one-time link ─────────────────────────────────
 
 app.post("/auth/login", async (c) => {
-  const ip = caller(c);
   const b = await body(c);
-  // A cache-backed speed bump first (fails open); the lock that counts is the database one in signIn. Keyed by the
-  // email AND the address, as the staff sign-in is (routes/auth.ts): keyed by the address alone, a shared address
-  // would put every supplier under one count.
-  const limited = await checkRateLimit(plain(c), "carres-supplier-login", `${normEmail(b?.email).slice(0, MAX_EMAIL)}:${ip ?? "shared"}`, 20, 900);
-  if (limited) return limited;
   const db = dbFor(c.env);
-  const out = await signIn(db, { email: b?.email, password: b?.password, ip, userAgent: c.req.header("User-Agent") ?? null });
+  const out = await signIn(db, { email: b?.email, password: b?.password, ip: caller(c), userAgent: c.req.header("User-Agent") ?? null });
   if (!out.ok) return c.json({ error: out.error }, out.status);
   const waiting = out.user.canOperation ? await pickupsWaiting(db, out.user.supplierId) : 0;
   return c.json({ token: out.token, expiresAt: out.expiresAt, ...me(out.user, waiting) });
@@ -120,8 +102,6 @@ app.post("/auth/login", async (c) => {
 
 // The link's secret travels in the request BODY, never in the address, so it is not written to an access log.
 app.post("/auth/link", async (c) => {
-  const limited = await linkLimit(c);
-  if (limited) return limited;
   const b = await body(c);
   const link = await readLink(dbFor(c.env), typeof b?.token === "string" ? b.token : "");
   if (!link) return c.json({ error: "This link is no longer valid. Ask Carres for a new one." }, 404);
@@ -129,11 +109,8 @@ app.post("/auth/link", async (c) => {
 });
 
 app.post("/auth/link/use", async (c) => {
-  const ip = caller(c);
-  const limited = await linkLimit(c);
-  if (limited) return limited;
   const b = await body(c);
-  const out = await useLink(dbFor(c.env), { token: typeof b?.token === "string" ? b.token : "", password: b?.password, ip });
+  const out = await useLink(dbFor(c.env), { token: typeof b?.token === "string" ? b.token : "", password: b?.password, ip: caller(c) });
   if (!out.ok) return c.json({ error: out.error }, out.status);
   return c.json({ ok: true, email: out.email });
 });
@@ -199,22 +176,20 @@ app.get("/orders/:docNo", operation, async (c) => {
 app.get("/forecast", operation, async (c) => c.json(await getForecast(c.get("sdb"), c.get("supplier").supplierId)));
 
 app.get("/pickups", operation, async (c) => {
-  const rows = await listPickups(c.get("sdb"), { supplierId: c.get("supplier").supplierId, status: c.req.query("status") ?? null });
-  return c.json({ rows: rows.map(supplierPickup) });
+  return c.json({ rows: await listSupplierPickups(c.get("sdb"), c.get("supplier").supplierId, c.req.query("status") ?? null) });
 });
 
 app.get("/pickups/:id", operation, async (c) => {
-  const pickup = await getPickup(c.get("sdb"), c.req.param("id"), c.get("supplier").supplierId);
+  const pickup = await getSupplierPickup(c.get("sdb"), c.req.param("id"), c.get("supplier").supplierId);
   if (!pickup) return c.json({ error: "Pickup request not found." }, 404);
-  return c.json({ pickup: supplierPickup(pickup) });
+  return c.json({ pickup });
 });
 
 app.post("/pickups/:id/accept", operation, async (c) => {
   const u = c.get("supplier");
   const out = await acceptPickup(c.get("sdb"), c.req.param("id"), { supplierId: u.supplierId, userId: u.id, userName: u.name, ip: caller(c) });
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  const { supplierId: _id, ...pickup } = out.pickup;
-  return c.json({ pickup });
+  return c.json({ pickup: out.pickup });
 });
 
 // Finance ────────────────────────────────────────────────────────────────────────────────────────────────────────

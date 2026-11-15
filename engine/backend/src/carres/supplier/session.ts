@@ -7,14 +7,16 @@
 //   * The token is random, lives in their browser, and is stored here only as its SHA-256.
 //   * Each request re-reads the person, their status and their supplier's access: disabling any of the three ends
 //     the session on the next request, with nothing to revoke.
-//   * A wrong password is counted per email and per address in the database itself, so the lock holds even when a
-//     cache is down. The answer is the same whether or not the email exists. `ip` is the caller's OWN address or
-//     null (./credentials.ts callerAddress): an address every caller shares is never counted, so one outsider's
-//     wrong tries cannot refuse everybody.
+//   * A wrong password is counted per EMAIL, in the database itself, so the lock holds even when a cache is down.
+//     Each try is written before it is counted (takeTry below), so tries sent at the same moment cannot all slip
+//     under the limit. The answer is the same whether or not the email exists.
+//   * Nothing is counted per address. Behind the engine site's /api proxy every browser arrives under one address
+//     (./credentials.ts callerAddress), so a count per address would either stop nobody or, counted on that shared
+//     address, let one outsider refuse every supplier. `ip` is kept only as a record of where a try came from.
 import type { Db } from "./db";
 import { bool, first, int, str } from "./db";
 import {
-  FAIL_WINDOW_MINUTES, LINK_HOURS, MAX_FAILS_PER_EMAIL, MAX_FAILS_PER_IP, MAX_PASSWORD, SESSION_HOURS,
+  FAIL_WINDOW_MINUTES, LINK_HOURS, MAX_FAILS_PER_EMAIL, MAX_PASSWORD, SESSION_HOURS,
   decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
 } from "./credentials";
 
@@ -60,6 +62,14 @@ const USER_COLUMNS = `
   u.id, u.name, u.email, u.supplier_id::text AS supplier_id, u.can_operation, u.can_finance,
   s.code AS supplier_code, s.name AS supplier_name, a.subscription_share`;
 
+/** Always true, and it keeps a statement that reads a password from ever being answered out of a cache. The
+ *  engine's database link (Hyperdrive) is set up with caching off, and it never caches a statement that asks the
+ *  time (developers.cloudflare.com/hyperdrive/concepts/query-caching: caching is ON unless turned off, answers
+ *  are kept a minute, and NOW() is found by its text). With this in the two statements that read a password, an
+ *  old password cannot outlive a reset by that minute even if the setting is one day turned on. Every other read
+ *  that decides who is let in (a session, a link, the count of wrong tries) already asks the time. */
+const FRESH = "NOW() IS NOT NULL";
+
 function toUser(r: Record<string, unknown>): SupplierUser {
   return {
     id: int(r.id),
@@ -87,6 +97,53 @@ async function openSession(
   return { token, expiresAt: str(rows[0]?.expires_at) };
 }
 
+/** Where a try at a password was made. Signing in counts every wrong try at the email; the change-password door
+ *  counts only its own, so an outsider's wrong sign-ins never throw out a person who is signed in. */
+type TryDoor = "signin" | "password_change";
+
+/** The wrong tries at this email's password that still count: inside the window, and after the email last signed
+ *  in or chose a password. So a new link is how Carres lets a locked person back in. */
+async function wrongTries(db: Db, email: string, door: TryDoor): Promise<number> {
+  const rows = await db.query<{ tries: number }>(
+    `SELECT count(*)::int AS tries
+       FROM public.carres_supplier_events f
+      WHERE f.kind = 'signin_failed' AND f.subject = $1
+        AND ($3 = 'signin' OR f.detail->>'via' = $3)
+        AND f.at > now() - make_interval(mins => $2)
+        AND f.at > coalesce((SELECT max(g.at) FROM public.carres_supplier_events g
+                              WHERE g.kind IN ('signin', 'password_set', 'password_changed') AND g.subject = $1),
+                            '-infinity'::timestamptz)`,
+    [email, FAIL_WINDOW_MINUTES, door],
+  );
+  return int(first(rows)?.tries);
+}
+
+/**
+ * Take one try at this email's password: the id of the try's row, or null when the door is locked.
+ *
+ * THE TRY IS WRITTEN BEFORE IT IS COUNTED. Counted first, tries sent at the same moment each read a count under the
+ * limit and each got a real password check, so the limit held only against a caller polite enough to wait. Written
+ * first, the n-th try to count finds at least n rows (its own and every earlier one), so no more than
+ * MAX_FAILS_PER_EMAIL passwords are checked in a window however the tries arrive.
+ *
+ * The row is written as a wrong try and stays one unless the caller turns it into something else: a crash between
+ * here and the answer counts against the email, never for it.
+ */
+async function takeTry(
+  db: Db, t: { email: string; door: TryDoor; ip: string | null; supplierId: string | null; supplierUserId: number | null },
+): Promise<number | null> {
+  // Already locked: refused without writing, so hammering a locked email adds no rows.
+  if (await wrongTries(db, t.email, t.door) >= MAX_FAILS_PER_EMAIL) return null;
+  const made = await db.query<{ id: number }>(
+    `INSERT INTO public.carres_supplier_events (kind, supplier_id, supplier_user_id, subject, ip, detail)
+     VALUES ('signin_failed', $1::uuid, $2, $3, $4, $5::text::jsonb)
+     RETURNING id`,
+    [t.supplierId, t.supplierUserId, t.email, t.ip, JSON.stringify({ via: t.door })],
+  );
+  if (await wrongTries(db, t.email, t.door) > MAX_FAILS_PER_EMAIL) return null;
+  return int(first(made)?.id);
+}
+
 export async function signIn(
   db: Db, input: { email: unknown; password: unknown; ip: string | null; userAgent: string | null },
 ): Promise<Outcome<{ token: string; expiresAt: string; user: SupplierUser }>> {
@@ -94,48 +151,35 @@ export async function signIn(
   const password = typeof input.password === "string" ? input.password : "";
   if (!isEmail(email) || !password || password.length > MAX_PASSWORD) return { ok: false, status: 401, error: WRONG };
 
-  // Wrong passwords since this email last signed in (inside the window), and from this address.
-  const counts = await db.query<{ by_email: number; by_ip: number }>(
-    `SELECT
-       (SELECT count(*)::int FROM public.carres_supplier_events f
-         WHERE f.kind = 'signin_failed' AND f.subject = $1
-           AND f.at > now() - make_interval(mins => $3)
-           AND f.at > coalesce((SELECT max(g.at) FROM public.carres_supplier_events g
-                                 WHERE g.kind = 'signin' AND g.subject = $1), '-infinity'::timestamptz)) AS by_email,
-       (SELECT count(*)::int FROM public.carres_supplier_events f
-         WHERE f.kind = 'signin_failed' AND f.ip = $2 AND f.at > now() - make_interval(mins => $3)) AS by_ip`,
-    [email, input.ip, FAIL_WINDOW_MINUTES],
-  );
-  if (int(counts[0]?.by_email) >= MAX_FAILS_PER_EMAIL || (input.ip && int(counts[0]?.by_ip) >= MAX_FAILS_PER_IP)) {
-    return { ok: false, status: 429, error: LOCKED };
-  }
-
+  // The same statements run whether or not the email exists, so neither the answer nor the time it takes tells.
+  // `now()` is in the statement on purpose (FRESH below): the password checked must be the one stored this moment.
   const found = await db.query(
     `SELECT ${USER_COLUMNS}, u.password_hash, u.status, a.enabled
        FROM public.carres_supplier_users u
        JOIN public.carres_supplier_access a ON a.supplier_id = u.supplier_id
        JOIN scm.suppliers s ON s.id = u.supplier_id
-      WHERE u.email = $1`,
+      WHERE u.email = $1 AND ${FRESH}`,
     [email],
   );
   const row = first(found);
+  const tryId = await takeTry(db, {
+    email, door: "signin", ip: input.ip,
+    supplierId: row ? str(row.supplier_id) : null, supplierUserId: row ? int(row.id) : null,
+  });
+  if (tryId === null) return { ok: false, status: 429, error: LOCKED };
+
   // Always one full password check, against a decoy when there is nothing real to check.
   const stored = row && typeof row.password_hash === "string" && row.password_hash ? row.password_hash : await decoyHash();
   const matches = await verifyPassword(password, stored);
   const allowed = !!row && !!row.password_hash && matches && row.status === "active" && bool(row.enabled);
-  if (!allowed) {
-    await recordEvent(db, {
-      kind: "signin_failed", subject: email, ip: input.ip,
-      supplierId: row ? str(row.supplier_id) : null, supplierUserId: row ? int(row.id) : null,
-    });
-    return { ok: false, status: 401, error: WRONG };
-  }
+  if (!allowed) return { ok: false, status: 401, error: WRONG };
 
   const user = toUser(row);
+  // The try was good: its row becomes the sign-in, which is also where the count of wrong tries starts again.
+  await db.query(`UPDATE public.carres_supplier_events SET kind = 'signin' WHERE id = $1`, [tryId]);
   await db.query(`DELETE FROM public.carres_supplier_sessions WHERE user_id = $1 AND expires_at <= now()`, [user.id]);
   const session = await openSession(db, user.id, input.ip, input.userAgent);
   await db.query(`UPDATE public.carres_supplier_users SET last_login_at = now() WHERE id = $1`, [user.id]);
-  await recordEvent(db, { kind: "signin", subject: email, ip: input.ip, supplierId: user.supplierId, supplierUserId: user.id });
   return { ok: true, ...session, user };
 }
 
@@ -209,16 +253,32 @@ export async function useLink(
   });
 }
 
-/** Change one's own password. Every session ends and a new one is opened for this browser. */
+/**
+ * Change one's own password. Every session ends and a new one is opened for this browser.
+ *
+ * A wrong current password is a wrong try at this person's password: an open session (a shared warehouse computer,
+ * a stolen token) must not be a way to guess the password at full speed. Past the limit at THIS door every session
+ * of the person ends. The tries also count at sign-in, so whoever was guessing cannot go on there.
+ */
 export async function changePassword(
   db: Db, user: SupplierUser, input: { current: unknown; next: unknown; ip: string | null; userAgent: string | null },
 ): Promise<Outcome<{ token: string; expiresAt: string }>> {
   const current = typeof input.current === "string" ? input.current : "";
-  const rows = await db.query(`SELECT password_hash FROM public.carres_supplier_users WHERE id = $1`, [user.id]);
-  const stored = typeof rows[0]?.password_hash === "string" ? (rows[0].password_hash as string) : "";
+  const rows = await db.query(`SELECT password_hash FROM public.carres_supplier_users WHERE id = $1 AND ${FRESH}`, [user.id]);
+  const hash = first(rows)?.password_hash;
+  const stored = typeof hash === "string" ? hash : "";
+  const tryId = await takeTry(db, {
+    email: user.email, door: "password_change", ip: input.ip, supplierId: user.supplierId, supplierUserId: user.id,
+  });
+  if (tryId === null) {
+    await db.query(`DELETE FROM public.carres_supplier_sessions WHERE user_id = $1`, [user.id]);
+    return { ok: false, status: 401, error: LOCKED };
+  }
   if (!current || current.length > MAX_PASSWORD || !stored || !(await verifyPassword(current, stored))) {
     return { ok: false, status: 400, error: "Your current password is incorrect." };
   }
+  // The current password was right, so this was not a wrong try.
+  await db.query(`DELETE FROM public.carres_supplier_events WHERE id = $1 AND kind = 'signin_failed'`, [tryId]);
   const problem = passwordProblem(input.next, user.email);
   if (problem) return { ok: false, status: 400, error: problem };
   if (input.next === current) return { ok: false, status: 400, error: "Choose a password you have not used here." };

@@ -132,14 +132,52 @@ async function itemNamesFor(sb: SupabaseClient, skus: string[]): Promise<Map<str
   return names;
 }
 
+/** The engine sends `{"view":"summary"}` or `{"view":"agreement","id":"<uuid>"}`: well under this. */
+export const MAX_BODY_BYTES = 2_000;
+
+/** The request body as text, or null when it is longer than the engine ever sends. Read a piece at a time and
+ *  dropped at the limit, so a body that does not say how long it is cannot be poured into memory either. */
+async function smallBody(c: Context<AppEnv>): Promise<string | null> {
+  if (Number(c.req.header("content-length") ?? 0) > MAX_BODY_BYTES) return null;
+  const stream = c.req.raw.body;
+  if (!stream) return "";
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function readSigned(c: Context<AppEnv>): Promise<{ ok: true; body: Raw } | { ok: false; res: Response }> {
   const secret = c.env.SCM_ENGINE_SSO_SECRET;
   if (!secret || secret.length < 32) {
     return { ok: false, res: c.json({ error: "not_set_up", message: "Supplier finance is not set up." }, 503) };
   }
-  const raw = await c.req.text();
-  const ok = await verifyFinanceRequest(secret, c.req.header("x-carres-engine-ts"), c.req.header("x-carres-engine-signature"), raw);
-  if (!ok) return { ok: false, res: c.json({ error: "unauthorized", message: "Request could not be verified." }, 401) };
+  const refused = { ok: false as const, res: c.json({ error: "unauthorized", message: "Request could not be verified." }, 401) };
+  // This door answers anyone on the internet. A call with no signature, or an old one, is refused BEFORE its body
+  // is read, and no body is read past the few bytes the engine sends.
+  const ts = c.req.header("x-carres-engine-ts");
+  const signature = c.req.header("x-carres-engine-signature");
+  if (!ts || !signature || !/^\d{10,16}$/.test(ts) || Math.abs(Date.now() - Number(ts)) > MAX_SKEW_MS) return refused;
+  const raw = await smallBody(c);
+  if (raw === null) return refused;
+  const ok = await verifyFinanceRequest(secret, ts, signature, raw);
+  if (!ok) return refused;
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
