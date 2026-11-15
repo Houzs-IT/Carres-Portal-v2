@@ -57,11 +57,11 @@ export default function Login() {
       const from = readReturnTo(location.state);
       const defaultHome =
         role === "principal"
-          ? "/principal"
+          ? "/operation"
           : role === "operation"
             ? "/operation"
             : role === "finance"
-              ? "/finance"
+              ? "/operation/sc/fin-todo"
               : role === "bd"
                 ? "/bd"
                 : role === "dealer" || role === "salesperson" || role === "showroom"

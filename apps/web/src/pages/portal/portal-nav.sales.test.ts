@@ -4,7 +4,6 @@ import {
   PORTAL_NAV,
   navBlocks,
   navItemHref,
-  retiredRedirect,
   visibleItems,
 } from "./portal-nav";
 
@@ -28,7 +27,6 @@ import {
  */
 
 const OPERATIONS = PORTAL_NAV.find((g) => g.area === "operation")!;
-const ADMIN = PORTAL_NAV.find((g) => g.area === "principal")!;
 
 describe("the approved Sales Orders navigation", () => {
   it("the module row is `Sales Order`", () => {
@@ -37,7 +35,7 @@ describe("the approved Sales Orders navigation", () => {
     );
   });
 
-  it("holds the Houzs Sales Order rows in Houzs order, then Subscription", () => {
+  it("holds the Houzs Sales Order rows in Houzs order (no Subscription, owner 16 Nov 2026)", () => {
     const block = navBlocks(OPERATIONS, "operation").find(
       (b) => b.kind === "module" && b.module.section === "Sales",
     );
@@ -50,7 +48,6 @@ describe("the approved Sales Orders navigation", () => {
       "Delivery Orders",
       "Sales Invoices",
       "Delivery Returns",
-      "Subscription",
     ]);
   });
 
@@ -62,7 +59,7 @@ describe("the approved Sales Orders navigation", () => {
       visibleItems(OPERATIONS, "operation").map((i) => [i.key, i]),
     );
     expect(navItemHref(OPERATIONS, byKey.orders)).toBe("/operation/sc/orders");
-    expect(navItemHref(OPERATIONS, byKey.rental)).toBe("/operation?tab=rental");
+    expect(byKey.rental).toBeUndefined();
   });
 
   /* `Purchase` is rejected BY NAME in COPY-STANDARD for this entry — it reads
@@ -73,17 +70,6 @@ describe("the approved Sales Orders navigation", () => {
     );
     expect(sales.map((i) => i.label)).not.toContain("Purchase");
     for (const item of sales) expect(item.label).not.toMatch(/Purchase/);
-  });
-
-  /* A door, never a duplicate (Law C). The Subscription row MOVED out of
-     Customer Care; a copy would be two rows the rail lights at once. */
-  it("Subscription exists once, and only under Sales Orders", () => {
-    const rental = visibleItems(OPERATIONS, "operation").filter(
-      (i) => i.key === "rental",
-    );
-    expect(rental).toHaveLength(1);
-    expect(rental[0].section).toBe("Sales");
-    expect(rental[0].label).toBe("Subscription");
   });
 
   it("Service Cases carries its four pages, in order", () => {
@@ -108,17 +94,6 @@ describe("the approved Sales Orders navigation", () => {
         expect(item.path ?? "").not.toContain("old-orders");
       }
     }
-  });
-
-  /* ONE DESTINATION, ONE WORD. A principal stands in Operations AND Admin at
-     once; the Admin row keeps its old `/operation/orders` address, which opens
-     the Operations row's own `/operation/sc/orders`. */
-  it("the Admin jump to the same register says the same word", () => {
-    const admin = ADMIN.items.find((i) => i.key === "orders");
-    const ops = OPERATIONS.items.find((i) => i.key === "orders");
-    expect(ops?.label).toBe("Sales Orders");
-    expect(admin?.label).toBe(ops?.label);
-    expect(retiredRedirect(admin!.path!, "")).toBe(ops?.path);
   });
 
   /* The shared parent is NAVIGATION ONLY. Procurement keeps its own module, and

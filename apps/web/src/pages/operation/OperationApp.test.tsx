@@ -28,7 +28,6 @@ vi.mock("./components/GlobalTopBar", () => ({
   default: () => <div data-testid="global-topbar-stub">topbar</div>,
   TopBarIcons: () => <div data-testid="topbar-icons-stub">icons</div>,
 }));
-vi.mock("./OperationRental", () => ({ default: () => <div data-testid="rental-stub">rental</div> }));
 import { useAuth } from "@/lib/auth";
 import OperationApp from "./OperationApp";
 
@@ -98,14 +97,9 @@ describe("OperationApp — retired Carres addresses move to the nearest engine r
 });
 
 describe("OperationApp — Carres's own pages stay", () => {
-  it.each([
-    ["/operation?tab=rental", "rental-stub"],
-  ])("%s mounts its page", (path, id) => {
-    renderApp(path);
-    expect(screen.getByTestId(id)).toBeInTheDocument();
-    expect(screen.queryByTestId("engine-stub")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("shell-header")).toHaveLength(1);
-    expect(screen.getByTestId("shell-tasks-stub")).toBeInTheDocument();
+  it("?tab=rental (retired Subscription, owner 16 Nov 2026) opens Houzs's Sales Orders", () => {
+    renderApp("/operation?tab=rental");
+    expect(at()).toBe("/operation/sc/orders");
   });
 
   it.each(["/operation?tab=work", "/operation?tab=leave"])("%s (retired Workspace and Leave) opens Houzs's Overview", (path) => {
@@ -184,12 +178,6 @@ describe("OperationApp — on a phone an engine page is Houzs's own phone app", 
     expect(screen.getByTestId("phone-menu")).toHaveAttribute("aria-hidden", "false");
   });
 
-  it("keeps the phone header on Carres's own pages", () => {
-    phoneWidth(true);
-    renderApp("/operation?tab=rental");
-    expect(screen.getByTestId("phone-menu-button")).toBeInTheDocument();
-    expect(screen.getByTestId("rental-stub")).toBeInTheDocument();
-  });
 
   it("leaves the computer shell as it was", () => {
     phoneWidth(false);

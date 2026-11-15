@@ -64,23 +64,23 @@ describe("permission filtering — before display, never after", () => {
 
   it("the principal is offered every area the sidebar gives them", () => {
     const areas = new Set(permittedDestinations("principal").map((d) => d.area));
-    expect(areas).toEqual(new Set(["Operations", "Admin", "Finance (old)"]));
+    expect(areas).toEqual(new Set(["Operations"]));
   });
 
-  /* ⭐ THE TWO-ROLE PROOF, at the surface. `Approvals` is an Admin door; an
-   * operation login must not be able to type its way to it. */
+  /* ⭐ THE TWO-ROLE PROOF, at the surface. `Quality Overview` is an Operations door; an
+   * HR login must not be able to type its way to it. */
   it("a destination one role may open is invisible to the other", () => {
-    role.mockReturnValue("operation");
+    role.mockReturnValue("hr");
     const { unmount } = renderJump();
-    fireEvent.change(openSurface(), { target: { value: "Approvals" } });
-    expect(screen.queryByText("Approvals")).toBeNull();
+    fireEvent.change(openSurface(), { target: { value: "Quality Overview" } });
+    expect(screen.queryByText("Quality Overview")).toBeNull();
     expect(screen.getByText("No results")).toBeInTheDocument();
     unmount();
 
-    role.mockReturnValue("principal");
+    role.mockReturnValue("operation");
     renderJump();
-    fireEvent.change(openSurface(), { target: { value: "Approvals" } });
-    expect(screen.getByText("Approvals")).toBeInTheDocument();
+    fireEvent.change(openSurface(), { target: { value: "Quality Overview" } });
+    expect(screen.getByText("Quality Overview")).toBeInTheDocument();
   });
 
   it("a recent destination the role lost is dropped, not replayed from storage", () => {

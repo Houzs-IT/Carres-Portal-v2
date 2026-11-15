@@ -75,12 +75,10 @@ describe("Houzs Finance in the portal menu", () => {
     expect(roleMayOpenEngineRow("operation", "fin-receipts")).toBe(true);
   });
 
-  it("the old Carres Finance is kept, at the very bottom, as Finance (old)", () => {
-    const old = PORTAL_NAV.find((g) => g.area === "finance")!;
-    expect(PORTAL_NAV[PORTAL_NAV.length - 1]).toBe(old);
-    expect(old.label).toBe("Finance (old)");
-    expect(old.items.length).toBeGreaterThan(30);
-    expect(visibleGroups("principal").map((g) => g.label)).toEqual(["Operations", "Admin", "Finance (old)"]);
-    expect(visibleGroups("finance").map((g) => g.label)).toEqual(["Operations", "Finance (old)"]);
+  it("there is no old Carres Finance or Admin area (owner, 16 Nov 2026)", () => {
+    expect(PORTAL_NAV.find((g) => g.area === "finance")).toBeUndefined();
+    expect(PORTAL_NAV.find((g) => g.area === "principal")).toBeUndefined();
+    expect(visibleGroups("principal").map((g) => g.label)).toEqual(["Operations"]);
+    expect(visibleGroups("finance").map((g) => g.label)).toEqual(["Operations"]);
   });
 });
