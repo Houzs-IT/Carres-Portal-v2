@@ -335,6 +335,60 @@ describe("a policy that answers a store only through the Carres API keeps that c
   });
 });
 
+/**
+ * 0780 (owner, 16 Nov 2026): nobody who sells sees what Carres pays or who
+ * Carres buys from, bd included. Every buying-side table carries one more
+ * policy, the same on each. The migration names the tables; the check script
+ * (scripts/check-open-access.sql, block 4) names them again so that a table
+ * which later loses the policy shows. The two lists must be one list.
+ */
+describe("the buying-side tables 0780 closes to an account that does not see cost", () => {
+  const MIGRATION = "0780_an_account_that_does_not_see_cost_reads_no_buying_side_table.sql";
+  const sql = readFileSync(join(REPO, "supabase", "migrations", MIGRATION), "utf8").replace(/\r\n/g, "\n");
+  const check = readFileSync(join(REPO, "scripts", "check-open-access.sql"), "utf8").replace(/\r\n/g, "\n");
+
+  const namesIn = (text: string) => [...text.replace(/--[^\n]*/g, "").matchAll(/'([a-z0-9_]+)'/g)].map((m) => m[1] as string);
+  const migrationList = (name: string) => namesIn(new RegExp(`${name} text\\[\\] := array\\[([\\s\\S]*?)\\];`).exec(sql)?.[1] ?? "");
+  const checkList = (name: string) => namesIn(new RegExp(`${name}\\(name\\) as \\(values([\\s\\S]*?)\\n\\)`).exec(check)?.[1] ?? "");
+
+  it("names six tables a store reads through the API and eighty it does not read at all, none twice", () => {
+    const door = migrationList("through_the_api");
+    const buying = migrationList("buying_side");
+    expect(door.sort()).toEqual(["catalog_fabrics", "order_supplier_threads", "product_skus", "purchasing_settings", "sofa_combo_pricing", "special_addons"]);
+    expect(buying).toHaveLength(80);
+    expect(new Set([...door, ...buying]).size).toBe(86);
+    // The ones the owner's rule is about, by name.
+    expect(buying).toEqual(expect.arrayContaining(["suppliers", "purchase_orders", "purchase_order_lines", "ops_stock_items", "sku_supplier_offers", "rental_agreements"]));
+  });
+
+  it("the check script names the same tables, so a lost policy shows", () => {
+    expect(checkList("through_the_api").sort()).toEqual(migrationList("through_the_api").sort());
+    expect(checkList("buying_side").sort()).toEqual(migrationList("buying_side").sort());
+  });
+
+  it("the policy is restrictive, for every command, and asks who sees cost", () => {
+    const policies = [...sql.matchAll(/'create policy cost_and_supplier_are_internal on public\.%I as restrictive for all to authenticated '\s*\|\| '([^']+)'(?:\s*\|\| '([^']+)')?/g)]
+      .map((m) => `${m[1]}${m[2] ?? ""}`);
+    expect(policies).toEqual([
+      "using ((select public.sees_cost()) or not (select public.is_carres_or_seller()) or (select public.is_through_carres_api()))",
+      "using ((select public.sees_cost()) or not (select public.is_carres_or_seller()))",
+    ]);
+  });
+
+  it("sees_cost() is the three roles the API's COST_ROLES names, and bd is not one", () => {
+    const body = /create or replace function public\.sees_cost\(\)[\s\S]*?\$function\$([\s\S]*?)\$function\$/.exec(sql)?.[1] ?? "";
+    expect(namesIn(body).filter((n) => n !== "active").sort()).toEqual(["finance", "operation", "principal"]);
+    expect(body).toContain("status = 'active'");
+    const rule = readFileSync(join(REPO, "packages", "shared", "src", "cost-visibility.ts"), "utf8");
+    expect(rule).toContain('export const COST_ROLES = ["principal", "operation", "finance"] as const;');
+  });
+
+  it("writes no policy that admits every signed-in account, and the gate pins the function it rebuilt", () => {
+    expect(findOpenPolicies(sql)).toEqual([]);
+    expect(readFileSync(SCRIPT, "utf8")).toContain('fn: "catalog_fabrics_set_cost"');
+  });
+});
+
 describe("the collision rule itself", () => {
   it("groups by the numeric prefix, letter suffix included", () => {
     const g = groupByNumber(["0376_a.sql", "0376_b.sql", "0376a_c.sql"]);

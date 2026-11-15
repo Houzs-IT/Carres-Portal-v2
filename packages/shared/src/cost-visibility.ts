@@ -2,16 +2,20 @@ import type { CatalogResponse } from "./schemas/catalog";
 
 /* WHO SEES WHAT CARRES PAYS, AND WHO CARRES BUYS FROM (owner, 16 Nov 2026).
  *
- * Carres's internal roles only: the same four the database's `is_internal()` names. A store login (dealer,
- * salesperson, showroom) sells; it never receives a cost, a supplier, or the supplier's own item code. A role
- * added later sees none of them until it is named here, so forgetting to decide means "no".
+ * Three roles: principal, operation, finance. The same three the database's `sees_cost()` names (0780).
  *
- * Two places enforce it and both read this file's rule:
+ * Nobody who sells does. A store login (dealer, salesperson, showroom) never receives a cost, a supplier, or the
+ * supplier's own item code, and neither does bd: it is one of Carres's own roles, but its work is selling and
+ * looking after the stores (owner, the same day: "Bd also don't need to view"). A role added later sees none of
+ * them until it is named here, so forgetting to decide means "no".
+ *
+ * Two places enforce it and both follow this rule:
  *   - the API removes these fields from what it sends (below);
- *   - the database answers a role that is not internal only through the API (migrations 0778, 0779), because
- *     row-level security chooses rows, never columns.
+ *   - the database answers a role that does not see cost on the product tables only through the API, and on the
+ *     buying side (suppliers, purchase orders, receiving, supplier claims, stock units) not at all
+ *     (migrations 0778 to 0780), because row-level security chooses rows, never columns.
  */
-export const COST_ROLES = ["principal", "operation", "finance", "bd"] as const;
+export const COST_ROLES = ["principal", "operation", "finance"] as const;
 
 export function seesCost(role: string): boolean {
   return (COST_ROLES as readonly string[]).includes(role);

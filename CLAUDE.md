@@ -598,9 +598,9 @@ CONFIGURATION — suppliers, SKUs, production days, rates — not transactions.
 - The dealer sells; **the customer pays HQ directly.** There is no HQ→dealer credit or debt.
 - `Outstanding` means what the CUSTOMER owes HQ.
 - Operation and Supplier are HQ-INTERNAL roles, never dealer-side.
-- **A store never sees what Carres pays or who Carres buys from** (owner 2026-11-16): cost, supplier and
-  the supplier's item code are for principal, operation, finance and bd. Nothing sent to a dealer,
-  salesperson or showroom login may carry them, shown or not. `docs/ERP-ARCHITECTURE.md` §6.7.
+- **Nobody who sells sees what Carres pays or who Carres buys from** (owner 2026-11-16): cost, supplier
+  and the supplier's item code are for principal, operation and finance. Nothing sent to a dealer,
+  salesperson, showroom or bd login may carry them, shown or not. `docs/ERP-ARCHITECTURE.md` §6.7.
 
 ---
 

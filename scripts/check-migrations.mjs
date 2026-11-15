@@ -358,6 +358,13 @@ const REBUILT_GUARDS = [
     needle: "is_server_call",
     story: "0394 let any signed-in account re-price any order's stair carry; 0777 asks who may edit that order",
   },
+  /* 0780 · what Carres pays is for principal, operation and finance (owner, 16 Nov 2026). This one asked
+     is_internal(), which answers bd. */
+  {
+    fn: "catalog_fabrics_set_cost",
+    needle: "sees_cost",
+    story: "0202 let every internal role, bd included, set a fabric's cost; 0780 asks sees_cost()",
+  },
 ];
 
 /* Every `create [or replace] function <name>(` body in one file. */

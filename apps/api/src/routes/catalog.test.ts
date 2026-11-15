@@ -220,8 +220,8 @@ describe("GET /api/catalog", () => {
   });
 });
 
-/* Owner, 16 Nov 2026: a store login (dealer, salesperson, showroom) never sees what Carres pays for an item or
- * who Carres buys it from. The rows below hold both; what each role is SENT is what is checked. */
+/* Owner, 16 Nov 2026: nobody who sells sees what Carres pays for an item or who Carres buys it from: not a store
+ * login (dealer, salesperson, showroom) and not bd. The rows below hold both; what each role is SENT is checked. */
 describe("GET /api/catalog: what Carres pays and who Carres buys from", () => {
   const SUPPLIER_ID = "00000000-0000-0000-0000-0000000000e1";
   const COMBO_MODEL = "00000000-0000-0000-0000-00000000aa03";
@@ -270,7 +270,7 @@ describe("GET /api/catalog: what Carres pays and who Carres buys from", () => {
     return { text: await res.clone().text(), body: (await res.json()) as CatalogResponse };
   }
 
-  for (const role of ["dealer", "salesperson", "showroom", "hr"]) {
+  for (const role of ["dealer", "salesperson", "showroom", "bd", "hr"]) {
     it(`sends a ${role} login every selling price and no cost, supplier or supplier item code`, async () => {
       const { text, body } = await catalogAs(role);
 
@@ -287,7 +287,7 @@ describe("GET /api/catalog: what Carres pays and who Carres buys from", () => {
     });
   }
 
-  for (const role of ["principal", "operation", "finance", "bd"]) {
+  for (const role of ["principal", "operation", "finance"]) {
     it(`sends a ${role} login the cost and the supplier, as before`, async () => {
       const { body } = await catalogAs(role);
       expect(body.skus[0]).toMatchObject({ cost: 640, supplierId: SUPPLIER_ID, supplierCode: "1007(HF)(W)-(Q)" });
@@ -297,7 +297,7 @@ describe("GET /api/catalog: what Carres pays and who Carres buys from", () => {
     });
   }
 
-  it("opens the API door for a store on this route only, and never for an internal role", async () => {
+  it("opens the API door for a store or bd on this route only, and never for a role that sees cost", async () => {
     const doorOn = async (role: string, path: string) => {
       vi.mocked(userClient).mockReset();
       vi.mocked(userClient).mockReturnValue(buildSb({ ...tables(), outlets: [] }));
@@ -309,6 +309,8 @@ describe("GET /api/catalog: what Carres pays and who Carres buys from", () => {
     };
     expect(await doorOn("dealer", "/api/catalog")).toEqual([TEST_API_DOOR_SECRET]);
     expect(await doorOn("dealer", "/api/outlets")).toEqual([null]);
+    expect(await doorOn("bd", "/api/catalog")).toEqual([TEST_API_DOOR_SECRET]);
+    expect(await doorOn("bd", "/api/outlets")).toEqual([null]);
     expect(await doorOn("principal", "/api/catalog")).toEqual([null]);
   });
 });

@@ -1,11 +1,11 @@
 -- ============================================================================
 -- check-open-access.sql · what can a signed-in account reach that nobody meant?
 --
--- READ-ONLY. Four questions about the portal database; each answer should be
+-- READ-ONLY. Five questions about the portal database; each answer should be
 -- ZERO ROWS. Run each block on its own (Supabase SQL editor, or the MCP's
 -- execute_sql). Written 15 Nov 2026 with migrations 0776 and 0777, which
 -- closed what the first three found: 31 policies and 38 functions. The fourth
--- came with 0778 and 0779 the next day.
+-- and fifth came with 0778 to 0780 the next day: who sees what Carres pays.
 --
 -- Why it exists. Everything in `public` is reachable by name through the data
 -- API with nothing but a signed-in token:
@@ -100,7 +100,7 @@ with recursive fn as (
   ('app_partner_id', 'the caller''s own partner'), ('app_supplier_id', 'the caller''s own supplier'),
   ('app_warehouse_id', 'the caller''s own site'), ('is_internal', 'about the caller'),
   ('is_operation', 'about the caller'), ('is_principal', 'about the caller'),
-  ('is_carres_or_seller', 'about the caller'),
+  ('is_carres_or_seller', 'about the caller'), ('sees_cost', 'about the caller'),
   ('is_through_carres_api', 'about the request: true or false, and the value it compares never leaves it (0778)'),
   ('my_org_duties', 'the caller''s own duties'), ('rental_can_approve', 'about the caller'),
   ('staff_leave_may_submit', 'about the caller'), ('staff_leave_recorder_view', 'empty unless the caller records leave'),
@@ -127,26 +127,128 @@ select c.proname || '(' || pg_get_function_identity_arguments(c.oid) || ')' as f
  order by 1;
 
 
--- ── 4 · A table that holds a cost or a supplier and answers a store directly ─
+-- ── 4 · A buying-side table that has lost its rule ──────────────────────────
 -- Owner, 16 Nov 2026: what Carres pays and who Carres buys from are for
--- Carres's internal roles. Row-level security chooses rows, never columns, so
--- these tables answer an account that is not internal only when the request
--- came through the Carres API, which leaves those columns out (0778, 0779;
--- apps/api/src/lib/api-door.ts). A read policy on one of them must be for
--- internal roles, for the principal, or ask is_through_carres_api().
+-- principal, operation and finance. Nobody who sells sees them: not a store
+-- login, and not bd. Row-level security chooses rows, never columns, so every
+-- table below carries one RESTRICTIVE policy, cost_and_supplier_are_internal
+-- (0780): an active Carres or store account touches it only if sees_cost().
+-- On the six a store needs in order to sell there is one more way through,
+-- the Carres API, which leaves the cost out (0778, 0779;
+-- apps/api/src/lib/api-door.ts).
 --
--- A NEW table that holds a cost or a supplier beside something a store needs
--- joins this list and gets the same policy. One a store has no need of is
--- simply internal: (select public.is_internal()).
-select p.tablename, p.policyname, p.cmd, p.qual as answers_a_store_without_the_api
-  from pg_policies p
- where p.schemaname = 'public'
-   and p.tablename in ('product_skus', 'catalog_fabrics', 'sofa_combo_pricing', 'special_addons',
-                       'purchasing_settings', 'order_supplier_threads')
-   and p.cmd in ('SELECT', 'ALL')
-   and p.permissive = 'PERMISSIVE'
-   and p.qual !~ 'is_through_carres_api\(\)'
-   and p.qual !~ '^\s*\(?\s*\(?\s*SELECT\s+(public\.)?is_(internal|principal)\(\)'
-   -- the threads' own rules for operation, the supplier and the delivery partner name a role
-   and p.qual !~ 'app_role\(\)'
- order by 1, 2;
+-- The list is 0780's. A later migration that drops the policy from one of
+-- these, or turns row-level security off, shows here.
+with through_the_api(name) as (values
+  ('product_skus'), ('catalog_fabrics'), ('sofa_combo_pricing'), ('special_addons'),
+  ('purchasing_settings'), ('order_supplier_threads')
+), buying_side(name) as (values
+  ('suppliers'), ('sku_supplier_offers'), ('purchasing_production_days'), ('purchasing_supplier_settings'),
+  ('purchasing_setting_changes'), ('purchase_snoozes'),
+  ('purchase_requests'), ('purchase_request_events'), ('purchase_request_new_models'),
+  ('purchase_requests_checkpoint_a'), ('forecast_purchase_requests'), ('purchase_demands'),
+  ('purchase_orders'), ('purchase_order_lines'), ('po_line_sources'), ('po_history'), ('po_revisions'),
+  ('po_version_documents'), ('po_sends'), ('po_email_attempts'), ('po_email_attempt_documents'),
+  ('po_supplier_promises'), ('po_supplier_answer_screenshots'), ('po_arrival_confirmations'),
+  ('po_change_requests'), ('po_cost_approvals'), ('po_goods_cancellation_events'), ('po_pickup_events'),
+  ('po_receipts'),
+  ('warehouse_receipts'), ('receiving_events'), ('receiving_unit_results'),
+  ('arrival_sources'), ('arrival_source_events'), ('arrival_source_units'),
+  ('supplier_claims'), ('supplier_claim_replies'),
+  ('purchase_returns'), ('purchase_return_units'), ('purchase_return_pickup_confirmations'),
+  ('purchase_return_supplier_receipts'), ('purchase_return_supplier_receipt_units'),
+  ('supplier_return_handovers'),
+  ('repair_orders'), ('repair_order_units'), ('repair_order_supplier_replies'), ('repair_order_owner_consents'),
+  ('supplier_bills'), ('supplier_bill_lines'), ('supplier_bill_foreign_amounts'),
+  ('supplier_credit_notes'), ('supplier_credit_note_lines'), ('supplier_credit_note_applications'),
+  ('supplier_debit_notes'), ('supplier_debit_note_lines'),
+  ('supplier_note_followups'), ('supplier_note_followup_contacts'), ('supplier_note_followup_settlements'),
+  ('supplier_advance_applications'), ('supplier_advance_money_back'),
+  ('payment_vouchers'), ('payment_voucher_lines'), ('payment_voucher_allocations'),
+  ('payment_voucher_debit_note_allocations'), ('payment_voucher_opening_allocations'),
+  ('finance_supplier_profiles'), ('fin_party_codes'), ('ap_document_events'), ('ap_document_files'),
+  ('order_line_costs'), ('fin_opening_stock'), ('catalog_config_history'), ('service_cases'),
+  ('ops_stock_items'), ('ops_stock_items_seed_backup_20260711'), ('ops_sofa_loans'),
+  ('rental_plans'), ('rental_offers'), ('rental_agreements'), ('rental_billings')
+), listed as (
+  select name, true as through_the_api from through_the_api
+  union all
+  select name, false from buying_side
+)
+select l.name as table_name,
+       case
+         when c.oid is null then 'the table is gone: take it off this list and 0780''s successor'
+         when not c.relrowsecurity then 'row-level security is off'
+         when p.policyname is null then 'the policy cost_and_supplier_are_internal is missing'
+         when p.permissive <> 'RESTRICTIVE' or p.cmd <> 'ALL' then 'the policy is no longer restrictive for all'
+         when p.qual !~ 'sees_cost\(\)' or p.qual !~ 'is_carres_or_seller\(\)' then 'the policy no longer asks sees_cost()'
+         when l.through_the_api and p.qual !~ 'is_through_carres_api\(\)' then 'a store can no longer read it through the API'
+         when not l.through_the_api and p.qual ~ 'is_through_carres_api\(\)' then 'it is open through the API and should not be'
+       end as finding
+  from listed l
+  left join pg_class c on c.relname = l.name and c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+  left join pg_policies p on p.schemaname = 'public' and p.tablename = l.name
+                         and p.policyname = 'cost_and_supplier_are_internal'
+ where c.oid is null or not c.relrowsecurity or p.policyname is null
+    or p.permissive <> 'RESTRICTIVE' or p.cmd <> 'ALL'
+    or p.qual !~ 'sees_cost\(\)' or p.qual !~ 'is_carres_or_seller\(\)'
+    or (l.through_the_api and p.qual !~ 'is_through_carres_api\(\)')
+    or (not l.through_the_api and p.qual ~ 'is_through_carres_api\(\)')
+union all
+-- the two functions 0780 changed, read off their source
+select 'catalog_fabrics_set_cost', 'it no longer asks sees_cost()'
+ where not exists (select 1 from pg_proc f join pg_namespace n on n.oid = f.pronamespace
+                    where n.nspname = 'public' and f.proname = 'catalog_fabrics_set_cost'
+                      and f.prosrc ~ 'sees_cost\(\)' and f.prosrc !~ 'is_internal\(\)')
+union all
+select 'create_rental_agreement', 'it hands the supplier''s share back to an account that does not see cost'
+ where not exists (select 1 from pg_proc f join pg_namespace n on n.oid = f.pronamespace
+                    where n.nspname = 'public' and f.proname = 'create_rental_agreement'
+                      and position('to_jsonb(v_agreement) - ''supplier_rate_pct''' in f.prosrc) > 0)
+ order by 1;
+
+
+-- ── 5 · A NEW table that names a cost or a supplier and has no rule ─────────
+-- Read off the shape: a column whose name says cost or supplier, or a foreign
+-- key to a supplier, a purchase order, a supplier's bill or a payment voucher.
+-- A table this reports either joins block 4's list with the policy
+--   create policy cost_and_supplier_are_internal on public.<table>
+--     as restrictive for all to authenticated
+--     using ((select public.sees_cost()) or not (select public.is_carres_or_seller()));
+-- or joins the short list below with the reason it is not buying-side.
+with reviewed(name, why) as (values
+  ('app_users',                       'supplier_id is a supplier login''s own link; an account reads its own row'),
+  ('issue_money_links',               'cost_bearer_id is who bears an issue''s cost, not what Carres pays a supplier'),
+  ('payment_requests',                'staff ask Finance to pay a bill; bd and hr use it, through functions'),
+  ('dealer_commission_payments',      'what a dealer is paid, which the dealer sees'),
+  ('dealer_commission_close_dealers', 'what a dealer is paid, which the dealer sees'),
+  ('payments',                        'the old payments table, empty; if it is used again for money out it joins block 4')
+)
+select c.relname as table_with_no_rule,
+       (select string_agg(a.attname, ', ' order by a.attnum)
+          from pg_attribute a
+         where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+           and a.attname ~* '(cost|cogs|margin|supplier|buy_price|purchase_price|landed|markup|factory|vendor)') as columns_that_name_one,
+       (select string_agg(distinct con.confrelid::regclass::text, ', ')
+          from pg_constraint con
+         where con.contype = 'f' and con.conrelid = c.oid
+           and con.confrelid::regclass::text in ('suppliers', 'purchase_orders', 'purchase_order_lines', 'purchase_demands',
+               'purchase_requests', 'supplier_claims', 'purchase_returns', 'repair_orders', 'warehouse_receipts',
+               'supplier_bills', 'supplier_credit_notes', 'supplier_debit_notes', 'payment_vouchers',
+               'sku_supplier_offers')) as points_at
+  from pg_class c
+ where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+   and (exists (select 1 from pg_attribute a
+                 where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+                   and a.attname ~* '(cost|cogs|margin|supplier|buy_price|purchase_price|landed|markup|factory|vendor)')
+        or exists (select 1 from pg_constraint con
+                    where con.contype = 'f' and con.conrelid = c.oid
+                      and con.confrelid::regclass::text in ('suppliers', 'purchase_orders', 'purchase_order_lines',
+                          'purchase_demands', 'purchase_requests', 'supplier_claims', 'purchase_returns', 'repair_orders',
+                          'warehouse_receipts', 'supplier_bills', 'supplier_credit_notes', 'supplier_debit_notes',
+                          'payment_vouchers', 'sku_supplier_offers')))
+   and not exists (select 1 from pg_policies p
+                    where p.schemaname = 'public' and p.tablename = c.relname
+                      and p.policyname = 'cost_and_supplier_are_internal')
+   and c.relname not in (select name from reviewed)
+ order by 1;

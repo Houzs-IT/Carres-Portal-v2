@@ -1089,3 +1089,31 @@ describe("POST /api/rental/agreement-templates (0267)", () => {
     expect(body.agreementTemplates[0]!.fields).toEqual(["customer.name"]);
   });
 });
+
+/* Owner, 16 Nov 2026: bd sells these plans, and does not see what Carres pays or who Carres buys from. A plan, an
+ * offer and an agreement carry the supplier's share of the rent, so the three reads that return them are for the
+ * roles that see cost. What bd needs to sell (and the unit registry, which holds no share) stays open to it. */
+describe("the supplier's share of a rental is for the roles that see cost", () => {
+  const read = async (role: string, path: string) => {
+    vi.mocked(userClient).mockReturnValue(buildSb({ tables: {} }));
+    const jwt = await makeJwt(role, role === "bd" ? null : "00000000-0000-0000-0000-000000000d01");
+    const res = await app.fetch(new Request(`http://t${path}`, { headers: { Authorization: `Bearer ${jwt}` } }), env);
+    return res.status;
+  };
+  const CARRY_THE_SHARE = ["/api/rental/config", "/api/rental/agreements", `/api/rental/agreements/${AGREEMENT_ID}/collections`];
+
+  it.each(["bd", "hr", "dealer", "salesperson", "showroom"])("refuses %s the plans, the agreements and the collections", async (role) => {
+    for (const path of CARRY_THE_SHARE) expect(await read(role, path), path).toBe(403);
+  });
+
+  it.each(["principal", "operation", "finance"])("does not refuse %s", async (role) => {
+    for (const path of CARRY_THE_SHARE) expect(await read(role, path), path).not.toBe(403);
+  });
+
+  it("still lets bd read the unit registry, which holds no share", async () => {
+    vi.mocked(userClient).mockReturnValue(buildSb({ tables: { rental_stock_units: [UNIT_ROW] } }));
+    const jwt = await makeJwt("bd");
+    const res = await app.fetch(new Request("http://t/api/rental/units", { headers: { Authorization: `Bearer ${jwt}` } }), env);
+    expect(res.status).toBe(200);
+  });
+});

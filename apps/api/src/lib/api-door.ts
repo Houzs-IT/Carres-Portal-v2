@@ -3,17 +3,18 @@ import { adminClient, CARRES_API_HEADER } from "./supabase";
 
 /* THE API DOOR (owner, 16 Nov 2026; migrations 0778, 0779).
  *
- * What Carres pays for an item and who Carres buys it from are for Carres's internal roles. A store login still
- * needs the product tables to sell, and the same rows hold the cost. Row-level security chooses rows, never
- * columns, so the database answers an account that is not internal on those tables ONLY when the request came
- * through this API: the request carries a value the database also holds, and only this Worker can read it.
+ * What Carres pays for an item and who Carres buys it from are for principal, operation and finance. Everyone
+ * who sells (a store login, and bd) still needs the product tables, and the same rows hold the cost. Row-level
+ * security chooses rows, never columns, so the database answers an account that does not see cost on those
+ * tables ONLY when the request came through this API: the request carries a value the database also holds, and
+ * only this Worker can read it.
  *
  * The door opens per route, never per account. It is open on the routes below, which a store needs and whose
  * answers carry no cost and no supplier. On every other route a store's read of those tables finds nothing, so a
  * route written for the office cannot hand a store its cost by accident. A NEW route that must read the product
  * tables for a store is added here, after checking what it sends back.
  *
- * Internal roles never need the door: their own policy branch answers them.
+ * A role that sees cost never needs the door: the database answers it directly.
  */
 
 type DoorRoute = { method?: string; exact?: string; prefix?: string };
