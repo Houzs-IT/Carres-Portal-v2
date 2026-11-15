@@ -3418,3 +3418,22 @@ export {
   type StockCardLine,
   type LoadingListRow,
 } from "./warehouse-houzs-views";
+
+// The Supplier Platform's Finance pages (owner, 15 Nov 2026): what a subscription supplier reads of the money it
+// has a share in. Worked out here from the rental instalments; answered only to the engine Worker
+// (apps/api/src/routes/engine-supplier-finance.ts), never to a browser.
+export {
+  SUPPLIER_FINANCE_DEFAULT_MONTHS,
+  supplierFinanceInstalments,
+  supplierFinanceOrder,
+  supplierFinanceSummary,
+  type SupplierFinanceAgreementRow,
+  type SupplierFinanceBillingRow,
+  type SupplierFinanceInstalment,
+  type SupplierFinanceInstalmentState,
+  type SupplierFinanceMonth,
+  type SupplierFinanceOrder,
+  type SupplierFinanceOrderState,
+  type SupplierFinanceSummary,
+  type SupplierFinanceTotals,
+} from "./supplier-finance";

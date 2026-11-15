@@ -66,6 +66,7 @@ import {
   Bot,
   ScanLine,
   Megaphone,
+  Forklift,
 } from "lucide-react";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
@@ -443,6 +444,10 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "receiving", label: "Goods Receipt", icon: PackageCheck, path: "/operation/sc/receiving", section: "Purchasing" },
       { key: "purchase-invoices", label: "Purchase Invoices", icon: ReceiptText, path: "/operation/sc/purchase-invoices", section: "Purchasing" },
       { key: "purchase-returns", label: "Purchase Returns", icon: Undo2, path: "/operation/sc/purchase-returns", section: "Purchasing" },
+      /* Carres's own row, after Houzs's ten (owner, 15 Nov 2026), as Subscription sits after Houzs's Sales Order
+         rows: the Supplier Platform's pickup requests. Carres collects goods at the supplier's warehouse; here staff
+         tick the Sales Orders, send the request and record the collection (engine/frontend/src/carres/supplier-staff). */
+      { key: "supplier-pickups", label: "Supplier Pickups", icon: Forklift, path: "/operation/sc/supplier-pickups", section: "Purchasing" },
 
       /* SUPPLY CHAIN · TRANSPORTATION */
       { key: "logistic-overview", label: "Logistic Overview", icon: LayoutDashboard, path: "/operation/sc/logistic-overview", section: "Delivery" },
@@ -667,6 +672,8 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "procurement-overview": "/scm/procurement-overview", "op-catalog": "/scm/products", suppliers: "/scm/suppliers",
   mrp: "/scm/mrp", "purchase-orders": "/scm/purchase-orders", "po-amendments": "/scm/po-amendments",
   "po-cancellation-requests": "/scm/cancel-requests", receiving: "/scm/grns",
+  // Carres's own engine page (engine/frontend/src/carres/supplier-staff): pickup requests to a supplier.
+  "supplier-pickups": "/scm/supplier-pickups",
   "purchase-invoices": "/scm/purchase-invoices", "purchase-returns": "/scm/purchase-returns",
   "logistic-overview": "/scm/logistic-overview", "delivery-planning": "/scm/delivery-planning",
   "delivery-planning-driver": "/scm/delivery-planning-driver", "dp-orders": "/scm/dp-orders",
