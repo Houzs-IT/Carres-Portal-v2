@@ -40,6 +40,8 @@ import {
   RENTAL_STOCK_UNITS,
   PRODUCT_MODELS,
   PRODUCT_SKUS,
+  seesCost,
+  rentalAgreementWithoutSupplierShare,
 } from "@carres/shared";
 import { parseJsonBody, fail } from "../lib/route-helpers";
 import { ensureFixedTermSchedule, ensureRentalPlanStripeObjects, CARRES_SOURCE } from "../lib/rental-stripe";
@@ -1715,9 +1717,11 @@ rentalRouter.post("/agreements", refuseWhenOldOrdersOff, async (c) => {
   if (!out?.agreement) {
     return c.json({ error: "rpc_failed", code: "rpc_failed", message: "signup returned no agreement" }, 500);
   }
+  // A store signs the customer up; the supplier's share of the rent is not the store's to see (owner, 16 Nov 2026).
+  const agreement = Adapters.rentalAgreementFromRow(out.agreement);
   return c.json(
     {
-      agreement: Adapters.rentalAgreementFromRow(out.agreement),
+      agreement: seesCost(c.var.auth.role) ? agreement : rentalAgreementWithoutSupplierShare(agreement),
       customer: Adapters.customerFromRow(out.customer),
       // null until finance approves (0268) — never adapt a null row
       unit: out.unit ? Adapters.rentalStockUnitFromRow(out.unit) : null,

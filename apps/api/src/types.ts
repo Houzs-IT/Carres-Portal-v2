@@ -34,6 +34,9 @@ export type Bindings = {
   STAFF_WEB_URL?: string;
   /** The engine Worker itself (service binding, production); unset => SCM_ENGINE_API over the internet. */
   SCM_ENGINE?: Fetcher;
+  /** NOT a Worker secret and never configured: middleware/api-door.ts puts it on ONE request's copy of `env`
+   *  when the API door is open for that caller on that route, and `userClient` sends it to the database. */
+  CARRES_API_SECRET?: string;
 };
 
 export type AuthContext = {

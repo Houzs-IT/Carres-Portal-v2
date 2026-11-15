@@ -68,6 +68,8 @@ import {
   type SkuImportRow,
   type SkuImportFailure,
   FABRIC_STOCK_KEYS,
+  seesCost,
+  catalogWithoutCost,
 } from "@carres/shared";
 import { mapPgError, parseJsonBody, fail } from "../lib/route-helpers";
 import { userClient } from "../lib/supabase";
@@ -550,22 +552,20 @@ catalogRouter.get("/", async (c) => {
           )
         : undefined,
   });
-  // EXPOSURE NOTE (0186): unlike `cost`, the PWP discounted reward price
-  // (product_skus.pwp_price → sku.pwpPrice / sofa_combo_pricing.pwp_prices_by_height
-  // → sofaCombo.pwpPricesByHeight) legitimately needs to reach the POS so the
-  // salesperson can preview a PWP-reward line's discounted price. It therefore
-  // rides in the bundle for ALL roles by design — it is NOT stripped. (The
-  // principal-only WRITE lock still applies: the 0186 trigger + the route gate
-  // block a non-principal from SETTING it.) This is a deliberate read-exposure,
-  // tracked as the `pwp-price-pos-bundle-exposure` carry-forward (companion to
-  // `combo-cost-pos-bundle-exposure`).
+  // WHAT CARRES PAYS AND WHO CARRES BUYS FROM (owner, 16 Nov 2026): a role that does not see cost receives the
+  // catalogue with every cost, supplier and supplier item code removed (@carres/shared cost-visibility).
+  //
+  // The PWP reward price is different (0186): product_skus.pwp_price → sku.pwpPrice and
+  // sofa_combo_pricing.pwp_prices_by_height → sofaCombo.pwpPricesByHeight are what the customer pays for a
+  // reward line, so the POS needs them to preview it. They ride in the bundle for every role by design. Only the
+  // principal may SET them (the 0186 trigger and the route gate).
 
   // 0074 — was `private, max-age=300` but the browser cache was beating
   // react-query's invalidate-on-write (Loo 2026-05-09: new sofa model
   // didn't show until hard reload). React-query's `staleTime: 5 * 60_000`
   // already handles client-side caching; HTTP cache here was redundant.
   c.header("Cache-Control", "no-store");
-  return c.json(body);
+  return c.json(seesCost(auth.role) ? body : catalogWithoutCost(body));
 });
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { signTestJwt, useTestJwks } from "../test/jwt";
+import { TEST_API_DOOR_SECRET } from "../test/api-door";
 import type {
   CatalogResponse,
   OutletsListResponse,
@@ -216,6 +217,99 @@ describe("GET /api/catalog", () => {
   it("requires authentication (no JWT → 401)", async () => {
     const res = await app.fetch(new Request("http://t/api/catalog"), env);
     expect(res.status).toBe(401);
+  });
+});
+
+/* Owner, 16 Nov 2026: a store login (dealer, salesperson, showroom) never sees what Carres pays for an item or
+ * who Carres buys it from. The rows below hold both; what each role is SENT is what is checked. */
+describe("GET /api/catalog: what Carres pays and who Carres buys from", () => {
+  const SUPPLIER_ID = "00000000-0000-0000-0000-0000000000e1";
+  const COMBO_MODEL = "00000000-0000-0000-0000-00000000aa03";
+
+  const tables = () => ({
+    product_models: [
+      { id: MODEL_ID_LIVE, category: "mattress", model_key: "carres-classic", name: "Classic", blurb: null, colors: null, gaps: null, sofa_mode: null, discontinued_at: null },
+      { id: COMBO_MODEL, category: "sofa", model_key: "booqit", name: "Booqit", blurb: null, colors: null, gaps: null, sofa_mode: null, discontinued_at: null },
+    ],
+    product_skus: [
+      {
+        id: "00000000-0000-0000-0000-00000000bb01", model_id: MODEL_ID_LIVE, sku: "CLASSIC-Q", variant: "Q", variant_kind: "size",
+        price: 1500, cost: 640, supplier_id: SUPPLIER_ID, supplier_code: "1007(HF)(W)-(Q)", pwp_price: 990, discontinued_at: null,
+      },
+    ],
+    sofa_fabrics: [],
+    addons: [],
+    floor_config: [{ id: 1, free_up_to_floor: 2, per_floor_per_item: 50, updated_at: "2025-01-01T00:00:00Z" }],
+    sofa_combo_pricing: [
+      {
+        id: "00000000-0000-0000-0000-00000000cc01", model_id: COMBO_MODEL, slots: [["1A"]], tier: null,
+        prices_by_height: { "24": 2800 }, cost_by_height: { "24": 1300 }, pwp_prices_by_height: { "24": 1999 }, label: null,
+        effective_from: "2026-01-01", active: true, discontinued_at: null, is_quick_pick: false,
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+    special_addons: [
+      {
+        id: "00000000-0000-0000-0000-00000000dd01", code: "USB", label: "USB port", so_description: "", categories: ["sofa"],
+        selling_price: 120, cost: 45, option_groups: [], active: true, sort_order: 0,
+      },
+    ],
+    catalog_fabrics: [
+      {
+        id: "00000000-0000-0000-0000-00000000ee01", fabric_code: "KN390-7", series: null, description: null, supplier_code: "KN390-7",
+        sofa_tier: "PRICE_2", bedframe_tier: "PRICE_2", active: true, sort_order: 0, cost: 18.5, price_sen: 1850, soh_sen: 400,
+      },
+    ],
+  });
+
+  async function catalogAs(role: string) {
+    vi.mocked(userClient).mockReturnValue(buildSb(tables()));
+    const jwt = await makeJwt(role, role === "dealer" || role === "salesperson" || role === "showroom" ? DEALER_ID : null);
+    const res = await app.fetch(new Request("http://t/api/catalog", { headers: { Authorization: `Bearer ${jwt}` } }), env);
+    expect(res.status).toBe(200);
+    return { text: await res.clone().text(), body: (await res.json()) as CatalogResponse };
+  }
+
+  for (const role of ["dealer", "salesperson", "showroom", "hr"]) {
+    it(`sends a ${role} login every selling price and no cost, supplier or supplier item code`, async () => {
+      const { text, body } = await catalogAs(role);
+
+      expect(body.skus[0]).toMatchObject({ sku: "CLASSIC-Q", price: 1500, pwpPrice: 990, cost: null, supplierId: null, supplierCode: null });
+      expect(body.sofaCombos?.[0]).toMatchObject({ pricesByHeight: { "24": 2800 }, pwpPricesByHeight: { "24": 1999 }, costByHeight: null });
+      expect(body.specialAddons?.[0]).toMatchObject({ code: "USB", sellingPrice: 120, cost: null });
+      expect(body.fabrics?.[0]).toMatchObject({ fabricCode: "KN390-7", cost: null, supplierCode: null });
+      expect(body.fabrics?.[0]?.stock).toBeUndefined();
+
+      // Not in the bytes either: none of the values the rows held went out under any name.
+      for (const secret of ["640", "1300", "18.5", "1850", SUPPLIER_ID, "1007(HF)(W)-(Q)", '"cost":45']) {
+        expect(text, secret).not.toContain(secret);
+      }
+    });
+  }
+
+  for (const role of ["principal", "operation", "finance", "bd"]) {
+    it(`sends a ${role} login the cost and the supplier, as before`, async () => {
+      const { body } = await catalogAs(role);
+      expect(body.skus[0]).toMatchObject({ cost: 640, supplierId: SUPPLIER_ID, supplierCode: "1007(HF)(W)-(Q)" });
+      expect(body.sofaCombos?.[0]?.costByHeight).toEqual({ "24": 1300 });
+      expect(body.specialAddons?.[0]?.cost).toBe(45);
+      expect(body.fabrics?.[0]).toMatchObject({ cost: 18.5, supplierCode: "KN390-7" });
+    });
+  }
+
+  it("opens the API door for a store on this route only, and never for an internal role", async () => {
+    const doorOn = async (role: string, path: string) => {
+      vi.mocked(userClient).mockReset();
+      vi.mocked(userClient).mockReturnValue(buildSb({ ...tables(), outlets: [] }));
+      const jwt = await makeJwt(role, DEALER_ID);
+      await app.fetch(new Request(`http://t${path}`, { headers: { Authorization: `Bearer ${jwt}` } }), env);
+      const handed = vi.mocked(userClient).mock.calls.map(([e]) => (e as { CARRES_API_SECRET?: string }).CARRES_API_SECRET ?? null);
+      expect(handed.length).toBeGreaterThan(0);
+      return [...new Set(handed)];
+    };
+    expect(await doorOn("dealer", "/api/catalog")).toEqual([TEST_API_DOOR_SECRET]);
+    expect(await doorOn("dealer", "/api/outlets")).toEqual([null]);
+    expect(await doorOn("principal", "/api/catalog")).toEqual([null]);
   });
 });
 
