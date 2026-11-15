@@ -166,8 +166,8 @@ edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `/
    `consignment_delivery_orders` and `consignment_delivery_returns`; those columns exist but nothing reads or
    writes them, by owner decision. Do not drop them without a new migration and the owner's word.
 
-**Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT ON BRANCH).** A supplier's own
-pages inside the engine, a Carres addition, each Houzs file it touches marked `// Carres:`.
+**Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT · DEPLOYED 15 Nov 2026).** A
+supplier's own pages inside the engine, a Carres addition, each Houzs file it touches marked `// Carres:`.
 - *Supplier side.* Site `/supplier/*` (`engine/frontend/src/carres/supplier/`): a surface of its own in
   `routing/appSurface.ts`, mounted in `main.tsx` outside `AuthProvider` and `AuthGate`, with no staff client and no
   staff install prompt. API `/api/carres-supplier/*` (`engine/backend/src/carres/supplier/routes.ts`), mounted in
@@ -216,6 +216,18 @@ pages inside the engine, a Carres addition, each Houzs file it touches marked `/
   engine's own suites are not part of `ci.yml`: run them by hand before merging an engine change.
 - *Giving a supplier access.* Settings › Supplier Access: choose the supplier, tick what it sees, tick
   `may sign in`, Save, Add person, send the one-time link. Nothing is shared before that.
+- *Production, measured 15 Nov 2026 (re-measure before quoting).* #2312 merged as `9d8f75cb4`; both deploy
+  runs passed. Step 2012 applied 12:11 UTC: nine tables, row level security on, no policy, none readable by
+  `anon` or `authenticated`, all owned by `scm_engine`; the two functions not executable by `PUBLIC`, `anon` or
+  `authenticated`. Zero rows of access, people, sessions and pickup requests. Without a login: the supplier
+  API answers 401 with no token and with a made-up one, on the Worker and through the site; the two Carres
+  routes answer 401 without a staff sign-in; `/supplier` pages come with `frame-ancestors 'none'` and
+  `X-Frame-Options: DENY` and staff pages do not; a wrong sign-in with a made-up address answered 401 twice
+  and left two `signin_failed` rows (`deploy-check@example.invalid`, no address recorded); the portal's
+  `/engine/supplier-finance` answers 401 unsigned; the portal bundle carries the `Supplier Pickups` row.
+  **Owed:** the signed-in walk of Settings › Supplier Access and Supplier Pickups by the owner, and the first
+  supplier's own sign-in, which is a cutover that needs the owner's word. The engine's `/health` reports no
+  commit, so the deployed commit is known from the deploy run, not from the server.
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits
