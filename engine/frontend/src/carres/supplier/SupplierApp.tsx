@@ -114,7 +114,7 @@ function readLinkToken(): string {
   return token;
 }
 
-function SetPasswordPage() {
+function SetPasswordPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
   const navigate = useNavigate();
   const [token] = useState(readLinkToken);
   const [who, setWho] = useState<{ name: string; email: string; purpose: string } | null>(null);
@@ -142,6 +142,13 @@ function SetPasswordPage() {
     setError(null);
     try {
       const out = await supplierApi.useLink(token, password);
+      // Choosing the password signs the person in: they are not asked to type it again on the sign-in page.
+      if (out.token && out.user && out.supplier && out.badges) {
+        supplierToken.set(out.token);
+        onSignedIn({ user: out.user, supplier: out.supplier, badges: out.badges });
+        return;
+      }
+      // The supplier's access is off: the password is saved, and signing in waits for Carres to turn it on.
       supplierToken.clear();
       navigate("/supplier/login", { replace: true, state: { email: out.email, notice: "Your password is set. Sign in with it." } });
     } catch (err) {
@@ -334,8 +341,10 @@ export function SupplierApp() {
   }, [navigate]);
   const session = useMemo(() => (me ? { me, refresh, signOut } : null), [me, refresh, signOut]);
 
+  const enter = (m: Me) => { setMe(m); setState("in"); navigate(homeFor(m), { replace: true }); };
+
   const path = location.pathname.replace(/\/+$/, "");
-  if (path === "/supplier/setup") return <SetPasswordPage />;
+  if (path === "/supplier/setup") return <SetPasswordPage onSignedIn={enter} />;
 
   if (state === "checking") return <div className="flex min-h-screen items-center justify-center bg-bg text-[12.5px] text-ink-muted">Loading</div>;
   if (state === "error") {
@@ -347,7 +356,7 @@ export function SupplierApp() {
   }
   if (state === "out" || !session) {
     if (path !== "/supplier/login") return <Navigate to="/supplier/login" replace state={location.state} />;
-    return <LoginPage onSignedIn={(m) => { setMe(m); setState("in"); navigate(homeFor(m), { replace: true }); }} />;
+    return <LoginPage onSignedIn={enter} />;
   }
 
   const m = session.me;

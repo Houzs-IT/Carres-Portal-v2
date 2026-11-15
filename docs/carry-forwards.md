@@ -35,10 +35,11 @@ address everyone shares would let one outsider lock every supplier out (`credent
 `callerAddress`, `session.ts` `takeTry`, tested in `tests-pg/carresSupplierPlatform.pg.test.ts`).
 
 **What that leaves (found by the independent review, 2026-11-15).** A per-email limit is the whole
-limit. So a person's sign-in can be held locked by someone who knows their email: Carres lets them
-back in with a new set-password link, and a session already open keeps working. And nothing slows one
-caller across many emails beyond each email's own five tries. Where a sign-in came from is not
-recorded for anyone who arrives through the site.
+limit. So a person's sign-in page can be held locked by someone who knows their email. Carres lets
+them back in with a new set-password link: the link signs the person in, so they are in even while
+the wrong tries go on, and a session already open keeps working. And nothing slows one caller across
+many emails beyond each email's own five tries. Where a sign-in came from is not recorded for anyone
+who arrives through the site.
 
 **Fix when it matters.** The site's `/api` function passes the browser's address under a secret that
 the Worker checks; a header by itself proves nothing, since anyone's Worker arrives under the same

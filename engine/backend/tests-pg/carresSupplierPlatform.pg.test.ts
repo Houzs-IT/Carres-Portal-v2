@@ -536,44 +536,107 @@ describePg('Carres supplier platform', () => {
       expect(await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 429 });
     });
 
-    test('a new link is how Carres lets a locked person back in', async () => {
+    test('a new link is how Carres lets a locked person back in, and the link itself signs them in', async () => {
       // Still locked by the burst above.
       const person = await sql`select id from public.carres_supplier_users where email = 'ana@zzt.test'`;
       const link = await issueLink(db, { userId: Number(person[0]!.id), staffUserId: staffId });
       expect(link).not.toBeNull();
-      expect(await useLink(db, { token: link!.token, password: PASSWORD, ip: null })).toMatchObject({ ok: true, email: 'ana@zzt.test' });
+      const used = await useLink(db, { token: link!.token, password: PASSWORD, ip: null });
+      expect(used).toMatchObject({ ok: true, email: 'ana@zzt.test' });
+      if (!used.ok) return;
+      // The link opened a session: the person is in without typing the password at the sign-in page.
+      expect(used.session?.user).toMatchObject({ email: 'ana@zzt.test', supplierId: supA });
+      const linkSession = used.session!.token;
+      expect((await resolveSession(db, linkSession))?.email).toBe('ana@zzt.test');
+      // The old wrong tries no longer count: the sign-in page takes the right password again.
       expect((await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).ok).toBe(true);
-      // The wrong tries are still on record. They only stopped counting.
-      const kept = await sql`select count(*)::int as n from public.carres_supplier_events where kind = 'signin_failed' and subject = 'ana@zzt.test'`;
-      expect(kept[0]!.n).toBeGreaterThanOrEqual(MAX_FAILS_PER_EMAIL);
-      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
-    });
-
-    test('a wrong current password is counted at its own door, and past the limit every session ends', async () => {
-      const opened = await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null });
-      expect(opened.ok).toBe(true);
-      if (!opened.ok) return;
-      // An outsider's wrong sign-ins lock the sign-in door for this email ...
+      // An outsider who goes on trying locks the sign-in page again at once. The person the link let in stays in:
+      // that is why the link signs them in instead of sending them to that page.
       for (let i = 0; i < MAX_FAILS_PER_EMAIL; i++) {
         await signIn(db, { email: 'ana@zzt.test', password: 'not the password', ip: null, userAgent: null });
       }
       expect(await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 429 });
-      // ... and do not throw out the person who is signed in: the session lives, and the right current password
-      // still changes the password.
+      expect(await resolveSession(db, linkSession)).not.toBeNull();
+      // The wrong tries of before the link are still on record. They only stopped counting.
+      const kept = await sql`select count(*)::int as n from public.carres_supplier_events where kind = 'signin_failed' and subject = 'ana@zzt.test'`;
+      expect(kept[0]!.n).toBeGreaterThanOrEqual(2 * MAX_FAILS_PER_EMAIL);
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+    });
+
+    test('a good sign-in does not forgive the wrong tries before it: only a link does', async () => {
+      // If it did, an email whose owner signs in would behave differently from an unknown one, and that difference
+      // would tell an outsider which emails are real.
+      const wrong = () => signIn(db, { email: 'ana@zzt.test', password: 'not the password', ip: null, userAgent: null });
+      for (let i = 0; i < MAX_FAILS_PER_EMAIL - 1; i++) expect(await wrong()).toMatchObject({ ok: false, status: 401 });
+      expect((await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).ok).toBe(true);
+      // The good one was not a wrong try, so one wrong try is still left in this window, and no more.
+      expect(await wrong()).toMatchObject({ ok: false, status: 401 });
+      expect(await wrong()).toMatchObject({ ok: false, status: 429 });
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+    });
+
+    test('a sign-in whose password was replaced while it was being checked opens no session', async () => {
+      const count = async () => (await sql`select count(*)::int as n from public.carres_supplier_sessions s join public.carres_supplier_users u on u.id = s.user_id where u.email = 'ana@zzt.test'`)[0]!.n as number;
+      const before = await count();
+      const kept = await sql`select password_hash from public.carres_supplier_users where email = 'ana@zzt.test'`;
+      // A database that lets a reset land in the one gap that matters: after the password was read and checked,
+      // just before the session is written.
+      const racing: Db = {
+        query: (async (text: string, params?: readonly unknown[]) => {
+          if (text.includes('INSERT INTO public.carres_supplier_sessions')) {
+            await sql`update public.carres_supplier_users set password_hash = 'replaced-by-a-reset' where email = 'ana@zzt.test'`;
+          }
+          return db.query(text, params);
+        }) as Db['query'],
+        tx: (work) => db.tx(work),
+      };
+      try {
+        // The password WAS right when it was checked. The session is still refused, as any wrong password is.
+        expect(await signIn(racing, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 401 });
+        expect(await count()).toBe(before);
+      } finally {
+        await sql`update public.carres_supplier_users set password_hash = ${kept[0]!.password_hash as string} where email = 'ana@zzt.test'`;
+        await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+      }
+      expect((await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).ok).toBe(true);
+    });
+
+    test('the two doors share one count of wrong tries; where they were made decides who is thrown out', async () => {
+      const opened = await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null });
+      expect(opened.ok).toBe(true);
+      if (!opened.ok) return;
+      const change = (current: string, next = 'whatever comes next') => changePassword(db, opened.user, { current, next, ip: null, userAgent: null });
+      const wrongSignIn = () => signIn(db, { email: 'ana@zzt.test', password: 'not the password', ip: null, userAgent: null });
+
+      // AN OUTSIDER guesses at the sign-in page until the email is locked.
+      for (let i = 0; i < MAX_FAILS_PER_EMAIL; i++) await wrongSignIn();
+      expect(await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 429 });
+      // The person who is signed in is not thrown out. Their current password is not checked either while the
+      // email is locked, right or wrong: an open session is not a second set of guesses.
+      expect(await change(PASSWORD, 'a brand new pass phrase')).toMatchObject({ ok: false, status: 429 });
+      expect(await change('a wrong guess')).toMatchObject({ ok: false, status: 429 });
       expect(await resolveSession(db, opened.token)).not.toBeNull();
-      const changed = await changePassword(db, opened.user, { current: PASSWORD, next: 'a brand new pass phrase', ip: null, userAgent: null });
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+
+      // Three wrong sign-ins and two wrong current passwords are five: the sixth try is refused at either door.
+      for (let i = 0; i < 3; i++) await wrongSignIn();
+      for (let i = 0; i < 2; i++) expect(await change(`a wrong guess ${i}`)).toMatchObject({ ok: false, status: 400 });
+      expect(await change(PASSWORD, 'a brand new pass phrase')).toMatchObject({ ok: false, status: 429 });
+      expect(await signIn(db, { email: 'ana@zzt.test', password: PASSWORD, ip: null, userAgent: null })).toMatchObject({ ok: false, status: 429 });
+      expect(await resolveSession(db, opened.token)).not.toBeNull();
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+
+      // With nothing against the email, the right current password changes the password and every other session ends.
+      const changed = await change(PASSWORD, 'a brand new pass phrase');
       expect(changed.ok).toBe(true);
       if (!changed.ok) return;
       expect(await resolveSession(db, opened.token)).toBeNull();
-      // Wrong current passwords: the limit's worth are answered, and the session is still there.
-      for (let i = 0; i < MAX_FAILS_PER_EMAIL; i++) {
-        expect(await changePassword(db, opened.user, { current: `a wrong guess ${i}`, next: 'whatever comes next', ip: null, userAgent: null }))
-          .toMatchObject({ ok: false, status: 400 });
-      }
+
+      // WHOEVER IS AT THIS KEYBOARD guesses the current password: the limit's worth are answered ...
+      for (let i = 0; i < MAX_FAILS_PER_EMAIL; i++) expect(await change(`a wrong guess ${i}`)).toMatchObject({ ok: false, status: 400 });
       expect(await resolveSession(db, changed.token)).not.toBeNull();
-      // One more try, even with the right password, ends every session: whoever is at that keyboard is guessing.
-      expect(await changePassword(db, opened.user, { current: 'a brand new pass phrase', next: 'whatever comes next', ip: null, userAgent: null }))
-        .toMatchObject({ ok: false, status: 401 });
+      // ... and one more try, even with the right password, ends every session of the person.
+      expect(await change('a brand new pass phrase')).toMatchObject({ ok: false, status: 401 });
       expect(await resolveSession(db, changed.token)).toBeNull();
       expect((await sql`select count(*)::int as n from public.carres_supplier_sessions s join public.carres_supplier_users u on u.id = s.user_id where u.email = 'ana@zzt.test'`)[0]!.n).toBe(0);
 
@@ -600,6 +663,40 @@ describePg('Carres supplier platform', () => {
       expect(summary.status).toBe(200);
       expect(await summary.json()).toEqual({ shared: false });
       expect((await get('/finance/orders/11111111-1111-4111-8111-111111111111')).status).toBe(404);
+    });
+
+    test('with the supplier\'s access off, a link still sets the password and signs nobody in', async () => {
+      const env = {} as Env;
+      const person = await sql`select id from public.carres_supplier_users where email = 'fin@zzt.test'`;
+      await saveAccess(db, supB, scope(['SOFA'], { enabled: false }), staffId);
+      try {
+        const link = await issueLink(db, { userId: Number(person[0]!.id), staffUserId: staffId });
+        // Over HTTP, as the page calls it: the answer carries the email and no token.
+        const res = await supplierApp.request('/auth/link/use', {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: link!.token, password: 'a password for later use' }),
+        }, env);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true, email: 'fin@zzt.test' });
+        expect((await sql`select count(*)::int as n from public.carres_supplier_sessions where user_id = ${person[0]!.id}`)[0]!.n).toBe(0);
+        expect(await signIn(db, { email: 'fin@zzt.test', password: 'a password for later use', ip: null, userAgent: null })).toMatchObject({ ok: false, status: 401 });
+      } finally {
+        await saveAccess(db, supB, scope(['SOFA']), staffId);
+        await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+      }
+      // Access back on: the password chosen while it was off signs the person in.
+      expect((await signIn(db, { email: 'fin@zzt.test', password: 'a password for later use', ip: null, userAgent: null })).ok).toBe(true);
+      // And with access on, the same call over HTTP answers what signing in answers.
+      const link = await issueLink(db, { userId: Number(person[0]!.id), staffUserId: staffId });
+      const res = await supplierApp.request('/auth/link/use', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token: link!.token, password: PASSWORD }),
+      }, env);
+      const body = await res.json() as { token: string; user: { email: string } };
+      expect(res.status).toBe(200);
+      expect(keyPaths(body).sort()).toEqual([
+        'badges', 'badges.pickupsToAccept', 'email', 'expiresAt', 'ok', 'supplier', 'supplier.code', 'supplier.name', 'token',
+        'user', 'user.canFinance', 'user.canOperation', 'user.email', 'user.name',
+      ]);
+      expect((await resolveSession(db, body.token))?.email).toBe('fin@zzt.test');
     });
   });
 

@@ -17,8 +17,8 @@
 --   * What a supplier may read is decided HERE, in the two functions at the bottom: they name every column that
 --     leaves the database. No price, cost, margin, payment, phone, email, remark or staff name is in them, and a
 --     line's specification leaves without its add-on note and without the word that it was given free.
---   * The two functions can be run by the engine's own role only: PUBLIC, anon and authenticated lose EXECUTE, so
---     the data API does not offer them.
+--   * PUBLIC, anon and authenticated lose EXECUTE on the two functions, so the data API offers them to no outside
+--     caller. The engine's own role runs them.
 --
 -- RE-RUN: safe (IF NOT EXISTS / CREATE OR REPLACE throughout).
 -- REVERSAL: DROP FUNCTION public.carres_supplier_scope_orders(uuid), public.carres_supplier_scope_items(uuid);
@@ -311,7 +311,7 @@ AS $$
    WHERE so.status::text <> 'DRAFT'
 $$;
 
--- ── 6. The two functions are the engine's alone ─────────────────────────────────────────────────────────────────
+-- ── 6. The two functions are closed to outside callers ──────────────────────────────────────────────────────────
 -- A function in public can be run by anyone unless that is taken away, and the data API offers every function it
 -- may run. Both run with the caller's own rights, so an outsider would already be stopped at the tables; this
 -- takes the door away too. The engine's role keeps EXECUTE (scripts/carres-db/engine-owns-all.sql grants it again

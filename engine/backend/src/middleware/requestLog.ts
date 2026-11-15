@@ -40,17 +40,19 @@ export const requestLog: MiddlewareHandler<{ Bindings: Env }> = async (c, next) 
   const ms = Date.now() - t0;
   // Snapshot now: work handed to waitUntil keeps adding marks after the response.
   const db = dbTotals(marks);
-  const path = new URL(c.req.url).pathname;
   // Worker time vs. the browser's wait, plus each timed() step (lib/step-timing.ts).
   // Carres: not on the supplier pages' API. It answers outsiders before any sign-in, and how long the server spent,
-  // step by step, is a stopwatch for telling a real email from an unknown one.
-  if (!path.startsWith("/api/carres-supplier/")) {
+  // step by step, is a stopwatch for telling a real email from an unknown one. Asked of c.req.path, the address
+  // the router itself matched: an address typed as "/api/carres%2Dsupplier/..." is routed to the supplier API all
+  // the same, and the address as typed would not show it.
+  if (!c.req.path.startsWith("/api/carres-supplier/")) {
     try {
       c.res.headers.set("Server-Timing", [`app;dur=${ms}`, ...stepTimingEntries(marks)].join(", "));
     } catch {
       /* an immutable passthrough response keeps its own headers */
     }
   }
+  const path = new URL(c.req.url).pathname;
   if (path === "/health") return; // skip keep-alive noise
   const uid = c.get("user")?.id ?? "-";
   console.log(`[req] ${c.req.method} ${path} ${c.res.status} ${ms}ms id=${id} user=${uid}`);

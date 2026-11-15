@@ -1379,8 +1379,8 @@ only accept its own.
    live in tables of their own; a supplier token is refused by every staff route and a staff token
    by the supplier routes.
 2. The supplier is taken from the session only, never from the address or the request.
-3. The columns that may leave are named in two database functions (engine migration 2012) that only
-   the engine's database role may run; the supplier routes read orders through them and nowhere
+3. The columns that may leave are named in two database functions (engine migration 2012) that no
+   outside caller of the database may run; the supplier routes read orders through them and nowhere
    else. A pickup request is answered field by named field. Tests plant a marker in every field
    that must stay inside and fail if one appears in an answer.
 4. Subscription figures come from the portal over a signed server-to-server call; the supplier's

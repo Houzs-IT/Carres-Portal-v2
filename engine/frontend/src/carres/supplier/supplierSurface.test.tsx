@@ -51,6 +51,30 @@ describe("the supplier surface", () => {
     expect(branch).not.toContain("<AuthGate");
   });
 
+  it("main.tsx draws no supplier page inside a frame", () => {
+    // The site refuses to send /supplier into a frame, but by the address the document was loaded from: the staff
+    // page at "/" may be framed, and the app can then move to /supplier without loading a new document. So the
+    // supplier branch refuses by itself, before it draws anything.
+    const main = readFileSync(resolve(HERE, "../../main.tsx"), "utf8");
+    const branch = main.slice(main.indexOf('if (surface === "supplier")'), main.indexOf('if (surface === "survey")'));
+    const refusal = branch.indexOf("if (CARRES_EMBEDDED) return null;");
+    expect(refusal).toBeGreaterThan(-1);
+    expect(refusal).toBeLessThan(branch.indexOf("<SupplierApp />"));
+    // And "inside a frame" is asked of the window itself, where a page cannot lie about it.
+    const embed = readFileSync(resolve(HERE, "../embed.ts"), "utf8");
+    expect(embed).toContain("try { return window.self !== window.top; } catch { return true; }");
+  });
+
+  it("choosing a password through the link signs the person in", () => {
+    // Sent back to the sign-in page to type it again, a person whose email is being hammered with wrong tries is
+    // locked once more before they get there.
+    const app = readFileSync(resolve(HERE, "SupplierApp.tsx"), "utf8");
+    const page = app.slice(app.indexOf("function SetPasswordPage"), app.indexOf("function AccountPage"));
+    expect(page).toContain("supplierToken.set(out.token);");
+    expect(page).toContain("onSignedIn({ user: out.user, supplier: out.supplier, badges: out.badges });");
+    expect(app).toContain('if (path === "/supplier/setup") return <SetPasswordPage onSignedIn={enter} />;');
+  });
+
   it("main.tsx does not offer a supplier the staff app's install prompt", () => {
     // PwaBanners says "Install Carres · ERP" and asks the staff API for its branding: neither is for a supplier.
     const main = readFileSync(resolve(HERE, "../../main.tsx"), "utf8");

@@ -208,7 +208,10 @@ export const supplierApi = {
   me: () => request<Me>("GET", "/auth/me"),
   changePassword: (current: string, next: string) => request<{ token: string; expiresAt: string }>("POST", "/auth/password", { current, next }),
   readLink: (token: string) => request<{ name: string; email: string; purpose: string }>("POST", "/auth/link", { token }, { auth: false }),
-  useLink: (token: string, password: string) => request<{ ok: true; email: string }>("POST", "/auth/link/use", { token, password }, { auth: false }),
+  /** Choosing the password signs the person in: the answer then carries what signing in answers. With the
+   *  supplier's access off it carries only the email, and the person is sent to the sign-in page. */
+  useLink: (token: string, password: string) =>
+    request<{ ok: true; email: string } & Partial<Me & { token: string; expiresAt: string }>>("POST", "/auth/link/use", { token, password }, { auth: false }),
 
   orders: (p: { view?: OrderView; q?: string; page?: number; pageSize?: number; sort?: string; dir?: "asc" | "desc" }) =>
     request<OrderList>("GET", `/orders${qs(p)}`),

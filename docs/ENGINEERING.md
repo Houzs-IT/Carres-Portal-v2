@@ -187,17 +187,22 @@ pages inside the engine, a Carres addition, each Houzs file it touches marked `/
   portal migration.
 - *Sign-in limits.* Five wrong passwords lock an EMAIL for 15 minutes, counted in the database
   (`session.ts` `takeTry`). Each try is written before it is counted, so tries sent at the same moment cannot
-  all slip under the limit. A new set-password link is how Carres lets a locked person back in: the count starts
-  again when the person signs in or chooses a password. A wrong current password on `Change password` is counted
-  at that door, and past the limit every session of the person ends. Nothing is counted per address: behind
-  the site's `/api` proxy every browser arrives as Cloudflare's one Worker address, which is not written down
-  either (`credentials.ts` `callerAddress`; open risk in `carry-forwards.md`). A session lasts 12 hours; a
-  set-password link 72 hours, once.
-- *What else guards it.* A supplier page is sent with `frame-ancestors 'none'` and `X-Frame-Options: DENY`
-  (`functions/_middleware.ts`), enforced, so no site can frame it; the staff pages stay frameable by the portal.
-  The supplier API answers carry no `Server-Timing`. The two scope functions can be run by the engine's database
-  role only. The supplier pages read the company's public name from the public `GET /api/track/company` and
-  everything else from `/api/carres-supplier`.
+  all slip under the limit. Signing in and the current password on `Change password` share the ONE count; when
+  the email is locked by tries made on `Change password`, every session of the person ends, and when it is
+  locked by tries at the sign-in page the person who is signed in stays in. Only a set-password link starts the
+  count again, and the link signs the person in, so Carres can let a locked person back in even while the wrong
+  tries go on. A good sign-in forgives nothing (it would tell a real email from an unknown one). A session is
+  opened by one statement that checks the password is still the stored one, so an old password cannot leave a
+  session behind a reset. Nothing is counted per address: behind the site's `/api` proxy every browser arrives
+  as Cloudflare's one Worker address, which is not written down either (`credentials.ts` `callerAddress`; open
+  risk in `carry-forwards.md`). A session lasts 12 hours; a set-password link 72 hours, once.
+- *What else guards it.* A supplier page is never drawn inside a frame: the site sends it with
+  `frame-ancestors 'none'` and `X-Frame-Options: DENY` (`functions/_middleware.ts`), and because the staff page
+  at `/` may be framed and can move to `/supplier` without a new document, the app also draws nothing for a
+  supplier page when it is framed (`main.tsx`). The staff pages stay frameable by the portal. The supplier API
+  answers carry no `Server-Timing`. The two scope functions cannot be run by `PUBLIC`, `anon` or
+  `authenticated`: the engine's role and the server's service key can. The supplier pages read the company's
+  public name from the public `GET /api/track/company` and everything else from `/api/carres-supplier`.
 - *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts),
   `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`

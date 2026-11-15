@@ -108,11 +108,19 @@ app.post("/auth/link", async (c) => {
   return c.json(link);
 });
 
+// Choosing the password signs the person in (./session.ts useLink says why), so the answer is the one signing in
+// gives. With the supplier's access off it carries no token: the password is saved and the page says to sign in.
 app.post("/auth/link/use", async (c) => {
   const b = await body(c);
-  const out = await useLink(dbFor(c.env), { token: typeof b?.token === "string" ? b.token : "", password: b?.password, ip: caller(c) });
+  const db = dbFor(c.env);
+  const out = await useLink(db, {
+    token: typeof b?.token === "string" ? b.token : "", password: b?.password, ip: caller(c), userAgent: c.req.header("User-Agent") ?? null,
+  });
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  return c.json({ ok: true, email: out.email });
+  if (!out.session) return c.json({ ok: true, email: out.email });
+  const { token, expiresAt, user } = out.session;
+  const waiting = user.canOperation ? await pickupsWaiting(db, user.supplierId) : 0;
+  return c.json({ ok: true, email: out.email, token, expiresAt, ...me(user, waiting) });
 });
 
 // ── Everything below needs a supplier session ───────────────────────────────────────────────────────────────────

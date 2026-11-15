@@ -109,8 +109,21 @@ describe('Carres supplier platform: statements', () => {
     // statement that asks the time. An old password answered from a cache would outlive its reset.
     const session = readFileSync(new URL('session.ts', dir), 'utf8');
     at(session, 'const FRESH = "NOW() IS NOT NULL";');
-    const reads = [...session.matchAll(/`[^`]*\bSELECT\b[^`]*`/g)].map((m) => m[0]).filter((s) => /password_hash(?! IS NOT NULL)/.test(s));
+    // A read is a statement that starts with SELECT. A write that looks a password up (the session is opened by an
+    // INSERT ... SELECT that compares it) is never cached and is not one of these.
+    const reads = [...session.matchAll(/`\s*SELECT\b[^`]*`/g)].map((m) => m[0]).filter((s) => /password_hash(?! IS NOT NULL)/.test(s));
     expect(reads.length).toBeGreaterThanOrEqual(2);
     for (const s of reads) expect(s, s).toContain('${FRESH}');
+  });
+
+  it('a session is opened only by the statement that checks the password is still the stored one', () => {
+    // One INSERT into the sessions table in the whole folder, and it reads the person's row under a lock, so a
+    // sign-in with a password that a reset has just replaced cannot leave a session behind.
+    const inserts = sources.flatMap((f) => [...readFileSync(new URL(f, dir), 'utf8').matchAll(/`[^`]*INSERT INTO public\.carres_supplier_sessions[^`]*`/g)].map((m) => m[0]));
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toContain('u.password_hash = $6');
+    expect(inserts[0]).toContain('FOR SHARE OF u');
+    expect(inserts[0]).toContain("u.status = 'active'");
+    expect(inserts[0]).toContain('a.enabled');
   });
 });
