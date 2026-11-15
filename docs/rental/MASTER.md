@@ -116,7 +116,11 @@ subscription (「同一套」). Everything in §0 is **APPROVED / NOT BUILT** un
 - Interest from month end needs no change: the agreement's non-waiver clause keeps the right to
   charge from the due date.
 - Suppliers and whoever earns the commission should see their subscriptions' status; external
-  logins need the owner authorisation of ERP-ARCHITECTURE §6.4–6.5.
+  logins need the owner authorisation of ERP-ARCHITECTURE §6.4–6.5. **The supplier's view is BUILT
+  ON BRANCH (Loo, 2026-11-15): the Supplier Platform's Finance pages, ERP-ARCHITECTURE §6.6.** They
+  only read: every figure is worked out from this module's instalments (the stored share of a paid
+  month, the same split for a month still to come), and a supplier is shown no Stripe id, payment
+  reference, commission, phone or email. The commission earner's view is not built.
 
 **Measured 2026-10-05 to 2026-10-07 (evidence, not rules)**
 - Today month 1 falls due on the signing day, and Stripe charges a signup line item, then uses a

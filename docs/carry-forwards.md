@@ -1,3 +1,43 @@
+## `supplier-platform-separation-is-code-only` — OPEN by the owner's choice, 2026-11-15
+
+**What.** The Supplier Platform (ERP-ARCHITECTURE §6.6) runs inside the engine: its API is in the engine
+Worker and reads the engine database with the engine's own account, which can read everything. What
+keeps a supplier to its own orders is the code in `engine/backend/src/carres/supplier/` and its tests,
+not the database. The supplier pages share a web address with the staff engine.
+
+**Owner ruling (Loo, 2026-11-15).** Offered three choices and took A, go live as built. Not built:
+B, a database account for the supplier API that may only run the two scope functions and touch the
+platform's own tables, plus a web address of its own; C, a separate small server and site.
+
+**Do B when** a second supplier with a different scope goes live, an outside party must review the
+security, or a Houzs resync breaks `tests/carresSupplierPlatformGuards.test.ts`. The functions and the
+tests carry over unchanged.
+
+## `access-findings-2026-11-15` — OPEN, reported to the owner 2026-11-15
+
+**What.** Two access findings on logins and tables that existed before the Supplier Platform, measured
+read-only while building it: one on the portal database, one on the engine database. Neither is part
+of the Supplier Platform, and its people do not use those logins.
+
+**Where the detail is.** With the owner (Loo), given on 2026-11-15. It is deliberately not written
+here: this repository is public.
+
+**Fix (needs the owner’s word: it changes RLS and disables accounts).** One portal migration and one
+engine migration, each explained before it runs. Measure again first; do not work from this note.
+
+## `supplier-sign-in-cannot-see-the-caller-address` — OPEN, known limit, 2026-11-15
+
+**What.** The engine site forwards `/api/*` to the Worker from another Cloudflare zone, so every
+browser arrives at the Worker under Cloudflare's one address (`2a06:98c0:3600::103`). The supplier
+sign-in therefore cannot count wrong passwords per caller or record where a sign-in came from; it
+counts them per email (five in 15 minutes), which still stops guessing. It deliberately does not count
+that shared address, because a count everyone shares would let one outsider lock every supplier out
+(`credentials.ts` `callerAddress`, tested in `tests-pg/carresSupplierPlatform.pg.test.ts`).
+
+**Fix when it matters.** Have the site's `/api` function pass the browser's address in a header of its
+own and let the supplier routes trust it only for a call that came through a Worker. The staff
+sign-in has the same limit and keys its count by email and address together.
+
 ## `do-number-collision` — ✅ FIXED 2026-09-24, PR #1550 (0575). Kept for its evidence only
 
 **THE FIX.** The number is now DRAWN from the Delivery Order's own pool

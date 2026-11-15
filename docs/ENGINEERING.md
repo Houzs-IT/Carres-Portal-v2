@@ -166,6 +166,40 @@ edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `/
    `consignment_delivery_orders` and `consignment_delivery_returns`; those columns exist but nothing reads or
    writes them, by owner decision. Do not drop them without a new migration and the owner's word.
 
+**Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT ON BRANCH).** A supplier's own
+pages inside the engine, a Carres addition, each Houzs file it touches marked `// Carres:`.
+- *Supplier side.* Site `/supplier/*` (`engine/frontend/src/carres/supplier/`): a surface of its own in
+  `routing/appSurface.ts`, mounted in `main.tsx` outside `AuthProvider` and `AuthGate`, with no staff client and no
+  staff install prompt. API `/api/carres-supplier/*` (`engine/backend/src/carres/supplier/routes.ts`), mounted in
+  `index.ts` BEFORE the staff gate and gated by its own session (`carres_supplier_sessions`). Sign-in address:
+  `https://carres-scm.pages.dev/supplier`.
+- *Carres side.* Settings › Supplier Access (`carres/supplier-staff/SupplierAccessTab.tsx`, API
+  `/api/carres/supplier-access`, needs Settings at full) and Supply Chain › Procurement › Supplier Pickups
+  (`/scm/supplier-pickups`, API `/api/carres/supplier-pickups`, the Purchase Orders page access: view to read, edit
+  to act; portal row `supplier-pickups` in `portal-nav.ts`).
+- *Database.* Engine migration `2012_supplier_platform.sql`: nine `carres_*` tables (row level security on, no
+  policy, no `anon` / `authenticated` grant) and the two functions that name every column a supplier may read
+  (`carres_supplier_scope_items`, `carres_supplier_scope_orders`). The engine deploy applies it on merge.
+- *Finance.* The engine asks the portal: `POST /engine/supplier-finance`
+  (`apps/api/src/routes/engine-supplier-finance.ts`), signed with the secret the two Workers already share
+  (`CARRES_SSO_SECRET` on the engine, `SCM_ENGINE_SSO_SECRET` on the portal) under its own purpose word, over the
+  `CARRES_PORTAL` binding. Arithmetic: `packages/shared/src/supplier-finance.ts`. No new secret, binding or
+  portal migration.
+- *Sign-in limits.* Five wrong passwords lock an email for 15 minutes, counted in the database. A count per
+  address applies only to a caller's own address: behind the site's `/api` proxy every browser arrives as
+  Cloudflare's one Worker address, which is neither counted nor recorded (`credentials.ts` `callerAddress`).
+  A session lasts 12 hours; a set-password link 72 hours, once.
+- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts); frontend `src/main.tsx`,
+  `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`
+  says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`.
+- *Tests.* Backend `src/carres/supplier/supplier.test.ts`, `tests/carresSupplierPlatformGuards.test.ts` (where the
+  routes sit; every statement parameterised) and `tests-pg/carresSupplierPlatform.pg.test.ts` (real Postgres,
+  `TEST_DATABASE_URL`, skipped without it); frontend `src/carres/supplier/supplierSurface.test.tsx`; portal
+  `apps/api/src/routes/engine-supplier-finance.test.ts`, `packages/shared/src/supplier-finance.test.ts`. The
+  engine's own suites are not part of `ci.yml`: run them by hand before merging an engine change.
+- *Giving a supplier access.* Settings › Supplier Access: choose the supplier, tick what it sees, tick
+  `may sign in`, Save, Add person, send the one-time link. Nothing is shared before that.
+
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits
 met in only `mail-center.ts` and `fair-binding.ts`, both merged cleanly): the only non-colour differences are the Carres integration (`src/carres/*`, the

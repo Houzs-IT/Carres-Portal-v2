@@ -5184,7 +5184,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Supply Chain | row `Product Request` first, then the modules `Sales Order` · `Consignment` · `Procurement` · `Transportation` · `Warehouse` |
 | Sales Order | `Sales Orders` · `Fair Links to Settle` · `Sales Order Amendment` · `Payment Backdate Requests` · `Delivery Orders` · `Sales Invoices` · `Delivery Returns` |
 | Consignment | `Consignment Order` · `Consignment Note` · `Consignment Return` · `Purchase Consignment Order` · `Product Request` · `Purchase Consignment Receive` · `Purchase Consignment Return` |
-| Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` |
+| Procurement | `Procurement Overview` · `Products & Maintenance` · `Suppliers` · `MRP · Stock Status` · `Purchase Orders` · `PO Amendments` · `Cancellation Requests` · `Goods Receipt` · `Purchase Invoices` · `Purchase Returns` · then Carres's own row, last: `Supplier Pickups` (Loo, 15 Nov 2026; Houzs has no such page) |
 | Transportation | `Logistic Overview` · `Delivery Planning` · `Last Mile Delivery (Driver)` · `DP Orders` · `Last Mile Delivery` · `Crew Leave` · group `Maintenance`: `Coverage & Fleet` · `Delivery Zones` · `Carriers & Rates` · `Fleet Health` |
 | Warehouse | `Loading List` · `Warehouses` · `Racks & Bins` · `Inventory` · `Adjustments` · `Transfers` · `Stock Take` |
 | Service Cases | `Quality Overview` · `Service Cases` · `Service Maintenance` · `My Cases` |
@@ -5193,6 +5193,43 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Menu bottom | `Settings` (opens Houzs Settings). No `Report a problem to IT` row (owner 14 Nov 2026): IT Support is in the SYSTEM group. |
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
+
+## Supplier Platform words — BUILT ON BRANCH 15 Nov 2026 · AWAITS THE OWNER'S REVIEW
+
+Rules and ownership: ERP-ARCHITECTURE §6.6. These pages are Carres's own, drawn with the engine's parts. A date is
+the engine's one format (`2026/11/20`, `2026/11/20 10:30`). A value that is not known is said in words, never a
+dash. A button names the act: the pickup request button is `Request pickup`, not `Send`.
+
+**The supplier's pages** (`/supplier`).
+
+| Place | Exact words |
+|---|---|
+| Sign in | eyebrow `Supplier sign in` · title `Sign in` · `Email` · `Password` · button `Sign in` · refusal `Email or password is incorrect.` · lock `Too many attempts. Wait 15 minutes and try again.` · foot `Cannot sign in? Ask your Carres contact for a new link.` |
+| Choose a password | `Choose your password` (first time) · `Choose a new password` · `For {name} ({email}). This link works once.` · `Password` · `Password again` · `Use at least 10 characters. A few words together are strong and easy to remember.` · button `Save password` · `This link cannot be used` · `This link is no longer valid. Ask Carres for a new one.` · after saving `Your password is set. Sign in with it.` |
+| Menu | `Sales Orders` · `Forecast` · `Pickup Requests` · `Finance` · the person's name opens `Your account` · `Sign out` · under the supplier's name `Supplier` |
+| Sales Orders | tabs `All` · `Incoming` · `In production` · `Delivered` · columns `SO No` · `SO Date` · `Customer` · `Items` · `Qty` · `Processing Date` · `Delivery Date` · `Stage` · `Pickup` · gaps `Not processed` · `Not set` · buttons `Download CSV` · `Open full page` · `Relationship map` · cards `Your items` · `History` · `Order` · facts `Sale Type` (`Subscription` / `Outright`) · `Delivery Address` |
+| Stage (Houzs's words) | `Submitted` · `In Production` · `Ready to Ship` · `Shipped` · `Delivered` · `Invoiced` · `Closed` · `On Hold` · `Returned` · `Cancelled` |
+| Pickup, on an order | `Not requested` · `Pickup requested` · `Pickup accepted` · `Part collected` · `Collected` |
+| History | `Order received` · the stage · `Pickup requested for {date}` · `Pickup accepted` · `Collected by Carres` · `Pickup request cancelled` |
+| Relationship map | tiles `Sales Order` · `Pickup Request` · `Collected` · `Out for Delivery` · `Delivered` · rows `Order to pickup` · `After collection` · a step not reached says when it comes: `When Carres asks` · `On the pickup day` · `After collection` · `After shipping` |
+| Forecast | cards `Open orders` · `Incoming` · `In production` · `Total to prepare` · columns `Item` · `Specification` · `Unit` · `Incoming` · `In Production` · `Total` · one column a month `{2026/12}` · `No date yet` |
+| Pickup Requests | tabs `To accept` · `Accepted` · `Collected` · `Cancelled` · `All` · columns `Request No` · `Carres collects on` · `Sales Orders` · `Lines` · `Qty` · `Requested` · `Status` · status `Waiting for you to accept` · `Accepted` · `Collected` · `Cancelled by Carres` · button `Accept pickup` · `Accepting tells Carres the goods will be ready on {date}.` · facts `Requested by Carres` · `Accepted` · `Collected` · `Note from Carres` · link `Open order` |
+| Finance | cards `Total order value` · `Your share in full` (`Earned plus still to come`) · `Your share earned` · `Your share to come` · `Behind on payment` · tabs `All orders` · `Behind on payment` · `By month` · columns `Order` · `Customer` · `Item` · `Order Value` · `Collected` (with `{n} of {term} months`) · `Share Earned` · `Share to Come` · `Overdue` · `Next Due` · `Status` · status `On time` · `Behind` · `In default` · `Paid in full` · `Ended` · note `An instalment is overdue once its due day has passed with no payment. Six unpaid instalments put an order in default.` |
+| Finance, one order | cards `Order value` · `Your share earned` · `Your share to come` · `Overdue` · columns `Month` · `Due Date` · `Instalment` · `Status` · `Received On` · `Received` · `Your Share` · status `Paid` · `Overdue` (`{n} days late`) · `Due today` · `To come` · `Not charged` · facts `Agreement No` · `Sales Order` · `Start Date` · `Your Share` (`{rate}% of each month`) · `Last Received` · `Next Due` |
+| Your account | `Your account` · `You` · `Change password` · `Current password` · `New password` · `New password again` · `Password changed. Other devices were signed out.` |
+
+**Carres's pages.**
+
+| Place | Exact words |
+|---|---|
+| Settings tab | `Supplier Access` · cards `Suppliers` · `Access` · `Sales Orders this supplier sees` · `Finance` · `People` · `Latest activity` · badges `Access on` · `Access off` · `Subscription share` |
+| What a supplier sees | switch `{supplier} may sign in` · `Product categories` · `Products` · `Single items` · `Its own items` · count line `With this, the supplier sees {n} Sales Orders today ({n} incoming), {n} units on {n} lines.` · `Nothing is ticked: this supplier would see no Sales Orders.` · switch `This supplier is paid a share of subscription collections` |
+| People | roles `Warehouse and Operation` · `Finance` · buttons `Add person` · `Add and make link` · `New link` · `New password link` · `Disable` · `Enable` · link card `Link for {name}`, `WhatsApp or email it to them` · states `Waiting for them to choose a password` · `No password, link expired` · `Never signed in` |
+| Activity | `Signed in` · `Sign-in failed` · `Chose a password` · `Changed password` · `Set-password link made` · `Person added` · `Person changed` · `Access saved` · `Pickup requested` · `Pickup accepted` · `Pickup collected` · `Pickup cancelled` |
+| Supplier Pickups | page `Supplier Pickups` · button `New Pickup Request` · tabs `Open` · `Collected` · `Cancelled` · `All` · columns `Request No` · `Supplier` · `Collect on` · `Sales Orders` · `Qty` · `Status` · `Requested` · status `Waiting for supplier` · `Accepted` · `Collected` · `Cancelled` |
+| New Pickup Request | steps `1 · Supplier` · `2 · Sales Orders to collect` · `3 · When Carres will collect` · `Tick all` · fields `Pickup date` · `Time (optional)` · `Note to the supplier (optional)` · button `Request pickup` · `Cancel` |
+| One request | buttons `Mark collected` · `Cancel request` (asks why: the supplier reads the reason) · facts `Requested` · `Accepted by supplier` · `Collected` · `Note to supplier` |
+| Request number | `CR-PKR-{YYMM}-{NNN}`, by the month of the pickup day |
 
 ## Sales Orders navigation — owner approved 2026-09-23 · BUILT 2026-09-23
 
