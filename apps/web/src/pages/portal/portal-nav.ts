@@ -422,7 +422,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "sales-invoices", label: "Sales Invoices", icon: FileText, path: "/operation/sc/sales-invoices", section: "Sales" },
       { key: "delivery-returns", label: "Delivery Returns", icon: RotateCcw, path: "/operation/sc/delivery-returns", section: "Sales" },
       // Carres-only (`docs/rental/MASTER.md`): the second kind of customer order. Last, so the Houzs rows keep Houzs's order.
-      { key: "rental", label: "Subscription", icon: Repeat, section: "Sales" },
+      /* No Subscription row (owner, 16 Nov 2026). */
 
       /* SUPPLY CHAIN · CONSIGNMENT */
       { key: "customer-consignment-orders", label: "Consignment Order", icon: Handshake, path: "/operation/sc/customer-consignment-orders", section: "Consignment" },
@@ -527,125 +527,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "ocr", label: "OCR", icon: ScanLine, path: "/operation/sc/ocr", section: "System", roles: SYSTEM_ROLES },
     ],
   },
-  {
-    area: "principal",
-    label: "Admin",
-    base: "/principal",
-    roles: ["principal"],
-    defaultTab: "dashboard",
-    items: [
-      { key: "dashboard", label: "Overview", icon: LayoutDashboard },
-      { key: "approvals", label: "Approvals", icon: BadgeCheck, pendingPill: true },
-      // POS-parity (Loo 2026-07-03): the entry opens the POS *catalog* — named
-      // like 2990s (the POS home IS the catalog), not "New order".
-      { key: "pos", label: "Catalog", icon: LayoutGrid },
-      // The principal trace-only Orders page is gone (Loo 2026-07-16) — Admin
-      // "Orders" jumps straight to the Operations order control grid.
-      //
-      // ONE DESTINATION, ONE WORD (owner ruling 2026-09-23). A principal stands
-      // in Operations AND Admin at once, so this row and the Operations child
-      // above point at the same page and light together. Two different words on
-      // two rows for one register is the duplicate the ruling names; the
-      // word for that register is the Houzs `Sales Orders`. The address is
-      // unchanged, so the principal's bookmark still lands.
-      { key: "orders", label: "Sales Orders", icon: ShoppingCart, path: "/operation/orders" },
-      // Loo 2026-07-19 — two separate doors: "Dealers" = external resellers,
-      // "Showrooms" = the stores Carres owns. Same page, filtered by
-      // `dealers.channel`.
-      { key: "dealers", label: "Dealers", icon: Users },
-      { key: "showrooms", label: "Showrooms", icon: Store },
-      { key: "partners", label: "Partners", icon: Network },
-      { key: "audit", label: "Audit log", icon: ScrollText },
-      { key: "accounts", label: "Accounts", icon: Settings },
-      // Catalog split (Loo 2026-07-25) — the SELLING catalog (retail / POS
-      // prices, PWP, promos; the full 8-tab Product & Maintenance page) is an
-      // ADMIN door: only the principal touches selling prices (0226). Costing
-      // stays in Operations as the Operation Catalog above.
-      { key: "catalog", label: "Product & Maintenance", icon: BookOpen },
-      // Rental split out of P&M (Loo 2026-07-26): the rent/buy offer config
-      // had outgrown a tab strip that is otherwise pure catalog work. Settings
-      // only — the agreements/units registry stays the Operations "Rental" page.
-      { key: "rental-setting", label: "Rental", icon: Repeat },
-    ],
-  },
-  {
-    area: "finance",
-    /* The old Carres Finance, moved to the very bottom of the menu (owner, 11 Nov 2026) under its own word, so
-     * it is not a second "Finance" beside Houzs's Finance group in Operations. Nothing in it is removed. */
-    label: "Finance (old)",
-    base: "/finance",
-    roles: ["finance", "principal"],
-    defaultTab: "dashboard",
-    items: [
-      /* The Houzs Finance tree, in its order (Sidebar.tsx:740-861; Weisiang,
-       * WhatsApp 2026-11-01). A row keeps its Carres word where Houzs has no row
-       * for the same thing. Every address is unchanged. */
-      { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, financePath: "/finance/dashboard", section: "Workspace" },
-
-      /* MONEY IN. Carres-only: Monitor, Payment Records, Sales Invoices, Customer
-       * Credit Notes (0730), Cancelled orders holding money (0729). */
-      { key: "payments", label: "Monitor", icon: Wallet, financePath: "/finance/monitor", section: "Receivables" },
-      { key: "payment-records", label: "Payment Records", icon: Receipt, financePath: "/finance/payments", section: "Receivables" },
-      { key: "sales-invoices", label: "Sales Invoices", icon: FileText, financePath: "/finance/sales-invoices", section: "Receivables" },
-      // 0478 — money in that is not a sale, and the parties billed for it.
-      { key: "other-receipts", label: "Other receipts", icon: HandCoins, financePath: "/finance/other-receipts", section: "Receivables" },
-      { key: "other-debtors", label: "Other Debtors", icon: Users, financePath: "/finance/other-debtors", section: "Receivables" },
-      { key: "ar", label: "Outstanding", icon: ArrowDownLeft, financePath: "/finance/ar", section: "Receivables" },
-      { key: "not-yet-billed", label: "Not Yet Billed", icon: HandCoins, financePath: "/finance/not-yet-billed", section: "Receivables" },
-      { key: "customer-credit-notes", label: "Customer Credit Notes", icon: ReceiptText, financePath: "/finance/customer-credit-notes", section: "Receivables" },
-      { key: "cancelled-money", label: "Cancelled orders holding money", icon: Undo2, financePath: "/finance/cancelled-money", section: "Receivables" },
-
-      /* MONEY OUT. Carres-only: Notes to follow up (0676), AP · Payables (0477,
-       * what is still unpaid per supplier), and Credit and Debit Notes as two rows
-       * where Houzs has one. */
-      { key: "payment-vouchers", label: "Payment Vouchers", icon: Banknote, financePath: "/finance/payment-vouchers", section: "Payables" },
-      { key: "bills", label: "AP Invoices", icon: Receipt, financePath: "/finance/bills", section: "Payables" },
-      { key: "payment-requests", label: "Payment Requests", icon: HandCoins, financePath: "/finance/payment-requests", section: "Payables" },
-      { key: "supplier-finance", label: "Supplier Maintenance", icon: Truck, financePath: "/finance/suppliers", section: "Payables" },
-      { key: "credit-notes", label: "Credit Notes", icon: ReceiptText, financePath: "/finance/credit-notes", section: "Payables" },
-      { key: "debit-notes", label: "Debit Notes", icon: ReceiptText, financePath: "/finance/debit-notes", section: "Payables" },
-      { key: "notes-to-follow-up", label: "Notes to follow up", icon: ClipboardList, financePath: "/finance/notes-to-follow-up", section: "Payables" },
-      { key: "ap", label: "AP · Payables", icon: ArrowUpRight, financePath: "/finance/ap-outstanding", section: "Payables" },
-
-      /* BANK & CARDS. Carres-only: Card money waiting (0641), Money moves (0529). */
-      { key: "daily-bank", label: "Daily Bank", icon: Landmark, financePath: "/finance/daily-bank", section: "Bank & Cards" },
-      { key: "card-settlement", label: "Merchant Recon", icon: CreditCard, financePath: "/finance/card-settlement", section: "Bank & Cards" },
-      { key: "card-money-waiting", label: "Card money waiting", icon: Hourglass, financePath: "/finance/card-money-waiting", section: "Bank & Cards" },
-      { key: "money-moves", label: "Money moves", icon: ArrowLeftRight, financePath: "/finance/money-moves", section: "Bank & Cards" },
-
-      /* BOOKS. */
-      { key: "ledger", label: "Journal Entries", icon: BookOpen, financePath: "/finance/ledger", section: "Ledger" },
-      { key: "general-ledger", label: "General Ledger", icon: BookOpenText, financePath: "/finance/ledger/general-ledger", section: "Ledger" },
-      { key: "trial-balance", label: "Trial Balance", icon: Scale, financePath: "/finance/ledger/trial-balance", section: "Ledger" },
-      { key: "self-check", label: "Self-check", icon: BadgeCheck, financePath: "/finance/ledger/self-check", section: "Ledger" },
-
-      /* REPORTS. Carres-only: Dealer commission, Stock value, Stock drops, Payment. */
-      { key: "profit-and-loss", label: "P&L", icon: BarChart3, financePath: "/finance/reports/profit-and-loss", section: "Reports" },
-      { key: "balance-sheet", label: "Balance Sheet", icon: Scale, financePath: "/finance/reports/balance-sheet", section: "Reports" },
-      { key: "cash-flow", label: "Cash Flow", icon: ArrowLeftRight, financePath: "/finance/reports/cash-flow", section: "Reports" },
-      { key: "ar-aging", label: "AR Aging", icon: Hourglass, financePath: "/finance/reports/ar-aging", section: "Reports" },
-      { key: "ap-aging", label: "AP Aging", icon: Hourglass, financePath: "/finance/reports/ap-aging", section: "Reports" },
-      { key: "collection", label: "Collection", icon: HandCoins, financePath: "/finance/reports/collection", section: "Reports" },
-      { key: "card-charges", label: "Merchant charges", icon: CreditCard, financePath: "/finance/reports/card-charges", section: "Reports" },
-      { key: "dealer-commission", label: "Dealer commission", icon: Users, financePath: "/finance/reports/dealer-commission", section: "Reports" },
-      { key: "stock-value", label: "Stock value", icon: Boxes, financePath: "/finance/reports/stock-value", section: "Reports" },
-      { key: "stock-drops", label: "Stock drops", icon: Boxes, financePath: "/finance/reports/stock-drops", section: "Reports" },
-      { key: "corrections", label: "Corrections", icon: History, financePath: "/finance/corrections", section: "Reports" },
-      { key: "payment-report", label: "Payment", icon: Wallet, financePath: "/finance/reports/payment", section: "Reports" },
-      /* 0754: a project's money (Houzs event page finance, YH 3 Nov 2026). */
-      { key: "project-money", label: "Project money", icon: BarChart3, financePath: "/finance/project-money", section: "Reports" },
-
-      /* FORECASTING and SETUP: one Carres page each, so plain rows. */
-      { key: "forecast", label: "Forecast P&L", icon: TrendingUp, financePath: "/finance/reports/forecast", section: "Forecast" },
-      { key: "opening-balances", label: "Opening Balance", icon: BookOpen, financePath: "/finance/ledger/opening-balances", section: "Setup" },
-
-      /* Carres-only: the rent-to-own credit gate (0268), subscription months
-       * (0538), and the dealer master (0543). */
-      { key: "rental-approver", label: "Rental Approver", icon: UserCheck, financePath: "/finance/rental-approver" },
-      { key: "subscriptions", label: "Subscriptions", icon: CalendarClock, financePath: "/finance/subscriptions" },
-      { key: "dealers", label: "Dealers", icon: Users, financePath: "/finance/dealers" },
-    ],
-  },
+  /* No Admin or old Carres Finance areas (owner, 16 Nov 2026): Houzs's pages are the system. /principal and
+   * /finance open the matching Houzs page (App.tsx). */
 ];
 /** Service Cases, Projects and Supply Chain: each row's engine page (engine/, Houzs's own screens), shown in a
  *  frame at the row's `/operation/sc/<row>` address. Keyed by row, valued by the engine address. */

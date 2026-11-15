@@ -33,7 +33,7 @@ describe("the Houzs tree", () => {
         head: "row:Supply Chain",
         blocks: [
           "Product Request",
-          "Sales Order: Sales Orders · Sales Order Amendment · Payment Backdate Requests · Delivery Orders · Sales Invoices · Delivery Returns · Subscription",
+          "Sales Order: Sales Orders · Sales Order Amendment · Payment Backdate Requests · Delivery Orders · Sales Invoices · Delivery Returns",
           "Consignment: Consignment Order · Consignment Note · Consignment Return · Purchase Consignment Order · Product Request · Purchase Consignment Receive · Purchase Consignment Return",
           /* Houzs's ten, then Carres's Supplier Pickups (owner, 15 Nov 2026). */
           "Procurement: Procurement Overview · Products & Maintenance · Suppliers · MRP · Stock Status · Purchase Orders · PO Amendments · Cancellation Requests · Goods Receipt · Purchase Invoices · Purchase Returns · Supplier Pickups",

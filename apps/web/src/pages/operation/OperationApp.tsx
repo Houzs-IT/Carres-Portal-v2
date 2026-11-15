@@ -7,7 +7,6 @@ import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 // Principal / Finance) merged into ONE role-aware PortalSidebar.
 import PortalSidebar from "@/pages/portal/PortalSidebar";
 import { useAuth } from "@/lib/auth";
-import OperationRental from "./OperationRental";
 import SupplyChainEngine from "./SupplyChainEngine";
 import { CATALOG_TAB_PARAM } from "@/pages/catalog/catalog-tabs";
 import ShellHeader, { ShellHeaderContext, useShellHeaderHost } from "./components/ShellHeader";
@@ -72,7 +71,6 @@ export default function OperationApp() {
       case "work":
       case "leave":
         return <Navigate to="/operation/sc/overview" replace />;
-      case "rental": return <OperationRental />;
       case "payments": {
         const so = searchParams.get("so");
         return <Navigate to={`/finance/monitor${so ? `?order=${encodeURIComponent(so)}` : ""}`} replace />;

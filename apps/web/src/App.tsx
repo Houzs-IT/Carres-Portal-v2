@@ -14,9 +14,7 @@ import Login from "@/pages/Login";
 import UpdatePassword from "@/pages/UpdatePassword";
 import Me from "@/pages/Me";
 import DealerApp from "@/pages/dealer/DealerApp";
-import PrincipalApp from "@/pages/principal/PrincipalApp";
 import OperationApp from "@/pages/operation/OperationApp";
-import FinanceApp from "@/pages/finance/FinanceApp";
 import BDApp from "@/pages/bd/BDApp";
 import { retiredRedirect } from "@/pages/portal/portal-nav";
 import PickupEventPrintPage from "@/pages/print/PickupEventPrintPage";
@@ -46,9 +44,10 @@ function HomeRedirect() {
   // POS/ERP domain split (2026-07-18): wrong-domain roles get the signpost
   // before any role-home navigation. pages.dev/localhost stay ungated.
   if (role && !roleAllowedOnPortal(role)) return <WrongPortal role={role} />;
-  if (role === "principal") return <Navigate to="/principal" replace />;
+  if (role === "principal") return <Navigate to="/operation" replace />;
   if (role === "operation") return <Navigate to="/operation" replace />;
-  if (role === "finance") return <Navigate to="/finance" replace />;
+  // The old Carres Finance is removed (owner, 16 Nov 2026): Finance staff open Houzs's Finance To do.
+  if (role === "finance") return <Navigate to="/operation/sc/fin-todo" replace />;
   // The supplier, warehouse and delivery partner portals moved to Houzs (owner, 12 Nov 2026): no app here.
   if (role === "partner" || role === "supplier" || role === "warehouse") return <PortalMoved />;
   if (role === "bd") return <Navigate to="/bd" replace />;
@@ -125,9 +124,8 @@ export default function App() {
           path="/principal/*"
           element={
             <RequireAuth>
-              <RequireRole roles={["principal"]}>
-                <PrincipalApp />
-              </RequireRole>
+              {/* The Admin area is removed (owner, 16 Nov 2026): its addresses open Houzs's Overview. */}
+              <Navigate to="/operation/sc/overview" replace />
             </RequireAuth>
           }
         />
@@ -158,9 +156,8 @@ export default function App() {
                   bounces operation off the finance-only pages. HR and BD reach
                   Payment Requests only (0687, Chew 2026-10-12, Finance MASTER
                   §3.3); FinanceApp sends them nowhere else. */}
-              <RequireRole roles={["finance", "principal", "operation", "hr", "bd"]}>
-                <FinanceApp />
-              </RequireRole>
+              {/* The old Carres Finance is removed (owner, 16 Nov 2026): its addresses open Houzs's Finance To do. */}
+              <Navigate to="/operation/sc/fin-todo" replace />
             </RequireAuth>
           }
         />
