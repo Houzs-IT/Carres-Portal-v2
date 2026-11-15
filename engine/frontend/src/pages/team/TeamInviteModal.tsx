@@ -9,7 +9,7 @@ import { Badge } from "../../components/Badge";
 import { SearchableSelect } from "../../vendor/scm/components/SearchableSelect";
 import { PhoneInput } from "../../vendor/scm/components/PhoneInput";
 import type { TeamMember, Department, Position, Role } from "../../types";
-import { defaultRoleId, deriveDeptLead, divisionOf, Eyebrow, FIELD_SELECT_CLS } from "./teamShared";
+import { deriveDeptLead, divisionOf, Eyebrow, FIELD_SELECT_CLS } from "./teamShared";
 import { showsPosPinCard } from "./posPinEligibility";
 import { isExternalPosition, EXTERNAL_POSITION_MESSAGE } from "../../lib/externalPosition";
 import { useBranding } from "../../hooks/useBranding";
@@ -126,7 +126,8 @@ export function TeamInviteModal({
   // the baseline role and is chosen here, so a new member no longer lands on the
   // 0-key placeholder until someone remembers the profile (2026-09-16). A scoped
   // Sales Director never chooses it — the server forces the baseline.
-  const [roleId, setRoleId] = useState<number | null>(() => defaultRoleId(roles));
+  // Carres: no role is pre-picked; the lowest-numbered role was Driver (owner, 15 Nov 2026).
+  const [roleId, setRoleId] = useState<number | null>(null);
   const [companyIds, setCompanyIds] = useState<number[]>([]);
   const [editingAssignment, setEditingAssignment] = useState(false);
   const [withPassword, setWithPassword] = useState(false);
@@ -154,7 +155,7 @@ export function TeamInviteModal({
     setDeptId(presetDeptId);
     setDivision("");
     setPositionId(null);
-    setRoleId(defaultRoleId(roles));
+    setRoleId(null);
     setCompanyIds(companies.length ? [companies[0].id] : []);
     setWithPassword(false);
     setPassword("");
@@ -203,7 +204,7 @@ export function TeamInviteModal({
   async function send() {
     if (!canSend) return;
     if (roleId == null && !salesDirScoped) {
-      toast.error("No role available to assign — create a baseline role first.");
+      toast.error(roles.length ? "Pick a role first." : "No role available to assign — create a baseline role first.");
       return;
     }
     setSending(true);
@@ -266,7 +267,7 @@ export function TeamInviteModal({
   async function sendBulk() {
     if (bulkEmails.length === 0 || bulkBusy) return;
     if (roleId == null && !salesDirScoped) {
-      toast.error("No role available to assign — create a baseline role first.");
+      toast.error(roles.length ? "Pick a role first." : "No role available to assign — create a baseline role first.");
       return;
     }
     setBulkBusy(true);
@@ -707,6 +708,7 @@ export function TeamInviteModal({
                   value={roleId ?? ""}
                   onChange={(e) => setRoleId(e.target.value ? Number(e.target.value) : null)}
                 >
+                  <option value="">Pick a role</option>
                   {[...roles]
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map((r) => (

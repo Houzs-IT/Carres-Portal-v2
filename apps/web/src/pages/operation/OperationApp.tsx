@@ -7,8 +7,6 @@ import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 // Principal / Finance) merged into ONE role-aware PortalSidebar.
 import PortalSidebar from "@/pages/portal/PortalSidebar";
 import { useAuth } from "@/lib/auth";
-import WorkspaceTasks from "./tasks/WorkspaceTasks";
-import OperationLeave from "./OperationLeave";
 import OperationRental from "./OperationRental";
 import SupplyChainEngine from "./SupplyChainEngine";
 import { CATALOG_TAB_PARAM } from "@/pages/catalog/catalog-tabs";
@@ -70,8 +68,10 @@ export default function OperationApp() {
      a principal's stale `?tab=catalog` goes to the selling catalog in Admin. */
   function tabPage() {
     switch (tab) {
-      case "work": return <WorkspaceTasks />;
-      case "leave": return <OperationLeave />;
+      /* The old Carres Workspace and Leave pages are gone (owner, 15 Nov 2026): their bookmarks open Houzs's Overview. */
+      case "work":
+      case "leave":
+        return <Navigate to="/operation/sc/overview" replace />;
       case "rental": return <OperationRental />;
       case "payments": {
         const so = searchParams.get("so");

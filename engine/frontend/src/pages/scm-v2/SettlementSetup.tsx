@@ -167,7 +167,7 @@ const MerchantMatrix = ({ companies, merchants, banks, clearings, feeAccounts, o
               <th>Merchant</th>
               <th>File layout</th>
               {companies.map((co) => (
-                <th key={co.id}>{co.code} <span className={css.coName}>{co.name}</span></th>
+                <th key={co.id}>{/* Carres: name only, not the internal code */}{co.name}</th>
               ))}
             </tr>
           </thead>
@@ -297,7 +297,7 @@ const BankMatrix = ({ companies, banks }: { companies: MaintenanceCompany[]; ban
           <thead>
             <tr>
               <th>Account</th>
-              {companies.map((co) => <th key={co.id} className={css.mid}>{co.code}</th>)}
+              {companies.map((co) => <th key={co.id} className={css.mid}>{co.name}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -430,7 +430,7 @@ const NumberingCard = ({ company }: { company: string | null }) => {
         {rows.length === 0 && <span className={sp.hint}>{q.isLoading ? 'Loading…' : 'No money accounts in this chart yet.'}</span>}
       </div>
       <div className={css.smallFoot}>
-        <span className={sp.hint}>One letter per bank — Maybank M → 2990-MPV-2609-001; the cash drawer is always C.</span>
+        <span className={sp.hint}>One letter per bank — Maybank M → CR-MPV-2609-001; the cash drawer is always C.</span>
         <button type="button" className={sp.btnSolid} disabled={!dirty || save.isPending} onClick={submit}>
           {save.isPending ? 'Saving…' : 'Save numbering'}
         </button>
