@@ -3010,6 +3010,9 @@ export * from "./schemas/guarantee";
 // resellers, and for their branches (showroom vs outlet).
 export * from "./store-kind";
 
+// Who sees what Carres pays and who Carres buys from (owner, 16 Nov 2026).
+export * from "./cost-visibility";
+
 // Printable-document numbering (loan note / receipt / DO / invoice) — the ONE
 // scheme: PREFIX-DDMMYY-NNNN, tail derived per-order (never a counter).
 export { docNumber, docTail, amendmentSuffix, type DocNumberInput } from "./doc-number";

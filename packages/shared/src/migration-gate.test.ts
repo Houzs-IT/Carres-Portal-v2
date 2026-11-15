@@ -17,10 +17,11 @@ import * as openPolicy from "../../../scripts/migration-open-policy.mjs";
 const { isDestructiveSql } = destructive as { isDestructiveSql: (sql: string) => boolean };
 
 interface OpenPolicy { policy: string; table: string; clause: string; expression: string }
-const { findOpenPolicies, openPolicyMessage, normaliseExpression } = openPolicy as {
+const { findOpenPolicies, openPolicyMessage, normaliseExpression, policyStatements } = openPolicy as {
   findOpenPolicies: (sql: string) => OpenPolicy[];
   openPolicyMessage: (file: string, found: OpenPolicy[]) => string;
   normaliseExpression: (expression: string) => string;
+  policyStatements: (sql: string, policy: string, table: string) => string[];
 };
 
 const { findCollisions, staleBaselineEntries, collisionMessage, groupByNumber } =
@@ -267,6 +268,70 @@ describe("what the gate calls a policy that admits every signed-in account", () 
     for (const fn of ["dealers_with_stats_list", "dealer_with_stats", "rental_current_agreement_template", "order_stamp_stair_carry"]) {
       expect(src, fn).toContain(`fn: "${fn}"`);
     }
+  });
+});
+
+/**
+ * 0779 (owner, 16 Nov 2026): a store never sees what Carres pays or who Carres
+ * buys from, so the tables that hold a cost answer a store only through the
+ * Carres API. A later migration that rewrites one of those policies from an
+ * older file would undo that and nothing else would fail.
+ */
+describe("a policy that answers a store only through the Carres API keeps that condition", () => {
+  const migration = (name: string) => readFileSync(join(REPO, "supabase", "migrations", name), "utf8");
+  const PINNED = [
+    ["product_skus_read", "product_skus"],
+    ["catalog_fabrics_read", "catalog_fabrics"],
+    ["sofa_combo_pricing_read", "sofa_combo_pricing"],
+    ["special_addons_read", "special_addons"],
+    ["purchasing_settings_read", "purchasing_settings"],
+    ["ost_dealer_read", "order_supplier_threads"],
+  ] as const;
+
+  it("finds the statements that write one policy on one table, whatever the schema, case or quoting", () => {
+    const sql = [
+      "create policy t_read on public.t for select using (true);",
+      'ALTER POLICY "t_read" ON t USING ((select public.is_internal()));',
+      "alter policy t_read on public.other using (true);",
+      "create policy t_write on public.t for all using (true);",
+      "-- alter policy t_read on public.t using (false);",
+    ].join("\n");
+    expect(policyStatements(sql, "t_read", "t")).toEqual([
+      "create policy t_read on public.t for select using (true);",
+      'ALTER POLICY "t_read" ON t USING ((select public.is_internal()));',
+    ]);
+    expect(policyStatements(sql, "t_read", "missing")).toEqual([]);
+  });
+
+  it("0779 writes all six, and each one asks", () => {
+    const sql = migration("0779_a_store_reads_the_product_tables_only_through_the_carres_api.sql");
+    for (const [policy, table] of PINNED) {
+      const statements = policyStatements(sql, policy, table);
+      expect(statements, policy).toHaveLength(1);
+      expect(statements[0], policy).toContain("is_through_carres_api()");
+      expect(statements[0], policy).toContain("is_carres_or_seller()");
+    }
+  });
+
+  it("the five product tables still answer internal roles with no condition", () => {
+    const sql = migration("0779_a_store_reads_the_product_tables_only_through_the_carres_api.sql");
+    for (const [policy, table] of PINNED.slice(0, 5)) {
+      expect(policyStatements(sql, policy, table)[0]?.replace(/\s+/g, " "), policy).toContain(
+        "using ((select public.is_internal()) or ((select public.is_carres_or_seller()) and (select public.is_through_carres_api())))",
+      );
+    }
+  });
+
+  it("0778 and 0779 write no policy that admits every signed-in account", () => {
+    expect(findOpenPolicies(migration("0778_the_database_can_tell_a_request_that_came_through_the_carres_api.sql"))).toEqual([]);
+    expect(findOpenPolicies(migration("0779_a_store_reads_the_product_tables_only_through_the_carres_api.sql"))).toEqual([]);
+  });
+
+  it("the shipped gate pins all six against a rewrite", () => {
+    const src = readFileSync(SCRIPT, "utf8");
+    for (const [policy, table] of PINNED) expect(src, policy).toContain(`["${policy}", "${table}"]`);
+    expect(src).toContain('const THROUGH_THE_API = "is_through_carres_api()";');
+    expect(src).toContain("if (!last.statement.includes(THROUGH_THE_API)) {");
   });
 });
 

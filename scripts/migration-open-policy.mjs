@@ -102,6 +102,22 @@ export function findOpenPolicies(sql) {
   return found;
 }
 
+/**
+ * Every `create policy` / `alter policy` statement in the SQL that writes `policy` on `table`, in order.
+ * The schema and quotes are ignored, so `public.t` and `t` are one table. A policy written by a loop
+ * (`execute format('create policy %I ...')`) has no statement of its own and is not seen.
+ */
+export function policyStatements(sql, policy, table) {
+  const out = [];
+  const scanned = stripComments(sql);
+  const statement = /\b(?:create|alter)\s+policy\s+("[^"]+"|[\w$]+)\s+on\s+([\w."$]+)([\s\S]*?);/gi;
+  const bare = (name) => name.replace(/"/g, "").replace(/^public\./i, "").toLowerCase();
+  for (let m = statement.exec(scanned); m; m = statement.exec(scanned)) {
+    if (bare(m[1]) === policy.toLowerCase() && bare(m[2]) === table.toLowerCase()) out.push(m[0]);
+  }
+  return out;
+}
+
 export function openPolicyMessage(file, found) {
   const lines = found.map((p) => `  ${p.policy} on ${p.table}: ${p.clause} (${p.expression})`);
   return (

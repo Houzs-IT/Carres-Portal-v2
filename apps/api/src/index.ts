@@ -1,5 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { apiDoorReaches } from "./lib/api-door";
+import { apiDoorMiddleware } from "./middleware/api-door";
 import { authMiddleware } from "./middleware/auth";
 import analyticsRouter from "./routes/analytics";
 import authRouter from "./routes/auth";
@@ -127,6 +129,12 @@ app.onError((err, c) => {
 });
 
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.DEPLOY_SHA ?? "local" }));
+// Does the API's own header reach the database and match? (lib/api-door.ts) A deploy reads this before a policy
+// is made to depend on the header. It says nothing about any account.
+app.get("/health/api-door", async (c) => {
+  const ok = await apiDoorReaches(c.env);
+  return c.json({ ok }, ok ? 200 : 503);
+});
 
 // Stripe webhook — OUTSIDE the auth'd /api group (Stripe signs the request;
 // there is no Supabase JWT). Signature verification is the trust boundary.
@@ -147,6 +155,9 @@ app.route("/engine/supplier-finance", engineSupplierFinanceRouter);
 
 const api = new Hono<AppEnv>();
 api.use("*", authMiddleware);
+// After the caller is known: the product tables answer a role that does not see cost only on the routes where
+// this opens the door (lib/api-door.ts).
+api.use("*", apiDoorMiddleware);
 // POS-parity — MAINTAIN → Sales analysis flattened feed (principal only).
 api.route("/analytics", analyticsRouter);
 api.route("/approvals", approvalsRouter);

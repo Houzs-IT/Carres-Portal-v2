@@ -6,7 +6,7 @@ import {
   collisionMessage,
 } from "./migration-collisions.mjs";
 import { isDestructiveSql } from "./migration-destructive.mjs";
-import { findOpenPolicies, openPolicyMessage } from "./migration-open-policy.mjs";
+import { findOpenPolicies, openPolicyMessage, policyStatements } from "./migration-open-policy.mjs";
 
 /* The directory is overridable so the gate's own regression test can run THE
    SHIPPED SCRIPT against a fixture instead of a copy of its logic. */
@@ -426,6 +426,52 @@ for (const { fn, needle, story } of dir === DEFAULT_DIR ? REBUILT_GUARDS : []) {
       `${lastFile} is the last definition of ${fn} and its body has lost the guard '${needle}' (${story}). ` +
         `A rebuilt function must carry forward every guard it already had.`,
     );
+  }
+}
+
+/**
+ * A POLICY THAT WAS GIVEN A CONDITION KEEPS IT WHEN IT IS REWRITTEN.
+ *
+ * 0779 (owner, 16 Nov 2026): what Carres pays and who Carres buys from are for
+ * Carres's internal roles. Row-level security chooses rows, never columns, so
+ * the tables that hold a cost beside what a store needs to sell answer a store
+ * only when the request came through the Carres API, which leaves the cost out.
+ *
+ * Nothing fails if a later migration rewrites one of these policies from an
+ * older file: the store's pages go through the API either way. So the LAST
+ * statement that writes each policy is read here, and it must still ask.
+ * (A policy rewritten by a loop has no statement of its own; scripts/
+ * check-open-access.sql reads the live policies and covers that case.)
+ */
+const THROUGH_THE_API = "is_through_carres_api()";
+const REBUILT_POLICIES = [
+  ["product_skus_read", "product_skus"],
+  ["catalog_fabrics_read", "catalog_fabrics"],
+  ["sofa_combo_pricing_read", "sofa_combo_pricing"],
+  ["special_addons_read", "special_addons"],
+  ["purchasing_settings_read", "purchasing_settings"],
+  ["ost_dealer_read", "order_supplier_threads"],
+];
+
+if (dir === DEFAULT_DIR) {
+  const written = new Map(REBUILT_POLICIES.map(([policy]) => [policy, null]));
+  for (const file of files) {
+    const sql = await readFile(`${dir}/${file}`, "utf8");
+    for (const [policy, table] of REBUILT_POLICIES) {
+      const statements = policyStatements(sql, policy, table);
+      if (statements.length) written.set(policy, { file, statement: statements[statements.length - 1] });
+    }
+  }
+  for (const [policy, table] of REBUILT_POLICIES) {
+    const last = written.get(policy);
+    if (!last) throw new Error(`No migration writes the policy ${policy} on ${table}, so its check is stale. Fix the list in this script.`);
+    if (!last.statement.includes(THROUGH_THE_API)) {
+      throw new Error(
+        `${last.file} is the last migration to write ${policy} on ${table} and it no longer asks ${THROUGH_THE_API} (0779). ` +
+          `A store would read that table's cost and supplier columns directly. Keep the condition: ` +
+          `(select public.is_internal()) or ((select public.is_carres_or_seller()) and (select public.${THROUGH_THE_API})).`,
+      );
+    }
   }
 }
 
