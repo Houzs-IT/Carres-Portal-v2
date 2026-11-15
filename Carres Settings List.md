@@ -234,7 +234,7 @@ Default and per-carrier configurability are approved targets only; UI/runtime ar
 | SUP-04 | Supplier Access · people and their role | A person's name, email and role: `Warehouse and Operation`, `Finance`, or both. A one-time link lets the person choose a password | No people | One or both roles · link good for 72 hours · a sign-in lasts 12 hours | When saved | Not a day | Not set | Staff with full access to Settings | The next request; disabling a person ends their sessions | Who · when · what, listed on the tab | None | ERP-ARCHITECTURE.md §6.6 · owner 15 Nov 2026 | Confirmed |
 | SUP-05 | Supplier Access · the subscription supplier | Marks the ONE supplier paid the subscription share, so its Finance people see those orders. The rate stays on the agreement (Rental §0), not here | Not marked | One supplier at a time | When saved | Not a day | Not set | Staff with full access to Settings | The next request | Who · when · what, listed on the tab | None | ERP-ARCHITECTURE.md §6.6 gap: plans do not name their supplier yet | To check |
 
-SUP-02 to SUP-05 are built on branch (15 Nov 2026) in the engine, Settings › Supplier Access. No supplier is turned on and nobody has a login; turning the first one on is an external cutover that needs the owner's word (ERP-ARCHITECTURE.md §6.6).
+SUP-02 to SUP-05 are built and deployed (15 Nov 2026, #2312) in the engine, Settings › Supplier Access. All four are at their defaults: no supplier is turned on and nobody has a login; turning the first one on is an external cutover that needs the owner's word (ERP-ARCHITECTURE.md §6.6).
 
 ## Catalog
 

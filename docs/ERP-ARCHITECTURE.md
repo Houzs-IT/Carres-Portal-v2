@@ -1316,7 +1316,7 @@ Owners: Delivery owns the confirmation contact and the first-leg handover refusa
 timing"); Sales Orders' DO gate reads that one clock unchanged. **PROPOSAL / NOT LAW:** no COD
 approval for outstation orders. Falsifier: the owner approves an outstation COD case.
 
-## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT ON BRANCH)
+## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15)
 
 **RULING (Loo, 2026-11-15).** A supplier signs in to pages of its own and sees only what Carres
 shares with it. Carres collects goods at the supplier's warehouse, so the supplier's warehouse must
@@ -1398,7 +1398,9 @@ scope goes live, an outside security review is required, or a Houzs resync break
 
 **Rollout.** Deploying the code opens nothing. Giving a supplier its first production login (turning
 its access on, adding a person, sending the one-time link) is the external cutover of §6.4 and needs
-the owner's word for that supplier.
+the owner's word for that supplier. **State (2026-11-15):** deployed with #2312; no supplier has
+access and nobody has a login. The production evidence and what is still owed are in
+`ENGINEERING.md` §2; re-measure before quoting.
 
 **PROPOSAL / NOT LAW (2026-11-15), two questions for the owner before the first supplier signs in.**
 Neither blocks the build; both are about how much is shared.

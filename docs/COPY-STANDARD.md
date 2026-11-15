@@ -5194,7 +5194,7 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
-## Supplier Platform words — BUILT ON BRANCH 15 Nov 2026 · AWAITS THE OWNER'S REVIEW
+## Supplier Platform words — BUILT · DEPLOYED 15 Nov 2026 · AWAITS THE OWNER'S REVIEW
 
 Rules and ownership: ERP-ARCHITECTURE §6.6. These pages are Carres's own, drawn with the engine's parts. A date is
 the engine's one format (`2026/11/20`, `2026/11/20 10:30`). A value that is not known is said in words, never a
