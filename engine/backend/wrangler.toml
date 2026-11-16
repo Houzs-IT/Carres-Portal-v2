@@ -46,6 +46,10 @@ PUBLIC_APP_URL = "https://carres-portal.pages.dev"
 # The engine's own site: the public pages a link must open (/survey/<token>, /invite/<token>, /reset/<token>,
 # /portal/case/<token>) live here, not on the Carres portal.
 ENGINE_PUBLIC_URL = "https://carres-scm.pages.dev"
+# Carres: the supplier pages' own address (src/carres/supplier/address.ts). Settings › Supplier Access shows it, and
+# every set-password link and Forgot password email is built on it. The Worker that answers there is
+# carres-supplier-site (wrangler.supplier-site.toml). This Worker gets NO `routes` line: see that file.
+SUPPLIER_PUBLIC_URL = "https://supp.carresofficial.com"
 # CLIENT_ERROR_DIGEST_TO (who gets the daily client-error digest) is set in the Cloudflare dashboard, not here, so a
 # deploy does not blank it. Unset = the Settings > Branding email; neither set = no digest.
 EMAIL_FROM = "Carres <noreply@carresofficial.com>"

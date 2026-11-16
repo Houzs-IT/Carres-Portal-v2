@@ -3,14 +3,16 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import postgres, { type Sql } from 'postgres';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { assertDisposableTestDatabase } from './lib/doc-no-fixture';
 import { dbOver, useDbForTests, type Db } from '../src/carres/supplier/db';
 import { addPerson, getAccess, previewAccess, saveAccess } from '../src/carres/supplier/access';
 import { getForecast, getOrder, listOrders } from '../src/carres/supplier/orders';
 import { acceptPickup, cancelPickup, collectPickup, createPickup, eligibleLines, getPickup, getSupplierPickup, listSupplierPickups } from '../src/carres/supplier/pickups';
-import { changePassword, issueLink, resolveSession, signIn, useLink } from '../src/carres/supplier/session';
-import { MAX_FAILS_PER_EMAIL, WORKER_SUBREQUEST_ADDRESS, sha256Hex } from '../src/carres/supplier/credentials';
+import { changePassword, issueLink, readLink, resolveSession, signIn, useLink } from '../src/carres/supplier/session';
+import { MAX_FAILS_PER_EMAIL, MAX_RESET_MAILS_PER_EMAIL, WORKER_SUBREQUEST_ADDRESS, sha256Hex } from '../src/carres/supplier/credentials';
+import { useResetDepsForTests } from '../src/carres/supplier/reset';
+import type { Mail, MailResult } from '../src/carres/supplier/mail';
 import supplierApp from '../src/carres/supplier/routes';
 import { supplierAccess, supplierPickups } from '../src/carres/supplier/staff-routes';
 import type { Env } from '../src/types';
@@ -697,6 +699,228 @@ describePg('Carres supplier platform', () => {
         'user', 'user.canFinance', 'user.canOperation', 'user.email', 'user.name',
       ]);
       expect((await resolveSession(db, body.token))?.email).toBe('fin@zzt.test');
+    });
+  });
+
+  describe('forgot password', () => {
+    const env = { ENGINE_PUBLIC_URL: 'https://engine.test', SUPPLIER_PUBLIC_URL: 'https://supp.test/' } as unknown as Env;
+    const sent: Array<{ to: string; mail: Mail }> = [];
+    let mailOn = true;
+    let outcome: MailResult | 'throw' = { status: 'sent' };
+    let undoDeps: () => void = () => {};
+    let ritaId = 0;
+
+    const ask = (b: unknown) => supplierApp.request('/auth/forgot', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'CF-Connecting-IP': '10.0.0.9' }, body: typeof b === 'string' ? b : JSON.stringify(b),
+    }, env);
+    const tokenIn = (mail: Mail): string => /#t=([A-Za-z0-9_-]+)/.exec(mail.text)?.[1] ?? '';
+    const asks = async (email: string) => (await sql`
+      select kind, detail from public.carres_supplier_events
+       where subject = ${email} and kind in ('reset_requested', 'reset_mailed', 'reset_not_mailed') order by id`) as unknown as Array<{ kind: string; detail: Record<string, unknown> }>;
+    const forget = (email: string) => sql`
+      delete from public.carres_supplier_events where subject = ${email} and kind in ('reset_requested', 'reset_mailed', 'reset_not_mailed')`;
+
+    beforeAll(async () => {
+      undoDeps = useResetDepsForTests({
+        companyName: async () => 'ZZT Carres',
+        mailOn: async () => mailOn,
+        send: async (_env, to, mail) => {
+          if (outcome === 'throw') throw new Error(`boom ${mail.text}`);
+          sent.push({ to, mail });
+          return outcome;
+        },
+      });
+      const made = await addPerson(db, supA, { name: 'Rita <Reset>', email: 'rita@zzt.test', canOperation: true, canFinance: false }, staffId);
+      if (!made.ok) throw new Error('fixture: rita');
+      ritaId = made.person.id;
+      expect(await useLink(db, { token: made.link.token, password: 'the first long password', ip: null })).toMatchObject({ ok: true });
+    });
+    afterAll(() => undoDeps());
+    beforeEach(async () => {
+      sent.length = 0;
+      mailOn = true;
+      outcome = { status: 'sent' };
+      await forget('rita@zzt.test');
+    });
+
+    test('a person who may sign in is emailed a link that lives an hour, and the link is stored nowhere', async () => {
+      const outboxBefore = (await sql`select count(*)::int as n from public.email_outbox`)[0]!.n;
+      const logBefore = (await sql`select count(*)::int as n from public.email_log`)[0]!.n;
+
+      const res = await ask({ email: ' Rita@ZZT.test ' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true });
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.to).toBe('rita@zzt.test');
+      const mail = sent[0]!.mail;
+      expect(mail.subject).toBe('Choose a new password');
+      expect(mail.text).toContain('https://supp.test/supplier/setup#t=');
+      expect(mail.text).toContain('ZZT Carres');
+      expect(mail.text).toContain('works once, for 1 hour');
+      // The person's name is text, never markup.
+      expect(mail.html).toContain('Rita &lt;Reset&gt;');
+      expect(mail.html).not.toContain('<Reset>');
+      const token = tokenIn(mail);
+      expect(token.length).toBeGreaterThan(30);
+
+      const link = await sql`
+        select purpose, created_by, used_at, (extract(epoch from (expires_at - now())) / 60)::int as minutes
+          from public.carres_supplier_links where token_hash = ${await sha256Hex(token)}`;
+      expect(link).toHaveLength(1);
+      expect(link[0]).toMatchObject({ purpose: 'reset', created_by: null, used_at: null });
+      expect(link[0]!.minutes).toBeGreaterThanOrEqual(58);
+      expect(link[0]!.minutes).toBeLessThanOrEqual(60);
+
+      // The link is in the email and nowhere in the database: not in the platform's tables, and not in the engine's
+      // own mail tables, which keep every message they send.
+      expect((await sql`select count(*)::int as n from public.carres_supplier_links where token_hash = ${token}`)[0]!.n).toBe(0);
+      expect((await sql`select count(*)::int as n from public.carres_supplier_events where detail::text like ${`%${token}%`} or coalesce(subject, '') like ${`%${token}%`}`)[0]!.n).toBe(0);
+      expect((await sql`select count(*)::int as n from public.email_outbox`)[0]!.n).toBe(outboxBefore);
+      expect((await sql`select count(*)::int as n from public.email_log`)[0]!.n).toBe(logBefore);
+
+      // One row for the ask, which says the email left, and one for the link, which says it was asked for here.
+      expect(await asks('rita@zzt.test')).toEqual([{ kind: 'reset_mailed', detail: {} }]);
+      const made = await sql`
+        select staff_user_id, detail from public.carres_supplier_events
+         where kind = 'link_issued' and supplier_user_id = ${ritaId} order by id desc limit 1`;
+      expect(made[0]).toMatchObject({ staff_user_id: null, detail: { purpose: 'reset', via: 'forgot' } });
+
+      // And it is the same one-time link: it sets the password, signs the person in and ends the old password.
+      const used = await useLink(db, { token, password: 'a second long password', ip: null });
+      expect(used).toMatchObject({ ok: true, email: 'rita@zzt.test' });
+      expect(await useLink(db, { token, password: 'a third long password', ip: null })).toMatchObject({ ok: false, status: 404 });
+      expect(await signIn(db, { email: 'rita@zzt.test', password: 'the first long password', ip: null, userAgent: null })).toMatchObject({ ok: false, status: 401 });
+      expect((await signIn(db, { email: 'rita@zzt.test', password: 'a second long password', ip: null, userAgent: null })).ok).toBe(true);
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+    });
+
+    test('the answer is the same for every email, and one that does not sign in leaves nothing behind', async () => {
+      const before = (await sql`select count(*)::int as n from public.carres_supplier_events`)[0]!.n;
+      const linksBefore = (await sql`select count(*)::int as n from public.carres_supplier_links`)[0]!.n;
+      const known = await ask({ email: 'rita@zzt.test' });
+      const answers = [known];
+      for (const body of [{ email: 'ghost@zzt.test' }, { email: 'not an email' }, { email: { $ne: null } }, { email: ['rita@zzt.test'] }, {}, 'not json', '[]']) {
+        answers.push(await ask(body));
+      }
+      for (const r of answers) {
+        expect(r.status).toBe(200);
+        expect(await r.json()).toEqual({ ok: true });
+      }
+      // Only the one real person was emailed, and only their ask and their link were written.
+      expect(sent.map((s) => s.to)).toEqual(['rita@zzt.test']);
+      expect((await sql`select count(*)::int as n from public.carres_supplier_events`)[0]!.n).toBe(before + 2);
+      expect((await sql`select count(*)::int as n from public.carres_supplier_links`)[0]!.n).toBe(linksBefore + 1);
+      expect(await asks('ghost@zzt.test')).toEqual([]);
+    });
+
+    test('a disabled person, and a supplier whose access is off, are sent nothing and nothing is written', async () => {
+      const before = (await sql`select count(*)::int as n from public.carres_supplier_events`)[0]!.n;
+      await sql`update public.carres_supplier_users set status = 'disabled' where id = ${ritaId}`;
+      try {
+        expect((await ask({ email: 'rita@zzt.test' })).status).toBe(200);
+      } finally {
+        await sql`update public.carres_supplier_users set status = 'active' where id = ${ritaId}`;
+      }
+      await sql`update public.carres_supplier_access set enabled = false where supplier_id = ${supA}`;
+      try {
+        expect((await ask({ email: 'rita@zzt.test' })).status).toBe(200);
+      } finally {
+        await sql`update public.carres_supplier_access set enabled = true where supplier_id = ${supA}`;
+      }
+      expect(sent).toEqual([]);
+      expect((await sql`select count(*)::int as n from public.carres_supplier_events`)[0]!.n).toBe(before);
+    });
+
+    test('three links an hour for one email: the fourth ask sends nothing and writes nothing', async () => {
+      for (let i = 0; i < MAX_RESET_MAILS_PER_EMAIL; i++) expect((await ask({ email: 'rita@zzt.test' })).status).toBe(200);
+      expect(sent).toHaveLength(MAX_RESET_MAILS_PER_EMAIL);
+      expect((await asks('rita@zzt.test')).map((a) => a.kind)).toEqual(['reset_mailed', 'reset_mailed', 'reset_mailed']);
+
+      for (let i = 0; i < 5; i++) expect(await (await ask({ email: 'rita@zzt.test' })).json()).toEqual({ ok: true });
+      expect(sent).toHaveLength(MAX_RESET_MAILS_PER_EMAIL);
+      expect(await asks('rita@zzt.test')).toHaveLength(MAX_RESET_MAILS_PER_EMAIL);
+
+      // Another person's asks are their own count.
+      const other = await sql`select email from public.carres_supplier_users where email = 'ana@zzt.test' and status = 'active'`;
+      if (other.length) {
+        await forget('ana@zzt.test');
+        await ask({ email: 'ana@zzt.test' });
+        expect(sent.at(-1)!.to).toBe('ana@zzt.test');
+        await forget('ana@zzt.test');
+      }
+
+      // An hour later the count has started again.
+      await sql`update public.carres_supplier_events set at = now() - interval '61 minutes' where subject = 'rita@zzt.test' and kind = 'reset_mailed'`;
+      const n = sent.length;
+      await ask({ email: 'rita@zzt.test' });
+      expect(sent).toHaveLength(n + 1);
+    });
+
+    test('asks sent at the same moment cannot outrun the limit', async () => {
+      const mark = Number((await sql`select coalesce(max(id), 0)::int as id from public.carres_supplier_events`)[0]!.id);
+      await Promise.all(Array.from({ length: 12 }, () => ask({ email: 'rita@zzt.test' })));
+      expect(sent.length).toBeLessThanOrEqual(MAX_RESET_MAILS_PER_EMAIL);
+      // Counted from this burst alone: the links made for it are no more than the limit, and each one was emailed.
+      const links = await sql`
+        select count(*)::int as n from public.carres_supplier_events
+         where id > ${mark} and kind = 'link_issued' and supplier_user_id = ${ritaId} and detail->>'via' = 'forgot'`;
+      expect(links[0]!.n).toBeLessThanOrEqual(MAX_RESET_MAILS_PER_EMAIL);
+      expect(links[0]!.n).toBe(sent.length);
+      // Every ask that was written is settled: none is left saying only "asked".
+      expect((await asks('rita@zzt.test')).filter((a) => a.kind === 'reset_requested')).toEqual([]);
+    });
+
+    test('the newest link is the one that works', async () => {
+      await ask({ email: 'rita@zzt.test' });
+      await ask({ email: 'rita@zzt.test' });
+      expect(sent).toHaveLength(2);
+      const [first, second] = sent.map((s) => tokenIn(s.mail));
+      expect(first).not.toBe(second);
+      expect(await readLink(db, first!)).toBeNull();
+      expect(await readLink(db, second!)).toMatchObject({ email: 'rita@zzt.test', purpose: 'reset' });
+    });
+
+    test('when the email cannot leave, the record says why and never holds the link', async () => {
+      mailOn = false;
+      await ask({ email: 'rita@zzt.test' });
+      mailOn = true;
+      outcome = { status: 'not_sent', reason: 'The mail service refused the message (422).' };
+      await ask({ email: 'rita@zzt.test' });
+      outcome = 'throw';
+      await ask({ email: 'rita@zzt.test' });
+
+      const rows = await asks('rita@zzt.test');
+      expect(rows).toEqual([
+        { kind: 'reset_not_mailed', detail: { reason: 'Supplier emails are switched off in Settings.' } },
+        { kind: 'reset_not_mailed', detail: { reason: 'The mail service refused the message (422).' } },
+        { kind: 'reset_not_mailed', detail: { reason: 'The message could not be made.' } },
+      ]);
+      expect(JSON.stringify(rows)).not.toContain('#t=');
+      // The switch was off for the first ask: the provider was never called for it.
+      expect(sent).toHaveLength(1);
+    });
+
+    test('a person who has not chosen a password yet is sent the first-time link', async () => {
+      const made = await addPerson(db, supA, { name: 'Nina New', email: 'nina@zzt.test', canOperation: true, canFinance: false }, staffId);
+      expect(made.ok).toBe(true);
+      await ask({ email: 'nina@zzt.test' });
+      expect(sent).toHaveLength(1);
+      expect(sent[0]!.mail.subject).toBe('Choose your password');
+      expect(await readLink(db, tokenIn(sent[0]!.mail))).toMatchObject({ email: 'nina@zzt.test', purpose: 'setup' });
+      // The link Carres made for her first no longer works: the newest one does.
+      if (made.ok) expect(await readLink(db, made.link.token)).toBeNull();
+      await forget('nina@zzt.test');
+    });
+
+    test('asking is the only thing the address does: it needs no session and gives none', async () => {
+      await sql`delete from public.carres_supplier_sessions where user_id = ${ritaId}`;
+      const res = await ask({ email: 'rita@zzt.test' });
+      expect(keyPaths(await res.json())).toEqual(['ok']);
+      expect((await sql`select count(*)::int as n from public.carres_supplier_sessions where user_id = ${ritaId}`)[0]!.n).toBe(0);
+      // Reading it is not offered: without a session every other method meets the session gate.
+      expect((await supplierApp.request('/auth/forgot', {}, env)).status).toBe(401);
     });
   });
 

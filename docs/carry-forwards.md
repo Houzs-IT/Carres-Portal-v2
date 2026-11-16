@@ -43,11 +43,17 @@ pins the list. Check it signed in on a real phone: this header fails silently.
 **What.** The Supplier Platform (ERP-ARCHITECTURE §6.6) runs inside the engine: its API is in the engine
 Worker and reads the engine database with the engine's own account, which can read everything. What
 keeps a supplier to its own orders is the code in `engine/backend/src/carres/supplier/` and its tests,
-not the database. The supplier pages share a web address with the staff engine.
+not the database.
 
 **Owner ruling (Loo, 2026-11-15).** Offered three choices and took A, go live as built. Not built:
 B, a database account for the supplier API that may only run the two scope functions and touch the
-platform's own tables, plus a web address of its own; C, a separate small server and site.
+platform's own tables; C, a separate small server and site.
+
+**One part done since (owner, 2026-11-16): the web address of its own.** The supplier pages no longer share
+an address with the staff engine: `supp.carresofficial.com` is a Worker that hands out the supplier pages and
+the supplier API and nothing else (ENGINEERING §2). It is a second lock in front, not the database lock: it
+holds no secret and reads no database, and the supplier API behind it still runs as the engine's own account.
+What is open is B's database account, as before.
 
 **Do B when** a second supplier with a different scope goes live, an outside party must review the
 security, or a Houzs resync breaks `tests/carresSupplierPlatformGuards.test.ts`. The functions and the

@@ -10,12 +10,14 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import type { Env } from "../../types";
 import { clientIp } from "../../middleware/rateLimit";
+import { afterResponse } from "../../lib/after-response";
 import { dbFor, type Db } from "./db";
 import { callerAddress } from "./credentials";
 import { changePassword, readLink, resolveSession, signIn, signOut, useLink, type SupplierUser } from "./session";
 import { getForecast, getOrder, listOrders } from "./orders";
 import { acceptPickup, getSupplierPickup, listSupplierPickups, pickupsWaiting } from "./pickups";
 import { financeAgreement, financeSummary } from "./finance";
+import { sendResetLink } from "./reset";
 
 type Vars = { supplier: SupplierUser; sdb: Db; stoken: string };
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
@@ -121,6 +123,17 @@ app.post("/auth/link/use", async (c) => {
   const { token, expiresAt, user } = out.session;
   const waiting = user.canOperation ? await pickupsWaiting(db, user.supplierId) : 0;
   return c.json({ ok: true, email: out.email, token, expiresAt, ...me(user, waiting) });
+});
+
+// Forgot password (./reset.ts). The answer is the same for every email, and it leaves BEFORE anything is looked
+// up: the link is made and emailed after it. So neither the words nor the time they take say whether an email
+// signs in here. Only the email is read from the body.
+app.post("/auth/forgot", async (c) => {
+  const b = await body(c);
+  const env = c.env;
+  const input = { email: b?.email, ip: caller(c) };
+  await afterResponse("carres-supplier forgot password", () => sendResetLink(env, input));
+  return c.json({ ok: true });
 });
 
 // ── Everything below needs a supplier session ───────────────────────────────────────────────────────────────────

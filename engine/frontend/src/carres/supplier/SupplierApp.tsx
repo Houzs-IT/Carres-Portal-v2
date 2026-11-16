@@ -4,7 +4,7 @@
 // providers or its client is loaded here. A supplier person sees two areas, by the roles Carres gave them in
 // Settings › Supplier Access: Warehouse and Operation (Sales Orders, Forecast, Pickup requests) and Finance.
 import { createContext, lazy, useCallback, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { KeyRound, LogOut } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/Button";
@@ -58,6 +58,8 @@ function AuthFrame({ title, intro, children }: { title: string; intro?: ReactNod
 }
 
 const INPUT = "h-10 w-full rounded-md border border-border bg-surface px-3 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20";
+/** A link between the sign-in pages: text, underlined when pointed at, with a ring when reached by keyboard. */
+const TEXT_LINK = "rounded text-[12px] font-semibold text-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
 function TextField({ label, ...rest }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -97,10 +99,66 @@ function LoginPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
       {notice && <div className="mb-4 rounded-md border border-synced/30 bg-synced/10 px-3 py-2 text-[12.5px] text-synced">{notice}</div>}
       <form onSubmit={submit} className="space-y-4" noValidate>
         <TextField label="Email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-        <TextField label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <div>
+          <TextField label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          {/* The email already typed goes along, so it is not typed twice. It travels in the page's own state,
+              never in the address. */}
+          <div className="mt-1.5 text-right">
+            <Link to="/supplier/forgot" state={{ email }} className={TEXT_LINK}>Forgot password?</Link>
+          </div>
+        </div>
         {error && <div role="alert" className="rounded-md border border-err/30 bg-err/5 px-3 py-2 text-[12.5px] text-err">{error}</div>}
         <Button type="submit" className="h-10 w-full" disabled={busy || !email || !password}>{busy ? "Signing in" : "Sign in"}</Button>
       </form>
+    </AuthFrame>
+  );
+}
+
+/** Forgot password: the person types their email and is sent a one-time link. What the page says afterwards is the
+ *  same for every email, as the server's answer is: it never tells a stranger which emails sign in here. */
+function ForgotPage() {
+  const location = useLocation();
+  const company = usePublicCompany();
+  const [email, setEmail] = useState(() => (location.state as { email?: string } | null)?.email ?? "");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await supplierApi.forgot(email.trim());
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The link could not be asked for. Try again in a moment.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const back = <Link to="/supplier/login" state={{ email: email.trim() }} className={TEXT_LINK}>Back to sign in</Link>;
+
+  if (sent) {
+    return (
+      <AuthFrame title="Check your email">
+        <div role="status" className="rounded-md border border-synced/30 bg-synced/10 px-3 py-2 text-[12.5px] leading-relaxed text-synced">
+          If that email signs in here, a link is on its way. It works once, for 1 hour. Look in your spam folder too.
+        </div>
+        <div className="mt-4 text-center">{back}</div>
+      </AuthFrame>
+    );
+  }
+  return (
+    <AuthFrame title="Forgot password" intro={<>Enter the email you sign in with. {company.companyName} emails you a link to choose a new password.</>}>
+      <form onSubmit={submit} className="space-y-4" noValidate>
+        <TextField label="Email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+        {error && <div role="alert" className="rounded-md border border-err/30 bg-err/5 px-3 py-2 text-[12.5px] text-err">{error}</div>}
+        <Button type="submit" className="h-10 w-full" disabled={busy || !email.trim()}>{busy ? "Sending" : "Send link"}</Button>
+      </form>
+      <div className="mt-4 text-center">{back}</div>
     </AuthFrame>
   );
 }
@@ -162,6 +220,8 @@ function SetPasswordPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
     return (
       <AuthFrame title="This link cannot be used">
         <p className="text-[12.5px] leading-relaxed text-ink-secondary">{invalid}</p>
+        {/* A link that ran out is the common case for one sent by email: the person asks for the next one here. */}
+        <div className="mt-4"><Link to="/supplier/forgot" className={TEXT_LINK}>Ask for a new link</Link></div>
       </AuthFrame>
     );
   }
@@ -355,6 +415,7 @@ export function SupplierApp() {
     );
   }
   if (state === "out" || !session) {
+    if (path === "/supplier/forgot") return <ForgotPage />;
     if (path !== "/supplier/login") return <Navigate to="/supplier/login" replace state={location.state} />;
     return <LoginPage onSignedIn={enter} />;
   }

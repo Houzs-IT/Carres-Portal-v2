@@ -299,4 +299,67 @@ describe("signing in and the one-time link", () => {
     await waitFor(() => expect(sent.at(-1)).toEqual({ url: expect.stringMatching(/\/auth\/link\/use$/), body: { token: "secret-link-token", password: "correct horse battery" } }));
     expect(await screen.findByText("Your password is set. Sign in with it.")).toBeTruthy();
   });
+
+  it("Forgot password: the email typed on the sign-in page goes along, and the page says the same for every email", async () => {
+    const asked: Array<{ body: unknown; authorization: string | undefined }> = [];
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/track/company")) return company();
+      if (u.endsWith("/api/carres-supplier/auth/forgot")) {
+        asked.push({ body: JSON.parse(String(init?.body)), authorization: (init?.headers as Record<string, string>).Authorization });
+        return answer(200, { ok: true });
+      }
+      return answer(404, { error: "Not found." });
+    });
+    render(<MemoryRouter initialEntries={["/supplier/login"]}><SupplierApp /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText("Email"), { target: { value: " Ana@Supplier.com " } });
+    fireEvent.click(screen.getByRole("link", { name: "Forgot password?" }));
+
+    expect(await screen.findByRole("heading", { name: "Forgot password" })).toBeTruthy();
+    // Already typed: not asked for twice. (An email field drops the spaces round what is typed.)
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("Ana@Supplier.com");
+    fireEvent.click(screen.getByRole("button", { name: "Send link" }));
+
+    expect(await screen.findByRole("heading", { name: "Check your email" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("If that email signs in here, a link is on its way. It works once, for 1 hour. Look in your spam folder too.");
+    // One ask, with the email and nothing else, and no token: asking for a link signs nobody in.
+    expect(asked).toEqual([{ body: { email: "Ana@Supplier.com" }, authorization: undefined }]);
+    expect(supplierToken.get()).toBe("");
+
+    fireEvent.click(screen.getByRole("link", { name: "Back to sign in" }));
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("Ana@Supplier.com");
+  });
+
+  it("Forgot password opens for a visitor with no session, and says when the server could not be reached", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes("/api/track/company")) return company();
+      if (u.endsWith("/api/carres-supplier/auth/forgot")) return Promise.reject(new TypeError("network"));
+      return answer(404, { error: "Not found." });
+    });
+    render(<MemoryRouter initialEntries={["/supplier/forgot"]}><SupplierApp /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Forgot password" })).toBeTruthy();
+    // Nothing to send until an email is typed.
+    expect((screen.getByRole("button", { name: "Send link" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ana@supplier.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send link" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("The server could not be reached. Check your connection and try again.");
+    // Still the form: nothing claims a link was sent.
+    expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
+  });
+
+  it("a link that can no longer be used offers the way to ask for the next one", async () => {
+    window.history.replaceState(null, "", "/supplier/setup#t=old-link-token");
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes("/api/track/company")) return company();
+      if (u.endsWith("/api/carres-supplier/auth/link")) return answer(404, { error: "This link is no longer valid. Ask Carres for a new one." });
+      return answer(404, { error: "Not found." });
+    });
+    render(<MemoryRouter initialEntries={["/supplier/setup"]}><SupplierApp /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "This link cannot be used" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("link", { name: "Ask for a new link" }));
+    expect(await screen.findByRole("heading", { name: "Forgot password" })).toBeTruthy();
+  });
 });

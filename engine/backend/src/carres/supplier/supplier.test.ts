@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addressLines, buildMap, buildTrail, foldForecast, orderPickupState, type OrderLine } from "./orders";
 import { cleanAccessInput } from "./access";
 import { supplierPublicUrl } from "./address";
+import { resetMail, sendMail } from "./mail";
 import {
   WORKER_SUBREQUEST_ADDRESS, callerAddress, decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
 } from "./credentials";
@@ -153,6 +154,75 @@ describe("credentials", () => {
     const real = await hashPassword("correct horse battery");
     expect(await verifyPassword("correct horse battery", real)).toBe(true);
     expect(await verifyPassword("correct horse batterx", real)).toBe(false);
+  });
+});
+
+describe("the Forgot password email", () => {
+  const url = "https://supp.carresofficial.com/supplier/setup#t=TOKEN-abc_123";
+
+  it("says what it is for, carries the link once in each form, and how long the link lives", () => {
+    const mail = resetMail({ name: "Ana Ops", companyName: "Carres", url, setup: false });
+    expect(mail.subject).toBe("Choose a new password");
+    expect(mail.text).toBe([
+      "Hello Ana Ops,",
+      "",
+      "Someone asked for a link to choose a new password for your Carres supplier account.",
+      "",
+      "Choose a new password:",
+      url,
+      "",
+      "The link works once, for 1 hour. Use at least 10 characters.",
+      "",
+      "If you did not ask for this, do nothing. Your password stays as it is.",
+      "",
+      "Carres",
+    ].join("\n"));
+    expect(mail.html.split(url)).toHaveLength(2);
+    expect(mail.html).toContain(">Choose a new password</a>");
+    // No dash anywhere in what a person reads.
+    expect(mail.text.replace(url, "")).not.toMatch(/[–—]| - /);
+  });
+
+  it("a person who never chose a password is told to choose their first", () => {
+    const mail = resetMail({ name: "Nina", companyName: "", url, setup: true });
+    expect(mail.subject).toBe("Choose your password");
+    expect(mail.text).toContain("Someone asked for a link to choose the password for your Carres supplier account.");
+    expect(mail.text.endsWith("Carres")).toBe(true);
+  });
+
+  it("a name or a company is text, never markup", () => {
+    const mail = resetMail({ name: `<img src=x onerror=alert(1)>`, companyName: `A&B "Ltd" <script>`, url: `${url}"><script>`, setup: false });
+    expect(mail.html).not.toContain("<img");
+    expect(mail.html).not.toContain("<script>");
+    expect(mail.html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(mail.html).toContain("A&amp;B &quot;Ltd&quot; &lt;script&gt;");
+    expect(mail.html).toContain(`href="${url}&quot;&gt;&lt;script&gt;"`);
+  });
+
+  it("is handed to the mail provider with the engine's sender, and nothing else is sent along", async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const post = async (u: string, init: RequestInit) => { calls.push({ url: u, init }); return new Response(JSON.stringify({ id: "re_1" }), { status: 200 }); };
+    const mail = resetMail({ name: "Ana", companyName: "Carres", url, setup: false });
+    expect(await sendMail({ RESEND_API_KEY: "re_key", EMAIL_FROM: " Carres <noreply@carresofficial.com> " }, "ana@supplier.test", mail, post)).toEqual({ status: "sent" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://api.resend.com/emails");
+    expect(calls[0]!.init.method).toBe("POST");
+    expect(new Headers(calls[0]!.init.headers).get("authorization")).toBe("Bearer re_key");
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({
+      from: "Carres <noreply@carresofficial.com>", to: ["ana@supplier.test"], subject: mail.subject, html: mail.html, text: mail.text,
+    });
+  });
+
+  it("says in fixed words why a message did not leave, and passes on nothing the provider answered", async () => {
+    const mail = resetMail({ name: "Ana", companyName: "Carres", url, setup: false });
+    const never = async () => { throw new Error("must not be called"); };
+    expect(await sendMail({}, "ana@supplier.test", mail, never)).toEqual({ status: "not_sent", reason: "Email is not set up." });
+    const refused = async () => new Response(JSON.stringify({ message: `echo ${url}` }), { status: 422 });
+    const out = await sendMail({ RESEND_API_KEY: "k" }, "ana@supplier.test", mail, refused);
+    expect(out).toEqual({ status: "not_sent", reason: "The mail service refused the message (422)." });
+    expect(JSON.stringify(out)).not.toContain("TOKEN");
+    const down = async () => { throw new Error(`network ${url}`); };
+    expect(await sendMail({ RESEND_API_KEY: "k" }, "ana@supplier.test", mail, down)).toEqual({ status: "not_sent", reason: "The mail service could not be reached." });
   });
 });
 

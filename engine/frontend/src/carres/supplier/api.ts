@@ -212,6 +212,9 @@ export const supplierApi = {
    *  supplier's access off it carries only the email, and the person is sent to the sign-in page. */
   useLink: (token: string, password: string) =>
     request<{ ok: true; email: string } & Partial<Me & { token: string; expiresAt: string }>>("POST", "/auth/link/use", { token, password }, { auth: false }),
+  /** Forgot password: ask for a link by email. The answer is the same for every email, so it never says whether
+   *  the email signs in here. */
+  forgot: (email: string) => request<{ ok: true }>("POST", "/auth/forgot", { email }, { auth: false }),
 
   orders: (p: { view?: OrderView; q?: string; page?: number; pageSize?: number; sort?: string; dir?: "asc" | "desc" }) =>
     request<OrderList>("GET", `/orders${qs(p)}`),

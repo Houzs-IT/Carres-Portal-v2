@@ -51,7 +51,27 @@ const CSP_REPORT_ONLY = [
 // frames and nothing else, so it cannot block anything the pages load.
 export const isSupplierPage = (url: string): boolean => /^\/supplier(\/|$)/.test(new URL(url).pathname);
 
+// Carres: the supplier pages have an address of their own since 16 Nov 2026, supp.carresofficial.com
+// (engine/backend/src/carres/supplier-site/worker.ts), where the staff sign-in and the staff API do not exist. A
+// visitor who opens a supplier page at THIS site's production address is sent on, with the same path. The secret
+// of a one-time link sits after the `#`, which the browser carries over by itself.
+//   * The exact production host only. A preview of this site and a local run keep showing /supplier, so the pages
+//     can still be looked at before a deploy.
+//   * Only a page being read. That address fetches this site's one page at "/" and its files by their own paths
+//     (never a supplier path), so it is never sent round in a circle.
+export const OLD_SUPPLIER_HOST = "carres-scm.pages.dev";
+export const SUPPLIER_ORIGIN = "https://supp.carresofficial.com";
+
+export function supplierMoveTo(request: Request): string | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  if (url.hostname.toLowerCase() !== OLD_SUPPLIER_HOST || !isSupplierPage(request.url)) return null;
+  return `${SUPPLIER_ORIGIN}${url.pathname}${url.search}`;
+}
+
 export const onRequest = async ({ request, next }: PagesContext): Promise<Response> => {
+  const moved = supplierMoveTo(request);
+  if (moved) return new Response(null, { status: 302, headers: { Location: moved, "Cache-Control": "no-store" } });
   const response = await next();
   const contentType = response.headers.get("Content-Type") || "";
   // Only decorate HTML documents — the CSP that matters governs the page, and
