@@ -17,6 +17,8 @@ import type { Env, Variables } from '../env';
 import { hasHouzsPerm } from '../lib/houzs-perms';
 import { requireActiveCompanyId } from '../lib/companyScope';
 import { chunkIn, paginateAll } from '../lib/paginate-all';
+import { applyPoCost } from '../../carres/po-line-cost';
+import { carresFinanceRules } from '../../carres/finance-rules';
 import { SO_NOT_AN_ORDER } from '../shared/so-deliverable-states';
 import { loadAccounts, loadSums, sectionResolver, type AccountRow, type SumRow } from './accounting-reports';
 import { allowedIds, resolveLayout, type ResolvedLayout } from './accounting-report-layouts';
@@ -53,7 +55,7 @@ export type PerfSources = {
     source, so the Dashboard can answer all of them from one preloaded window
     (2026-09-22, the owner's "loading 很慢": the orders, their lines, the
     settings and the rate's account were read again for every period). */
-export const perfDbSources = (sb: Sb, companyId: number, layoutIds: number[]): PerfSources => ({
+export const perfDbSources = (sb: Sb, companyId: number, layoutIds: number[], poCost = false): PerfSources => ({
   sums: (from, to) => loadSums(sb, companyId, from, to),
   accounts: () => loadAccounts(sb, companyId),
   layout: () => resolveLayout(sb, layoutIds, 'performance'),
@@ -73,11 +75,15 @@ export const perfDbSources = (sb: Sb, companyId: number, layoutIds: number[]): P
     /* Their lines, in chunks — PostgREST's `in` list has a length limit. */
     const its = await chunkIn<PerfLine>(docNos, (batch, f, t) =>
       sb.from('mfg_sales_order_items')
-        .select('doc_no, item_group, item_code, qty, total_sen, unit_cost_sen, line_cost_sen, cancelled')
+        .select('id, doc_no, item_group, item_code, qty, total_sen, unit_cost_sen, line_cost_sen, cancelled')
         .eq('company_id', companyId).in('doc_no', batch)
         .order('id').range(f, t));
     if (its.error) return { ok: false, reason: failed(its.error) };
-    return { ok: true, lines: its.data };
+    // Carres: with CARRES_FINANCE_RULES on, cost comes from the PO bought for the line (carres/po-line-cost.ts).
+    if (!poCost) return { ok: true, lines: its.data };
+    const costed = await applyPoCost(sb, companyId, its.data as Array<PerfLine & { id?: string }>);
+    if (!costed.ok) return { ok: false, reason: costed.reason };
+    return { ok: true, lines: costed.lines };
   },
   rateAccount: async (code) => {
     const { data: acct, error: acctErr } = await sb.from('accounts')
@@ -144,7 +150,7 @@ export const performanceReport = async (c: Ctx): Promise<Response> => {
     return c.json({ error: 'bad_range', message: 'from and to must be YYYY-MM-DD, from on or before to.' }, 400);
   }
   const sb = c.get('supabase');
-  const r = await buildPerformance(co.companyId, from, to, perfDbSources(sb, co.companyId, allowedIds(c)));
+  const r = await buildPerformance(co.companyId, from, to, perfDbSources(sb, co.companyId, allowedIds(c), carresFinanceRules(c.env)));
   if (!r.ok) return c.json({ error: 'load_failed', reason: r.reason }, 500);
   return c.json(r.report);
 };
@@ -250,7 +256,7 @@ export const performanceMonthsHandler = async (c: Ctx): Promise<Response> => {
     return c.json({ error: 'bad_range', message: `At most ${PERFORMANCE_MONTHS_MAX} months.` }, 400);
   }
   const sb = c.get('supabase');
-  const r = await buildPerformanceMonths(co.companyId, from, to, perfDbSources(sb, co.companyId, allowedIds(c)));
+  const r = await buildPerformanceMonths(co.companyId, from, to, perfDbSources(sb, co.companyId, allowedIds(c), carresFinanceRules(c.env)));
   if (!r.ok) return c.json({ error: 'load_failed', reason: r.reason }, 500);
   return c.json({ from, to, months: r.months });
 };

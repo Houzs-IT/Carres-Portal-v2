@@ -147,6 +147,15 @@ Permissions. The old Carres Finance (`/finance/*`) is kept, moved to the very bo
 **Finance (old)**. No migration was needed: every table and RPC the Finance code reads is in the engine
 migrations (`apply_customer_credit_to_si` and `entity_audit_writable` are absent in Houzs too; the code falls back).
 
+**Finance: Carres rulings (Chew, 16 Nov 2026).** Finance MASTER §0.0. Behaviour that differs from Houzs runs only
+while the Worker variable `CARRES_FINANCE_RULES = "on"` (`engine/backend/wrangler.toml`; `src/carres/finance-rules.ts`), so
+Houzs's tests run unchanged: the voucher preparer may not check it (`carres/pv-preparer.ts`, hook in
+`payment-vouchers.ts`), and sold-line cost comes from the PO (`carres/po-line-cost.ts`, hooks in
+`accounting-performance.ts`, `accounting-product-profit.ts`, `accounting-dashboard.ts`). The new `BANK_CHARGES` role
+(`acc/rules.ts`, default Houzs's `900-B001`) and migration `2013_carres_finance_rules.sql` set Carres's accounts and
+rights. Chew's chart itself is data in the engine database, never a committed file (it names people). The engine's
+own pure-logic suite fails 46 tests on main already (Carres numbering and names); a change must add no new failure.
+
 **Sales Order: Carres rulings (owner, 12 Nov 2026).** Four places where the engine's SO (desktop New SO and
 edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
 1. *Deposit before Proceed / Processing Date is 50%*: `processingDateThresholdFor` (backend

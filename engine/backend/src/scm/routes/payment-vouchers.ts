@@ -51,6 +51,8 @@ import { docMonthTag, mintMonthlyDocNo, insertWithDocNoRetry } from '../lib/doc-
 import { isDocumentHeld } from '../lib/document-hold';
 import { dateOrNull } from '../lib/date-coerce';
 import { postJournal, reverseJournal } from '../../acc/engine';
+import { preparerMayCheck } from '../../carres/pv-preparer';
+import { carresFinanceRules } from '../../carres/finance-rules';
 import { apControlRole, pvLines, pvBankChargeLines, customerRefundLines, resolveRoles, PV_BANK_CHARGE_ACCOUNT } from '../../acc/rules';
 import { checkExpenseLeaf } from '../../acc/charge-account';
 import { customerPartyCode } from '../../acc/payments';
@@ -1102,8 +1104,10 @@ export const postPaymentVoucherHandler = async (c: any) => {
      900-B001). Refused rather than posted without the fee when the account is
      not a usable expense leaf here. */
   const feeSen = Number(pv.bank_charge_sen ?? 0);
+  // Carres: the bank charges account is the BANK_CHARGES role, not a fixed Houzs code.
+  const bankChargeAccount = feeSen > 0 ? (await resolveRoles(sb, companyId)).BANK_CHARGES : PV_BANK_CHARGE_ACCOUNT;
   if (feeSen > 0) {
-    const okFee = await checkExpenseLeaf(sb, co.companyId, PV_BANK_CHARGE_ACCOUNT, 'a bank charge');
+    const okFee = await checkExpenseLeaf(sb, co.companyId, bankChargeAccount, 'a bank charge');
     if (!okFee.ok) return c.json({ error: 'bank_charge_account', message: `Bank charges cannot post: ${okFee.reason}` }, okFee.status === 'load_failed' ? 500 : 409);
   }
 
@@ -1129,7 +1133,7 @@ export const postPaymentVoucherHandler = async (c: any) => {
     lines: (isRefund(pv.purpose)
       ? customerRefundLines({ ...pv, refund_source_doc_no: refundPv.refund_source_doc_no ?? null }, (await resolveRoles(sb, companyId)).AR, { code: customerPartyCode(refundPv.debtor_code, refundPv.customer_id), name: pv.payee_name }, totalSen)
       : pvLines(pv, debitLegs, supplier, apControlCode)
-    ).concat(pvBankChargeLines(pv, feeSen)),
+    ).concat(pvBankChargeLines(pv, feeSen, bankChargeAccount)),
   });
   if (!r.ok) {
     if (r.status === 'je_insert_failed') return c.json({ error: 'je_insert_failed', reason: r.reason }, 500);
@@ -1506,6 +1510,9 @@ export const checkPaymentVoucherHandler = async (c: any) => {
   const v = pvCanCheck(pv as PvApprovalShape);
   if (!v.ok) return c.json({ error: v.error, message: v.message }, 409);
   const who = approvalActor(c);
+  // Carres: with CARRES_FINANCE_RULES on, the preparer may not check their own voucher (carres/pv-preparer.ts).
+  const own = carresFinanceRules(c.env) ? preparerMayCheck(pv as { submitted_by?: string | null }, who) : { ok: true as const };
+  if (!own.ok) return c.json({ error: own.error, message: own.message }, 409);
   const at = new Date().toISOString();
 
   /* THE FIRST YES MINTS THE NUMBER (item 8b). A voucher still on the Draft
