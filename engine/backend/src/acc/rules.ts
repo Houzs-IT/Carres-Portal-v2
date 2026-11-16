@@ -65,7 +65,10 @@ export type AccountRole =
      the final invoice is a sale the day it arrives — the owner's e-invoice
      reading, 2026-09-12 — booked on the DEPOSIT PAY BY CUSTOMER sales
      account, never on the deposit LIABILITY (CUSTOMER_DEPOSITS above). */
-  | 'DEPOSIT_INCOME';
+  | 'DEPOSIT_INCOME'
+  /* Carres: where a payment voucher's bank charges post, set per company like any role
+     (Chew's chart: 902-0000 BANK CHARGES; there 900-B001 is a roadshow booth account). */
+  | 'BANK_CHARGES';
 
 /* Fallback = the accountant's own AutoCount codes (migration 0344; owner
    decision 2026-09-02: 迁到 AutoCount 码). Every company carries these codes,
@@ -105,6 +108,7 @@ export const DEFAULT_ROLE_CODES: Record<AccountRole, string> = {
   SALES_RETURNS: '510-0000',     // RETURN INWARDS (a customer credit note's default line)
   PURCHASE_RETURNS: '612-0000',  // PURCHASES RETURN (a supplier credit note's default line)
   DEPOSIT_INCOME: '509-0000',    // DEPOSIT PAY BY CUSTOMER (a deposit invoice's credit side)
+  BANK_CHARGES: '900-B001',      // Carres: the role's Houzs default; a voucher's bank charges (PV_BANK_CHARGE_ACCOUNT)
 };
 
 /** The accounts each closing-stock bucket books on (acc/stock-close.ts). */
@@ -452,11 +456,12 @@ export const PV_BANK_CHARGE_ACCOUNT = '900-B001';
 export function pvBankChargeLines(
   pv: { pv_number: string; credit_account_code: string },
   feeSen: number,
+  account: string = PV_BANK_CHARGE_ACCOUNT, // Carres: the BANK_CHARGES role
 ): RuleLine[] {
   if (!(feeSen > 0)) return [];
   const blank = { partyType: null, partyCode: null, partyName: null };
   return [
-    { accountCode: PV_BANK_CHARGE_ACCOUNT, debitSen: feeSen, creditSen: 0, ...blank, notes: `Bank charges — ${pv.pv_number}` },
+    { accountCode: account, debitSen: feeSen, creditSen: 0, ...blank, notes: `Bank charges — ${pv.pv_number}` },
     { accountCode: pv.credit_account_code, debitSen: 0, creditSen: feeSen, ...blank, notes: `Bank charges — ${pv.pv_number}` },
   ];
 }

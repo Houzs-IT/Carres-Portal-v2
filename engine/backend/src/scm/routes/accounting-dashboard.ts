@@ -49,6 +49,7 @@ import { buildBalanceSheet, buildPnl, loadAccounts, sectionResolver, sumGlRows, 
 import type { CardPayoutFacts } from '../../acc/card-in-bank';
 import type { OrderPaymentFacts } from '../../acc/order-payment-kind';
 import { buildReceiptsPayments, rpDbSources, supplierVouchersOf, type RpGlLine, type RpSources, type RpSplit, type RpTotals } from './accounting-rp';
+import { carresFinanceRules } from '../../carres/finance-rules';
 import { buildPerformance, perfDbSources, type PerfSources, type PerformancePayload } from './accounting-performance';
 import { loadForecastAccounts, loadGrid } from './accounting-forecast';
 import {
@@ -161,8 +162,8 @@ type Preload = {
    trips a month, some 150 for a year, on a ledger the database answers in
    milliseconds). Wave 1 needs only the window; wave 2 needs what wave 1
    named. The figures are the builders' own either way. */
-async function preload(sb: Sb, companyId: number, layoutIds: number[], windowStart: string, windowEnd: string, grid: ForecastGrid): Promise<{ ok: true; pre: Preload } | Fail> {
-  const perfDb = perfDbSources(sb, companyId, layoutIds);
+async function preload(sb: Sb, companyId: number, layoutIds: number[], windowStart: string, windowEnd: string, grid: ForecastGrid, poCost = false): Promise<{ ok: true; pre: Preload } | Fail> {
+  const perfDb = perfDbSources(sb, companyId, layoutIds, poCost); // Carres: PO cost when CARRES_FINANCE_RULES is on
   const rpDb = rpDbSources(sb, companyId, layoutIds);
   const readClosings = async (): Promise<{ ok: true; closingBooked: Map<string, boolean> } | Fail> => {
     const { data: adj, error: adjErr } = await sb.from('journal_entries').select('source_doc_no, reversed').eq('company_id', companyId).eq('source_type', 'STOCKADJ');
@@ -437,7 +438,7 @@ const sumSection = (ls: ReportLine[], section: string): number => ls.filter((l) 
 
 /* ── The build ───────────────────────────────────────────────────────────── */
 
-export async function buildDashboard(sb: Sb, companyId: number, layoutIds: number[], q: DashboardQuery, today: string): Promise<{ ok: true; payload: DashboardPayload } | Fail> {
+export async function buildDashboard(sb: Sb, companyId: number, layoutIds: number[], q: DashboardQuery, today: string, poCost = false): Promise<{ ok: true; payload: DashboardPayload } | Fail> {
   const grid = await loadGrid(sb, companyId);
   if (!grid.ok) return { ok: false, reason: `forecast: ${grid.reason}` };
   const forecastMonths = sortedMonths(grid.grid);
@@ -446,7 +447,7 @@ export async function buildDashboard(sb: Sb, companyId: number, layoutIds: numbe
   const wide = periodsFor({ granularity: q.granularity, periods: q.periods, from: q.from, to: q.to, today, forecastMonths });
   const windowStart = wide[0]!.from;
   const windowEnd = wide[wide.length - 1]!.to;
-  const loaded = await preload(sb, companyId, layoutIds, windowStart, windowEnd, grid.grid);
+  const loaded = await preload(sb, companyId, layoutIds, windowStart, windowEnd, grid.grid, poCost);
   if (!loaded.ok) return loaded;
   const pre = loaded.pre;
   const src = sourcesOf(pre);
@@ -538,7 +539,7 @@ export const dashboardHandler = async (c: Ctx): Promise<Response> => {
   const key = [co.companyId, ids.join('.'), parsed.query.granularity, parsed.query.periods, parsed.query.from ?? '', parsed.query.to ?? '', today].join('|');
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return c.json({ ...hit.payload, cached: true });
-  const r = await buildDashboard(c.get('supabase'), co.companyId, ids, parsed.query, today);
+  const r = await buildDashboard(c.get('supabase'), co.companyId, ids, parsed.query, today, carresFinanceRules(c.env)); // Carres
   if (!r.ok) return c.json({ error: 'load_failed', reason: r.reason }, 500);
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
   cache.set(key, { at: Date.now(), payload: r.payload });

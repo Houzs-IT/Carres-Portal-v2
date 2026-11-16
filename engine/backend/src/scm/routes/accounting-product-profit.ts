@@ -22,6 +22,8 @@ import type { Env, Variables } from '../env';
 import { hasHouzsPerm } from '../lib/houzs-perms';
 import { requireActiveCompanyId } from '../lib/companyScope';
 import { chunkIn, paginateAll } from '../lib/paginate-all';
+import { applyPoCost } from '../../carres/po-line-cost';
+import { carresFinanceRules } from '../../carres/finance-rules';
 import { todayMyt } from '../lib/my-time';
 import { SO_NOT_AN_ORDER } from '../shared/so-deliverable-states';
 import { monthRange } from './accounting-receipts-check';
@@ -34,7 +36,7 @@ const failed = (e: unknown): string => String((e as { message?: string } | null)
 
 type Loaded = { ok: true; orders: PpOrder[]; lines: PpLine[]; products: PpProduct[]; models: PpModel[] } | { ok: false; reason: string };
 
-export async function loadProductProfit(sb: Db, companyId: number, range: { from: string; to: string }): Promise<Loaded> {
+export async function loadProductProfit(sb: Db, companyId: number, range: { from: string; to: string }, poCost = false): Promise<Loaded> {
   /* The months' orders by SO date. Status is an enum the fake client cannot be
      trusted to compare; the DRAFT/CANCELLED rule is applied in code. */
   const sos = await paginateAll<PpOrder>((f, t) =>
@@ -48,11 +50,14 @@ export async function loadProductProfit(sb: Db, companyId: number, range: { from
 
   const its = await chunkIn<PpLine>(liveDocs, (batch, f, t) =>
     sb.from('mfg_sales_order_items')
-      .select('doc_no, item_group, item_code, description, qty, total_sen, unit_cost_sen, line_cost_sen, cancelled')
+      .select('id, doc_no, item_group, item_code, description, qty, total_sen, unit_cost_sen, line_cost_sen, cancelled')
       .eq('company_id', companyId).in('doc_no', batch)
       .order('id').range(f, t));
   if (its.error) return { ok: false, reason: failed(its.error) };
-  const lines = its.data;
+  // Carres: with CARRES_FINANCE_RULES on, cost comes from the PO bought for the line (carres/po-line-cost.ts).
+  const costed = poCost ? await applyPoCost(sb, companyId, its.data as Array<PpLine & { id?: string }>) : { ok: true as const, lines: its.data, withoutPo: 0 };
+  if (!costed.ok) return { ok: false, reason: costed.reason };
+  const lines = costed.lines;
 
   /* The company's product list and models, read whole (a few thousand short
      rows), never by an `in` list of item codes: a code can carry a double
@@ -111,7 +116,7 @@ export const productProfitHandler = async (c: Ctx): Promise<Response> => {
   const months = profitMonths({ month: c.req.query('month'), from: c.req.query('from'), to: c.req.query('to') }, todayMyt());
   if (!months.ok) return c.json({ error: months.error, message: months.message }, 400);
   const range = { from: months.from, to: months.to };
-  const loaded = await loadProductProfit(c.get('supabase'), co.companyId, range);
+  const loaded = await loadProductProfit(c.get('supabase'), co.companyId, range, carresFinanceRules(c.env));
   if (!loaded.ok) return c.json({ error: 'load_failed', reason: loaded.reason }, 500);
   return c.json(buildProductProfit({ month: months.month, ...range, ...loaded }));
 };
