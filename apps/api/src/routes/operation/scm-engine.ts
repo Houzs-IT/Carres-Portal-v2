@@ -1,5 +1,6 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import type { SupplierAsk, SupplierAsksResponse } from "@carres/shared";
 import type { AppEnv } from "../../types";
 
 /**
@@ -55,6 +56,61 @@ router.post("/session", requireEngineRole, async (c) => {
   if (res.status === 403) return c.json({ error: "forbidden", message: body?.error ?? "Your account does not have access to Supply Chain." }, 403);
   if (!res.ok || !body?.token) return c.json({ error: "engine_refused", message: UNREACHABLE }, 502);
   return c.json({ site: site.replace(/\/+$/, ""), token: body.token, sessionPass: body.session_pass ?? null });
+});
+
+/**
+ * A call from this server to the engine that no person makes: `<purpose>.<ts>.<body>` signed under the same shared
+ * secret. The purpose word keeps it from passing as a sign-on assertion, and the engine takes it for one minute
+ * (engine/backend/src/carres/supplier/portal-asks.ts verifyPortalRequest).
+ */
+export async function signEngineCall(secret: string, purpose: string, body: string, now = Date.now()): Promise<{ ts: string; signature: string }> {
+  const ts = String(now);
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return { ts, signature: b64url(await crypto.subtle.sign("HMAC", key, enc.encode(`${purpose}.${ts}.${body}`))) };
+}
+
+const text = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/** The engine's answer kept to what the bell shows: anything else in it is dropped, and a malformed one reads as none. */
+export function pickSupplierAsks(raw: unknown): SupplierAsksResponse {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const asks = (Array.isArray(r.asks) ? r.asks : []).flatMap((a): SupplierAsk[] => {
+    const x = a && typeof a === "object" ? (a as Record<string, unknown>) : {};
+    const kind = x.kind === "cancel" ? "cancel" : x.kind === "date" ? "date" : null;
+    if (!kind || !text(x.id) || !text(x.requestNo)) return [];
+    return [{
+      id: text(x.id), requestNo: text(x.requestNo), supplierName: text(x.supplierName), kind,
+      askDate: text(x.askDate) || null, expectedDate: text(x.expectedDate), askedAt: text(x.askedAt),
+    }];
+  });
+  const count = typeof r.count === "number" && Number.isFinite(r.count) ? Math.max(Math.trunc(r.count), asks.length) : asks.length;
+  return { count, asks };
+}
+
+/** A supplier's ask waits for Carres (engine Supplier Pickups); the people who answer it see it on their Alerts bell
+ *  (owner, 17 Nov 2026). */
+const ASK_READERS = new Set(["operation", "principal"]);
+
+router.get("/supplier-asks", async (c) => {
+  if (!ASK_READERS.has(c.var.auth?.role ?? "")) throw new HTTPException(403, { message: "operation or Principal only" });
+  const api = c.env.SCM_ENGINE_API, secret = c.env.SCM_ENGINE_SSO_SECRET;
+  if (!api || !secret) return c.json({ error: "not_set_up", message: NOT_SET_UP }, 501);
+  const body = "{}";
+  const { ts, signature } = await signEngineCall(secret, "supplier-asks", body);
+  let res: Response;
+  try {
+    const call = c.env.SCM_ENGINE ? c.env.SCM_ENGINE.fetch.bind(c.env.SCM_ENGINE) : fetch;
+    res = await call(`${api.replace(/\/+$/, "")}/api/carres-portal/supplier-asks`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-carres-portal-ts": ts, "x-carres-portal-signature": signature },
+      body,
+    });
+  } catch {
+    return c.json({ error: "engine_unreachable", message: UNREACHABLE }, 502);
+  }
+  if (!res.ok) return c.json({ error: "engine_refused", message: UNREACHABLE }, 502);
+  return c.json(pickSupplierAsks(await res.json().catch(() => null)));
 });
 
 export default router;

@@ -12,6 +12,7 @@
 // A request is a notice and its answer. It moves no stock: goods still enter the books through the Purchase Order
 // and its goods receipt.
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, Download, Plus, Send, X as XIcon } from "lucide-react";
 import { PageHeader } from "../../components/Layout";
 import { Badge } from "../../components/Badge";
@@ -385,6 +386,8 @@ function RequestView({ pickup, canAct, onClose, onChanged }: { pickup: StaffPick
 // ── The list ────────────────────────────────────────────────────────────────────────────────────────────────────
 
 type Tab = "open" | "asked" | "collected" | "cancelled" | "all";
+const TABS: readonly Tab[] = ["open", "asked", "collected", "cancelled", "all"];
+const isTab = (v: string | null): v is Tab => !!v && (TABS as readonly string[]).includes(v);
 
 const COLUMNS: Column<StaffPickup>[] = [
   {
@@ -427,10 +430,19 @@ export function SupplierPickupsPage() {
   const level = pageAccess("scm.procurement.po");
   const canAct = can("*") || level === "edit" || level === "full";
   const list = useQuery("carres-supplier-pickups:list", () => pickupApi.list());
-  const [tab, setTab] = useState<Tab>("open");
+  // The portal's Alerts bell links here with `?tab=asked&open=<request>` (an ask waiting for Carres): the page opens
+  // on that tab with that request, also when it was already showing.
+  const [params] = useSearchParams();
+  const linkedTab = params.get("tab");
+  const linkedOpen = params.get("open");
+  const [tab, setTab] = useState<Tab>(isTab(linkedTab) ? linkedTab : "open");
   const [creating, setCreating] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(linkedOpen);
   const [fresh, setFresh] = useState<StaffPickup | null>(null);
+  useEffect(() => {
+    if (isTab(linkedTab)) setTab(linkedTab);
+    if (linkedOpen) setOpenId(linkedOpen);
+  }, [linkedTab, linkedOpen]);
 
   const rows = list.data?.rows ?? [];
   const isOpen = (p: StaffPickup) => p.status === "REQUESTED" || p.status === "ACCEPTED";
