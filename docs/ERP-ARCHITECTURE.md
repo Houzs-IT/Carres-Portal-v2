@@ -1398,9 +1398,12 @@ scope goes live, an outside security review is required, or a Houzs resync break
 
 **Rollout.** Deploying the code opens nothing. Giving a supplier its first production login (turning
 its access on, adding a person, sending the one-time link) is the external cutover of §6.4 and needs
-the owner's word for that supplier. **State (2026-11-15):** deployed with #2312; no supplier has
-access and nobody has a login. The production evidence and what is still owed are in
-`ENGINEERING.md` §2; re-measure before quoting.
+the owner's word for that supplier. **State (2026-11-16):** deployed with #2312. No supplier's own
+person has a login. One TEST login exists, opened on 16 Nov 2026 at the owner's request so he can read
+the pages as a supplier does: Carres holds it, on one supplier, with that supplier's own items and the
+subscription share. It is turned off before the first real supplier is turned on (one supplier holds
+the subscription share at a time; `carry-forwards.md` `supplier-test-login-is-on`). The production
+evidence and what is still owed are in `ENGINEERING.md` §2; re-measure before quoting.
 
 **PROPOSAL / NOT LAW (2026-11-15), two questions for the owner before the first supplier signs in.**
 Neither blocks the build; both are about how much is shared.

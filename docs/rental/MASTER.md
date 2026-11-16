@@ -117,7 +117,8 @@ subscription (「同一套」). Everything in §0 is **APPROVED / NOT BUILT** un
   charge from the due date.
 - Suppliers and whoever earns the commission should see their subscriptions' status; external
   logins need the owner authorisation of ERP-ARCHITECTURE §6.4–6.5. **The supplier's view is BUILT
-  and DEPLOYED (Loo, 2026-11-15; no supplier has access yet): the Supplier Platform's Finance pages,
+  and DEPLOYED (Loo, 2026-11-15; no supplier's own person has access yet, one test login held by Carres
+  since 2026-11-16): the Supplier Platform's Finance pages,
   ERP-ARCHITECTURE §6.6.** They
   only read: every figure is worked out from this module's instalments (the stored share of a paid
   month, the same split for a month still to come), and a supplier is shown no Stripe id, payment

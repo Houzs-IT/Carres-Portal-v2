@@ -1,3 +1,15 @@
+## `supplier-test-login-is-on` — OPEN, with the owner, 2026-11-16
+
+**What.** One test login exists on the Supplier Platform, opened at the owner's request so he can read the
+pages as a supplier does. Carres holds it, not a supplier's person. It sees one supplier's own items (one
+order on the day it was opened) and, as the supplier marked for the subscription share, every subscription
+order. Which supplier and which email are not written here: this repository is public.
+
+**Close it** when the owner has finished looking, and in any case before the first real supplier is turned
+on: Settings › Supplier Access, that supplier, untick `may sign in`, Save. Its sessions end on the next
+request. Only one supplier can hold the subscription share, so the real one cannot be marked until this one is
+unmarked.
+
 ## `engine-frame-has-no-camera-location-or-share` — OPEN, found 2026-11-16
 
 **What.** The engine's pages run in a frame inside the portal (`SupplyChainEngine.tsx`), and a framed site of
