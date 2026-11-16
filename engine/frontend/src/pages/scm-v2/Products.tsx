@@ -124,6 +124,8 @@ import { useBrandingPool, useProductModel } from '../../vendor/scm/lib/product-m
 import { useQueryClient } from '@tanstack/react-query';
 import { parseMoneyToSen } from '../../lib/money';
 import styles from './Products.module.css';
+import { api } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import { buildSkuImportRows, gridToSkuRecords, importFailureMessage, priceSheetRinggit, withSkuImportHeaders } from './products-import-headers';
 import { readImportGrid } from '../../lib/import-sheet';
 import { ProductRow, fmtRm, fmtUnit, priceForHeightTier, useSkuGridOrder, saveStagedEdits, stageRowEdit, type ProductEditPatch } from './products/SkuEditRow';
@@ -2628,9 +2630,71 @@ const BrandingsReadOnlyPanel = () => {
   // DISTINCT brandings on 2990's OWN products/models instead of showing the
   // other company's brands (or a blank list).
   const { pool, fromConfig, isLoading } = useBrandingPool();
+  // Carres: add a branding here as well as in Fair Maintenance (owner 16 Nov 2026). It goes into the same
+  // project_brands pool, so it shows in both places and in every Branding input.
+  const { canAny } = useAuth();
+  const canAdd = canAny(['projects.manage', 'scm.config.write']);
+  const qc = useQueryClient();
+  const notify = useNotify();
+  const [newBrand, setNewBrand] = useState('');
+  const [adding, setAdding] = useState(false);
+  const addBrand = async () => {
+    const name = newBrand.trim();
+    if (!name || adding) return;
+    if (pool.some((b) => b.toUpperCase() === name.toUpperCase())) {
+      notify({ title: 'Branding already exists', body: `"${name}" is already in the list.`, tone: 'error' });
+      return;
+    }
+    setAdding(true);
+    try {
+      await api.post('/api/projects/brands', { name });
+      setNewBrand('');
+      await qc.invalidateQueries({ queryKey: ['project-brands'] });
+      notify({ title: 'Branding added', body: name, tone: 'info' });
+    } catch (e) {
+      notify({ title: 'Could not add branding', body: e instanceof Error ? e.message : String(e), tone: 'error' });
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
     <div className={styles.maintList}>
+      {canAdd && (
+        <div
+          className={styles.maintRow}
+          style={{
+            background: 'var(--hz-c-surface)',
+            borderColor: '#1B1B39',
+            gridTemplateColumns: '32px 1fr auto',
+            marginBottom: 12,
+          }}
+        >
+          <span className={styles.maintRowIdx}><Plus {...ICON_PROPS} /></span>
+          <input
+            id="products-add-branding"
+            type="text"
+            placeholder="New branding name"
+            aria-label="New branding name"
+            value={newBrand}
+            disabled={adding}
+            onChange={(e) => setNewBrand(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void addBrand(); }}
+            style={{
+              fontSize: 'var(--fs-14)',
+              background: 'var(--hz-c-surface-2)',
+              border: '1px solid var(--hz-c-border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '6px 10px',
+              outline: 'none',
+            }}
+          />
+          <Button variant="primary" onClick={() => void addBrand()} disabled={adding || !newBrand.trim()}>
+            <Plus {...ICON_PROPS} />
+            <span>{adding ? 'Adding…' : 'Add'}</span>
+          </Button>
+        </div>
+      )}
       <p className={styles.stateInfo} style={{ marginBottom: 12 }}>
         {fromConfig ? (
           <>

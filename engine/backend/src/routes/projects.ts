@@ -252,7 +252,9 @@ app.get("/brands", async (c) => {
   return c.json({ data: all });
 });
 
-app.post("/brands", requirePermission("projects.manage"), async (c) => {
+// Carres: a branding can also be added from Product Maintenance (owner 16 Nov 2026), so whoever may write the
+// SCM product setup (scm.config.write) adds one too. Rename, delete and reorder stay with projects.manage.
+app.post("/brands", requireAnyPermission(["projects.manage", "scm.config.write"]), async (c) => {
   const body = await c.req.json<{
     name?: string;
     color?: string;
