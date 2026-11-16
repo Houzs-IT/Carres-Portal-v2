@@ -1222,6 +1222,46 @@ describePg('Carres supplier platform', () => {
       expect(JSON.parse(String(cara[0]!.perms))).toEqual({ operation: [], finance: ['v_coll', 'v_month', 'd_names', 'd_share', 'd_bad', 'a_export', 'a_stmt', 'a_users'] });
     });
 
+    test('an admin adds back a person the company removed, and a colleague from the other department; one Carres turned off stays off', async () => {
+      // Ben, removed above, comes back on the same account as if added fresh: only what is given now.
+      const back = await post('/users', ana, {
+        department: 'operation', name: 'Ben Again', email: 'ben@zzt.test', how: 'password', password: 'a fresh long password', perms: ['v_orders'],
+      });
+      expect(back.status).toBe(200);
+      expect(await back.json()).toMatchObject({ user: { id: benId, name: 'Ben Again', status: 'active', perms: ['v_orders'] }, mailed: null, hadAccount: false });
+      const benRow = await sql`select status, can_operation, can_finance, must_change_password, perms::text as perms from public.carres_supplier_users where id = ${benId}`;
+      expect(benRow[0]).toMatchObject({ status: 'active', can_operation: true, can_finance: false, must_change_password: true });
+      expect(JSON.parse(String(benRow[0]!.perms))).toEqual({ operation: ['v_orders'], finance: [] });
+      expect((await signIn(db, { email: 'ben@zzt.test', password: PASSWORD, ip: null, userAgent: null })).ok).toBe(false);
+      expect((await signIn(db, { email: 'ben@zzt.test', password: 'a fresh long password', ip: null, userAgent: null })).ok).toBe(true);
+      await sql`delete from public.carres_supplier_events where kind = 'signin_failed' and subject like '%@zzt.test'`;
+      const added = await sql`select detail from public.carres_supplier_events where subject = 'ben@zzt.test' and kind = 'person_added' order by id desc limit 1`;
+      expect(added[0]!.detail).toMatchObject({ via: 'supplier', department: 'operation', how: 'password', again: true });
+      // Now in the list again: refused as any taken email is.
+      expect((await post('/users', ana, { department: 'operation', name: 'Ben', email: 'ben@zzt.test', how: 'invite', perms: [] })).status).toBe(409);
+
+      // Cara, in Finance, gets Warehouse and Operation with what Ana ticked. Her name, password and Finance stay; no link is made.
+      const before = await sql`select password_hash from public.carres_supplier_users where id = ${caraId}`;
+      const links = async () => (await sql`select token_hash, used_at from public.carres_supplier_links where user_id = ${caraId} order by created_at, token_hash`)
+        .map((l) => [l.token_hash, l.used_at]);
+      const linksBefore = await links();
+      const joined = await post('/users', ana, { department: 'operation', name: 'Someone Else', email: 'cara@zzt.test', how: 'invite', perms: ['v_orders', 'v_pickups'] });
+      expect(joined.status).toBe(200);
+      expect(await joined.json()).toMatchObject({ user: { id: caraId, name: 'Cara Ops', perms: ['v_orders', 'v_pickups'] }, mailed: null, hadAccount: true });
+      const caraRow = await sql`select status, can_operation, can_finance, password_hash, perms::text as perms from public.carres_supplier_users where id = ${caraId}`;
+      expect(caraRow[0]).toMatchObject({ status: 'active', can_operation: true, can_finance: true, password_hash: before[0]!.password_hash });
+      expect(JSON.parse(String(caraRow[0]!.perms))).toEqual({ operation: ['v_orders', 'v_pickups'], finance: ['v_coll', 'v_month', 'd_names', 'd_share', 'd_bad', 'a_export', 'a_stmt', 'a_users'] });
+      expect(await links()).toEqual(linksBefore);
+
+      // Dan, turned off by Carres, stays off: only Carres turns him on again.
+      const danId = Number((await sql`select id from public.carres_supplier_users where email = 'dan@zzt.test'`)[0]!.id);
+      expect((await updatePerson(db, danId, { status: 'disabled' }, staffId)).ok).toBe(true);
+      const refused = await post('/users', ana, { department: 'operation', name: 'Dan Ops', email: 'dan@zzt.test', how: 'invite', perms: [] });
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toEqual({ error: "Carres turned off this person's access. Ask Carres to turn it on again." });
+      expect((await sql`select status from public.carres_supplier_users where id = ${danId}`)[0]!.status).toBe('disabled');
+    });
+
     let r1 = '';
     let r2 = '';
     let r3 = '';

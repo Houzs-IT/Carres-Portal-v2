@@ -14,6 +14,10 @@
 //     one to manage it by its own hand.
 //   * Taking access away disables the person and ends their sessions and waiting links at once; a person in both
 //     departments loses only this one. The row stays, so the history still names them.
+//   * Adding an email the company already has does not hit a wall the admin cannot see past. A person the company
+//     itself removed comes back as if added fresh (the name, password and access given now; the other department
+//     not restored). A colleague in the other department gets this department too and signs in as before. A person
+//     Carres turned off stays off: only Carres turns them on again (Settings › Supplier Access).
 import type { Db, Row } from "./db";
 import { bool, first, int, str, strOrNull } from "./db";
 import { hashPassword, isEmail, normEmail, passwordProblem } from "./credentials";
@@ -39,6 +43,7 @@ const PERSON_COLUMNS = `
   u.perms::text AS perms, ${ts("u.last_login_at")} AS last_login_at`;
 
 const TAKEN = "This email already has an account.";
+const OFF_BY_CARRES = "Carres turned off this person's access. Ask Carres to turn it on again.";
 
 function toOwn(r: Row, department: Department, meId: number): OwnPerson {
   const perms = readPerms(r.perms, { canOperation: bool(r.can_operation), canFinance: bool(r.can_finance) });
@@ -85,10 +90,13 @@ export interface AddInput { name: unknown; email: unknown; how: unknown; passwor
  * Add a person to the admin's company, in the admin's department only. "invite": they get a link to choose their
  * password (the answer carries it once, for the email; only its hash is kept). "password": the admin gives them one,
  * and by default they choose their own at their first sign-in.
+ *
+ * `hadAccount`: the email was already a colleague in the company's other department. They now hold this department
+ * too and keep signing in as before: no password is set and no link is made.
  */
 export async function addOwnPerson(
   db: Db, me: SupplierUser, department: Department, input: AddInput,
-): Promise<Outcome<{ person: OwnPerson; linkToken: string | null }>> {
+): Promise<Outcome<{ person: OwnPerson; linkToken: string | null; hadAccount: boolean }>> {
   const name = cleanName(input.name);
   const email = normEmail(input.email);
   const how = input.how === "invite" || input.how === "password" ? input.how : null;
@@ -104,39 +112,80 @@ export async function addOwnPerson(
   }
   const mustChange = how === "password" && input.mustChange !== false;
 
-  const taken = await db.query(
-    `SELECT 1 FROM public.carres_supplier_users WHERE email = $1
-     UNION ALL
-     SELECT 1 FROM public.users WHERE lower(email) = $1
-     LIMIT 1`,
-    [email],
-  );
-  if (taken[0]) return { ok: false, status: 409, error: TAKEN };
+  const staff = await db.query(`SELECT 1 FROM public.users WHERE lower(email) = $1 LIMIT 1`, [email]);
+  if (staff[0]) return { ok: false, status: 409, error: TAKEN };
+  // The email's one account, if it has one. `removed_here`: the last act that took its access was this company's own
+  // admin (Remove access), not Carres (Disable, or any later change Carres made to the person).
+  const known = first(await db.query(
+    `SELECT u.id, u.supplier_id::text AS supplier_id, u.status,
+            (u.can_operation AND $2 = 'operation') OR (u.can_finance AND $2 = 'finance') AS in_department,
+            (SELECT e.staff_user_id IS NULL AND e.detail->>'via' = 'supplier'
+               FROM public.carres_supplier_events e
+              WHERE e.subject = u.email AND e.kind = 'person_changed'
+                AND (e.detail->>'removed' IS NOT NULL OR e.detail->>'status' IS NOT NULL)
+              ORDER BY e.at DESC, e.id DESC
+              LIMIT 1) AS removed_here
+       FROM public.carres_supplier_users u
+      WHERE u.email = $1`,
+    [email, department],
+  ));
+  if (known) {
+    // Another company's person, or one already in this list: the answer never names the other company.
+    if (str(known.supplier_id) !== me.supplierId || (str(known.status) === "active" && bool(known.in_department))) {
+      return { ok: false, status: 409, error: TAKEN };
+    }
+    if (str(known.status) === "active") return joinDepartment(db, me, department, int(known.id), email, keys);
+    if (!bool(known.removed_here)) return { ok: false, status: 409, error: OFF_BY_CARRES };
+  }
 
   const perms = JSON.stringify({ operation: department === "operation" ? keys : [], finance: department === "finance" ? keys : [] });
   let id = 0;
-  try {
+  if (known) {
+    // Removed by this company: back as if added fresh. Their old password and the other department stay gone.
     id = await db.tx(async (tx) => {
-      const made = await tx.query<{ id: number }>(
-        `INSERT INTO public.carres_supplier_users
-           (supplier_id, email, name, can_operation, can_finance, perms, password_hash, must_change_password)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6::text::jsonb, $7, $8)
-         RETURNING id`,
-        [me.supplierId, email, name, department === "operation", department === "finance", perms, passwordHash, mustChange],
+      const back = await tx.query<{ id: number }>(
+        `UPDATE public.carres_supplier_users
+            SET status = 'active', name = $2, can_operation = ($3 = 'operation'), can_finance = ($3 = 'finance'),
+                perms = $4::text::jsonb, password_hash = $5, must_change_password = $6, updated_at = now()
+          WHERE id = $1 AND status = 'disabled'
+          RETURNING id`,
+        [int(known.id), name, department, perms, passwordHash, mustChange],
       );
-      const newId = int(first(made)?.id);
-      await recordEvent(tx, {
-        kind: "person_added", supplierId: me.supplierId, supplierUserId: me.id, subject: email,
-        detail: { via: "supplier", department, how, permissions: keys.length },
-      });
-      return newId;
+      const backId = int(first(back)?.id);
+      if (backId) {
+        await recordEvent(tx, {
+          kind: "person_added", supplierId: me.supplierId, supplierUserId: me.id, subject: email,
+          detail: { via: "supplier", department, how, permissions: keys.length, again: true },
+        });
+      }
+      return backId;
     });
-  } catch (e) {
-    // The same email added by two admins at the same moment: the unique index refuses the second.
-    if (String((e as { message?: string } | null)?.message ?? "").includes("carres_supplier_users_email_key")) {
-      return { ok: false, status: 409, error: TAKEN };
+    // Another admin brought them back a moment ago: they are in the list now.
+    if (!id) return { ok: false, status: 409, error: TAKEN };
+  } else {
+    try {
+      id = await db.tx(async (tx) => {
+        const made = await tx.query<{ id: number }>(
+          `INSERT INTO public.carres_supplier_users
+             (supplier_id, email, name, can_operation, can_finance, perms, password_hash, must_change_password)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6::text::jsonb, $7, $8)
+           RETURNING id`,
+          [me.supplierId, email, name, department === "operation", department === "finance", perms, passwordHash, mustChange],
+        );
+        const newId = int(first(made)?.id);
+        await recordEvent(tx, {
+          kind: "person_added", supplierId: me.supplierId, supplierUserId: me.id, subject: email,
+          detail: { via: "supplier", department, how, permissions: keys.length },
+        });
+        return newId;
+      });
+    } catch (e) {
+      // The same email added by two admins at the same moment: the unique index refuses the second.
+      if (String((e as { message?: string } | null)?.message ?? "").includes("carres_supplier_users_email_key")) {
+        return { ok: false, status: 409, error: TAKEN };
+      }
+      throw e;
     }
-    throw e;
   }
 
   let linkToken: string | null = null;
@@ -146,7 +195,38 @@ export async function addOwnPerson(
   }
   const row = await readOwn(db, me, department, id);
   if (!row) return { ok: false, status: 404, error: "The person could not be read back." };
-  return { ok: true, person: toOwn(row, department, me.id), linkToken };
+  return { ok: true, person: toOwn(row, department, me.id), linkToken, hadAccount: false };
+}
+
+/**
+ * A colleague already in the company's other department gets this one too, holding what the admin ticked. Their
+ * name, password and links stay as they are; their next request reads the change (./session.ts resolveSession).
+ */
+async function joinDepartment(
+  db: Db, me: SupplierUser, department: Department, id: number, email: string, keys: string[],
+): Promise<Outcome<{ person: OwnPerson; linkToken: string | null; hadAccount: boolean }>> {
+  const joined = await db.tx(async (tx) => {
+    const done = await tx.query<{ id: number }>(
+      `UPDATE public.carres_supplier_users
+          SET can_operation = can_operation OR $2 = 'operation', can_finance = can_finance OR $2 = 'finance',
+              perms = jsonb_set(perms, ARRAY[$2::text], $3::text::jsonb, true), updated_at = now()
+        WHERE id = $1 AND supplier_id = $4::uuid AND status = 'active'
+          AND NOT ((can_operation AND $2 = 'operation') OR (can_finance AND $2 = 'finance'))
+        RETURNING id`,
+      [id, department, JSON.stringify(keys), me.supplierId],
+    );
+    if (!first(done)) return false;
+    await recordEvent(tx, {
+      kind: "person_changed", supplierId: me.supplierId, supplierUserId: me.id, subject: email,
+      detail: { via: "supplier", department, added: true, permissions: keys.length },
+    });
+    return true;
+  });
+  // Removed, or given this department, a moment ago by someone else.
+  if (!joined) return { ok: false, status: 409, error: TAKEN };
+  const row = await readOwn(db, me, department, id);
+  if (!row) return { ok: false, status: 404, error: "The person could not be read back." };
+  return { ok: true, person: toOwn(row, department, me.id), linkToken: null, hadAccount: true };
 }
 
 export interface PatchInput { name?: unknown; perms?: unknown }

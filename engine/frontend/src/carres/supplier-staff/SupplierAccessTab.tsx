@@ -15,7 +15,7 @@ import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { ListSkeleton } from "../../components/Skeleton";
 import { cn } from "../../lib/utils";
-import { fmtStamp } from "../supplier/ui";
+import { fmtStamp, plural } from "../supplier/ui";
 import {
   accessApi, type AccessDetail, type AccessInput, type AccessOptions, type ActivityRow, type Preview, type SetupLink,
   type SupplierPerson,
@@ -368,7 +368,7 @@ function Editor({ supplierId, options, onSaved }: { supplierId: string; options:
           />
           <div className={cn("rounded-md border px-3 py-2.5 text-[12.5px]", nothingShared ? "border-border bg-surface-2 text-ink-muted" : "border-primary/30 bg-primary-soft/40 text-ink")}>
             {nothingShared ? "Nothing is ticked: this supplier would see no Sales Orders."
-              : preview ? <>With this, the supplier sees <span className="font-bold">{preview.orders.toLocaleString()}</span> Sales Orders today ({preview.incomingOrders.toLocaleString()} incoming), <span className="font-bold">{preview.units.toLocaleString()}</span> units on {preview.lines.toLocaleString()} lines.</>
+              : preview ? <>With this, the supplier sees <span className="font-bold">{preview.orders.toLocaleString()}</span> {plural(preview.orders, "Sales Order")} today ({preview.incomingOrders.toLocaleString()} incoming), <span className="font-bold">{preview.units.toLocaleString()}</span> {plural(preview.units, "unit")} on {preview.lines.toLocaleString()} {plural(preview.lines, "line")}.</>
                 : "Counting what the supplier would see"}
           </div>
         </div>

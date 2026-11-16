@@ -384,7 +384,8 @@ export const supplierApi = {
   financeOrder: (id: string) => request<FinanceAgreement>("GET", `/finance/orders/${encodeURIComponent(id)}`),
 
   people: (department: Department) => request<{ users: Person[] }>("GET", `/users${qs({ department })}`),
-  addPerson: (p: NewPerson) => request<{ user: Person; mailed: boolean | null; mailNote: string | null }>("POST", "/users", p),
+  /** `hadAccount`: the email was a colleague in the other department; they now hold this one too and sign in as before. */
+  addPerson: (p: NewPerson) => request<{ user: Person; mailed: boolean | null; mailNote: string | null; hadAccount?: boolean }>("POST", "/users", p),
   changePerson: (id: number, department: Department, patch: { name?: string; perms?: string[] }) =>
     request<{ user: Person }>("PATCH", `/users/${id}`, { department, ...patch }),
   removePerson: (id: number, department: Department) => request<{ ok: true }>("POST", `/users/${id}/remove`, { department }),

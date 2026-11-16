@@ -289,7 +289,9 @@ function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => vo
           department: dept, name: d.name.trim(), email: d.email.trim(), how: d.how, perms,
           ...(d.how === "password" ? { password: d.password, mustChange: d.mustChange } : {}),
         });
-        if (d.how === "password") toast(`${d.name.trim()} can sign in now`);
+        // A colleague from the other department: no password was set and no email left, so say so.
+        if (out.hadAccount) toast(`${out.user.name} already has an account. ${ROLE_LABEL[dept]} is added to it, and they sign in as before.`);
+        else if (d.how === "password") toast(`${d.name.trim()} can sign in now`);
         else if (out.mailed === false) toast(`${d.name.trim()} is added. The invite email was not sent${out.mailNote ? `: ${out.mailNote}` : "."}`, "red");
         else toast(`Invite sent to ${d.email.trim()}`);
       }

@@ -212,8 +212,12 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
 - *Who may see and press what (owner, 16 Nov 2026).* `perms.ts` is the list of keys per department; every supplier
   route checks its key on the server (`routes.ts` `need`), so a hidden button is also refused. `people.ts`: a
   supplier person holding Manage users in a department adds, changes and removes that department's people of their
-  own company only, never their own Manage users or themselves; an email that already signs in anywhere, or is a
-  Carres staff email, is refused with one sentence that names no company. `invite.ts` mails the invite (Resend
+  own company only, never their own Manage users or themselves; an email of another company, or a Carres staff
+  email, is refused with one sentence that names no company. An email the company already has: a person its own
+  admin removed comes back as if added fresh (the name, password and access given now, the other department not
+  restored); a colleague in the other department gets this one too and signs in as before (no password set, no
+  link); a person Carres turned off stays off until Carres turns them on (the last status change recorded in
+  `carres_supplier_events` decides who turned them off). `invite.ts` mails the invite (Resend
   directly, as Forgot password does, with the same switch); a person given a password with
   `must_change_password` reaches only who-am-I, sign out and Change password until they choose their own
   (`routes.ts` `ownPasswordFirst`). A person Carres adds holds every key of their department.
