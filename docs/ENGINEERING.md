@@ -73,7 +73,8 @@ portal's own `Permissions-Policy`: with no `allow` the page answers `NotAllowedE
 permissions policy`, with it the text is copied. Reading the clipboard, the camera, location and the phone's
 share sheet are not handed over; the engine pages that would use them are listed in `carry-forwards.md`
 `engine-frame-has-no-camera-location-or-share`. `SupplyChainEngine.test.tsx` pins the list, so it is widened on
-purpose and never by accident.
+purpose and never by accident. DEPLOYED 16 Nov 2026 (#2322, `d222f847b`): the three sites and the Worker report
+that commit, and the live bundle carries the frame's `allow`. **Owed:** a signed-in press of `Copy`.
 
 **The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
 the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
@@ -238,6 +239,16 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   **Owed:** the signed-in walk of Settings › Supplier Access and Supplier Pickups by the owner, and the first
   supplier's own sign-in, which is a cutover that needs the owner's word. The engine's `/health` reports no
   commit, so the deployed commit is known from the deploy run, not from the server.
+- *16 Nov 2026: one test login, for the owner (re-measure before quoting).* Opened at the owner's request so
+  he can read the supplier pages. The rows were written straight to the engine database, the way Settings ›
+  Supplier Access writes them: access on with the supplier's own items and the subscription share, one person
+  with both roles, one set-password link of which only the SHA-256 is stored. Its three
+  `carres_supplier_events` rows carry `via: database` and no staff member, so they are told apart from a
+  change made on the page. Measured the same day: the scope function shares one order with it, and the live
+  `POST /api/carres-supplier/auth/link` answered 200 for its link and 404 for a made-up one, using neither.
+  Which supplier and which email are not written here: this repository is public. **Owed:** the owner's
+  signed-in walk of the supplier pages, now possible, and turning the test login off before a real supplier is
+  turned on (`carry-forwards.md` `supplier-test-login-is-on`).
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits
