@@ -16,7 +16,6 @@ import pwpCodesRouter from "./routes/pwp-codes";
 import outletsRouter from "./routes/outlets";
 import approvalsRouter from "./routes/principal/approvals";
 import principalAccountsRouter from "./routes/principal/accounts";
-import principalAuditRouter from "./routes/principal/audit";
 import principalDashboardRouter from "./routes/principal/dashboard";
 import principalDealersRouter from "./routes/principal/dealers";
 import principalPartnersRouter from "./routes/principal/partners";
@@ -38,7 +37,6 @@ import warehouseReceiptsRouter from "./routes/operation/warehouse-receipts";
 import workActivityRouter from "./routes/operation/work-activity";
 import settingsCoreRouter, { addressListsReadRouter, companyProfileReadRouter } from "./routes/operation/settings-core";
 import workspaceDutiesRouter from "./routes/operation/workspace-duties";
-import leaveRouter from "./routes/operation/leave";
 import operationWorkRouter from "./routes/operation/work";
 import internalTasksRouter from "./routes/operation/internal-tasks";
 import orderControlRouter from "./routes/operation/order-control";
@@ -46,12 +44,10 @@ import deliveryOrdersRouter from "./routes/operation/delivery-orders";
 // 0379 — Delivery's OWN arrangement doors (owner correction 2026-08-24).
 import deliveryArrangementsRouter from "./routes/operation/delivery-arrangements";
 import paymentApprovalsRouter from "./routes/operation/payment-approvals";
-import purchaseDemandsRouter from "./routes/operation/purchase-demands";
 import purchasingSettingsRouter from "./routes/operation/purchasing-settings";
 import opsStaffRouter from "./routes/operation/staff";
 import orderPaymentsRouter from "./routes/operation/order-payments";
 import operationSuppliersRouter from "./routes/operation/suppliers";
-import arrivalSourcesRouter from "./routes/operation/arrival-sources";
 import bdAccountsRouter from "./routes/bd/accounts";
 import bdDealersRouter from "./routes/bd/dealers";
 import financePaymentsRouter from "./routes/finance/payments";
@@ -168,7 +164,6 @@ api.route("/pwp-codes", pwpCodesRouter);
 api.route("/catalog", catalogRouter);
 api.route("/outlets", outletsRouter);
 api.route("/principal/accounts", principalAccountsRouter);
-api.route("/principal/audit", principalAuditRouter);
 api.route("/principal/dashboard", principalDashboardRouter);
 api.route("/principal/dealers", principalDealersRouter);
 api.route("/principal/partners", principalPartnersRouter);
@@ -195,7 +190,6 @@ api.route("/operation/orders", orderPaymentsRouter);
 api.route("/orders", stripeCheckoutRouter);
 // CARD-2026-08-20 — the read-only customer-demand Register. It reads the
 // To Order recomputation; it issues nothing.
-api.route("/operation/purchase/demands", purchaseDemandsRouter);
 // P1 (0303) — Purchasing → Settings: the numbers the ordering engine reads.
 api.route("/operation/purchasing/settings", purchasingSettingsRouter);
 // 0668 + 0669 — Settings → Company · Office · Settings editors (Carres Settings
@@ -216,7 +210,6 @@ api.route("/operation/scm-engine", scmEngineRouter);
 api.route("/operation/people", peopleWorkDaysRouter);
 api.route("/operation/pos", operationPosRouter);
 api.route("/operation/suppliers", operationSuppliersRouter);
-api.route("/operation/arrival-sources", arrivalSourcesRouter);
 api.route("/bd/accounts", bdAccountsRouter);
 api.route("/bd/dealers", bdDealersRouter);
 api.route("/finance/payments", financePaymentsRouter);
@@ -262,7 +255,6 @@ api.route("/ops/tasks", opsTasksRouter);
 api.route("/operation/warehouse-receipts", warehouseReceiptsRouter);
 api.route("/operation/workspace-duties", workspaceDutiesRouter);
 api.route("/operation/work-activity", workActivityRouter);
-api.route("/operation/leave", leaveRouter);
 api.route("/operation/work", operationWorkRouter);
 api.route("/operation/internal-tasks", internalTasksRouter);
 // 0247-0249 — Rental + Service Plan base (config CRUD + registry reads)

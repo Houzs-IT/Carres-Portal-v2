@@ -3256,7 +3256,7 @@ planning group is `PO Safety Days`, with `Order early`, `{N} days left`, `1–{N
 `0 days left`, and `Production late`; N comes from configured Safety days. There is no inner
 Safety days paragraph. This changes wording, not timing keys, quantities, eligibility or calendars.
 
-**Measured baseline:** `apps/api/src/routes/operation/purchase-demands.ts` derives each demand's
+**Measured baseline:** `apps/api/src/routes/operation/purchase-demands.ts` derives each demand's (**Removed 17 Nov 2026:** this route file is gone; the Houzs engine replaced it and nothing called it. The text below is history.)
 `poWindow` from actual Proceed time through shared `poWindowFor`, governed PO Days and the Office
 calendar/holidays. Work and the existing `?window=` destination use the same stamps. Authority resolution: §§5.6.1 and 9.1 explicitly approve actual Proceed admission; Order By is
 planning arithmetic, never an unlock/admission gate.
