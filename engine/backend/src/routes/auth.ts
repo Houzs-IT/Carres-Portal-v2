@@ -31,6 +31,7 @@ import { acceptTotpCode } from "../services/totpCheck";
 import { checkRateLimit, clearRateLimit, clientIp } from "../middleware/rateLimit";
 import { recordFailedLogin, recordRateLimitedOnce } from "../services/failedLogins";
 import { provisionPersonalMailbox } from "../lib/mail-provision";
+import { portalStaffEnabled, setPortalStaffPassword } from "../carres/portal-staff";
 
 /**
  * Auth routes — UNAUTHENTICATED entry points.
@@ -609,6 +610,13 @@ app.post("/accept-invite", async (c) => {
 
   const hash = await hashPassword(body.password);
 
+  // Carres: the same password opens the Carres portal login (erp.carresofficial.com), where staff sign in.
+  // Written first, so a portal that cannot be reached leaves the invitation unused and the person can retry.
+  if (portalStaffEnabled(c.env)) {
+    const synced = await setPortalStaffPassword(c.env, { email: inv.email, password: body.password, actor: inv.email });
+    if (!synced.ok && synced.status !== 404 && synced.status !== 403) return c.json({ error: synced.error }, synced.status);
+  }
+
   // Promote the placeholder user (created at invite time) to active. The
   // placeholder already carries the invitation's role; an admin who changed
   // the member's Role on the profile BEFORE the person signed in must win, so
@@ -841,6 +849,11 @@ app.post("/reset/:token", async (c) => {
   const strength = validatePasswordStrength(body.password, row.email);
   if (!strength.ok) return c.json({ error: strength.error }, 400);
   const hash = await hashPassword(body.password);
+  // Carres: a reset sets the Carres portal login's password too, so one password opens both.
+  if (portalStaffEnabled(c.env)) {
+    const synced = await setPortalStaffPassword(c.env, { email: row.email, password: body.password, actor: row.email });
+    if (!synced.ok && synced.status !== 404 && synced.status !== 403) return c.json({ error: synced.error }, synced.status);
+  }
   // A reset link proves the mailbox and replaces the password outright, so it
   // also satisfies a pending required change.
   await c.env.DB.prepare(

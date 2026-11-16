@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { engineAddressFor, engineFor } from "@/pages/portal/portal-nav";
 import { useEngineBadges } from "@/pages/portal/engine-badges";
+import { useEngineAccess } from "@/pages/portal/engine-access";
 import {
   cachedEngineSession,
   dropEngineSession,
@@ -144,6 +145,8 @@ export default function SupplyChainEngine({ path: wantedPath, phone = false, onM
       }
       // Houzs's menu counts for the portal's menu (engine carres/BadgeReporter.tsx).
       if (d?.type === "carres:badges") { useEngineBadges.getState().set(d.counts); return; }
+      // Which pages this person's Houzs role opens, for the portal's menu (engine carres/AccessReporter.tsx).
+      if (d?.type === "carres:access") { useEngineAccess.getState().set(d); return; }
       if (d?.type !== "carres:location") return;
       if (typeof d.path !== "string" || !d.path.startsWith("/") || d.path.startsWith("//")) return;
       shown.current = d.path;

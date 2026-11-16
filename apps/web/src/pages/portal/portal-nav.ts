@@ -58,6 +58,7 @@ import {
   Megaphone,
   Forklift,
 } from "lucide-react";
+import { engineAllows, useEngineAccess } from "./engine-access";
 import type { Role } from "@carres/shared/domain";
 import { PURCHASING_LANDING_KEY, type PageGroupKey } from "./menu-tree";
 import type { EngineBadge } from "./engine-badges";
@@ -755,9 +756,17 @@ export function visibleItems(
   role: Role | null,
   caps: ReadonlySet<NavCapability> = NO_CAPS,
 ): PortalNavItem[] {
+  /* Permissions follow Houzs (owner, 16 Nov 2026): once the engine frame has said which pages this person's
+     Team role opens, an engine row shows exactly when Houzs's own menu would show it, whatever the portal role.
+     Before that, and for a row the engine menu does not list, the portal role decides as before. */
+  const access = role != null && group.roles.includes(role) ? useEngineAccess.getState().access : null;
   return group.items.filter((it) => {
+    if (it.needs && !caps.has(it.needs)) return false;
+    const enginePath = it.path === `/operation/sc/${it.key}` ? ENGINE_PAGES[it.key] : undefined;
+    const allowed = engineAllows(access, enginePath);
+    if (allowed !== null) return allowed;
     const roles = it.roles ?? group.itemRoles;
-    return (!roles || (role != null && roles.includes(role))) && (!it.needs || caps.has(it.needs));
+    return !roles || (role != null && roles.includes(role));
   });
 }
 
@@ -768,6 +777,8 @@ export function roleMayOpenEngineRow(role: Role | null, key: string): boolean {
   const group = PORTAL_NAV.find((g) => g.area === "operation");
   if (!group || role == null || !group.roles.includes(role) || !(key in ENGINE_PAGES)) return false;
   if (role === "operation" || role === "principal") return true;
+  // Permissions follow Houzs (owner, 16 Nov 2026): a page this person's Team role opens may be opened.
+  if (engineAllows(useEngineAccess.getState().access, ENGINE_PAGES[key]) === true) return true;
   const allowed = (it: PortalNavItem) => (it.roles ?? group.itemRoles ?? group.roles).includes(role);
   const item = group.items.find((it) => it.key === key && it.path === `/operation/sc/${key}`);
   if (item) return allowed(item);
