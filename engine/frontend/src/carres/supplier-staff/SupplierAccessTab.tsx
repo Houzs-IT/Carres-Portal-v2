@@ -43,6 +43,12 @@ const EVENT_WORDS: Record<string, string> = {
   pickup_accepted: "Pickup accepted",
   pickup_collected: "Pickup collected",
   pickup_cancelled: "Pickup cancelled",
+  // The supplier's asks on an accepted pickup, and Carres's answers (Supplier Pickups).
+  pickup_date_asked: "Asked to move a pickup",
+  pickup_cancel_asked: "Asked to cancel a pickup",
+  pickup_ask_withdrawn: "Took back an ask",
+  pickup_ask_approved: "Ask approved",
+  pickup_ask_declined: "Ask declined",
 };
 
 const SECTION = "rounded-lg border border-border bg-surface";

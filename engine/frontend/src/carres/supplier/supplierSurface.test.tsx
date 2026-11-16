@@ -5,11 +5,9 @@
  *   1. /supplier/* is its own surface, so the staff app, its providers and its sign-in never load for a supplier,
  *      while the staff pages whose address merely starts with the same letters stay staff pages;
  *   2. a supplier's browser never calls a staff route. The supplier pages never import the staff client, the staff
- *      session or the staff menu. They do draw the staff list's own parts (owner, 16 Nov 2026: they look exactly like
- *      the staff Sales Orders page), and the staff table stays off the staff routes for them: its saved layouts load
- *      only after the staff sign-in (lib/tableLayouts, started by auth/AuthContext alone), and no supplier table asks
- *      for custom fields, import, shared layouts or the printed letterhead. A signed-in walk through every page, with
- *      its clicks, proves the browser then asks the suppliers' own API and nothing else;
+ *      session, the staff menu or the staff table (owner's design of 17 Nov 2026: the supplier pages draw their own
+ *      list table). A signed-in walk through every page, with its clicks, proves the browser then asks the
+ *      suppliers' own API and nothing else;
  *   3. the supplier's token and the staff token are different keys, and the one-time link's secret is read from the
  *      address fragment and removed from the address at once. */
 import { readFileSync, readdirSync } from "node:fs";
@@ -19,9 +17,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { appSurfaceForPath } from "../../routing/appSurface";
-import { supplierToken } from "./api";
+import { normalizeMe, supplierToken } from "./api";
 import { SUPPLIER_HOSTS, isSupplierHost } from "./host";
-import { fmtDay, fmtMonth, fmtStamp, money, soStatusLabel } from "./ui";
+import { clock12, fmtDay, fmtMonth, fmtStamp, money, pickupBadge, stageBadge } from "./ui";
 import { SupplierApp } from "./SupplierApp";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -34,6 +32,7 @@ describe("the supplier surface", () => {
     ["/supplier/login", "supplier"],
     ["/supplier/setup", "supplier"],
     ["/supplier/orders/CR-SO-2611-001", "supplier"],
+    ["/supplier/collections", "supplier"],
     ["/supplier/finance", "supplier"],
     // Staff pages that only LOOK alike stay staff pages.
     ["/suppliers", "staff"],
@@ -52,7 +51,6 @@ describe("the supplier surface", () => {
       expect(appSurfaceForPath(path, "supp.carresofficial.com"), path).toBe("supplier");
       expect(appSurfaceForPath(path, "SUPP.CarresOfficial.com"), path).toBe("supplier");
     }
-    // Every other address is as it was: the engine site, a preview of it, a look-alike name.
     for (const host of ["carres-scm.pages.dev", "abc123.carres-scm.pages.dev", "localhost", "supp.carresofficial.com.evil.test", "xsupp.carresofficial.com", ""]) {
       expect(appSurfaceForPath("/", host), host).toBe("staff");
       expect(appSurfaceForPath("/scm/suppliers", host), host).toBe("staff");
@@ -66,21 +64,16 @@ describe("the supplier surface", () => {
     const main = readFileSync(resolve(HERE, "../../main.tsx"), "utf8");
     const branch = main.slice(main.indexOf('if (surface === "supplier")'), main.indexOf('if (surface === "survey")'));
     expect(branch).toContain("<SupplierApp />");
-    // The tags, not the words: the comment in that branch names both to say they are absent.
     expect(branch).not.toContain("<AuthProvider");
     expect(branch).not.toContain("<AuthGate");
   });
 
   it("main.tsx draws no supplier page inside a frame", () => {
-    // The site refuses to send /supplier into a frame, but by the address the document was loaded from: the staff
-    // page at "/" may be framed, and the app can then move to /supplier without loading a new document. So the
-    // supplier branch refuses by itself, before it draws anything.
     const main = readFileSync(resolve(HERE, "../../main.tsx"), "utf8");
     const branch = main.slice(main.indexOf('if (surface === "supplier")'), main.indexOf('if (surface === "survey")'));
     const refusal = branch.indexOf("if (CARRES_EMBEDDED) return null;");
     expect(refusal).toBeGreaterThan(-1);
     expect(refusal).toBeLessThan(branch.indexOf("<SupplierApp />"));
-    // And "inside a frame" is asked of the window itself, where a page cannot lie about it.
     const embed = readFileSync(resolve(HERE, "../embed.ts"), "utf8");
     expect(embed).toContain("try { return window.self !== window.top; } catch { return true; }");
   });
@@ -89,22 +82,20 @@ describe("the supplier surface", () => {
     // Sent back to the sign-in page to type it again, a person whose email is being hammered with wrong tries is
     // locked once more before they get there.
     const app = readFileSync(resolve(HERE, "SupplierApp.tsx"), "utf8");
-    const page = app.slice(app.indexOf("function SetPasswordPage"), app.indexOf("function AccountPage"));
+    const page = app.slice(app.indexOf("function SetPasswordPage"), app.indexOf("// ── The signed-in pages"));
     expect(page).toContain("supplierToken.set(out.token);");
-    expect(page).toContain("onSignedIn({ user: out.user, supplier: out.supplier, badges: out.badges });");
+    expect(page).toContain("onSignedIn(out.me);");
     expect(app).toContain('if (path === "/supplier/setup") return <SetPasswordPage onSignedIn={enter} />;');
   });
 
   it("main.tsx does not offer a supplier the staff app's install prompt", () => {
-    // PwaBanners says "Install Carres · ERP" and asks the staff API for its branding: neither is for a supplier.
     const main = readFileSync(resolve(HERE, "../../main.tsx"), "utf8");
     expect(main).toContain('return useAppSurface() === "supplier" ? null : <PwaBanners />;');
-    // It is mounted through that one gate and nowhere else.
     expect(main.match(/<PwaBanners \/>/g)).toHaveLength(1);
     expect(main).toContain("<StaffPwaBanners />");
   });
 
-  it("every page chunk sits in its own crash slot, so a failed chunk leaves the menu standing", () => {
+  it("every page chunk sits in its own crash slot, so a failed chunk leaves the header standing", () => {
     const app = readFileSync(resolve(HERE, "SupplierApp.tsx"), "utf8");
     expect(app).not.toMatch(/<Suspense\b/);
     expect(app).toContain("<LazySlot resetKey={`supplier:${pathname}`}");
@@ -113,23 +104,16 @@ describe("the supplier surface", () => {
 
 describe("the supplier pages keep away from the staff app", () => {
   it("has source files to check", () => {
-    expect(sources).toEqual(expect.arrayContaining(["api.ts", "ui.tsx", "SupplierApp.tsx", "OrdersPage.tsx", "ForecastPage.tsx", "PickupsPage.tsx", "FinancePage.tsx"]));
+    expect(sources).toEqual(expect.arrayContaining([
+      "api.ts", "ui.tsx", "Shell.tsx", "ListTable.tsx", "SupplierApp.tsx", "OrdersPage.tsx", "ForecastPage.tsx", "PickupsPage.tsx", "FinancePage.tsx", "SettingsPage.tsx",
+    ]));
   });
 
-  it.each(sources)("%s imports no staff client, session, menu or saved layouts", (file) => {
+  it.each(sources)("%s imports no staff client, session, menu, table or saved layouts", (file) => {
     const text = readFileSync(resolve(HERE, file), "utf8");
     const imports = [...text.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]!);
-    for (const banned of ["api/client", "auth/AuthContext", "auth/AuthGate", "components/Layout", "hooks/useQuery", "hooks/useUdf", "lib/tableLayouts", "supplier-staff"]) {
+    for (const banned of ["api/client", "auth/AuthContext", "auth/AuthGate", "components/Layout", "components/DataTable", "hooks/useQuery", "hooks/useUdf", "lib/tableLayouts", "supplier-staff", "pdf-common"]) {
       expect(imports.filter((i) => i.includes(banned)), `${file} imports ${banned}`).toEqual([]);
-    }
-  });
-
-  it.each(sources)("%s gives the staff table nothing that reaches a staff route", (file) => {
-    // Custom fields are read and written through the staff API; import is not a supplier's; shared and seeded
-    // layouts are saved through the staff API; the printed letterhead reads the staff branding.
-    const text = readFileSync(resolve(HERE, file), "utf8");
-    for (const prop of ["udfTable", "onImport", "layoutPresets", "layoutSeeds", "onApplyLayoutSeed", "onExportPdf"]) {
-      expect(text, `${file} passes ${prop}`).not.toMatch(new RegExp(`\\b${prop}\\s*=`));
     }
   });
 
@@ -158,33 +142,54 @@ describe("the supplier's token", () => {
 
 describe("words and numbers", () => {
   it("writes a day and a moment in the engine's one date format, and a missing one as nothing", () => {
-    // The same digits a staff page shows (vendor/shared/format.ts): year first, no month names.
     expect(fmtDay("2026-11-20")).toBe("2026/11/20");
     expect(fmtMonth("2026-12")).toBe("2026/12");
     expect(fmtMonth("")).toBe("");
     // 16:30 UTC is 00:30 the next day in Kuala Lumpur.
     expect(fmtStamp("2026-11-20T16:30:00Z")).toBe("2026/11/21 00:30");
-    // Not known is "", never the formatter's dash: each page names the gap in words.
     for (const none of [null, undefined, "", "not a date"]) {
       expect(fmtDay(none)).toBe("");
       expect(fmtStamp(none)).toBe("");
     }
   });
 
-  it("writes money the Malaysian way, and a stage in Carres's words", () => {
+  it("writes money the Malaysian way, a pickup time the warehouse's way, and a stage in Carres's words", () => {
     expect(money(1734.6)).toBe("RM 1,734.60");
-    expect(soStatusLabel("CONFIRMED")).toBe("Submitted");
-    expect(soStatusLabel("SOMETHING_NEW")).toBe("Something new");
+    expect(clock12("14:00")).toBe("2:00 PM");
+    expect(clock12("09:30")).toBe("9:30 AM");
+    expect(clock12("00:15")).toBe("12:15 AM");
+    expect(stageBadge("CONFIRMED").label).toBe("Submitted");
+    expect(stageBadge("SOMETHING_NEW").label).toBe("Something new");
+  });
+
+  it("says a pickup's status from the supplier's side, including an ask waiting for Carres", () => {
+    expect(pickupBadge({ status: "REQUESTED" }).label).toBe("Waiting for you");
+    expect(pickupBadge({ status: "ACCEPTED" }).label).toBe("Accepted");
+    expect(pickupBadge({ status: "ACCEPTED", ask: { kind: "date", date: "2026-11-22", askedAt: "", askedByName: "" } }).label).toBe("Waiting for Carres");
+    expect(pickupBadge({ status: "CANCELLED" }).label).toBe("Cancelled by Carres");
+    expect(pickupBadge({ status: "CANCELLED", cancelledBySupplier: true }).label).toBe("Cancelled by you");
+  });
+
+  it("reads a server one step behind as every page of the person's departments", () => {
+    // An answer from before the per-person permissions: no perms, no mustChangePassword.
+    const me = normalizeMe({ user: { id: 1, name: "A", email: "a@x.test", canOperation: true, canFinance: false }, supplier: { name: "S", code: "1" }, badges: { pickupsToAccept: 0 } });
+    expect(me.user.perms.operation).toContain("v_orders");
+    expect(me.user.perms.operation).toContain("a_users");
+    expect(me.user.perms.finance).toEqual([]);
+    expect(me.user.mustChangePassword).toBe(false);
   });
 });
 
 // ── A signed-in walk ─────────────────────────────────────────────────────────────────────────────────────────────
 
-const ME = {
-  user: { name: "Ops", email: "ops@supplier.test", canOperation: true, canFinance: true },
+const OP_ALL = ["v_orders", "v_forecast", "v_pickups", "a_accept", "a_collect", "a_date", "a_cancel", "a_export", "a_users"];
+const FIN_ALL = ["v_coll", "v_month", "d_names", "d_share", "d_bad", "a_export", "a_stmt", "a_users"];
+let ME: Record<string, unknown>;
+const baseMe = () => ({
+  user: { id: 7, name: "Ops Person", email: "ops@supplier.test", canOperation: true, canFinance: true, mustChangePassword: false, perms: { operation: OP_ALL, finance: FIN_ALL } },
   supplier: { name: "Maker", code: "400-X" },
   badges: { pickupsToAccept: 1 },
-};
+});
 const orderLine = (soItemId: string, qty: number) => ({
   soItemId, lineNo: 1, itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", category: "mattress", modelName: null, uom: "UNIT", qty,
   pickup: { state: "none", requestId: null, requestNo: null, expectedDate: null },
@@ -197,16 +202,26 @@ const ORDER_1 = {
 };
 const ORDER_2 = { ...ORDER_1, docNo: "CR-SO-2611-002", customerName: "Tan Ah Kow", unitCount: 1, lines: [orderLine("i2", 1)] };
 const PICKUP = {
-  id: "p1", requestNo: "CR-PU-2611-001", supplierName: "Maker", expectedDate: "2026-11-25", expectedTime: null, note: null, status: "REQUESTED",
+  id: "p1", requestNo: "CR-PKR-2611-001", supplierName: "Maker", expectedDate: "2099-11-25", expectedTime: "14:00", note: "Bay 2", status: "REQUESTED",
   requestedAt: "2026-11-16T02:00:00Z", acceptedAt: null, acceptedByName: null, collectedAt: null, cancelledAt: null, cancelReason: null,
-  soDocNos: ["CR-SO-2611-001"], lineCount: 1, unitCount: 2,
+  soDocNos: ["CR-SO-2611-001"], lineCount: 1, unitCount: 2, ask: null, answer: null, deliveryOrder: null, orders: [{ docNo: "CR-SO-2611-001", customerName: "Lim" }],
   lines: [{ soDocNo: "CR-SO-2611-001", soItemId: "i1", itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", modelName: null, uom: "UNIT", qty: 2 }],
 };
+const PICKUP_ACCEPTED = { ...PICKUP, id: "p2", requestNo: "CR-PKR-2611-002", status: "ACCEPTED", acceptedAt: "2026-11-16T03:00:00Z", acceptedByName: "Ops Person" };
 const FIN_ORDER = {
-  id: "f1", agreementNo: "CR-AG-2611-001", soNo: "CR-SO-2611-001", customerName: "Tan Ah Kow", item: "Mattress Queen", termMonths: 60, monthlyFee: 100,
-  ratePct: 20, startDate: "2026-11-01", status: "active", state: "on_time", contractValue: 6000, shareTotal: 1200, paidCount: 1, collected: 100,
-  shareEarned: 20, toCollect: 5900, shareToCome: 1180, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, nextDueDate: "2026-12-01", lastPaidOn: "2026-11-01",
+  id: "f1", agreementNo: "CR-AG-2611-001", soNo: "CR-SO-2611-001", customerName: "Tan Ah Kow", item: "Mattress Queen", termMonths: 3, monthlyFee: 100,
+  ratePct: 20, startDate: "2026-11-01", status: "active", state: "on_time", contractValue: 300, shareTotal: 60, paidCount: 1, collected: 100,
+  shareEarned: 20, toCollect: 200, shareToCome: 40, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, nextDueDate: "2026-12-01", lastPaidOn: "2026-11-01",
+  schedule: [
+    { seq: 1, dueDate: "2026-11-01", state: "paid", amountDue: 100, share: 20, paidOn: "2026-11-01" },
+    { seq: 2, dueDate: "2026-12-01", state: "upcoming", amountDue: 100, share: 20, paidOn: null },
+    { seq: 3, dueDate: "2027-01-01", state: "upcoming", amountDue: 100, share: 20, paidOn: null },
+  ],
 };
+const PEOPLE = [
+  { id: 7, name: "Ops Person", email: "ops@supplier.test", status: "active", self: true, perms: OP_ALL, lastLoginAt: "2026-11-16T01:12:00Z" },
+  { id: 8, name: "Wan Store", email: "wan@supplier.test", status: "invited", self: false, perms: ["v_orders", "v_forecast", "v_pickups"], lastLoginAt: null },
+];
 
 /** The suppliers' API, as far as these pages ask it. Anything else is answered 404 and fails the walk. */
 function supplierServer(path: string, method: string, search: URLSearchParams): unknown {
@@ -214,42 +229,37 @@ function supplierServer(path: string, method: string, search: URLSearchParams): 
   if (path === "/api/carres-supplier/auth/me") return ME;
   if (path === "/api/carres-supplier/orders") {
     const page = Number(search.get("page") ?? 1);
-    return { rows: page === 1 ? [ORDER_1, ORDER_2] : [], total: 2, page, pageSize: Number(search.get("pageSize") ?? 50), counts: { all: 2, incoming: 1, processing: 1, delivered: 0 } };
+    return { rows: page === 1 ? [ORDER_1, ORDER_2] : [], total: 2, page, pageSize: Number(search.get("pageSize") ?? 50), counts: { all: 2, incoming: 2, processing: 0, delivered: 0 } };
   }
-  if (path === `/api/carres-supplier/orders/${ORDER_1.docNo}`) {
+  if (path === `/api/carres-supplier/orders/${ORDER_1.docNo}` || path === `/api/carres-supplier/orders/${ORDER_2.docNo}`) {
     return { order: { ...ORDER_1, trail: [{ at: "2026-11-02T02:00:00Z", kind: "received", code: "RECEIVED", ref: null, detail: null }], map: [] } };
   }
   if (path === "/api/carres-supplier/forecast") {
     return {
-      rows: [{ itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", modelName: null, category: "mattress", uom: "UNIT", incoming: 2, processing: 1, total: 3, byMonth: { "2026-11": 3 } }],
-      months: ["2026-11"], totals: { incoming: 2, processing: 1, total: 3, orders: 2 },
+      rows: [{ itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", modelName: null, category: "mattress", uom: "UNIT", incoming: 3, processing: 0, total: 3, byMonth: { "2026-11": 3 } }],
+      months: ["2026-11"], totals: { incoming: 3, processing: 0, total: 3, orders: 2 },
     };
   }
-  if (path === "/api/carres-supplier/pickups") return { rows: [PICKUP] };
-  if (path === "/api/carres-supplier/pickups/p1") return { pickup: PICKUP };
-  if (path === "/api/carres-supplier/pickups/p1/accept" && method === "POST") return { pickup: { ...PICKUP, status: "ACCEPTED", acceptedAt: "2026-11-16T03:00:00Z", acceptedByName: "Ops" } };
+  if (path === "/api/carres-supplier/pickups") return { rows: [PICKUP, PICKUP_ACCEPTED] };
+  if (path === "/api/carres-supplier/pickups/accept" && method === "POST") return { pickups: [{ ...PICKUP, status: "ACCEPTED", acceptedAt: "2026-11-16T03:00:00Z", acceptedByName: "Ops Person" }] };
+  if (path === "/api/carres-supplier/pickups/p2/ask" && method === "POST") return { pickup: { ...PICKUP_ACCEPTED, ask: { kind: "date", date: "2099-11-26", askedAt: "2026-11-16T04:00:00Z", askedByName: "Ops Person" } } };
   if (path === "/api/carres-supplier/finance/summary") {
     return {
-      shared: true, asOf: "2026-11-16",
-      totals: { orders: 1, contractValue: 6000, shareTotal: 1200, collected: 100, collectedCount: 1, shareEarned: 20, toCollect: 5900, shareToCome: 1180, overdueOrders: 0, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, defaultOrders: 0 },
-      months: [{ month: "2026-11", due: 100, dueShare: 20, collected: 100, collectedShare: 20, open: 0, openShare: 0 }],
+      shared: true, asOf: "2026-11-16", visible: { names: true, share: true, bad: true },
+      totals: { orders: 1, contractValue: 300, shareTotal: 60, collected: 100, collectedCount: 1, shareEarned: 20, toCollect: 200, shareToCome: 40, overdueOrders: 0, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, defaultOrders: 0 },
+      months: [
+        { month: "2026-11", due: 100, dueShare: 20, collected: 100, collectedShare: 20, open: 0, openShare: 0 },
+        { month: "2026-12", due: 100, dueShare: 20, collected: 0, collectedShare: 0, open: 100, openShare: 20 },
+      ],
       orders: [FIN_ORDER],
     };
   }
-  if (path === "/api/carres-supplier/finance/orders/f1") {
-    return { asOf: "2026-11-16", order: FIN_ORDER, instalments: [{ seq: 1, dueDate: "2026-11-01", amountDue: 100, state: "paid", paidOn: "2026-11-01", paidAmount: 100, share: 20, daysLate: 0 }] };
-  }
+  if (path === "/api/carres-supplier/users" && method === "GET") return { users: PEOPLE };
   return null;
 }
 
-const readBlob = (blob: Blob) => new Promise<string>((done) => {
-  const reader = new FileReader();
-  reader.onload = () => done(String(reader.result).replace(/^﻿/, ""));
-  reader.readAsText(blob);
-});
-
 describe("a signed-in supplier, clicking through every page, asks the suppliers' own API and nothing else", () => {
-  const asked: Array<{ method: string; url: string }> = [];
+  const asked: Array<{ method: string; url: string; body: unknown }> = [];
   const allowed = (url: string) => {
     const path = new URL(url, "http://localhost").pathname;
     return path.startsWith("/api/carres-supplier/") || path === "/api/track/company";
@@ -259,18 +269,20 @@ describe("a signed-in supplier, clicking through every page, asks the suppliers'
     window.sessionStorage.clear();
     window.localStorage.clear();
     asked.length = 0;
+    ME = baseMe();
     supplierToken.set("tok-1");
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const method = (init?.method ?? "GET").toUpperCase();
-      asked.push({ method, url });
+      let body: unknown = null;
+      try { body = typeof init?.body === "string" ? JSON.parse(init.body) : null; } catch { body = null; }
+      asked.push({ method, url, body });
       const u = new URL(url, "http://localhost");
-      const body = supplierServer(u.pathname, method, u.searchParams);
-      return Promise.resolve(new Response(JSON.stringify(body ?? { error: "Not found." }), { status: body ? 200 : 404, headers: { "content-type": "application/json" } }));
+      const answer = supplierServer(u.pathname, method, u.searchParams);
+      return Promise.resolve(new Response(JSON.stringify(answer ?? { error: "Not found." }), { status: answer ? 200 : 404, headers: { "content-type": "application/json" } }));
     }));
-    // The other ways a page can reach a server are watched too.
-    vi.stubGlobal("XMLHttpRequest", class { open(_m: string, url: string) { asked.push({ method: "XHR", url: String(url) }); } send() {} setRequestHeader() {} addEventListener() {} abort() {} });
-    Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: (url: string) => { asked.push({ method: "BEACON", url: String(url) }); return true; } });
+    vi.stubGlobal("XMLHttpRequest", class { open(_m: string, url: string) { asked.push({ method: "XHR", url: String(url), body: null }); } send() {} setRequestHeader() {} addEventListener() {} abort() {} });
+    Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: (url: string) => { asked.push({ method: "BEACON", url: String(url), body: null }); return true; } });
   });
   afterEach(() => {
     cleanup();
@@ -280,98 +292,179 @@ describe("a signed-in supplier, clicking through every page, asks the suppliers'
   });
 
   const walk = (path: string) => render(<MemoryRouter initialEntries={[path]}><SupplierApp /></MemoryRouter>);
-  const settle = () => new Promise((r) => setTimeout(r, 1500)); // past the table's layout save delay (1.2 s)
+  const settle = () => new Promise((r) => setTimeout(r, 300));
   const strays = () => asked.filter((a) => !allowed(a.url));
-  // Each page is its own chunk, loaded on first use: the first sight of a page may take a while in a test run.
   const LOAD = { timeout: 15_000 };
-  const inTable = (els: HTMLElement[]) => els.find((el) => el.closest("td")) ?? els[0]!;
+  const rowOf = async (text: string) => (await screen.findAllByText(text, {}, LOAD)).find((el) => el.closest("tbody"))!.closest("tr")!;
+  const pill = (name: RegExp) => screen.getAllByRole("button", { name }).find((b) => b.hasAttribute("aria-pressed"))!;
+  const bytes = (blob: Blob) => new Promise<ArrayBuffer>((done) => { const r = new FileReader(); r.onload = () => done(r.result as ArrayBuffer); r.readAsArrayBuffer(blob); });
 
-  it("Sales Orders: the list, its Columns, the quick view, Cards and the exported file", { timeout: 40_000 }, async () => {
+  it("Sales Orders: figure cards, pills, a row opening in place, Columns, Export, Cards and search", { timeout: 40_000 }, async () => {
     const files: Blob[] = [];
     Object.assign(URL, { createObjectURL: vi.fn((b: Blob) => { files.push(b); return "blob:x"; }), revokeObjectURL: vi.fn() });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     walk("/supplier/orders");
 
     expect(await screen.findByRole("heading", { name: "Sales Orders" }, LOAD)).toBeTruthy();
-    // In the table, and in the cards a phone shows instead.
-    expect(await screen.findAllByText("Tan Ah Kow")).toHaveLength(2);
-    // The figure cards read the counts the list answers.
+    expect(await screen.findByText("Tan Ah Kow")).toBeTruthy();
     expect(screen.getByText("Total Orders")).toBeTruthy();
     expect(screen.getByText("Pickups to Accept")).toBeTruthy();
+    // The pickup tab carries the count waiting.
+    expect(screen.getByLabelText("1 waiting")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
     expect(await screen.findByText("Delivery Address")).toBeTruthy();
     fireEvent.keyDown(document, { key: "Escape" });
 
-    fireEvent.click(inTable(screen.getAllByText("Tan Ah Kow")));
-    const view = await screen.findByRole("dialog");
-    expect(within(view).getByText("CR-SO-2611-002")).toBeTruthy();
+    // A row opens in place, under itself: its facts and the way to its full page.
+    fireEvent.click(await rowOf("Tan Ah Kow"));
+    expect(await screen.findByText("Open full page")).toBeTruthy();
+    expect(screen.getByText("Delivery Address")).toBeTruthy();
+    expect(await screen.findByText("Order received")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Export" }));
-    await waitFor(() => expect(files).toHaveLength(1));
-    const lines = (await readBlob(files[0]!)).split("\r\n");
-    expect(lines).toHaveLength(3);
-    expect(lines[0]).toMatch(/^SO No,SO Date,Customer,Items,Qty/);
-    // The staff writer keeps a cell that starts like a formula as text, and Items carries every line.
-    expect(lines[1]).toContain(`"'=HYPERLINK(""http://x"")"`);
-    expect(lines[1]).toContain("2 UNIT Mattress Queen (183 x 190)");
-    // The file covers every order of the view, asked a page of 200 at a time.
-    expect(asked.some((a) => a.url.includes("/api/carres-supplier/orders?") && a.url.includes("pageSize=200"))).toBe(true);
+    // Ticking rows sums them in the dark bar, and Export writes the ticked rows.
+    const row = await rowOf("Tan Ah Kow");
+    fireEvent.click(within(row).getByRole("checkbox"));
+    expect(await screen.findByText("1 selected")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Export (1)" }));
+    await waitFor(() => expect(files.length).toBe(1), { timeout: 10_000 });
+    const X = await import("../../lib/xlsx-runtime");
+    const book = X.read(new Uint8Array(await bytes(files[0]!)), { type: "array" });
+    const rows = X.utils.sheet_to_json<string[]>(book.Sheets[book.SheetNames[0]!]!, { header: 1 });
+    expect(rows[0]!.slice(0, 5)).toEqual(["SO No", "SO Date", "Customer", "Items", "Qty"]);
+    expect(rows[1]![2]).toBe("Tan Ah Kow");
+    expect(rows[1]![3]).toBe("1 UNIT Mattress Queen (183 x 190)");
+    expect(rows).toHaveLength(2);
     click.mockRestore();
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+
+    // Every order is read, a page of 200 at a time.
+    expect(asked.some((a) => a.url.includes("/api/carres-supplier/orders?") && a.url.includes("pageSize=200"))).toBe(true);
+
+    // Search filters the list in place.
+    fireEvent.change(screen.getByPlaceholderText("Search SO No, customer or item"), { target: { value: "Tan" } });
+    await waitFor(() => expect(screen.queryByText("CR-SO-2611-001")).toBeNull());
 
     fireEvent.click(screen.getByRole("button", { name: "Cards" }));
-    expect(await screen.findAllByText("CR-SO-2611-001")).toBeTruthy();
-
-    // A phone's search box asks the suppliers' API once typing stops.
-    fireEvent.change(screen.getByLabelText("Search sales orders"), { target: { value: "Tan " } });
-    await waitFor(() => expect(asked.some((a) => a.url.includes("/api/carres-supplier/orders?") && a.url.includes("q=Tan&"))).toBe(true));
+    expect(await screen.findAllByText("CR-SO-2611-002")).toBeTruthy();
 
     await settle();
     expect(strays()).toEqual([]);
   });
 
-  it("an order's own page", { timeout: 40_000 }, async () => {
+  it("an order's own page: history, documents and the pickup it is on", { timeout: 40_000 }, async () => {
     walk("/supplier/orders/CR-SO-2611-001");
     expect(await screen.findByText("Order received", {}, LOAD)).toBeTruthy();
+    expect(screen.getByText("Note from Carres")).toBeTruthy();
+    expect(screen.getByText("CR-SO-2611-001.pdf")).toBeTruthy();
+    expect((await screen.findAllByText("Carres collects on 2099/11/25, 2:00 PM")).length).toBe(2);
     await settle();
     expect(strays()).toEqual([]);
   });
 
-  it("Forecast", { timeout: 40_000 }, async () => {
+  it("Forecast: an item opens to its orders, and an order opens again in place", { timeout: 40_000 }, async () => {
     walk("/supplier/forecast");
     expect(await screen.findByRole("heading", { name: "Forecast" }, LOAD)).toBeTruthy();
-    expect(await screen.findByText("Mattress Queen")).toBeTruthy();
+    fireEvent.click(await rowOf("Mattress Queen"));
+    expect(await screen.findByText("Sales orders with Mattress Queen")).toBeTruthy();
+    fireEvent.click(await screen.findByText("CR-SO-2611-002"));
+    expect(await screen.findByText("All items on this order")).toBeTruthy();
+    // Still the Forecast: reading an order here leaves nothing.
+    expect(screen.getByRole("heading", { name: "Forecast" })).toBeTruthy();
     await settle();
     expect(strays()).toEqual([]);
   });
 
-  it("Pickup Requests: the list, the quick view and accepting", { timeout: 40_000 }, async () => {
+  it("Pickup Requests: accepting, and asking Carres for another day", { timeout: 40_000 }, async () => {
     walk("/supplier/pickups");
     expect(await screen.findByRole("heading", { name: "Pickup Requests" }, LOAD)).toBeTruthy();
-    // The number is also under Next Pickup; the row is the one in the table.
-    fireEvent.click(inTable(await screen.findAllByText("CR-PU-2611-001")));
+    fireEvent.click(await rowOf("CR-PKR-2611-001"));
     fireEvent.click(await screen.findByRole("button", { name: "Accept pickup" }));
-    await waitFor(() => expect(asked.some((a) => a.method === "POST" && a.url.endsWith("/api/carres-supplier/pickups/p1/accept"))).toBe(true));
+    await waitFor(() => expect(asked.some((a) => a.method === "POST" && a.url.endsWith("/api/carres-supplier/pickups/accept"))).toBe(true));
+    expect(asked.find((a) => a.url.endsWith("/pickups/accept"))!.body).toEqual({ ids: ["p1"] });
+    expect(await screen.findByText("CR-PKR-2611-001 accepted")).toBeTruthy();
+
+    fireEvent.click(pill(/^Accepted/));
+    fireEvent.click(await rowOf("CR-PKR-2611-002"));
+    fireEvent.click(await screen.findByRole("button", { name: "Change date" }));
+    // Nothing to send until another day is picked; Carres agrees before it changes.
+    const send = screen.getByRole("button", { name: "Send to Carres" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    expect(screen.getByText("Carres agrees the new day before it changes.")).toBeTruthy();
+    // A day button is named in the engine's one date format, its weekday in front.
+    fireEvent.click(screen.getByRole("button", { name: "Thu 2099/11/26" }));
+    expect(send.disabled).toBe(false);
+    expect(screen.getByText("→ Thu 2099/11/26")).toBeTruthy();
+    fireEvent.click(send);
+    await waitFor(() => expect(asked.some((a) => a.method === "POST" && a.url.endsWith("/api/carres-supplier/pickups/p2/ask"))).toBe(true));
+    expect(asked.find((a) => a.url.endsWith("/pickups/p2/ask"))!.body).toEqual({ kind: "date", date: "2099-11-26" });
+    expect(await screen.findByText("Date change sent to Carres")).toBeTruthy();
     await settle();
     expect(strays()).toEqual([]);
   });
 
-  it("Finance: the orders, by month, and one order's instalments", { timeout: 40_000 }, async () => {
+  it("Pickup Requests: ticking rows puts the review over the list", { timeout: 40_000 }, async () => {
+    walk("/supplier/pickups");
+    expect(await screen.findByRole("heading", { name: "Pickup Requests" }, LOAD)).toBeTruthy();
+    fireEvent.click(within(await rowOf("CR-PKR-2611-001")).getByRole("checkbox"));
+    expect(await screen.findByText("Review before accepting")).toBeTruthy();
+    const go = screen.getByRole("button", { name: "Accept 1 pickup" }) as HTMLButtonElement;
+    expect(go.disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText(/These 2 units will be ready on/));
+    expect(go.disabled).toBe(false);
+    fireEvent.click(go);
+    await waitFor(() => expect(asked.some((a) => a.method === "POST" && a.url.endsWith("/api/carres-supplier/pickups/accept"))).toBe(true));
+    await settle();
+    expect(strays()).toEqual([]);
+  });
+
+  it("Collections, a row opening in place, By Month and a month's own page", { timeout: 40_000 }, async () => {
     walk("/supplier/finance");
-    fireEvent.click(await screen.findByRole("button", { name: /By month/ }, LOAD));
-    expect(await screen.findByText("Instalments Due")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /All orders/ }));
-    fireEvent.click(inTable(await screen.findAllByText("Tan Ah Kow")));
-    expect(await screen.findByText("Agreement No", {}, LOAD)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Collections" }, LOAD)).toBeTruthy();
+    fireEvent.click(await rowOf("Tan Ah Kow"));
+    expect(await screen.findByText("Agreement No")).toBeTruthy();
+    expect(screen.getByText("Collection · 1 of 3 months")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("link", { name: "By Month" }));
+    expect(await screen.findByRole("heading", { name: "By Month" }, LOAD)).toBeTruthy();
+    fireEvent.click(await rowOf("2026/12"));
+    expect(await screen.findByText("Instalments due in 2026/12")).toBeTruthy();
+    fireEvent.click(screen.getByText("All of 2026/12"));
+    expect(await screen.findByText("Orders due this month", {}, LOAD)).toBeTruthy();
     await settle();
     expect(strays()).toEqual([]);
   });
 
-  it("Account", { timeout: 40_000 }, async () => {
-    walk("/supplier/account");
-    expect(await screen.findByRole("heading", { name: "Your account" }, LOAD)).toBeTruthy();
+  it("Settings: my account, and the people of my department", { timeout: 40_000 }, async () => {
+    walk("/supplier/settings");
+    expect(await screen.findByRole("heading", { name: "Settings" }, LOAD)).toBeTruthy();
+    expect(screen.getByText("Your profile")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Users and access/ }));
+    expect(await screen.findByText("Wan Store")).toBeTruthy();
+    expect(asked.some((a) => a.url.endsWith("/api/carres-supplier/users?department=operation"))).toBe(true);
+    // A person may not take away their own Manage users.
+    fireEvent.click(await rowOf("Ops Person"));
+    expect(await screen.findByText("Your access")).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Manage users" }).getAttribute("aria-disabled")).toBe("true");
     await settle();
     expect(strays()).toEqual([]);
+  });
+
+  it("shows only the pages a person's access opens", { timeout: 40_000 }, async () => {
+    ME = { ...baseMe(), user: { ...baseMe().user, canFinance: false, perms: { operation: ["v_orders", "v_pickups"], finance: [] } } };
+    walk("/supplier/forecast");
+    expect(await screen.findByRole("heading", { name: "Sales Orders" }, LOAD)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Forecast" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Collections" })).toBeNull();
+    // No Export button without the Export permission.
+    expect(screen.queryByRole("button", { name: "Export" })).toBeNull();
+  });
+
+  it("a person given a password by their admin must choose their own first", { timeout: 40_000 }, async () => {
+    ME = { ...baseMe(), user: { ...baseMe().user, mustChangePassword: true } };
+    walk("/supplier/orders");
+    expect(await screen.findByText("Choose your own password before you go on. Your admin set the one you signed in with.", {}, LOAD)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Sales Orders" })).toBeNull();
   });
 });
 
@@ -391,7 +484,7 @@ describe("signing in and the one-time link", () => {
     fetchMock.mockImplementation((url: string) => (String(url).includes("/api/track/company") ? company() : answer(401, { error: "Please sign in." })));
     render(<MemoryRouter initialEntries={["/supplier/finance"]}><SupplierApp /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
-    // No request to the suppliers' API was made without a token.
+    expect(screen.getByText("Your account opens the pages your company's role allows: Warehouse and Operation, or Finance.")).toBeTruthy();
     expect(fetchMock.mock.calls.filter(([u]) => String(u).includes("/api/carres-supplier/"))).toEqual([]);
   });
 
@@ -404,7 +497,7 @@ describe("signing in and the one-time link", () => {
         expect((init?.headers as Record<string, string>).Authorization).toBeUndefined();
         return answer(200, {
           token: "tok-1", expiresAt: "2026-11-16T00:00:00Z",
-          user: { name: "Fin", email: "fin@supplier.com", canOperation: false, canFinance: true },
+          user: { id: 9, name: "Fin", email: "fin@supplier.com", canOperation: false, canFinance: true, mustChangePassword: false, perms: { operation: [], finance: FIN_ALL } },
           supplier: { name: "Maker", code: "400-X" }, badges: { pickupsToAccept: 0 },
         });
       }
@@ -420,9 +513,9 @@ describe("signing in and the one-time link", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByText("No subscription orders are shared with your company.")).toBeTruthy();
     expect(supplierToken.get()).toBe("tok-1");
-    // A Finance-only person has no Sales Orders, Forecast or Pickup pages.
     expect(screen.queryByRole("link", { name: "Sales Orders" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Finance" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Collections" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "By Month" })).toBeTruthy();
   });
 
   it("a refused session is dropped and the sign-in page comes back", async () => {
@@ -477,13 +570,11 @@ describe("signing in and the one-time link", () => {
     fireEvent.click(screen.getByRole("link", { name: "Forgot password?" }));
 
     expect(await screen.findByRole("heading", { name: "Forgot password" })).toBeTruthy();
-    // Already typed: not asked for twice. (An email field drops the spaces round what is typed.)
     expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("Ana@Supplier.com");
     fireEvent.click(screen.getByRole("button", { name: "Send link" }));
 
     expect(await screen.findByRole("heading", { name: "Check your email" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("If that email signs in here, a link is on its way. It works once, for 1 hour. Look in your spam folder too.");
-    // One ask, with the email and nothing else, and no token: asking for a link signs nobody in.
     expect(asked).toEqual([{ body: { email: "Ana@Supplier.com" }, authorization: undefined }]);
     expect(supplierToken.get()).toBe("");
 
@@ -501,12 +592,10 @@ describe("signing in and the one-time link", () => {
     });
     render(<MemoryRouter initialEntries={["/supplier/forgot"]}><SupplierApp /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Forgot password" })).toBeTruthy();
-    // Nothing to send until an email is typed.
     expect((screen.getByRole("button", { name: "Send link" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ana@supplier.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send link" }));
     expect((await screen.findByRole("alert")).textContent).toBe("The server could not be reached. Check your connection and try again.");
-    // Still the form: nothing claims a link was sent.
     expect(screen.queryByRole("heading", { name: "Check your email" })).toBeNull();
   });
 

@@ -233,6 +233,11 @@
       "why": "Weekday column headers (Mon-Sun) on the public calendar grid — a WEEKDAY NAME LABEL (README case 2) derived from the grid's own Monday-first cells (the month grid's first row); not a date value and fmtDate has no weekday-header form."
     },
     {
+      "file": "frontend/src/carres/supplier/Calendar.tsx",
+      "text": "const MONTHS = [\"January\", \"February\", \"March\", \"April\", \"May\", \"June\", \"July\", \"August\", \"September\", \"October\", \"November\", \"December\"];",
+      "why": "Month + year heading over the supplier pages' pickup-day calendar ('November 2026', owner's design 17 Nov 2026) — a MONTH NAME LABEL (README case 2), not a date value. Nothing else reads it: every day the calendar writes (the 'Now' day, the picked day, each day button's label) goes through fmtDay, which is fmtDate."
+    },
+    {
       "file": "frontend/src/pages/scm-v2/daily-bank-report.ts",
       "text": "const day = Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { weekday: 'short' });",
       "why": "Renders the WEEKDAY NAME only (the Daily Bank dark bar, owner 2026-09-29); the date beside it comes from fmtDate. A weekday is a word by design and carries no day/month ambiguity."

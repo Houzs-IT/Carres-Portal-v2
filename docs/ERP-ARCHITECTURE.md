@@ -1316,7 +1316,7 @@ Owners: Delivery owns the confirmation contact and the first-leg handover refusa
 timing"); Sales Orders' DO gate reads that one clock unchanged. **PROPOSAL / NOT LAW:** no COD
 approval for outstation orders. Falsifier: the owner approves an outstation COD case.
 
-## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15)
+## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15 · redesign and supplier-side acts 2026-11-17 · BUILT ON BRANCH, NOT DEPLOYED)
 
 **RULING (Loo, 2026-11-15).** A supplier signs in to pages of its own and sees only what Carres
 shares with it. Carres collects goods at the supplier's warehouse, so the supplier's warehouse must
@@ -1328,12 +1328,27 @@ look at Carres's database or its private and confidential data, and nothing, pay
 be followed from those pages into Carres's system. The customer's name and delivery address may be
 shown (same day).
 
-**Two roles, held by a supplier's person, one or both:**
+**Two departments, a supplier's person in one or both, and each person's own access (RULING, Loo,
+2026-11-17, with the owner's design "Supplier Portal v2"):**
 
 ```
 Warehouse and Operation   Sales Orders · Forecast · Pickup Requests
-Finance                   Finance (subscription orders, months collected, share, who is behind)
+Finance                   Collections · By Month (each subscription order's term, what the customer
+                          paid, what is still to come, overdue, bad debt, and the supplier's share)
 ```
+
+Within a department a person holds only what their supplier's admin gives them (Settings › Users and
+access): the pages they see; on Finance, whether they see customer names, the share amounts, and
+overdue and bad debt; the buttons they may use (accept pickups; mark collected with the Delivery
+Order; ask for another pickup day; ask to cancel; Export; Statement PDF); and Manage users. The
+server checks the same permission on every request and cuts what a person may not see before it
+leaves; a hidden button is never the only lock. Carres still adds a supplier's first people in
+Settings › Supplier Access (they hold every permission of their departments). From then on the
+supplier's own admins add, change and remove the people of their own department: by invite email
+(the person chooses a password from the one-time link), or with a password set now, which can be
+required to be changed at the first sign-in (the server then opens nothing else until it is). Nobody
+can take away their own Manage users, and an email that already has an account anywhere is refused
+without saying where.
 
 **What a supplier sees, the whole list.** An order is shared when it is past Draft and has at least
 one line that matches the supplier's scope: a product category, a product model, a single item, or
@@ -1365,13 +1380,26 @@ Pickup request             owned HERE, the one record this surface adds
 ```
 
 **The pickup request.** Carres ticks the Sales Order lines it will come for and names the day
-(`REQUESTED`); the supplier accepts (`ACCEPTED`); Carres records that the lorry has the goods
-(`COLLECTED`); Carres may cancel with a reason until then (`CANCELLED`). A line sits on one live
-request at a time. **It is a notice and its answer. It moves no stock** and is not evidence of
-receipt, ownership or a Unit's handover: goods still enter Carres's books through the Purchase
-Order and its goods receipt, and the Unit handover facts of Rental §5.8 and Stock stay with their
-owners (§6.3). Carres staff with Purchase Orders access send, collect and cancel; the supplier may
-only accept its own.
+(`REQUESTED`); the supplier accepts (`ACCEPTED`), one request or many at once after reviewing the
+products and units. When Carres's lorry has the goods the supplier marks the request collected and
+attaches the Delivery Order Carres signed, as a PDF (one DO for several requests, or one each)
+(`COLLECTED`); Carres staff may still record a collection themselves. Carres may cancel with a reason
+until collection (`CANCELLED`).
+
+**A supplier that cannot keep the day ASKS; Carres decides (RULING, Loo, 2026-11-17: "cancel or
+change date is submit request, need approve by carres").** On an accepted request the supplier asks
+for another day, or asks Carres to cancel. Nothing changes until Carres approves in Supplier
+Pickups, because Carres has already planned the lorry; Carres may decline with a reason, and the
+supplier may take an ask back while it waits. An approved day replaces the old one (the old day is
+kept and shown as `Date changed`); an approved cancel frees the lines, so their Sales Orders read
+`Not requested` again and wait for a new request. One ask is open at a time.
+
+A line sits on one live request at a time. **It is a notice and its answer. It moves no stock** and
+is not evidence of receipt, ownership or a Unit's handover: goods still enter Carres's books through
+the Purchase Order and its goods receipt, and the Unit handover facts of Rental §5.8 and Stock stay
+with their owners (§6.3). The Delivery Order PDF is the supplier's proof of the handover it saw, kept
+with the request; it is not the goods receipt. Carres staff with Purchase Orders access send, collect,
+cancel and answer asks; the supplier accepts, marks collected and asks, for its own requests only.
 
 **How it is kept apart (FACT, built).**
 
@@ -1391,6 +1419,16 @@ only accept its own.
    2026-11-16). A small Worker stands at that address and hands out the supplier pages and the
    supplier API and nothing else: the staff sign-in and the staff API do not exist there. The old
    address, `/supplier` on the engine site, sends a visitor on to it.
+7. A Delivery Order PDF is kept in the engine's private file store under a path of its own and is
+   handed out only through the supplier API, to people of the supplier it belongs to, and through
+   the staff API. The PDFs a supplier downloads of its own orders (a Sales Order with its items only,
+   a Pickup Request, a subscription order's statement) are drawn in its browser from what its page
+   already shows, so a PDF cannot carry more than the page may.
+
+**Screens (owner's design, Claude Design "Supplier Portal v2", 2026-11-17).** One header with the
+pages a person's access opens, figure cards over each list, the list table whose rows open in place
+(no side panel), each order's own full page, a review over the list for ticked pickup requests, and
+Settings (My account, Users and access). The words are in COPY-STANDARD "Supplier Platform words".
 
 **Forgot password (RULING, Loo, 2026-11-16: the sign-in page had none; "please add on"). BUILT.**
 A person who forgot their password asks for a link on the sign-in page and is emailed one. It is

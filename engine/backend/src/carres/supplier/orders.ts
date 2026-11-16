@@ -230,6 +230,8 @@ export interface StageRow { at: string; status: string }
 export interface PickupEventRow {
   requestNo: string; expectedDate: string | null;
   requestedAt: string | null; acceptedAt: string | null; collectedAt: string | null; cancelledAt: string | null;
+  /** When Carres approved the supplier's ask to move the day, and the day it moved from. */
+  dateChangedAt?: string | null; previousExpectedDate?: string | null;
 }
 
 /**
@@ -247,8 +249,10 @@ export function buildTrail(receivedAt: string | null, stages: StageRow[], pickup
     out.push({ at: s.at, kind: "stage", code: status, ref: null, detail: null });
   }
   for (const p of pickups) {
-    if (p.requestedAt) out.push({ at: p.requestedAt, kind: "pickup", code: "PICKUP_REQUESTED", ref: p.requestNo, detail: p.expectedDate });
+    // The request named the day Carres first asked for; a move Carres approved later is its own entry.
+    if (p.requestedAt) out.push({ at: p.requestedAt, kind: "pickup", code: "PICKUP_REQUESTED", ref: p.requestNo, detail: p.previousExpectedDate ?? p.expectedDate });
     if (p.acceptedAt) out.push({ at: p.acceptedAt, kind: "pickup", code: "PICKUP_ACCEPTED", ref: p.requestNo, detail: null });
+    if (p.dateChangedAt) out.push({ at: p.dateChangedAt, kind: "pickup", code: "PICKUP_DATE_CHANGED", ref: p.requestNo, detail: p.expectedDate });
     if (p.collectedAt) out.push({ at: p.collectedAt, kind: "pickup", code: "PICKUP_COLLECTED", ref: p.requestNo, detail: null });
     if (p.cancelledAt) out.push({ at: p.cancelledAt, kind: "pickup", code: "PICKUP_CANCELLED", ref: p.requestNo, detail: null });
   }
@@ -345,8 +349,10 @@ export async function getOrder(db: Db, supplierId: string, docNo: string): Promi
   );
   const pickupRows = await db.query(
     `SELECT DISTINCT pr.request_no, pr.expected_date::text AS expected_date,
+            pr.previous_expected_date::text AS previous_expected_date,
             to_char(pr.requested_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS requested_at,
             to_char(pr.accepted_at  AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS accepted_at,
+            to_char(pr.date_changed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS date_changed_at,
             to_char(pr.collected_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS collected_at,
             to_char(pr.cancelled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS cancelled_at
        FROM public.carres_pickup_request_lines pl
@@ -360,6 +366,7 @@ export async function getOrder(db: Db, supplierId: string, docNo: string): Promi
     pickupRows.map((r) => ({
       requestNo: str(r.request_no), expectedDate: strOrNull(r.expected_date), requestedAt: strOrNull(r.requested_at),
       acceptedAt: strOrNull(r.accepted_at), collectedAt: strOrNull(r.collected_at), cancelledAt: strOrNull(r.cancelled_at),
+      dateChangedAt: strOrNull(r.date_changed_at), previousExpectedDate: strOrNull(r.previous_expected_date),
     })),
   );
   return { ...order, trail, map: buildMap(order, trail) };

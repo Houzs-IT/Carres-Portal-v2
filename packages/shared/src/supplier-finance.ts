@@ -121,11 +121,26 @@ export interface SupplierFinanceTotals {
   defaultOrders: number;
 }
 
+/** One month of an order's schedule as the summary carries it: enough for the supplier's pages to draw each order's
+ *  months and to list what falls due in a month, without asking for every order one by one. */
+export interface SupplierFinanceScheduleRow {
+  seq: number;
+  dueDate: string;
+  state: SupplierFinanceInstalmentState;
+  amountDue: number;
+  share: number;
+  paidOn: string | null;
+}
+
+export interface SupplierFinanceSummaryOrder extends SupplierFinanceOrder {
+  schedule: SupplierFinanceScheduleRow[];
+}
+
 export interface SupplierFinanceSummary {
   asOf: string;
   totals: SupplierFinanceTotals;
   months: SupplierFinanceMonth[];
-  orders: SupplierFinanceOrder[];
+  orders: SupplierFinanceSummaryOrder[];
 }
 
 const isPaid = (b: SupplierFinanceBillingRow) => b.status === "paid";
@@ -219,8 +234,15 @@ export function supplierFinanceSummary(
 
   // An agreement with no schedule has nothing to show yet (it is not approved), so it is not an order here.
   const withSchedule = agreements.filter((a) => (byAgreement.get(a.id) ?? []).length > 0);
-  const orders = withSchedule
-    .map((a) => supplierFinanceOrder(a, byAgreement.get(a.id) ?? [], today))
+  const orders: SupplierFinanceSummaryOrder[] = withSchedule
+    .map((a) => {
+      const rows = byAgreement.get(a.id) ?? [];
+      // The months come from the one schedule reading below, so an order's months and its figures cannot disagree.
+      const schedule = supplierFinanceInstalments(a, rows, today).map((i) => ({
+        seq: i.seq, dueDate: i.dueDate, state: i.state, amountDue: i.amountDue, share: i.share, paidOn: i.paidOn,
+      }));
+      return { ...supplierFinanceOrder(a, rows, today), schedule };
+    })
     .sort((a, b) => b.overdueMonths - a.overdueMonths || (a.startDate ?? "").localeCompare(b.startDate ?? "") || a.agreementNo.localeCompare(b.agreementNo));
 
   const months = new Map<string, SupplierFinanceMonth>();

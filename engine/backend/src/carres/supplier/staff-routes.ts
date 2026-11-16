@@ -16,8 +16,12 @@ import {
   type AccessInput, type PersonInput, type PersonPatch,
 } from "./access";
 import { issueLink } from "./session";
-import { cancelPickup, collectPickup, createPickup, eligibleLines, getPickup, isUuid, listPickups, type CreateInput, type StaffActor } from "./pickups";
+import {
+  answerPickupAsk, cancelPickup, collectPickup, createPickup, deliveryOrderFile, eligibleLines, getPickup, isUuid, listPickups,
+  type CreateInput, type StaffActor,
+} from "./pickups";
 import { financeSummary } from "./finance";
+import { attachmentHeader, fileStore } from "./files";
 
 type Ctx = Context<{ Bindings: Env }>;
 
@@ -113,7 +117,9 @@ supplierPickups.get("/eligible", async (c) => {
 
 supplierPickups.get("/", async (c) => {
   const supplierId = c.req.query("supplierId");
-  return c.json({ rows: await listPickups(dbFor(c.env), { supplierId: isUuid(supplierId) ? supplierId : null, status: c.req.query("status") ?? null }) });
+  return c.json({ rows: await listPickups(dbFor(c.env), {
+    supplierId: isUuid(supplierId) ? supplierId : null, status: c.req.query("status") ?? null, asked: c.req.query("asked") === "1",
+  }) });
 });
 
 supplierPickups.post("/", mayAct, async (c) => {
@@ -139,4 +145,32 @@ supplierPickups.post("/:id/cancel", mayAct, async (c) => {
   const out = await cancelPickup(dbFor(c.env), c.req.param("id"), b.reason, staff(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
   return c.json({ pickup: out.pickup });
+});
+
+// The supplier's ask to move the day or to cancel waits for Carres (./pickups.ts answerPickupAsk).
+supplierPickups.post("/:id/ask/approve", mayAct, async (c) => {
+  const out = await answerPickupAsk(dbFor(c.env), c.req.param("id"), { approve: true }, staff(c));
+  if (!out.ok) return c.json({ error: out.error }, out.status);
+  return c.json({ pickup: out.pickup });
+});
+
+supplierPickups.post("/:id/ask/decline", mayAct, async (c) => {
+  const b = await body<{ reason?: unknown }>(c);
+  const out = await answerPickupAsk(dbFor(c.env), c.req.param("id"), { approve: false, reason: b.reason }, staff(c));
+  if (!out.ok) return c.json({ error: out.error }, out.status);
+  return c.json({ pickup: out.pickup });
+});
+
+// The Delivery Order the supplier uploaded when it marked the goods collected.
+supplierPickups.get("/:id/do", async (c) => {
+  const file = await deliveryOrderFile(dbFor(c.env), c.req.param("id"), null);
+  if (!file) return c.json({ error: "No Delivery Order on this request." }, 404);
+  const bucket = fileStore(c.env);
+  if (!bucket) return c.json({ error: "File storage is not set up." }, 503);
+  const obj = await bucket.get(file.key);
+  if (!obj) return c.json({ error: "No Delivery Order on this request." }, 404);
+  return c.body(obj.body, 200, {
+    "Content-Type": "application/pdf", "Content-Disposition": attachmentHeader(file.name), "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-store",
+  });
 });

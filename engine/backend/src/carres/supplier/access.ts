@@ -7,7 +7,13 @@ import type { Db, Row } from "./db";
 import { bool, first, int, jsonList, str, strOrNull } from "./db";
 import { isEmail, normEmail } from "./credentials";
 import { isUuid } from "./pickups";
+import { allPerms } from "./perms";
 import { issueLink, recordEvent, type Outcome } from "./session";
+
+/** What a person Carres adds holds: every page and button of each department they are given (./perms.ts). Their
+ *  company's admin narrows it from the supplier pages. */
+const fullPerms = (canOperation: boolean, canFinance: boolean): string =>
+  JSON.stringify({ operation: canOperation ? allPerms("operation") : [], finance: canFinance ? allPerms("finance") : [] });
 
 export interface ScopeModel { id: string; code: string; name: string; category: string }
 export interface ScopeSku { code: string; name: string; category: string }
@@ -344,9 +350,9 @@ export async function addPerson(
       [supplierId, staffUserId],
     );
     const made = await tx.query<{ id: number }>(
-      `INSERT INTO public.carres_supplier_users (supplier_id, email, name, can_operation, can_finance, created_by)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6) RETURNING id`,
-      [supplierId, email, name, canOperation, canFinance, staffUserId],
+      `INSERT INTO public.carres_supplier_users (supplier_id, email, name, can_operation, can_finance, created_by, perms)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::text::jsonb) RETURNING id`,
+      [supplierId, email, name, canOperation, canFinance, staffUserId, fullPerms(canOperation, canFinance)],
     );
     const newId = int(made[0]?.id);
     await recordEvent(tx, { kind: "person_added", supplierId, supplierUserId: newId, staffUserId, subject: email, detail: { canOperation, canFinance } });
@@ -378,9 +384,20 @@ export async function updatePerson(db: Db, userId: number, patch: PersonPatch, s
   if (!status) return { ok: false, status: 400, error: "The status could not be read." };
   const supplierId = str(cur.supplier_id);
   await db.tx(async (tx) => {
+    // A department given now starts with every permission; one kept keeps what its admin set; one taken away holds
+    // none. (Read before the change: in SET, a column names its old value.)
     await tx.query(
-      `UPDATE public.carres_supplier_users SET name = $2, can_operation = $3, can_finance = $4, status = $5, updated_at = now() WHERE id = $1`,
-      [userId, name, canOperation, canFinance, status],
+      `UPDATE public.carres_supplier_users
+          SET name = $2, can_operation = $3, can_finance = $4, status = $5, updated_at = now(),
+              perms = jsonb_build_object(
+                'operation', CASE WHEN NOT $3 THEN '[]'::jsonb
+                                  WHEN can_operation THEN coalesce(perms->'operation', $6::text::jsonb->'operation')
+                                  ELSE $6::text::jsonb->'operation' END,
+                'finance',   CASE WHEN NOT $4 THEN '[]'::jsonb
+                                  WHEN can_finance THEN coalesce(perms->'finance', $6::text::jsonb->'finance')
+                                  ELSE $6::text::jsonb->'finance' END)
+        WHERE id = $1`,
+      [userId, name, canOperation, canFinance, status, fullPerms(true, true)],
     );
     if (status === "disabled") {
       await tx.query(`DELETE FROM public.carres_supplier_sessions WHERE user_id = $1`, [userId]);

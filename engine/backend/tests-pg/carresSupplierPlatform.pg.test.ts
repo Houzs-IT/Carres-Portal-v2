@@ -6,9 +6,13 @@ import postgres, { type Sql } from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { assertDisposableTestDatabase } from './lib/doc-no-fixture';
 import { dbOver, useDbForTests, type Db } from '../src/carres/supplier/db';
-import { addPerson, getAccess, previewAccess, saveAccess } from '../src/carres/supplier/access';
+import { addPerson, getAccess, previewAccess, saveAccess, updatePerson } from '../src/carres/supplier/access';
 import { getForecast, getOrder, listOrders } from '../src/carres/supplier/orders';
-import { acceptPickup, cancelPickup, collectPickup, createPickup, eligibleLines, getPickup, getSupplierPickup, listSupplierPickups } from '../src/carres/supplier/pickups';
+import {
+  acceptPickup, answerPickupAsk, cancelPickup, collectPickup, createPickup, deliveryOrderFile, eligibleLines, getPickup, getSupplierPickup,
+  listPickups, listSupplierPickups, todayMyt,
+} from '../src/carres/supplier/pickups';
+import { useInviteDepsForTests } from '../src/carres/supplier/invite';
 import { changePassword, issueLink, readLink, resolveSession, signIn, useLink } from '../src/carres/supplier/session';
 import { MAX_FAILS_PER_EMAIL, MAX_RESET_MAILS_PER_EMAIL, WORKER_SUBREQUEST_ADDRESS, sha256Hex } from '../src/carres/supplier/credentials';
 import { useResetDepsForTests } from '../src/carres/supplier/reset';
@@ -72,11 +76,14 @@ async function buildSchemaIfEmpty(s: Sql): Promise<void> {
     }
     return;
   }
-  // A database built earlier: run this step again. It is written to be re-run, and running it here means the
-  // functions and grants under test are the ones in the file, not the ones an older build left behind.
-  const files = (await readdir(migrationsDir)).filter((x) => x.endsWith('_supplier_platform.sql'));
-  if (files.length !== 1) throw new Error(`expected one *_supplier_platform.sql, found ${files.length}`);
-  await s.begin(async (tx) => { await tx.unsafe(await readFile(join(migrationsDir, files[0]!), 'utf8')); });
+  // A database built earlier: run the platform's steps again. They are written to be re-run, and running them here
+  // means the functions, columns and grants under test are the ones in the files, not the ones an older build left.
+  const all = await readdir(migrationsDir);
+  for (const suffix of ['_supplier_platform.sql', '_supplier_pickup_asks_and_people.sql']) {
+    const files = all.filter((x) => x.endsWith(suffix));
+    if (files.length !== 1) throw new Error(`expected one *${suffix}, found ${files.length}`);
+    await s.begin(async (tx) => { await tx.unsafe(await readFile(join(migrationsDir, files[0]!), 'utf8')); });
+  }
 }
 
 async function clean(s: Sql): Promise<void> {
@@ -457,8 +464,14 @@ describePg('Carres supplier platform', () => {
       expect((await get('/orders/ZZT-SO-3', token)).status).toBe(404);
       const meRes = await (await get('/auth/me', token)).json();
       expect(keyPaths(meRes).sort()).toEqual([
-        'badges', 'badges.pickupsToAccept', 'supplier', 'supplier.code', 'supplier.name', 'user', 'user.canFinance', 'user.canOperation', 'user.email', 'user.name',
+        'badges', 'badges.pickupsToAccept', 'supplier', 'supplier.code', 'supplier.name', 'user', 'user.canFinance', 'user.canOperation', 'user.email',
+        'user.id', 'user.mustChangePassword', 'user.name', 'user.perms', 'user.perms.finance', 'user.perms.operation',
       ]);
+      // Carres added Ana: she holds every page and button of her one department, and none of the other.
+      expect((meRes as { user: { perms: unknown; mustChangePassword: boolean } }).user).toMatchObject({
+        mustChangePassword: false,
+        perms: { operation: ['v_orders', 'v_forecast', 'v_pickups', 'a_accept', 'a_collect', 'a_date', 'a_cancel', 'a_export', 'a_users'], finance: [] },
+      });
     });
 
     test('signing in over HTTP answers a token and the same refusal for every wrong try', async () => {
@@ -696,7 +709,8 @@ describePg('Carres supplier platform', () => {
       expect(res.status).toBe(200);
       expect(keyPaths(body).sort()).toEqual([
         'badges', 'badges.pickupsToAccept', 'email', 'expiresAt', 'ok', 'supplier', 'supplier.code', 'supplier.name', 'token',
-        'user', 'user.canFinance', 'user.canOperation', 'user.email', 'user.name',
+        'user', 'user.canFinance', 'user.canOperation', 'user.email', 'user.id', 'user.mustChangePassword', 'user.name', 'user.perms',
+        'user.perms.finance', 'user.perms.operation',
       ]);
       expect((await resolveSession(db, body.token))?.email).toBe('fin@zzt.test');
     });
@@ -974,9 +988,12 @@ describePg('Carres supplier platform', () => {
       expect(Object.keys(body.pickup)).not.toContain('supplierId');
       // The keys of a request are exactly the ones named for a supplier: a new column does not travel by default.
       expect(Object.keys(body.pickup).sort()).toEqual([
-        'acceptedAt', 'acceptedByName', 'cancelReason', 'cancelledAt', 'collectedAt', 'expectedDate', 'expectedTime', 'id', 'lineCount',
-        'lines', 'note', 'requestNo', 'requestedAt', 'soDocNos', 'status', 'supplierName', 'unitCount',
+        'acceptedAt', 'acceptedByName', 'answer', 'ask', 'cancelReason', 'cancelledAt', 'cancelledBySupplier', 'collectedAt',
+        'collectedBySupplierName', 'dateChangedAt', 'deliveryOrder', 'expectedDate', 'expectedTime', 'id', 'lineCount', 'lines', 'note',
+        'orders', 'previousExpectedDate', 'requestNo', 'requestedAt', 'soDocNos', 'status', 'supplierName', 'unitCount',
       ]);
+      // Each Sales Order on the request with its customer, read through the supplier's own scope.
+      expect(body.pickup.orders).toEqual([{ docNo: 'ZZT-SO-1', customerName: 'ZZT Customer One' }]);
       expect(Object.keys((body.pickup.lines as Array<Record<string, unknown>>)[0]!).sort()).toEqual([
         'description', 'itemCode', 'modelName', 'qty', 'soDocNo', 'soItemId', 'spec', 'uom',
       ]);
@@ -1044,6 +1061,358 @@ describePg('Carres supplier platform', () => {
       expect(list.status).toBe(200);
       const body = await list.json() as { suppliers: Array<{ code: string }> };
       expect(body.suppliers.map((s) => s.code).filter((c) => c.startsWith('ZZT-')).sort()).toEqual(['ZZT-A', 'ZZT-B']);
+    });
+  });
+
+  describe('the supplier pages, second step: permissions, people, asks and Delivery Orders', () => {
+    const PASSWORD = 'correct horse battery';
+    const env = {} as Env;
+    const actor = { id: 0, name: 'ZZT Staff Member' };
+    /** A day from now in Kuala Lumpur: these tests ask for days the routes check against the real today. */
+    const inDays = (n: number) => todayMyt(Date.now() + n * 86_400_000);
+    let ana = '';
+    let anaId = 0;
+    const call = (path: string, token: string, init: RequestInit = {}, e: Env = env) =>
+      supplierApp.request(path, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } }, e);
+    const post = (path: string, token: string, b: unknown, e: Env = env) =>
+      call(path, token, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }, e);
+    const patch = (path: string, token: string, b: unknown) =>
+      call(path, token, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+    const signedIn = async (email: string, password = PASSWORD) => {
+      const out = await signIn(db, { email, password, ip: null, userAgent: null });
+      if (!out.ok) throw new Error(`sign-in failed for ${email}`);
+      return out.token;
+    };
+
+    beforeAll(async () => {
+      actor.id = staffId;
+      ana = await signedIn('ana@zzt.test');
+      anaId = Number((await sql`select id from public.carres_supplier_users where email = 'ana@zzt.test'`)[0]!.id);
+      // One more order with two of supplier A's lines, so there is something left to request.
+      await sql`insert into scm.mfg_sales_orders ${sql({ doc_no: 'ZZT-SO-8', debtor_name: 'ZZT Customer Eight', status: 'CONFIRMED', so_date: '2026-11-02' })}`;
+      await sql`insert into scm.mfg_sales_order_items ${sql([
+        { doc_no: 'ZZT-SO-8', line_no: 0, item_group: 'mattress', item_code: 'ZZT-M2-K', description: 'ZZT BASIC KING', uom: 'UNIT', qty: 1 },
+        { doc_no: 'ZZT-SO-8', line_no: 1, item_group: 'mattress', item_code: 'ZZT-M1-Q', description: 'ZZT CLOUD QUEEN', uom: 'UNIT', qty: 2 },
+      ])}`;
+    });
+
+    test('what a person holds decides what answers, on the server', async () => {
+      await sql`update public.carres_supplier_users set perms = jsonb_set(perms, '{operation}', '["v_pickups"]'::jsonb) where id = ${anaId}`;
+      try {
+        expect((await call('/orders', ana)).status).toBe(403);
+        expect((await call('/forecast', ana)).status).toBe(403);
+        expect((await call('/pickups', ana)).status).toBe(200);
+        expect((await post('/pickups/accept', ana, { ids: ['11111111-1111-4111-8111-111111111111'] })).status).toBe(403);
+        expect((await call('/users?department=operation', ana)).status).toBe(403);
+        const me = await (await call('/auth/me', ana)).json() as { user: { perms: { operation: string[] } } };
+        expect(me.user.perms.operation).toEqual(['v_pickups']);
+      } finally {
+        await sql`update public.carres_supplier_users set perms = jsonb_set(perms, '{operation}', ${JSON.stringify(['v_orders', 'v_forecast', 'v_pickups', 'a_accept', 'a_collect', 'a_date', 'a_cancel', 'a_export', 'a_users'])}::text::jsonb) where id = ${anaId}`;
+      }
+      expect((await call('/orders', ana)).status).toBe(200);
+    });
+
+    let benId = 0;
+    let caraId = 0;
+    const mails: Array<{ to: string; mail: Mail }> = [];
+
+    test('an admin adds people to their own department; an email has one account in the whole platform', async () => {
+      const made = await post('/users', ana, {
+        department: 'operation', name: '  Ben   Wh ', email: 'Ben@ZZT.test', how: 'password', password: 'a long enough pass', mustChange: true,
+        perms: ['v_orders', 'v_pickups', 'a_accept', 'a_date', 'v_coll'],
+      });
+      expect(made.status).toBe(200);
+      const body = await made.json() as { user: { id: number; name: string; email: string; status: string; perms: string[]; self: boolean }; mailed: unknown };
+      benId = body.user.id;
+      expect(body).toMatchObject({ user: { name: 'Ben Wh', email: 'ben@zzt.test', status: 'active', self: false, perms: ['v_orders', 'v_pickups', 'a_accept', 'a_date'] }, mailed: null });
+      const row = await sql`select can_operation, can_finance, must_change_password, perms::text as perms from public.carres_supplier_users where id = ${benId}`;
+      expect(row[0]).toMatchObject({ can_operation: true, can_finance: false, must_change_password: true });
+      expect(JSON.parse(String(row[0]!.perms))).toEqual({ operation: ['v_orders', 'v_pickups', 'a_accept', 'a_date'], finance: [] });
+
+      // Taken anywhere: this company, another company, Carres staff. The answer never names the other company.
+      for (const email of ['ben@zzt.test', 'fin@zzt.test', 'ops@zzt-staff.test']) {
+        const again = await post('/users', ana, { department: 'operation', name: 'Dup', email, how: 'password', password: 'a long enough pass', perms: [] });
+        expect(again.status).toBe(409);
+        const text = await again.text();
+        expect(text).toContain('This email already has an account.');
+        expect(text).not.toContain('ZZT SOFA MAKER');
+      }
+      expect((await post('/users', ana, { department: 'operation', name: 'Short', email: 'short@zzt.test', how: 'password', password: 'short', perms: [] })).status).toBe(400);
+      // Ana manages Warehouse and Operation only.
+      expect((await post('/users', ana, { department: 'finance', name: 'F', email: 'f2@zzt.test', how: 'invite', perms: [] })).status).toBe(403);
+      expect((await post('/users', ana, { department: 'sales', name: 'F', email: 'f2@zzt.test', how: 'invite', perms: [] })).status).toBe(400);
+    });
+
+    test('an invite emails a link that chooses the first password, and the person reads as invited until then', async () => {
+      const undo = useInviteDepsForTests({
+        companyName: async () => 'ZZT Carres', mailOn: async () => true,
+        send: async (_e, to, mail) => { mails.push({ to, mail }); return { status: 'sent' }; },
+      });
+      try {
+        const made = await post('/users', ana, { department: 'operation', name: 'Cara Ops', email: 'cara@zzt.test', how: 'invite', perms: ['v_orders'] });
+        expect(made.status).toBe(200);
+        const body = await made.json() as { user: { id: number; status: string }; mailed: boolean; mailNote: unknown };
+        caraId = body.user.id;
+        expect(body).toMatchObject({ user: { status: 'invited' }, mailed: true, mailNote: null });
+      } finally {
+        undo();
+      }
+      expect(mails).toHaveLength(1);
+      expect(mails[0]!.to).toBe('cara@zzt.test');
+      expect(mails[0]!.mail.text).toContain('Ana Ops added you to the ZZT Carres supplier pages for ZZT MATTRESS MAKER.');
+      const token = /#t=([A-Za-z0-9_-]+)/.exec(mails[0]!.mail.text)![1]!;
+      expect(await readLink(db, token)).toMatchObject({ email: 'cara@zzt.test', purpose: 'setup' });
+      // The link is in the email and nowhere else.
+      expect((await sql`select count(*)::int as n from public.carres_supplier_events where detail::text like ${`%${token}%`}`)[0]!.n).toBe(0);
+
+      // With supplier emails switched off, the person is added and the admin is told the email did not leave.
+      const off = useInviteDepsForTests({ companyName: async () => 'ZZT Carres', mailOn: async () => false, send: async () => ({ status: 'sent' }) });
+      try {
+        const made = await post('/users', ana, { department: 'operation', name: 'Dan Ops', email: 'dan@zzt.test', how: 'invite', perms: [] });
+        expect(await made.json()).toMatchObject({ mailed: false, mailNote: 'Supplier emails are switched off at Carres.' });
+      } finally {
+        off();
+      }
+
+      // Supplier A's Warehouse and Operation people, by name; the Finance person of another company is not among them.
+      const list = await (await call('/users?department=operation', ana)).json() as { users: Array<{ email: string; status: string; self: boolean }> };
+      expect(list.users.map((u) => [u.email, u.status, u.self])).toEqual([
+        ['ana@zzt.test', 'active', true], ['ben@zzt.test', 'active', false], ['cara@zzt.test', 'invited', false], ['dan@zzt.test', 'invited', false],
+        ['nina@zzt.test', 'invited', false], ['rita@zzt.test', 'active', false],
+      ]);
+      expectClean(list);
+    });
+
+    test('a person given a password chooses their own before anything else answers', async () => {
+      const ben = await signedIn('ben@zzt.test', 'a long enough pass');
+      const me = await (await call('/auth/me', ben)).json() as { user: { mustChangePassword: boolean } };
+      expect(me.user.mustChangePassword).toBe(true);
+      const refused = await call('/orders', ben);
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toEqual({ error: 'Choose a new password first.', code: 'must_change_password' });
+      const changed = await post('/auth/password', ben, { current: 'a long enough pass', next: PASSWORD });
+      expect(changed.status).toBe(200);
+      const fresh = (await changed.json() as { token: string }).token;
+      expect((await call('/orders', fresh)).status).toBe(200);
+      expect((await (await call('/auth/me', fresh)).json() as { user: { mustChangePassword: boolean } }).user.mustChangePassword).toBe(false);
+      // Ben holds no Forecast and no Manage users.
+      expect((await call('/forecast', fresh)).status).toBe(403);
+      expect((await call('/users?department=operation', fresh)).status).toBe(403);
+    });
+
+    test('an admin cannot take away their own Manage users or remove themselves; removing takes access away', async () => {
+      expect((await patch(`/users/${anaId}`, ana, { department: 'operation', perms: ['v_orders'] })).status).toBe(400);
+      expect((await post(`/users/${anaId}/remove`, ana, { department: 'operation' })).status).toBe(400);
+      const renamed = await patch(`/users/${benId}`, ana, { department: 'operation', name: 'Ben Warehouse', perms: ['v_pickups', 'a_accept', 'a_export'] });
+      expect(await renamed.json()).toMatchObject({ user: { name: 'Ben Warehouse', perms: ['v_pickups', 'a_accept', 'a_export'] } });
+      // Another company's person is not this admin's to change: it reads as not found.
+      const finB = Number((await sql`select id from public.carres_supplier_users where email = 'fin@zzt.test'`)[0]!.id);
+      expect((await patch(`/users/${finB}`, ana, { department: 'operation', name: 'X' })).status).toBe(404);
+
+      const ben = await signedIn('ben@zzt.test');
+      expect((await post(`/users/${benId}/remove`, ana, { department: 'operation' })).status).toBe(200);
+      expect((await call('/auth/me', ben)).status).toBe(401);
+      expect((await sql`select status from public.carres_supplier_users where id = ${benId}`)[0]!.status).toBe('disabled');
+
+      // A person in both departments keeps the other one.
+      expect((await updatePerson(db, caraId, { canFinance: true }, staffId)).ok).toBe(true);
+      expect((await post(`/users/${caraId}/remove`, ana, { department: 'operation' })).status).toBe(200);
+      const cara = await sql`select status, can_operation, can_finance, perms::text as perms from public.carres_supplier_users where id = ${caraId}`;
+      expect(cara[0]).toMatchObject({ status: 'active', can_operation: false, can_finance: true });
+      expect(JSON.parse(String(cara[0]!.perms))).toEqual({ operation: [], finance: ['v_coll', 'v_month', 'd_names', 'd_share', 'd_bad', 'a_export', 'a_stmt', 'a_users'] });
+    });
+
+    let r1 = '';
+    let r2 = '';
+    let r3 = '';
+
+    test('accepting several requests is all or none', async () => {
+      const lines = await eligibleLines(db, supA);
+      const king = lines.find((l) => l.soDocNo === 'ZZT-SO-2')!.soItemId;
+      const eight = lines.filter((l) => l.soDocNo === 'ZZT-SO-8').map((l) => l.soItemId);
+      expect(eight).toHaveLength(2);
+      const make = async (ids: string[]) => {
+        const out = await createPickup(db, { supplierId: supA, expectedDate: inDays(5), soItemIds: ids }, actor, todayMyt());
+        if (!out.ok) throw new Error(out.error);
+        return out.pickup;
+      };
+      r1 = (await make([king])).id;
+      r2 = (await make([eight[0]!])).id;
+      const p3 = await make([eight[1]!]);
+      r3 = p3.id;
+      expect(p3.orders).toEqual([{ docNo: 'ZZT-SO-8', customerName: 'ZZT Customer Eight' }]);
+      expect((await cancelPickup(db, r3, 'Not needed', actor)).ok).toBe(true);
+
+      const refused = await post('/pickups/accept', ana, { ids: [r1, r3] });
+      expect(refused.status).toBe(409);
+      expect((await refused.json() as { error: string }).error).toContain(p3.requestNo);
+      expect((await getSupplierPickup(db, r1, supA))!.status).toBe('REQUESTED');
+      expect((await post('/pickups/accept', ana, { ids: [] })).status).toBe(400);
+
+      const ok = await post('/pickups/accept', ana, { ids: [r1, r2] });
+      expect(ok.status).toBe(200);
+      const body = await ok.json() as { pickups: Array<{ id: string; status: string; acceptedByName: string }> };
+      expect(body.pickups.map((p) => [p.id, p.status, p.acceptedByName])).toEqual([[r1, 'ACCEPTED', 'Ana Ops'], [r2, 'ACCEPTED', 'Ana Ops']]);
+      expectClean(body);
+    });
+
+    test('the supplier asks to move or cancel; nothing moves until Carres answers', async () => {
+      expect((await post(`/pickups/${r1}/ask`, ana, { kind: 'date', date: inDays(-1) })).status).toBe(400);
+      expect((await post(`/pickups/${r1}/ask`, ana, { kind: 'date', date: inDays(5) })).status).toBe(400);
+      expect((await post(`/pickups/${r1}/ask`, ana, { kind: 'later' })).status).toBe(400);
+      const asked = await post(`/pickups/${r1}/ask`, ana, { kind: 'date', date: inDays(9) });
+      expect(asked.status).toBe(200);
+      const a = (await asked.json() as { pickup: { expectedDate: string; ask: unknown } }).pickup;
+      expect(a.expectedDate).toBe(inDays(5));
+      expect(a.ask).toMatchObject({ kind: 'date', date: inDays(9), askedByName: 'Ana Ops' });
+      expect((await post(`/pickups/${r1}/ask`, ana, { kind: 'cancel' })).status).toBe(409);
+      expect((await post(`/pickups/${r1}/ask/withdraw`, ana, {})).status).toBe(200);
+      expect((await getSupplierPickup(db, r1, supA))!.ask).toBeNull();
+      expect((await post(`/pickups/${r1}/ask/withdraw`, ana, {})).status).toBe(409);
+
+      expect((await post(`/pickups/${r1}/ask`, ana, { kind: 'date', date: inDays(9) })).status).toBe(200);
+      const staffList = await listPickups(db, { supplierId: supA, asked: true });
+      expect(staffList.map((p) => p.id)).toEqual([r1]);
+      const approved = await answerPickupAsk(db, r1, { approve: true }, actor);
+      expect(approved).toMatchObject({
+        ok: true,
+        pickup: { expectedDate: inDays(9), previousExpectedDate: inDays(5), expectedTime: null, ask: null, answer: { kind: 'date', approved: true, byName: 'ZZT Staff Member' } },
+      });
+      expect(await answerPickupAsk(db, r1, { approve: true }, actor)).toMatchObject({ ok: false, status: 409 });
+      const seen = (await getSupplierPickup(db, r1, supA))!;
+      expect(seen.answer).toEqual({ kind: 'date', approved: true, date: inDays(9), answeredAt: expect.any(String), reason: null });
+      expectClean(seen);
+      const order = (await getOrder(db, supA, 'ZZT-SO-2'))!;
+      expect(order.trail.filter((t) => t.code === 'PICKUP_DATE_CHANGED').map((t) => t.detail)).toEqual([inDays(9)]);
+
+      // A cancel Carres declines leaves the request as it was, and the supplier reads why.
+      expect((await post(`/pickups/${r2}/ask`, ana, { kind: 'cancel' })).status).toBe(200);
+      expect(await answerPickupAsk(db, r2, { approve: false, reason: 'Lorry already booked' }, actor)).toMatchObject({
+        ok: true, pickup: { status: 'ACCEPTED', ask: null, answer: { kind: 'cancel', approved: false, reason: 'Lorry already booked' } },
+      });
+      // A cancel Carres approves cancels the request and frees its lines.
+      expect((await post(`/pickups/${r2}/ask`, ana, { kind: 'cancel' })).status).toBe(200);
+      expect((await getSupplierPickup(db, r2, supA))!.answer).toBeNull();
+      expect(await answerPickupAsk(db, r2, { approve: true }, actor)).toMatchObject({
+        ok: true, pickup: { status: 'CANCELLED', cancelledBySupplier: true, cancelReason: 'Asked by the supplier', ask: null },
+      });
+      const freed = (await getSupplierPickup(db, r2, supA))!.lines[0]!.soItemId;
+      expect((await eligibleLines(db, supA)).map((l) => l.soItemId)).toContain(freed);
+      // Only an accepted request can be asked about.
+      expect((await post(`/pickups/${r2}/ask`, ana, { kind: 'cancel' })).status).toBe(409);
+    });
+
+    test('marking collected needs the Delivery Order, a real PDF, and moves all or none', async () => {
+      const stored = new Map<string, Uint8Array>();
+      const bucket = {
+        put: async (key: string, value: Uint8Array) => { stored.set(key, value); },
+        get: async (key: string) => (stored.has(key) ? { body: new Blob([stored.get(key)!]).stream() } : null),
+        delete: async (key: string) => { stored.delete(key); },
+      };
+      const withFiles = { POD_BUCKET: bucket } as unknown as Env;
+      const pdf = (text: string) => new File([`%PDF-1.7\n${text}`], `${text}.pdf`, { type: 'application/pdf' });
+      const upload = (form: FormData) => call('/pickups/collect', ana, { method: 'POST', body: form }, withFiles);
+      const formOf = (ids: string[], mode: string, files: Record<string, File>) => {
+        const f = new FormData();
+        f.set('ids', JSON.stringify(ids));
+        f.set('mode', mode);
+        for (const [k, v] of Object.entries(files)) f.set(k, v);
+        return f;
+      };
+
+      // A request still waiting to be accepted cannot be marked: nothing is stored.
+      const r4 = (await createPickup(db, { supplierId: supA, expectedDate: inDays(6), soItemIds: [(await eligibleLines(db, supA)).find((l) => l.soDocNo === 'ZZT-SO-8')!.soItemId] }, actor, todayMyt()) as { pickup: { id: string } }).pickup.id;
+      expect((await upload(formOf([r1, r4], 'one', { file: pdf('DO-ALL') }))).status).toBe(409);
+      expect(stored.size).toBe(0);
+      // Not a PDF, or no file at all: refused.
+      expect((await upload(formOf([r1], 'one', { file: new File(['<html></html>'], 'DO.pdf', { type: 'application/pdf' }) }))).status).toBe(400);
+      expect((await upload(formOf([r1], 'one', {}))).status).toBe(400);
+      expect((await upload(formOf([r1], 'each', { file: pdf('DO-ONE') }))).status).toBe(400);
+      // Larger than a Delivery Order may be.
+      const big = new File([new Uint8Array(10 * 1024 * 1024 + 1).fill(0x25)], 'big.pdf', { type: 'application/pdf' });
+      expect((await upload(formOf([r1], 'one', { file: big }))).status).toBe(413);
+      expect(stored.size).toBe(0);
+      // Without the file store bound, nothing is pretended.
+      expect((await call('/pickups/collect', ana, { method: 'POST', body: formOf([r1], 'one', { file: pdf('DO-ALL') }) })).status).toBe(503);
+
+      expect((await post('/pickups/accept', ana, { ids: [r4] })).status).toBe(200);
+      const done = await upload(formOf([r1, r4], 'each', { [`file_${r1}`]: pdf('DO-0001'), [`file_${r4}`]: pdf('DO-0002') }));
+      expect(done.status).toBe(200);
+      const body = await done.json() as { pickups: Array<{ id: string; status: string; collectedBySupplierName: string; deliveryOrder: { name: string } }> };
+      expect(body.pickups.map((p) => [p.status, p.collectedBySupplierName, p.deliveryOrder.name])).toEqual([
+        ['COLLECTED', 'Ana Ops', 'DO-0001.pdf'], ['COLLECTED', 'Ana Ops', 'DO-0002.pdf'],
+      ]);
+      expect([...stored.keys()].every((k) => k.startsWith(`carres-supplier-do/${supA}/`))).toBe(true);
+      expect(stored.size).toBe(2);
+      expectClean(body, ['carres-supplier-do']);
+
+      const file = await call(`/pickups/${r1}/do`, ana, {}, withFiles);
+      expect(file.status).toBe(200);
+      expect(file.headers.get('Content-Type')).toBe('application/pdf');
+      expect(file.headers.get('Content-Disposition')).toContain('DO-0001.pdf');
+      expect(await file.text()).toBe('%PDF-1.7\nDO-0001');
+      // Another supplier's file is not found; a request with no file has none.
+      expect(await deliveryOrderFile(db, r1, supB)).toBeNull();
+      expect((await call(`/pickups/${r2}/do`, ana, {}, withFiles)).status).toBe(404);
+      // Already collected: a second press changes nothing.
+      expect((await upload(formOf([r1], 'one', { file: pdf('DO-AGAIN') }))).status).toBe(409);
+      expect(stored.size).toBe(2);
+    });
+
+    test('Carres answers asks and reads the Delivery Order from its own pickup page', async () => {
+      const owner = new Hono<{ Bindings: Env }>();
+      owner.use('*', async (c, next) => { c.set('user' as never, { id: staffId, name: 'Owner', permissions: ['*'], permissions_set: new Set(['*']), page_access: {} } as never); await next(); });
+      owner.route('/pickups', supplierPickups);
+      const viewer = new Hono<{ Bindings: Env }>();
+      viewer.use('*', async (c, next) => { c.set('user' as never, { id: staffId, name: 'Viewer', permissions: [], permissions_set: new Set<string>(), page_access: { 'scm.procurement.po': 'view' } } as never); await next(); });
+      viewer.route('/pickups', supplierPickups);
+      expect((await viewer.request(`/pickups/${r1}/ask/approve`, { method: 'POST' }, env)).status).toBe(403);
+      expect((await viewer.request(`/pickups/${r1}/ask/decline`, { method: 'POST' }, env)).status).toBe(403);
+      expect((await owner.request(`/pickups/${r1}/ask/approve`, { method: 'POST' }, env)).status).toBe(409);
+      const asked = await owner.request('/pickups?asked=1', {}, env);
+      expect(asked.status).toBe(200);
+    });
+
+    test('Finance figures leave without what a person may not see', async () => {
+      const made = await addPerson(db, supA, { name: 'Fin A', email: 'fina@zzt.test', canOperation: false, canFinance: true }, staffId);
+      if (!made.ok) throw new Error(made.error);
+      expect((await useLink(db, { token: made.link.token, password: PASSWORD, ip: null })).ok).toBe(true);
+      const fin = await signedIn('fina@zzt.test');
+      const portal = {
+        asOf: '2026-11-16',
+        totals: { orders: 1, contractValue: 1200, shareTotal: 588, collected: 300, collectedCount: 3, shareEarned: 147, toCollect: 900, shareToCome: 441, overdueOrders: 1, overdueMonths: 1, overdueAmount: 100, overdueShare: 49, defaultOrders: 0 },
+        months: [{ month: '2026-09', due: 100, dueShare: 49, collected: 0, collectedShare: 0, open: 100, openShare: 49 }],
+        orders: [{
+          id: '22222222-2222-4222-8222-222222222222', agreementNo: 'RA-ZZT', soNo: 'ZZT-SO-1', customerName: 'ZZT Customer One', item: 'Cloud',
+          termMonths: 12, monthlyFee: 100, ratePct: 49, startDate: '2026-06-07', status: 'active', state: 'behind', contractValue: 1200,
+          shareTotal: 588, paidCount: 3, collected: 300, shareEarned: 147, toCollect: 900, shareToCome: 441, overdueMonths: 1,
+          overdueAmount: 100, overdueShare: 49, nextDueDate: '2026-09-07', lastPaidOn: '2026-08-07',
+          schedule: [
+            { seq: 3, dueDate: '2026-08-07', state: 'paid', amountDue: 100, share: 49, paidOn: '2026-08-07' },
+            { seq: 4, dueDate: '2026-09-07', state: 'late', amountDue: 100, share: 49, paidOn: null },
+            { seq: 5, dueDate: '2026-12-07', state: 'upcoming', amountDue: 100, share: 49, paidOn: null },
+          ],
+        }],
+      };
+      const withPortal = {
+        CARRES_SSO_SECRET: 's'.repeat(32), CARRES_PORTAL_API: 'https://portal.test',
+        CARRES_PORTAL: { fetch: async () => new Response(JSON.stringify(portal), { headers: { 'content-type': 'application/json' } }) },
+      } as unknown as Env;
+
+      const full = await (await call('/finance/summary', fin, {}, withPortal)).json() as Record<string, unknown> & { visible: unknown; orders: Array<Record<string, unknown>> };
+      expect(full.visible).toEqual({ names: true, share: true, bad: true });
+      expect(full.orders[0]).toMatchObject({ customerName: 'ZZT Customer One', shareEarned: 147, state: 'behind', overdueMonths: 1 });
+
+      const finId = Number((await sql`select id from public.carres_supplier_users where email = 'fina@zzt.test'`)[0]!.id);
+      await sql`update public.carres_supplier_users set perms = jsonb_set(perms, '{finance}', '["v_month"]'::jsonb) where id = ${finId}`;
+      const narrow = await (await call('/finance/summary', fin, {}, withPortal)).json() as Record<string, unknown> & { visible: unknown; orders: Array<Record<string, unknown> & { schedule: Array<{ state: string; share: number }> }> };
+      expect(narrow.visible).toEqual({ names: false, share: false, bad: false });
+      expect(narrow.orders[0]).toMatchObject({ customerName: '', shareEarned: 0, ratePct: 0, state: 'open', overdueMonths: 0, overdueAmount: 0, nextDueDate: '2026-12-07' });
+      expect(narrow.orders[0]!.schedule.map((r) => [r.state, r.share])).toEqual([['paid', 0], ['unpaid', 0], ['upcoming', 0]]);
+      expect(JSON.stringify(narrow)).not.toContain('ZZT Customer One');
+      // With neither Finance page on, no figure answers at all.
+      await sql`update public.carres_supplier_users set perms = jsonb_set(perms, '{finance}', '["d_names","d_share"]'::jsonb) where id = ${finId}`;
+      expect((await call('/finance/summary', fin, {}, withPortal)).status).toBe(403);
     });
   });
 

@@ -78,6 +78,10 @@ export const accessApi = {
 export type PickupStatus = "REQUESTED" | "ACCEPTED" | "COLLECTED" | "CANCELLED";
 export interface PickupLine { soDocNo: string; soItemId: string; itemCode: string; description: string; spec: string | null; modelName: string | null; uom: string; qty: number }
 export interface EligibleLine extends PickupLine { soDate: string | null; status: string; customerName: string; deliveryDate: string | null }
+/** The supplier's ask that waits for Carres: move the pickup to `date`, or cancel it. */
+export interface PickupAsk { kind: "date" | "cancel"; date: string | null; askedAt: string; askedByName: string }
+/** Carres's answer to the supplier's latest ask. */
+export interface PickupAnswer { kind: "date" | "cancel"; approved: boolean; date: string | null; answeredAt: string; reason: string | null; byName: string | null }
 export interface StaffPickup {
   id: string;
   requestNo: string;
@@ -93,10 +97,19 @@ export interface StaffPickup {
   acceptedByName: string | null;
   collectedAt: string | null;
   collectedByName: string | null;
+  /** The supplier's person who marked the goods collected, with the Delivery Order. */
+  collectedBySupplierName: string | null;
   cancelledAt: string | null;
   cancelledByName: string | null;
   cancelReason: string | null;
+  cancelledBySupplier: boolean;
+  previousExpectedDate: string | null;
+  dateChangedAt: string | null;
+  ask: PickupAsk | null;
+  answer: PickupAnswer | null;
+  deliveryOrder: { name: string; uploadedAt: string; size: number } | null;
   soDocNos: string[];
+  orders: Array<{ docNo: string; customerName: string }>;
   lineCount: number;
   unitCount: number;
   lines: PickupLine[];
@@ -112,4 +125,8 @@ export const pickupApi = {
     api.post<{ pickup: StaffPickup }>(PICKUPS, input),
   collect: (id: string) => api.post<{ pickup: StaffPickup }>(`${PICKUPS}/${id}/collect`, {}),
   cancel: (id: string, reason: string) => api.post<{ pickup: StaffPickup }>(`${PICKUPS}/${id}/cancel`, { reason }),
+  approveAsk: (id: string) => api.post<{ pickup: StaffPickup }>(`${PICKUPS}/${id}/ask/approve`, {}),
+  declineAsk: (id: string, reason: string | null) => api.post<{ pickup: StaffPickup }>(`${PICKUPS}/${id}/ask/decline`, { reason }),
+  /** The Delivery Order the supplier uploaded, saved to this computer. */
+  downloadDeliveryOrder: (id: string, name: string) => api.downloadFile(`${PICKUPS}/${id}/do`, name),
 };

@@ -125,7 +125,13 @@ export interface FinanceInstalment {
   daysLate: number;
 }
 
-export interface FinanceSummary { asOf: string; totals: FinanceTotals; months: FinanceMonth[]; orders: FinanceOrder[] }
+/** One instalment of an order, as the summary carries it so the pages can draw an order's months and list what
+ *  falls due in a month without asking for each order. "unpaid": an overdue month, for a person who may not see
+ *  what is overdue (see filterSummary). */
+export interface FinanceScheduleRow { seq: number; dueDate: string; state: string; amountDue: number; share: number; paidOn: string | null }
+export interface FinanceSummaryOrder extends FinanceOrder { schedule: FinanceScheduleRow[] }
+
+export interface FinanceSummary { asOf: string; totals: FinanceTotals; months: FinanceMonth[]; orders: FinanceSummaryOrder[] }
 export interface FinanceAgreement { asOf: string; order: FinanceOrder; instalments: FinanceInstalment[] }
 
 function pickOrder(v: unknown): FinanceOrder {
@@ -138,6 +144,11 @@ function pickOrder(v: unknown): FinanceOrder {
     shareToCome: num(o.shareToCome), overdueMonths: whole(o.overdueMonths), overdueAmount: num(o.overdueAmount),
     overdueShare: num(o.overdueShare), nextDueDate: textOrNull(o.nextDueDate), lastPaidOn: textOrNull(o.lastPaidOn),
   };
+}
+
+function pickScheduleRow(v: unknown): FinanceScheduleRow {
+  const r = rec(v);
+  return { seq: whole(r.seq), dueDate: text(r.dueDate), state: text(r.state), amountDue: num(r.amountDue), share: num(r.share), paidOn: textOrNull(r.paidOn) };
 }
 
 export function pickSummary(v: unknown): FinanceSummary {
@@ -158,7 +169,80 @@ export function pickSummary(v: unknown): FinanceSummary {
         collectedShare: num(r.collectedShare), open: num(r.open), openShare: num(r.openShare),
       };
     }),
-    orders: list(b.orders).map(pickOrder),
+    orders: list(b.orders).map((o) => ({ ...pickOrder(o), schedule: list(rec(o).schedule).map(pickScheduleRow) })),
+  };
+}
+
+// ── What a person may see of the figures (./perms.ts: d_names, d_share, d_bad) ──────────────────────────────────
+// Taken out HERE, on the server, before the answer leaves: a person who may not see the customer names, the share
+// or what is overdue does not receive them, whatever the page draws. A hidden figure leaves as 0 or "", and
+// `visible` says which were hidden, so the page hides the column instead of showing a false zero.
+
+export interface FinanceVisible { names: boolean; share: boolean; bad: boolean }
+
+/** An order's state for a person who may not see what is overdue: behind and in default read as "open". */
+const stateFor = (state: string, v: FinanceVisible): string => (!v.bad && (state === "behind" || state === "default") ? "open" : state);
+const instalmentStateFor = (state: string, v: FinanceVisible): string => (!v.bad && state === "late" ? "unpaid" : state);
+
+/** The next month to fall due that is not already overdue: what "Next Due" says to a person who may not see what is
+ *  overdue (the earliest open month would be a day in the past, which says it is overdue). */
+const nextNotLate = (rows: Array<{ seq: number; dueDate: string; state: string }>): string | null =>
+  [...rows].sort((a, b) => a.seq - b.seq).find((r) => r.state === "due" || r.state === "upcoming")?.dueDate ?? null;
+
+function filterOrder<T extends FinanceOrder>(o: T, v: FinanceVisible, rows: Array<{ seq: number; dueDate: string; state: string }>): T {
+  return {
+    ...o,
+    customerName: v.names ? o.customerName : "",
+    ratePct: v.share ? o.ratePct : 0,
+    shareTotal: v.share ? o.shareTotal : 0,
+    shareEarned: v.share ? o.shareEarned : 0,
+    shareToCome: v.share ? o.shareToCome : 0,
+    overdueShare: v.share && v.bad ? o.overdueShare : 0,
+    overdueMonths: v.bad ? o.overdueMonths : 0,
+    overdueAmount: v.bad ? o.overdueAmount : 0,
+    nextDueDate: v.bad ? o.nextDueDate : nextNotLate(rows),
+    state: stateFor(o.state, v),
+  };
+}
+
+export function filterSummary(s: FinanceSummary, v: FinanceVisible): FinanceSummary {
+  const t = s.totals;
+  return {
+    asOf: s.asOf,
+    totals: {
+      ...t,
+      shareTotal: v.share ? t.shareTotal : 0,
+      shareEarned: v.share ? t.shareEarned : 0,
+      shareToCome: v.share ? t.shareToCome : 0,
+      overdueShare: v.share && v.bad ? t.overdueShare : 0,
+      overdueOrders: v.bad ? t.overdueOrders : 0,
+      overdueMonths: v.bad ? t.overdueMonths : 0,
+      overdueAmount: v.bad ? t.overdueAmount : 0,
+      defaultOrders: v.bad ? t.defaultOrders : 0,
+    },
+    months: s.months.map((m) => ({
+      ...m,
+      dueShare: v.share ? m.dueShare : 0,
+      collectedShare: v.share ? m.collectedShare : 0,
+      openShare: v.share ? m.openShare : 0,
+    })),
+    orders: s.orders.map((o) => ({
+      ...filterOrder(o, v, o.schedule),
+      schedule: o.schedule.map((r) => ({ ...r, state: instalmentStateFor(r.state, v), share: v.share ? r.share : 0 })),
+    })),
+  };
+}
+
+export function filterAgreement(a: FinanceAgreement, v: FinanceVisible): FinanceAgreement {
+  return {
+    asOf: a.asOf,
+    order: filterOrder(a.order, v, a.instalments),
+    instalments: a.instalments.map((i) => ({
+      ...i,
+      state: instalmentStateFor(i.state, v),
+      share: v.share ? i.share : 0,
+      daysLate: v.bad ? i.daysLate : 0,
+    })),
   };
 }
 

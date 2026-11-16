@@ -147,8 +147,21 @@ describe("supplierFinanceSummary", () => {
     const keys = Object.keys(s.orders[0]!).sort();
     expect(keys).toEqual([
       "agreementNo", "collected", "contractValue", "customerName", "id", "item", "lastPaidOn", "monthlyFee", "nextDueDate",
-      "overdueAmount", "overdueMonths", "overdueShare", "paidCount", "ratePct", "shareEarned", "shareToCome", "shareTotal",
+      "overdueAmount", "overdueMonths", "overdueShare", "paidCount", "ratePct", "schedule", "shareEarned", "shareToCome", "shareTotal",
       "soNo", "startDate", "state", "status", "termMonths", "toCollect",
     ]);
+    expect(Object.keys(s.orders[0]!.schedule[0]!).sort()).toEqual(["amountDue", "dueDate", "paidOn", "seq", "share", "state"]);
+  });
+
+  it("carries each order's months, read the same way as the order's own figures", () => {
+    const s = supplierFinanceSummary([a, b], rows, TODAY);
+    const ra2 = s.orders.find((o) => o.agreementNo === "RA-2")!;
+    expect(ra2.schedule).toHaveLength(12);
+    // Three paid (Jun to Aug), three late (Sep to Nov 7), the rest to come.
+    expect(ra2.schedule.map((r) => r.state).slice(0, 7)).toEqual(["paid", "paid", "paid", "late", "late", "late", "upcoming"]);
+    expect(ra2.schedule.filter((r) => r.state === "late").length).toBe(ra2.overdueMonths);
+    expect(ra2.schedule[0]).toEqual({ seq: 1, dueDate: "2026-06-07", state: "paid", amountDue: 100, share: 49, paidOn: "2026-06-07" });
+    const shares = Math.round(ra2.schedule.reduce((x, r) => x + r.share, 0) * 100) / 100;
+    expect(shares).toBe(ra2.shareTotal);
   });
 });
