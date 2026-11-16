@@ -222,12 +222,17 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   moves the requests all or none, and takes the files back if they could not move. `POST /pickups/:id/ask`
   (`date` or `cancel`) and `/ask/withdraw`; Carres answers in Supplier Pickups (`POST /:id/ask/approve`,
   `/:id/ask/decline`) and reads the PDF (`GET /:id/do`).
-- *The portal's Alerts bell (owner, 17 Nov 2026).* The portal's `GET /api/operation/scm-engine/supplier-asks`
-  (operation and principal only) signs `supplier-asks.<ts>.<body>` under the sign-on secret and calls the engine's
-  `POST /api/carres-portal/supplier-asks` (`carres/supplier/portal-asks.ts`, mounted before the staff gate: the
-  signature is its gate, one minute either way) over the `SCM_ENGINE` binding; the answer carries only what the
-  bell shows, at most the 50 oldest asks and their count. `GlobalTopBar.tsx` reads it every minute; nothing is
-  stored on the portal. The supplier's address refuses that path (`carresSupplierSite.test.ts`).
+- *The ask on the staff bell (owner, 17 Nov 2026).* `carres/supplier/ask-notice.ts`: after a supplier's ask is
+  saved, `routes.ts` posts it (after the answer leaves) through the engine's one machine-notice path,
+  `services/personalNotice.ts` `postPersonalNotice`, source `supplier_ask`: a private announcement under the bell's
+  System tab. The people are every active staff member whose page access, resolved with sign-in's own
+  `resolveMemberPageAccess`, reaches `scm.procurement.po` at edit (Supplier Pickups' gate), wildcard roles
+  included (unlike `permissionHolders.ts`; ERP-ARCHITECTURE §6.6 says why). The title starts with the request
+  number; every act that ends the ask (approve, decline, take back, collected by either side, cancelled) switches
+  that notice off (`takeDownAskNotice`) and refreshes its people's cached banners. Supplier Pickups opens on
+  `?tab=` and `?open=` from its address. Measured 17 Nov 2026: the portal opens every staff address into the
+  engine's screens and shows its own top bar (`GlobalTopBar.tsx`) nowhere, so a first version that put the asks
+  there (#2349) was taken out.
 - *Carres side.* Settings › Supplier Access (`carres/supplier-staff/SupplierAccessTab.tsx`, API
   `/api/carres/supplier-access`, needs Settings at full) and Supply Chain › Procurement › Supplier Pickups
   (`/scm/supplier-pickups`, API `/api/carres/supplier-pickups`, the Purchase Orders page access: view to read, edit
@@ -302,7 +307,7 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   Tests: `tests/carresSupplierSite.test.ts`, `functions/supplierFrame.test.ts`.
   **Never give the engine Worker's own `wrangler.toml` a `routes` line:** that switches its `workers.dev` address
   off, and the engine site and the portal reach the Worker there (the test pins it).
-- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (four mounts), `src/types.ts`
+- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts), `src/types.ts`
   (`SUPPLIER_PUBLIC_URL`), `scripts/data/date-format-allowlist.json` (the pickup calendar's month heading),
   `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`

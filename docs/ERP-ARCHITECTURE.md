@@ -1316,7 +1316,7 @@ Owners: Delivery owns the confirmation contact and the first-leg handover refusa
 timing"); Sales Orders' DO gate reads that one clock unchanged. **PROPOSAL / NOT LAW:** no COD
 approval for outstation orders. Falsifier: the owner approves an outstation COD case.
 
-## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15 · redesign and supplier-side acts 2026-11-17 · BUILT · DEPLOYED 2026-11-17 · supplier asks on the portal's Alerts bell 2026-11-17 · BUILT, deploys with its pull request)
+## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15 · redesign and supplier-side acts 2026-11-17 · BUILT · DEPLOYED 2026-11-17 · supplier asks on the staff bell 2026-11-17 · BUILT, deploys with its pull request)
 
 **RULING (Loo, 2026-11-15).** A supplier signs in to pages of its own and sees only what Carres
 shares with it. Carres collects goods at the supplier's warehouse, so the supplier's warehouse must
@@ -1396,11 +1396,15 @@ kept and shown as `Date changed`); an approved cancel frees the lines, so their 
 
 **Carres sees a waiting ask without opening Supplier Pickups (RULING, Loo, 2026-11-17: "need show up in
 portal notification").** An ask nobody reads runs out: the lorry still goes on the old day, and once the
-asked-for day has passed the ask can only be declined. So every waiting ask is on the portal's Alerts
-bell, in its own group `Asked by supplier`, counted in the bell's number, for operation and the
-principal (the people who answer it). A row opens Supplier Pickups on that request. The bell reads the
-asks from the engine each time and keeps no copy, so an answered ask is gone from its next reading; the
-engine still owns the ask and its answer. No email, WhatsApp or Workspace task is made for an ask.
+asked-for day has passed the ask can only be declined. So every ask is posted to the bell at the top
+right of every staff screen. That bell is the engine's: the portal opens straight into the engine's
+screens, and its own top bar is shown nowhere (measured 17 Nov 2026, which is why a first version on
+the portal's top bar was taken out). It is a private notice under the bell's System tab, never a
+pop-up, for every active person who can answer it in Supplier Pickups (Purchase Orders page at edit),
+the Owner role included: an ask is rare and tied to a lorry already booked, and today only the Owner
+role can act there. Once the ask is answered, taken back or overtaken (the pickup collected or
+cancelled), its notice is switched off for everyone. The engine owns the ask, its answer and the
+notice. No email, WhatsApp or Workspace task is made for an ask.
 
 A line sits on one live request at a time. **It is a notice and its answer. It moves no stock** and
 is not evidence of receipt, ownership or a Unit's handover: goods still enter Carres's books through

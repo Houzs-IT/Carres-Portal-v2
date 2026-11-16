@@ -54,8 +54,6 @@ describe('Carres supplier address: what each request gets', () => {
     for (const path of [
       '/api', '/api/', '/api/auth/login', '/api/auth/status', '/api/carres-sso', '/api/carres/supplier-access',
       '/api/carres/supplier-pickups', '/api/track/orders', '/api/track/company/x', '/api/scm/sales-orders', '/api/users',
-      // The Carres portal's own call (the supplier asks for its Alerts bell): its server reaches the engine directly.
-      '/api/carres-portal/supplier-asks',
       // Spellings that only look like the supplier API.
       '/api/carres-supplierx', '/api/carres-supplier-admin/x', '/api//auth/login', '/api//carres-supplier/orders',
       '/api/carres-supplier/../auth/login', '/api/carres-supplier/%2e%2e/auth/login', '/api/carres-supplier%2Forders',

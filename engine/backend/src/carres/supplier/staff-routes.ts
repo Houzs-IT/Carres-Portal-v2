@@ -22,6 +22,7 @@ import {
 } from "./pickups";
 import { financeSummary } from "./finance";
 import { attachmentHeader, fileStore } from "./files";
+import { takeDownAskNotice } from "./ask-notice";
 
 type Ctx = Context<{ Bindings: Env }>;
 
@@ -134,9 +135,12 @@ supplierPickups.get("/:id", async (c) => {
   return c.json({ pickup });
 });
 
+// Each act below ends a supplier's ask on the request when one was waiting (./pickups.ts clears it in the same
+// statement), so the ask's notice comes off the bell too (./ask-notice.ts).
 supplierPickups.post("/:id/collect", mayAct, async (c) => {
   const out = await collectPickup(dbFor(c.env), c.req.param("id"), staff(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
+  await takeDownAskNotice(c.env, out.pickup.requestNo);
   return c.json({ pickup: out.pickup });
 });
 
@@ -144,6 +148,7 @@ supplierPickups.post("/:id/cancel", mayAct, async (c) => {
   const b = await body<{ reason?: unknown }>(c);
   const out = await cancelPickup(dbFor(c.env), c.req.param("id"), b.reason, staff(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
+  await takeDownAskNotice(c.env, out.pickup.requestNo);
   return c.json({ pickup: out.pickup });
 });
 
@@ -151,6 +156,7 @@ supplierPickups.post("/:id/cancel", mayAct, async (c) => {
 supplierPickups.post("/:id/ask/approve", mayAct, async (c) => {
   const out = await answerPickupAsk(dbFor(c.env), c.req.param("id"), { approve: true }, staff(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
+  await takeDownAskNotice(c.env, out.pickup.requestNo);
   return c.json({ pickup: out.pickup });
 });
 
@@ -158,6 +164,7 @@ supplierPickups.post("/:id/ask/decline", mayAct, async (c) => {
   const b = await body<{ reason?: unknown }>(c);
   const out = await answerPickupAsk(dbFor(c.env), c.req.param("id"), { approve: false, reason: b.reason }, staff(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
+  await takeDownAskNotice(c.env, out.pickup.requestNo);
   return c.json({ pickup: out.pickup });
 });
 

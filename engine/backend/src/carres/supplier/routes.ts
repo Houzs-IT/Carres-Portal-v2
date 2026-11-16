@@ -27,6 +27,7 @@ import { addOwnPerson, listOwnPeople, removeOwnPerson, updateOwnPerson } from ".
 import { sendInvite } from "./invite";
 import { sendResetLink } from "./reset";
 import { MAX_DO_BYTES, MAX_UPLOAD_BYTES, attachmentHeader, deliveryOrderKey, deliveryOrderName, fileStore, isPdf } from "./files";
+import { noticeSupplierAsk, takeDownAskNotice } from "./ask-notice";
 
 type Vars = { supplier: SupplierUser; sdb: Db; stoken: string };
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
@@ -321,6 +322,12 @@ app.post("/pickups/collect", operation, need("operation", "v_pickups"), need("op
     await takeBack();
     return c.json({ error: out.error }, out.status);
   }
+  // Collected goods answer any ask that was still waiting on them (./pickups.ts clears it): its notice goes too.
+  const env = c.env;
+  const collected = out.pickups.map((p) => p.requestNo);
+  await afterResponse("carres-supplier ask notice down", async () => {
+    for (const no of collected) await takeDownAskNotice(env, no);
+  });
   return c.json({ pickups: out.pickups });
 });
 
@@ -356,7 +363,14 @@ app.post("/pickups/:id/ask", operation, need("operation", "v_pickups"), async (c
   if (!holds(c.get("supplier"), "operation", key)) return c.json({ error: NOT_ALLOWED }, 403);
   const out = await askPickupChange(c.get("sdb"), c.req.param("id"), { kind: b?.kind, date: b?.date }, actor(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  return c.json({ pickup: out.pickup });
+  // The people who can answer it see it on their bell (./ask-notice.ts), after the answer leaves.
+  const p = out.pickup;
+  const env = c.env;
+  await afterResponse("carres-supplier ask notice", () => noticeSupplierAsk(env, {
+    requestNo: p.requestNo, supplierName: p.supplierName, kind: p.ask?.kind === "cancel" ? "cancel" : "date",
+    currentDate: p.expectedDate, askDate: p.ask?.date ?? null,
+  }));
+  return c.json({ pickup: p });
 });
 
 app.post("/pickups/:id/ask/withdraw", operation, need("operation", "v_pickups"), async (c) => {
@@ -367,6 +381,9 @@ app.post("/pickups/:id/ask/withdraw", operation, need("operation", "v_pickups"),
   if (!holds(u, "operation", now.ask.kind === "date" ? "a_date" : "a_cancel")) return c.json({ error: NOT_ALLOWED }, 403);
   const out = await withdrawPickupAsk(c.get("sdb"), now.id, actor(c));
   if (!out.ok) return c.json({ error: out.error }, out.status);
+  const env = c.env;
+  const requestNo = out.pickup.requestNo;
+  await afterResponse("carres-supplier ask notice down", () => takeDownAskNotice(env, requestNo));
   return c.json({ pickup: out.pickup });
 });
 
