@@ -11,7 +11,7 @@ import { forSupplier, pickupIds, todayMyt, type StaffPickup } from "./pickups";
 import { allPerms, cleanPerms, readPerms } from "./perms";
 import { attachmentHeader, deliveryOrderName, isPdf } from "./files";
 import { inviteMail } from "./mail";
-import portalCalls, { ASKS_PURPOSE, verifyPortalRequest } from "./portal-asks";
+import { ASK_NOTICE_SOURCE, askAudience, askNoticeWords, noticeSupplierAsk, takeDownAskNotice } from "./ask-notice";
 
 const line = (state: OrderLine["pickup"]["state"], requestNo: string | null = null): OrderLine => ({
   soItemId: "i", lineNo: 0, itemCode: "M1", description: "Mattress", spec: null, category: "MATTRESS", modelName: null, uom: "UNIT", qty: 1,
@@ -452,48 +452,76 @@ describe("the invite email", () => {
   });
 });
 
-describe("the portal's call for the supplier asks waiting on Carres", () => {
-  const SECRET = "s".repeat(40);
-  const b64url = (bytes: ArrayBuffer) =>
-    btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  /** What the portal sends: `<purpose>.<ts>.<body>` under the shared secret. */
-  const sign = async (purpose: string, ts: string, body: string, secret = SECRET) => {
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    return b64url(await crypto.subtle.sign("HMAC", key, enc.encode(`${purpose}.${ts}.${body}`)));
-  };
-
-  it("takes the portal's signature over this body, made within the minute", async () => {
-    const now = 1_794_850_000_000;
-    const ts = String(now);
-    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now)).toBe(true);
-    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now + 59_000)).toBe(true);
+describe("a supplier's ask on the staff bell (owner, 17 Nov 2026)", () => {
+  it("names the request first, then the supplier, the days in the one date format, and where to answer", () => {
+    const move = askNoticeWords({ requestNo: "CR-PKR-2611-001", supplierName: "RED SOFA", kind: "date", currentDate: "2026-11-24", askDate: "2026-11-26" });
+    expect(move).toEqual({
+      title: "CR-PKR-2611-001: RED SOFA asks to move the pickup",
+      body: "RED SOFA asks Carres to move pickup CR-PKR-2611-001 from 2026/11/24 to 2026/11/26. Nothing changes until you answer it in Supplier Pickups.",
+    });
+    const cancel = askNoticeWords({ requestNo: "CR-PKR-2611-001", supplierName: "RED SOFA", kind: "cancel", currentDate: "2026-11-24", askDate: null });
+    expect(cancel).toEqual({
+      title: "CR-PKR-2611-001: RED SOFA asks to cancel the pickup",
+      body: "RED SOFA asks Carres to cancel pickup CR-PKR-2611-001, set for 2026/11/24. Nothing changes until you answer it in Supplier Pickups.",
+    });
   });
 
-  it("refuses another purpose, another body, another secret, an old or future time and a broken signature", async () => {
-    const now = 1_794_850_000_000;
-    const ts = String(now);
-    // A finance call's or a sign-on's signature never passes here.
-    expect(await verifyPortalRequest(SECRET, ts, await sign("supplier-finance", ts, "{}"), "{}", now)).toBe(false);
-    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), '{"a":1}', now)).toBe(false);
-    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}", "t".repeat(40)), "{}", now)).toBe(false);
-    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now + 61_000)).toBe(false);
-    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now - 61_000)).toBe(false);
-    expect(await verifyPortalRequest(SECRET, "12ab", await sign(ASKS_PURPOSE, "12ab", "{}"), "{}", now)).toBe(false);
-    expect(await verifyPortalRequest(SECRET, ts, "not*base64", "{}", now)).toBe(false);
+  /** A stand-in for env.DB that answers by what each statement reads and keeps every statement that ran. */
+  function fakeEnv(answers: { users?: unknown[]; rolePages?: unknown[]; live?: unknown[] }) {
+    const ran: Array<{ sql: string; args: unknown[] }> = [];
+    const prepare = (sql: string) => {
+      let args: unknown[] = [];
+      const stmt = {
+        bind(...a: unknown[]) { args = a; return stmt; },
+        async all() {
+          ran.push({ sql, args });
+          if (/FROM users u/.test(sql)) return { results: answers.users ?? [] };
+          if (/FROM role_page_access/.test(sql)) return { results: answers.rolePages ?? [] };
+          if (/FROM announcements/.test(sql)) return { results: answers.live ?? [] };
+          return { results: [] };
+        },
+        async first() { ran.push({ sql, args }); return null; },
+        async run() { ran.push({ sql, args }); return { success: true }; },
+      };
+      return stmt;
+    };
+    return { env: { DB: { prepare } } as never, ran };
+  }
+  const person = (id: number, perms: string[]) => ({
+    id, role_id: id, role_permissions: JSON.stringify(perms), position_id: null, position_name: null, department_name: null,
+    policy_cohort: null, policy_profile: null, policy_money: null, policy_config: null, policy_fleet: null, policy_duty: null,
   });
 
-  it("answers nobody without the signature, and nothing but its one route", async () => {
-    const env = { CARRES_SSO_SECRET: SECRET } as unknown as Record<string, unknown>;
-    const post = (headers: Record<string, string>) =>
-      portalCalls.request("/supplier-asks", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: "{}" }, env);
-    expect((await post({})).status).toBe(401);
-    const ts = String(Date.now());
-    expect((await post({ "x-carres-portal-ts": ts, "x-carres-portal-signature": await sign(ASKS_PURPOSE, ts, '{"x":1}') })).status).toBe(401);
-    expect((await post({ "x-carres-portal-ts": ts, "x-carres-portal-signature": await sign("supplier-finance", ts, "{}") })).status).toBe(401);
-    expect((await portalCalls.request("/supplier-asks", { method: "GET" }, env)).status).toBe(404);
-    expect((await portalCalls.request("/anything", { method: "POST", body: "{}" }, env)).status).toBe(404);
-    // Without the secret set, it says so and reads nothing.
-    expect((await portalCalls.request("/supplier-asks", { method: "POST", body: "{}" }, {})).status).toBe(501);
+  it("goes to everyone who can answer in Supplier Pickups, the Owner role included, and to nobody else", async () => {
+    const { env } = fakeEnv({
+      // 1: the Owner role (every page). 2: Supply Chain, but not Purchase Orders. 3: Purchase Orders at edit by its
+      // role's own page row. 4: Purchase Orders at view only: may read the page, may not answer.
+      users: [person(1, ["*"]), person(2, ["scm.access", "scm.so.view_all"]), person(3, ["scm.access"]), person(4, ["scm.access"])],
+      rolePages: [{ role_id: 3, page_key: "scm.procurement.po", level: "edit" }, { role_id: 4, page_key: "scm.procurement.po", level: "view" }],
+    });
+    expect((await askAudience(env)).sort()).toEqual([1, 3]);
+  });
+
+  it("is posted as a private notice for the bell's System tab, to those people", async () => {
+    const { env, ran } = fakeEnv({ users: [person(1, ["*"]), person(2, ["scm.access"])] });
+    await noticeSupplierAsk(env, { requestNo: "CR-PKR-2611-001", supplierName: "RED SOFA", kind: "date", currentDate: "2026-11-24", askDate: "2026-11-26" });
+    const insert = ran.find((r) => /INSERT INTO announcements/.test(r.sql))!;
+    expect(insert.args).toEqual(expect.arrayContaining([
+      "CR-PKR-2611-001: RED SOFA asks to move the pickup", "[1]", "GENERAL", ASK_NOTICE_SOURCE,
+    ]));
+    // A notice never fails the ask: with no database at all it only logs.
+    await expect(noticeSupplierAsk({} as never, { requestNo: "X", supplierName: "", kind: "cancel", currentDate: "2026-11-24", askDate: null })).resolves.toBeUndefined();
+  });
+
+  it("comes down for everyone once the ask is answered, taken back or overtaken", async () => {
+    const { env, ran } = fakeEnv({ live: [{ id: "ann-1", target_user_ids: "[1,3]" }] });
+    await takeDownAskNotice(env, "CR-PKR-2611-001");
+    const read = ran.find((r) => /FROM announcements/.test(r.sql))!;
+    expect(read.args).toEqual([ASK_NOTICE_SOURCE, "CR-PKR-2611-001: %"]);
+    expect(ran.filter((r) => /UPDATE announcements SET is_active = 0/.test(r.sql)).map((r) => r.args)).toEqual([["ann-1"]]);
+    // Nothing to take down: nothing is written.
+    const quiet = fakeEnv({ live: [] });
+    await takeDownAskNotice(quiet.env, "CR-PKR-2611-002");
+    expect(quiet.ran.some((r) => /UPDATE/.test(r.sql))).toBe(false);
   });
 });

@@ -25,8 +25,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Bell, GraduationCap, HelpCircle, LifeBuoy, Settings } from "lucide-react";
 import { useOperationOrders, type operationOrderListRow } from "@/lib/queries";
 import { apiFetch } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
-import { fmtDate } from "@/lib/fmt-date";
 import { buildInfo, checkForUpdate, shortCommit, type UpdateCheck } from "@/lib/build-info";
 import { TASKS_KEY } from "./rail/TasksPanel";
 import JumpTo from "./JumpTo";
@@ -34,15 +32,7 @@ import TeamButton from "./TeamButton";
 import MIcon from "@/components/carres/MIcon";
 import { useShellHeader } from "./shell-header-context";
 import { IT_SUPPORT_HREF } from "@/pages/portal/portal-nav";
-import type { OpsTasksListResponse, SupplierAsk, SupplierAsksResponse } from "@carres/shared";
-
-/** A supplier's ask waits for Carres's answer in Supplier Pickups (owner, 17 Nov 2026): the people who answer it
- *  see it here. The bell reads the asks themselves, so an answered one is gone from the next reading. */
-const SUPPLIER_ASKS_KEY = ["operation", "supplier-asks"] as const;
-const ASK_READERS = new Set(["operation", "principal"]);
-/** Supplier Pickups (an engine page inside the portal) on its `Asked by supplier` tab, with this request open. */
-const askHref = (a: SupplierAsk) =>
-  `/operation/sc/supplier-pickups?at=${encodeURIComponent(`/scm/supplier-pickups?tab=asked&open=${a.id}`)}`;
+import type { OpsTasksListResponse } from "@carres/shared";
 
 /** ops_order_control is sometimes an array (embed) — normalise to the row. */
 function ovlOf(o: operationOrderListRow) {
@@ -110,16 +100,6 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
     queryFn: () => apiFetch("/api/ops/tasks"),
     refetchInterval: 60_000,
   });
-  const role = useAuth((s) => s.role);
-  const readsAsks = ASK_READERS.has(role ?? "");
-  const asksQ = useQuery<SupplierAsksResponse>({
-    queryKey: SUPPLIER_ASKS_KEY,
-    queryFn: () => apiFetch("/api/operation/scm-engine/supplier-asks"),
-    enabled: readsAsks,
-    refetchInterval: 60_000,
-    // The bell is a convenience over Supplier Pickups, which still lists every ask: a failed reading is not retried.
-    retry: false,
-  });
 
   const alerts = useMemo(() => {
     const overdue: operationOrderListRow[] = [];
@@ -138,17 +118,13 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
     const escalated = (tasksQ.data?.tasks ?? []).filter(
       (t) => t.escalatedAt && t.status !== "done" && t.status !== "cancelled",
     );
-    const asks = readsAsks ? (asksQ.data?.asks ?? []) : [];
-    const askCount = readsAsks ? Math.max(asksQ.data?.count ?? 0, asks.length) : 0;
     return {
       overdue,
       chase,
       escalated,
-      asks,
-      askCount,
-      total: overdue.length + chase.length + escalated.length + askCount,
+      total: overdue.length + chase.length + escalated.length,
     };
-  }, [orders, tasksQ.data, asksQ.data, readsAsks]);
+  }, [orders, tasksQ.data]);
 
   const [open, setOpen] = useState<null | "alerts" | "help" | "settings">(null);
   /* 0430 — the Help menu's version check. null = not asked this open. */
@@ -166,10 +142,6 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
   const goOrders = () => {
     setOpen(null);
     navigate("/operation/orders");
-  };
-  const goAsk = (a: SupplierAsk) => {
-    setOpen(null);
-    navigate(askHref(a));
   };
 
   return (
@@ -226,9 +198,6 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
                 onOpen={goOrders}
                 empty="Every near delivery has a date"
               />
-              {readsAsks && asksQ.isSuccess && (
-                <SupplierAskGroup asks={alerts.asks} count={alerts.askCount} onOpen={goAsk} />
-              )}
               <button
                 type="button"
                 onClick={goOrders}
@@ -414,53 +383,6 @@ function TopBarIconsBody({ inShell }: { inShell: boolean }) {
 
 /** One alert category — a coloured label + count, then up to 5 clickable SO rows
  *  (click → the Orders list). */
-/** The supplier asks waiting for Carres (engine Supplier Pickups), oldest first: each opens its request there,
- *  where Carres approves or declines it. */
-function SupplierAskGroup({
-  asks,
-  count,
-  onOpen,
-}: {
-  asks: SupplierAsk[];
-  count: number;
-  onOpen: (a: SupplierAsk) => void;
-}) {
-  const shown = asks.slice(0, 5);
-  const more = count - shown.length;
-  return (
-    <div className="px-3 py-2 border-b border-base-100">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-label uppercase tracking-[0.05em] text-warning">Asked by supplier</span>
-        <span className="text-meta text-base-400 tabular-nums">{count}</span>
-      </div>
-      {shown.length === 0 ? (
-        <div className="text-meta text-base-400">Nothing waiting</div>
-      ) : (
-        <ul className="space-y-0.5">
-          {shown.map((a) => (
-            <li key={a.id}>
-              <button
-                type="button"
-                onClick={() => onOpen(a)}
-                className="w-full text-left px-1 py-0.5 rounded hover:bg-hovertint flex items-center justify-between gap-2"
-              >
-                <span className="text-body text-base-700 truncate min-w-0">
-                  <span className="font-mono tabular-nums">{a.requestNo}</span>
-                  {a.supplierName ? ` · ${a.supplierName}` : ""}
-                </span>
-                <span className="text-meta text-base-500 whitespace-nowrap shrink-0">
-                  {a.kind === "cancel" ? "Cancel pickup" : `Move to ${fmtDate(a.askDate)}`}
-                </span>
-              </button>
-            </li>
-          ))}
-          {more > 0 && <li className="text-meta text-base-400 px-1">+{more} more</li>}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 function AlertGroup({
   title,
   tone,

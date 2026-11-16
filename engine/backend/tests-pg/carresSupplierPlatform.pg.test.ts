@@ -18,7 +18,6 @@ import { MAX_FAILS_PER_EMAIL, MAX_RESET_MAILS_PER_EMAIL, WORKER_SUBREQUEST_ADDRE
 import { useResetDepsForTests } from '../src/carres/supplier/reset';
 import type { Mail, MailResult } from '../src/carres/supplier/mail';
 import supplierApp from '../src/carres/supplier/routes';
-import portalCalls, { waitingAsks } from '../src/carres/supplier/portal-asks';
 import { supplierAccess, supplierPickups } from '../src/carres/supplier/staff-routes';
 import type { Env } from '../src/types';
 
@@ -58,24 +57,6 @@ let supC = '';
 let modelMattress = '';
 
 const TODAY = '2026-11-15';
-
-/** The portal's server asking for the supplier asks waiting on Carres, signed the way it signs them
- *  (apps/api/src/routes/operation/scm-engine.ts). */
-async function portalAsks(): Promise<{ status: number; body: unknown }> {
-  const secret = 'p'.repeat(40);
-  const body = '{}';
-  const ts = String(Date.now());
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`supplier-asks.${ts}.${body}`)));
-  const signature = btoa(String.fromCharCode(...mac)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const res = await portalCalls.request('/supplier-asks', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-carres-portal-ts': ts, 'x-carres-portal-signature': signature },
-    body,
-  }, { CARRES_SSO_SECRET: secret } as unknown as Env);
-  return { status: res.status, body: await res.json() };
-}
 
 async function buildSchemaIfEmpty(s: Sql): Promise<void> {
   const has = await s`select to_regclass('scm.mfg_sales_orders')::text as t`;
@@ -1292,17 +1273,7 @@ describePg('Carres supplier platform', () => {
       expect((await post(`/pickups/${r1}/ask`, ana, { kind: 'date', date: inDays(9) })).status).toBe(200);
       const staffList = await listPickups(db, { supplierId: supA, asked: true });
       expect(staffList.map((p) => p.id)).toEqual([r1]);
-      // The portal's Alerts bell reads the same ask, through its signed call, with only what the bell shows.
-      const waiting = await waitingAsks(db);
-      expect(waiting.count).toBe(1);
-      expect(waiting.asks).toEqual([{
-        id: r1, requestNo: expect.stringMatching(/^CR-PKR-\d{4}-\d{3}$/), supplierName: 'ZZT MATTRESS MAKER', kind: 'date',
-        askDate: inDays(9), expectedDate: inDays(5), askedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/),
-      }]);
-      expect(await portalAsks()).toEqual({ status: 200, body: waiting });
       const approved = await answerPickupAsk(db, r1, { approve: true }, actor);
-      // Answered, it leaves the bell: the bell keeps no copy of an ask.
-      expect(await waitingAsks(db)).toEqual({ count: 0, asks: [] });
       expect(approved).toMatchObject({
         ok: true,
         pickup: { expectedDate: inDays(9), previousExpectedDate: inDays(5), expectedTime: null, ask: null, answer: { kind: 'date', approved: true, byName: 'ZZT Staff Member' } },

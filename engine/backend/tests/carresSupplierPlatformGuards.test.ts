@@ -63,19 +63,6 @@ describe('Carres supplier platform: where the routes sit', () => {
     expect(ROUTES).toMatch(/\blistSupplierPickups\b/);
   });
 
-  it("the portal's call sits before the staff gate: one signed POST, and nothing else answers", () => {
-    // No staff session reaches it (the portal's server calls it), so its signature is its gate.
-    const gate = at(INDEX, 'app.use("/api/*", auth);');
-    expect(at(INDEX, 'app.route("/api/carres-portal", carresPortalCalls);')).toBeLessThan(gate);
-    const PORTAL = read('../src/carres/supplier/portal-asks.ts');
-    expect(PORTAL.match(/app\.(get|post|put|patch|delete|all|on|route|mount|use)\("([^"]+)"/g) ?? []).toEqual([
-      'app.post("/supplier-asks"',
-      'app.all("*"',
-    ]);
-    at(PORTAL, 'app.all("*", (c) => c.json({ error: "Not found." }, 404));');
-    at(PORTAL, 'await verifyPortalRequest(secret, ts, signature, raw)');
-  });
-
   it('no limit on these routes is kept per address', () => {
     // Behind the site's proxy every browser arrives under one address: a count on it is a switch one outsider can
     // throw for every supplier, and a count on anything else stops only a caller who chose to be stopped.

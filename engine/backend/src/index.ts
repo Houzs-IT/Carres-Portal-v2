@@ -33,8 +33,6 @@ import carresSso from "./carres/sso";
 // sign-in; the other two are the Carres side, for signed-in staff.
 import carresSupplier from "./carres/supplier/routes";
 import { supplierAccess as carresSupplierAccess, supplierPickups as carresSupplierPickups } from "./carres/supplier/staff-routes";
-// Carres: what the Carres portal's server reads from the Supplier Platform, signed (src/carres/supplier/portal-asks.ts).
-import carresPortalCalls from "./carres/supplier/portal-asks";
 import totpRoutes from "./routes/totp";
 import users from "./routes/users";
 import fieldPinAdmin from "./routes/fieldPinAdmin";
@@ -340,9 +338,6 @@ app.get("/health", (c) => {
 app.route("/api/auth", authRoutes);
 // Carres: sign-on from the Carres portal, server to server, proven by a shared secret (src/carres/sso.ts).
 app.route("/api/carres-sso", carresSso);
-// Carres: the Carres portal's server asks for the supplier asks waiting on Carres, for its Alerts bell. Server to
-// server, proven by a signature under the same shared secret with its own purpose word; no staff session.
-app.route("/api/carres-portal", carresPortalCalls);
 // Carres: the Supplier Platform's own API. Mounted BEFORE the staff sign-in gate on purpose: a supplier is not staff
 // and never gets a staff session. Its router answers every path under it and checks its own session
 // (carres_supplier_sessions), so nothing here falls through to the staff routes below.
