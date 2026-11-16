@@ -65,6 +65,16 @@ and Supply Chain row maps to an engine page in `portal-nav.ts` `ENGINE_PAGES`, i
 Rule: the engine's screens match Houzs except the theme; Carres edits live only in `engine/frontend/src/carres/`,
 the files the commits below name, and the Carres config files.
 
+**What the frame hands the engine (16 Nov 2026).** A framed site of another origin gets a browser feature only
+when the frame hands it over. The frame hands over ONE: writing to the clipboard (`SupplyChainEngine.tsx`
+`FRAME_ALLOW`, the frame's `allow`). Without it Chrome and Edge refuse every Copy button in the engine; it was
+found on Settings › Supplier Access (`Could not copy`). Measured in Chrome 157 on a two-site model that sends the
+portal's own `Permissions-Policy`: with no `allow` the page answers `NotAllowedError … blocked because of a
+permissions policy`, with it the text is copied. Reading the clipboard, the camera, location and the phone's
+share sheet are not handed over; the engine pages that would use them are listed in `carry-forwards.md`
+`engine-frame-has-no-camera-location-or-share`. `SupplyChainEngine.test.tsx` pins the list, so it is widened on
+purpose and never by accident.
+
 **The old Carres pages of these three areas are removed** (owner, 11 Nov 2026). `OperationApp.tsx` mounts only
 the engine frame (`/operation/sc/<row>`) and Carres's own pages (Workspace, Leave, Subscription); every old address (`/operation/orders…`, `/operation/procurement…`, old `?tab=`
 values) redirects to the nearest engine row (`portal-nav.ts` `retiredRedirect`). Some old operation code is still

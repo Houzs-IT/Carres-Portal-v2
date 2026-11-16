@@ -1,3 +1,31 @@
+## `engine-frame-has-no-camera-location-or-share` — OPEN, found 2026-11-16
+
+**What.** The engine's pages run in a frame inside the portal (`SupplyChainEngine.tsx`), and a framed site of
+another origin gets a browser feature only when the portal hands it over. Since 16 Nov 2026 the frame hands
+over writing to the clipboard and nothing else (`FRAME_ALLOW`; before that it handed over nothing, and every
+Copy button in the engine failed in Chrome and Edge). The portal also sends
+`Permissions-Policy: camera=(), microphone=(), geolocation=() …` (`apps/web/public/_headers`), which refuses
+those to every frame whatever the frame asks. So inside the portal these engine pages cannot use:
+
+```
+camera     lib/use-qr-scanner.ts (the live scanner), used by mobile/MobileGrnLineRack.tsx and
+           pages/PublicDoScanBasket.tsx
+location   mobile/MobileJobStop.tsx, MobileMileageCapture.tsx, MobilePOD.tsx, MobilePunch.tsx, and the trip
+           watcher vendor/scm/lib/trip-locations-queries.ts (MobileTrackingBanner, LorryTodayRoute, Trips,
+           LiveTripMap)
+share      components/scm-v2/PodPhotoAlbum.tsx (the phone's share sheet)
+```
+
+**Measured (2026-11-16).** Chrome 157, a two-site model that sends the portal's header: the framed page reports
+`camera`, `geolocation` and `web-share` not allowed, with and without the clipboard hand-over. **Not measured:**
+whether Carres staff reach these pages today, and what each page does when it is refused. That needs a signed-in
+phone.
+
+**Fix when one of these pages goes into use.** Name the engine site for the feature in the header
+(`camera=("https://carres-scm.pages.dev")`, the same for `geolocation`: the origin exactly, no wildcard) and add
+the feature to `FRAME_ALLOW` (`camera`, `geolocation`, `web-share`). The test in `SupplyChainEngine.test.tsx`
+pins the list. Check it signed in on a real phone: this header fails silently.
+
 ## `supplier-platform-separation-is-code-only` — OPEN by the owner's choice, 2026-11-15
 
 **What.** The Supplier Platform (ERP-ARCHITECTURE §6.6) runs inside the engine: its API is in the engine
