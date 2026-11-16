@@ -53,6 +53,16 @@ describe("the phone app's Carres menu row", () => {
   });
 });
 
+describe("what the frame lets the engine do in the browser", () => {
+  it("lets the engine's Copy buttons write to the clipboard, and hands over nothing else", async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ site: "https://scm.test", token: "tok", sessionPass: null });
+    const view = render(<SupplyChainEngine path="/settings?tab=suppliers" />);
+    await waitFor(() => expect(view.container.querySelector("iframe")).not.toBeNull());
+    // Exactly this: a wider list (clipboard-read, camera, geolocation) is a decision, not a side effect.
+    expect(view.container.querySelector("iframe")!.getAttribute("allow")).toBe("clipboard-write");
+  });
+});
+
 describe("enginePath", () => {
   it("takes an engine address and refuses anything that could leave the engine", () => {
     expect(enginePath("/scm/purchase-orders")).toBe("/scm/purchase-orders");

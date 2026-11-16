@@ -45,6 +45,12 @@ export function engineFrameSrc(r: EngineSession, path = "/", phone = false): str
   return `${r.site}/#carres=${b64url(JSON.stringify({ t: r.token, sp: r.sessionPass ?? undefined, p: path, ...(phone ? { m: 1 } : {}) }))}`;
 }
 
+/** What the frame lets the engine do in the browser. The engine is another site, and Chrome and Edge refuse a
+ *  framed site the clipboard unless the frame hands it over: without this every Copy button in the engine fails
+ *  (a link, an address, a table). Writing only: nothing is read from the clipboard, and no other browser feature
+ *  (camera, location) is handed over. */
+export const FRAME_ALLOW = "clipboard-write";
+
 /** The frame is shown at the latest this long after it starts loading, even without carres:ready. */
 export const FRAME_READY_TIMEOUT_MS = 15_000;
 
@@ -172,6 +178,7 @@ export default function SupplyChainEngine({ path: wantedPath, phone = false, onM
         ref={frame}
         src={session.src}
         title={SC.title}
+        allow={FRAME_ALLOW}
         aria-hidden={ready ? undefined : true}
         tabIndex={ready ? undefined : -1}
         className={`block min-h-0 w-full flex-1 border-0 ${ready ? "" : "pointer-events-none opacity-0"}`}
