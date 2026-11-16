@@ -6,8 +6,11 @@ import { resetMail, sendMail } from "./mail";
 import {
   WORKER_SUBREQUEST_ADDRESS, callerAddress, decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
 } from "./credentials";
-import { pickAgreement, pickSummary, signFinanceBody } from "./finance";
-import { forSupplier, todayMyt, type StaffPickup } from "./pickups";
+import { filterAgreement, filterSummary, pickAgreement, pickSummary, signFinanceBody } from "./finance";
+import { forSupplier, pickupIds, todayMyt, type StaffPickup } from "./pickups";
+import { allPerms, cleanPerms, readPerms } from "./perms";
+import { attachmentHeader, deliveryOrderName, isPdf } from "./files";
+import { inviteMail } from "./mail";
 
 const line = (state: OrderLine["pickup"]["state"], requestNo: string | null = null): OrderLine => ({
   soItemId: "i", lineNo: 0, itemCode: "M1", description: "Mattress", spec: null, category: "MATTRESS", modelName: null, uom: "UNIT", qty: 1,
@@ -67,6 +70,15 @@ describe("buildTrail", () => {
     }]);
     expect(trail.map((t) => t.code)).toEqual(["RECEIVED", "IN_PRODUCTION", "PICKUP_REQUESTED", "PICKUP_ACCEPTED", "PICKUP_COLLECTED"]);
     expect(trail[2]).toMatchObject({ ref: "CR-PKR-2611-001", detail: "2026-11-10" });
+  });
+  it("a move Carres approved is its own entry; the request still names the day first asked for", () => {
+    const trail = buildTrail(null, [], [{
+      requestNo: "CR-PKR-2611-001", expectedDate: "2026-11-22", previousExpectedDate: "2026-11-20", requestedAt: "2026-11-03T00:00:00Z",
+      acceptedAt: "2026-11-04T00:00:00Z", dateChangedAt: "2026-11-05T00:00:00Z", collectedAt: null, cancelledAt: null,
+    }]);
+    expect(trail.map((t) => [t.code, t.detail])).toEqual([
+      ["PICKUP_REQUESTED", "2026-11-20"], ["PICKUP_ACCEPTED", null], ["PICKUP_DATE_CHANGED", "2026-11-22"],
+    ]);
   });
 });
 
@@ -293,20 +305,148 @@ describe("pickups", () => {
     const p = {
       id: "1", requestNo: "CR-PKR-2611-001", supplierId: "sup-1", supplierName: "Maker", expectedDate: "2026-11-20", expectedTime: null,
       note: null, status: "ACCEPTED", requestedAt: "t1", acceptedAt: "t2", acceptedByName: "Ana", collectedAt: null, cancelledAt: null,
-      cancelReason: null, soDocNos: ["CR-SO-1"], lineCount: 1, unitCount: 2,
+      cancelReason: null, soDocNos: ["CR-SO-1"], lineCount: 1, unitCount: 2, collectedBySupplierName: null, cancelledBySupplier: false,
+      previousExpectedDate: "2026-11-18", dateChangedAt: "t3",
+      ask: { kind: "date", date: "2026-11-25", askedAt: "t4", askedByName: "Ana", askedById: 7 },
+      answer: { kind: "date", approved: true, date: "2026-11-20", answeredAt: "t5", reason: null, byName: "Jess" },
+      deliveryOrder: { name: "DO-1.pdf", uploadedAt: "t6", size: 1234, key: "carres-supplier-do/sup-1/x.pdf" },
+      orders: [{ docNo: "CR-SO-1", customerName: "Tan", phone: "0127770001" }],
       // A column a later edit adds to a line or to the request, and the names of the Carres staff who worked on it.
       lines: [{ ...line, unitCostSen: 12345 }], requestedByName: "Jess", collectedByName: "Ali", cancelledByName: null, internalNote: "margin 40%",
     } as unknown as StaffPickup;
     const out = forSupplier(p) as unknown as Record<string, unknown>;
     expect(Object.keys(out).sort()).toEqual([
-      "acceptedAt", "acceptedByName", "cancelReason", "cancelledAt", "collectedAt", "expectedDate", "expectedTime", "id", "lineCount", "lines",
-      "note", "requestNo", "requestedAt", "soDocNos", "status", "supplierName", "unitCount",
+      "acceptedAt", "acceptedByName", "answer", "ask", "cancelReason", "cancelledAt", "cancelledBySupplier", "collectedAt",
+      "collectedBySupplierName", "dateChangedAt", "deliveryOrder", "expectedDate", "expectedTime", "id", "lineCount", "lines", "note",
+      "orders", "previousExpectedDate", "requestNo", "requestedAt", "soDocNos", "status", "supplierName", "unitCount",
     ]);
     expect(out.lines).toEqual([line]);
-    expect(JSON.stringify(out)).not.toMatch(/Jess|Ali|sup-1|12345|margin/);
+    expect(out.ask).toEqual({ kind: "date", date: "2026-11-25", askedAt: "t4", askedByName: "Ana" });
+    expect(out.answer).toEqual({ kind: "date", approved: true, date: "2026-11-20", answeredAt: "t5", reason: null });
+    expect(out.deliveryOrder).toEqual({ name: "DO-1.pdf", uploadedAt: "t6", size: 1234 });
+    expect(out.orders).toEqual([{ docNo: "CR-SO-1", customerName: "Tan" }]);
+    // No Carres staff name, no supplier id, no file key, nothing a later column adds.
+    expect(JSON.stringify(out)).not.toMatch(/Jess|Ali|sup-1|12345|margin|carres-supplier-do|0127770001|askedById/);
+  });
+  it("a list of request ids is each id once, between one and a hundred, all of them ids", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(pickupIds([id, id])).toEqual([id]);
+    expect(pickupIds([])).toBeNull();
+    expect(pickupIds([id, "x"])).toBeNull();
+    expect(pickupIds("x")).toBeNull();
+    expect(pickupIds(Array.from({ length: 101 }, (_, i) => `11111111-1111-4111-8111-${String(i).padStart(12, "0")}`))).toBeNull();
   });
   it("today is the Kuala Lumpur day", () => {
     expect(todayMyt(Date.parse("2026-11-15T15:59:59Z"))).toBe("2026-11-15");
     expect(todayMyt(Date.parse("2026-11-15T16:00:00Z"))).toBe("2026-11-16");
+  });
+});
+
+describe("permissions", () => {
+  it("keeps only the department's own keys, each once, in the screens' order", () => {
+    expect(cleanPerms("operation", ["a_export", "v_orders", "v_orders", "v_coll", "x", 7])).toEqual(["v_orders", "a_export"]);
+    expect(cleanPerms("finance", ["a_users", "d_share", "v_orders"])).toEqual(["d_share", "a_users"]);
+    expect(cleanPerms("operation", "v_orders")).toEqual([]);
+  });
+  it("a pickup button without the Pickup Requests page is off", () => {
+    expect(cleanPerms("operation", ["a_accept", "a_collect", "a_date", "a_cancel", "a_export"])).toEqual(["a_export"]);
+    expect(cleanPerms("operation", ["v_pickups", "a_accept"])).toEqual(["v_pickups", "a_accept"]);
+  });
+  it("reads what is stored only for the departments a person belongs to, and anything else as nothing", () => {
+    const stored = JSON.stringify({ operation: allPerms("operation"), finance: allPerms("finance") });
+    expect(readPerms(stored, { canOperation: true, canFinance: false })).toEqual({ operation: allPerms("operation"), finance: [] });
+    expect(readPerms("not json", { canOperation: true, canFinance: true })).toEqual({ operation: [], finance: [] });
+    expect(readPerms("[1,2]", { canOperation: true, canFinance: true })).toEqual({ operation: [], finance: [] });
+    expect(readPerms({ finance: ["v_month"] }, { canOperation: false, canFinance: true })).toEqual({ operation: [], finance: ["v_month"] });
+  });
+});
+
+describe("finance: what a person may see", () => {
+  const raw = {
+    asOf: "2026-11-16",
+    totals: { orders: 1, contractValue: 1200, shareTotal: 588, collected: 300, collectedCount: 3, shareEarned: 147, toCollect: 900, shareToCome: 441, overdueOrders: 1, overdueMonths: 3, overdueAmount: 300, overdueShare: 147, defaultOrders: 0 },
+    months: [{ month: "2026-09", due: 100, dueShare: 49, collected: 0, collectedShare: 0, open: 100, openShare: 49 }],
+    orders: [{
+      id: "a2", agreementNo: "RA-2", soNo: "SO-11", customerName: "Lim", item: "Cloud", termMonths: 12, monthlyFee: 100, ratePct: 49,
+      startDate: "2026-06-07", status: "active", state: "behind", contractValue: 1200, shareTotal: 588, paidCount: 3, collected: 300,
+      shareEarned: 147, toCollect: 900, shareToCome: 441, overdueMonths: 3, overdueAmount: 300, overdueShare: 147,
+      nextDueDate: "2026-09-07", lastPaidOn: "2026-08-07",
+      schedule: [
+        { seq: 3, dueDate: "2026-08-07", state: "paid", amountDue: 100, share: 49, paidOn: "2026-08-07", stripe: "LEAK" },
+        { seq: 4, dueDate: "2026-09-07", state: "late", amountDue: 100, share: 49, paidOn: null },
+        { seq: 7, dueDate: "2026-12-07", state: "upcoming", amountDue: 100, share: 49, paidOn: null },
+      ],
+    }],
+  };
+  it("the summary carries each order's months, named field by field", () => {
+    const s = pickSummary(raw);
+    expect(s.orders[0]!.schedule).toHaveLength(3);
+    expect(Object.keys(s.orders[0]!.schedule[0]!).sort()).toEqual(["amountDue", "dueDate", "paidOn", "seq", "share", "state"]);
+    expect(JSON.stringify(s)).not.toContain("LEAK");
+    expect(pickSummary({ orders: [{ id: "x" }] }).orders[0]!.schedule).toEqual([]);
+  });
+  it("everything visible: nothing changes", () => {
+    const s = pickSummary(raw);
+    expect(filterSummary(s, { names: true, share: true, bad: true })).toEqual(s);
+  });
+  it("without customer names: the name is blank", () => {
+    const s = filterSummary(pickSummary(raw), { names: false, share: true, bad: true });
+    expect(s.orders[0]!.customerName).toBe("");
+    expect(JSON.stringify(s)).not.toContain("Lim");
+  });
+  it("without the share: every share figure and the rate are zero", () => {
+    const s = filterSummary(pickSummary(raw), { names: true, share: false, bad: true });
+    expect(s.totals).toMatchObject({ shareTotal: 0, shareEarned: 0, shareToCome: 0, overdueShare: 0 });
+    expect(s.months[0]).toMatchObject({ dueShare: 0, collectedShare: 0, openShare: 0 });
+    expect(s.orders[0]).toMatchObject({ ratePct: 0, shareTotal: 0, shareEarned: 0, shareToCome: 0, overdueShare: 0 });
+    expect(s.orders[0]!.schedule.every((r) => r.share === 0)).toBe(true);
+    expect(s.orders[0]!.collected).toBe(300);
+  });
+  it("without overdue and bad debt: nothing says an order is behind", () => {
+    const s = filterSummary(pickSummary(raw), { names: true, share: true, bad: false });
+    expect(s.totals).toMatchObject({ overdueOrders: 0, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, defaultOrders: 0 });
+    expect(s.orders[0]).toMatchObject({ state: "open", overdueMonths: 0, overdueAmount: 0, overdueShare: 0, nextDueDate: "2026-12-07" });
+    expect(s.orders[0]!.schedule.map((r) => r.state)).toEqual(["paid", "unpaid", "upcoming"]);
+    const a = filterAgreement(pickAgreement({
+      asOf: "2026-11-16", order: raw.orders[0],
+      instalments: [{ seq: 4, dueDate: "2026-09-07", amountDue: 100, state: "late", paidOn: null, paidAmount: null, share: 49, daysLate: 70 }],
+    }), { names: true, share: true, bad: false });
+    expect(a.instalments[0]).toMatchObject({ state: "unpaid", daysLate: 0 });
+    expect(a.order.state).toBe("open");
+  });
+});
+
+describe("Delivery Order files", () => {
+  const bytes = (s: string) => new TextEncoder().encode(s);
+  it("a PDF says so near its start; anything else is not one", () => {
+    expect(isPdf(bytes("%PDF-1.7\n..."))).toBe(true);
+    expect(isPdf(bytes(`${" ".repeat(500)}%PDF-1.4`))).toBe(true);
+    expect(isPdf(bytes(`${" ".repeat(1100)}%PDF-1.4`))).toBe(false);
+    expect(isPdf(bytes("<html>%PDF</html>"))).toBe(false);
+    expect(isPdf(new Uint8Array())).toBe(false);
+  });
+  it("keeps the file's own name, without folders, quotes or control characters, ending in .pdf", () => {
+    expect(deliveryOrderName("DO-2611-0412.pdf")).toBe("DO-2611-0412.pdf");
+    expect(deliveryOrderName("C:\\scans\\DO 12.PDF")).toBe("DO 12.PDF");
+    expect(deliveryOrderName("../../a\"b\u0007.pdf")).toBe("ab.pdf");
+    expect(deliveryOrderName("signed")).toBe("signed.pdf");
+    expect(deliveryOrderName("")).toBe("delivery-order.pdf");
+  });
+  it("downloads under its name, in plain letters and in full", () => {
+    expect(attachmentHeader("DO 1.pdf")).toBe(`attachment; filename="DO 1.pdf"; filename*=UTF-8''DO%201.pdf`);
+    expect(attachmentHeader("发货单.pdf")).toBe(`attachment; filename="___.pdf"; filename*=UTF-8''${encodeURIComponent("发货单.pdf")}`);
+  });
+});
+
+describe("the invite email", () => {
+  it("names who added the person, for which company, carries the link once in each form and says how long it lives", () => {
+    const url = "https://supp.example.test/supplier/setup#t=SECRET";
+    const m = inviteMail({ name: "Ana", inviterName: "Lim", supplierName: "ZZT Maker", companyName: "Carres", url });
+    expect(m.subject).toBe("You are invited to the Carres supplier pages");
+    expect(m.text).toContain("Lim added you to the Carres supplier pages for ZZT Maker.");
+    expect(m.text).toContain("72 hours");
+    expect(m.text.split(url)).toHaveLength(2);
+    expect(m.html.split(url)).toHaveLength(2);
+    expect(inviteMail({ name: "<b>x</b>", inviterName: "a", supplierName: "b", companyName: "c", url }).html).not.toContain("<b>x</b>");
   });
 });

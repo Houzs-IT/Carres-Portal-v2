@@ -20,6 +20,7 @@ import {
   RESET_WINDOW_MINUTES, SESSION_HOURS,
   decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
 } from "./credentials";
+import { readPerms, type Perms } from "./perms";
 
 export interface SupplierUser {
   id: number;
@@ -32,6 +33,11 @@ export interface SupplierUser {
   canFinance: boolean;
   /** This supplier is paid a share of subscription collections (Settings › Supplier Access). */
   subscriptionShare: boolean;
+  /** The pages and buttons the person holds in each department they belong to (./perms.ts). */
+  perms: Perms;
+  /** Their admin gave them a password and asked them to choose their own: until they do, only Change password and
+   *  Sign out answer (./routes.ts). */
+  mustChangePassword: boolean;
 }
 
 export type Outcome<T> = ({ ok: true } & T) | { ok: false; status: 400 | 401 | 403 | 404 | 409 | 429; error: string };
@@ -61,6 +67,7 @@ export async function recordEvent(db: Db, e: EventInput): Promise<void> {
 
 const USER_COLUMNS = `
   u.id, u.name, u.email, u.supplier_id::text AS supplier_id, u.can_operation, u.can_finance,
+  u.perms::text AS perms, u.must_change_password,
   s.code AS supplier_code, s.name AS supplier_name, a.subscription_share`;
 
 /** Always true, and it keeps a statement that reads a password from ever being answered out of a cache. The
@@ -72,6 +79,8 @@ const USER_COLUMNS = `
 const FRESH = "NOW() IS NOT NULL";
 
 function toUser(r: Record<string, unknown>): SupplierUser {
+  const canOperation = bool(r.can_operation);
+  const canFinance = bool(r.can_finance);
   return {
     id: int(r.id),
     name: str(r.name),
@@ -79,9 +88,11 @@ function toUser(r: Record<string, unknown>): SupplierUser {
     supplierId: str(r.supplier_id),
     supplierCode: str(r.supplier_code),
     supplierName: str(r.supplier_name),
-    canOperation: bool(r.can_operation),
-    canFinance: bool(r.can_finance),
+    canOperation,
+    canFinance,
     subscriptionShare: bool(r.subscription_share),
+    perms: readPerms(r.perms, { canOperation, canFinance }),
+    mustChangePassword: bool(r.must_change_password),
   };
 }
 
@@ -288,7 +299,11 @@ export async function useLink(
     const problem = passwordProblem(input.password, user.email);
     if (problem) return { ok: false, status: 400, error: problem };
     const nextHash = await hashPassword(input.password as string);
-    await tx.query(`UPDATE public.carres_supplier_users SET password_hash = $2, updated_at = now() WHERE id = $1`, [user.id, nextHash]);
+    // A password the person chose themselves: nothing more to ask of them at sign-in.
+    await tx.query(
+      `UPDATE public.carres_supplier_users SET password_hash = $2, must_change_password = false, updated_at = now() WHERE id = $1`,
+      [user.id, nextHash],
+    );
     // This link is spent, and so is any other link still waiting for this person.
     await tx.query(`UPDATE public.carres_supplier_links SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`, [user.id]);
     await tx.query(`DELETE FROM public.carres_supplier_sessions WHERE user_id = $1`, [user.id]);
@@ -340,8 +355,9 @@ export async function changePassword(
   const nextHash = await hashPassword(input.next as string);
   return db.tx(async (tx): Promise<Outcome<{ token: string; expiresAt: string }>> => {
     // Only where the password that was just checked is still the stored one: a reset that landed in between wins.
+    // The person chose this password themselves, so a "choose your own" their admin asked for is done.
     const changed = await tx.query(
-      `UPDATE public.carres_supplier_users SET password_hash = $2, updated_at = now()
+      `UPDATE public.carres_supplier_users SET password_hash = $2, must_change_password = false, updated_at = now()
         WHERE id = $1 AND password_hash = $3
         RETURNING id`,
       [user.id, nextHash, stored],

@@ -1,0 +1,36 @@
+/* Carres only (not part of Houzs's code): the supplier pages' motion rules (owner's design, 17 Nov 2026).
+ *
+ * Every enabled button gives a little when pressed, and a person who asks their device for less motion gets none:
+ * no transitions here, and the animations started from script check the same setting (ui.tsx reducedMotion). */
+/* The design is measured on the browser's own line height. The engine's base sheet sets 1.5 on the whole page, which
+ * makes every row, card and label a few pixels taller than the design; the supplier pages put it back. */
+.sp-root {
+  line-height: normal;
+}
+
+/* Keyboard focus in the supplier pages' own navy, not the engine's brass; a typing box already draws its own navy
+ * ring (the design's), so it needs no outline on top. */
+.sp-root *:focus-visible {
+  outline-color: rgba(27, 27, 57, 0.45);
+}
+.sp-root input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+.sp-root textarea:focus-visible {
+  outline: none;
+}
+
+.sp-root button:not(:disabled):active {
+  transform: scale(0.97) !important;
+  transition: transform 90ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-root *,
+  .sp-root *::before,
+  .sp-root *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  .sp-root button:not(:disabled):active {
+    transform: none !important;
+  }
+}

@@ -1,5 +1,5 @@
-// Carres only (not part of Houzs's code): the one email the Supplier Platform sends, the link a person asked for
-// with Forgot password.
+// Carres only (not part of Houzs's code): the two emails the Supplier Platform sends: the link a person asked for
+// with Forgot password, and the invite a supplier's admin sends to a new person of their company.
 //
 // WHY IT DOES NOT GO THROUGH THE ENGINE'S OWN SENDER (services/email.ts sendEmail). That sender keeps a copy of
 // every message in email_outbox, body and all, so a failed send can be tried again. This message carries the
@@ -7,7 +7,7 @@
 // its SHA-256 (migration 2012), so a copy of the database signs nobody in. So the message is handed to the mail
 // provider directly, and nothing of its body is written anywhere here. A send that fails is not tried again: the
 // person asks again, and the reason is kept (without the link) in the platform's own record.
-import { MIN_PASSWORD, RESET_LINK_HOURS } from "./credentials";
+import { LINK_HOURS, MIN_PASSWORD, RESET_LINK_HOURS } from "./credentials";
 
 export type MailEnv = { RESEND_API_KEY?: string; EMAIL_FROM?: string };
 
@@ -49,6 +49,32 @@ export function resetMail(p: { name: string; companyName: string; url: string; s
 <p style="margin:0;font-size:12px;color:#78716c">${esc(company)}</p>
 </div></body></html>`;
   return { subject: act, html, text };
+}
+
+/**
+ * The invite a supplier's admin sends to a new person of their company (Settings › Users and access). The same
+ * one-time link Carres makes, living as long (three days). `url` carries the link's secret after the `#`.
+ */
+export function inviteMail(p: { name: string; inviterName: string; supplierName: string; companyName: string; url: string }): Mail {
+  const company = p.companyName.trim() || "Carres";
+  const act = "Choose your password";
+  const lines = [
+    `Hello ${p.name},`,
+    `${p.inviterName} added you to the ${company} supplier pages for ${p.supplierName}.`,
+    `The link works once, for ${life(LINK_HOURS)}. Use at least ${MIN_PASSWORD} characters.`,
+    `If you did not expect this email, do nothing.`,
+  ];
+  const text = [lines[0], "", lines[1], "", `${act}:`, p.url, "", lines[2], "", lines[3], "", company].join("\n");
+  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f5f4;font-family:Arial,Helvetica,sans-serif;color:#1c1917">
+<div style="max-width:480px;margin:0 auto;background:#ffffff;border:1px solid #e7e5e4;border-radius:8px;padding:24px">
+<p style="margin:0 0 12px;font-size:14px;line-height:1.5">${esc(lines[0]!)}</p>
+<p style="margin:0 0 20px;font-size:14px;line-height:1.5">${esc(lines[1]!)}</p>
+<p style="margin:0 0 20px"><a href="${esc(p.url)}" style="display:inline-block;background:#1c1917;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;padding:10px 18px;border-radius:6px">${esc(act)}</a></p>
+<p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:#57534e">${esc(lines[2]!)}</p>
+<p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#57534e">${esc(lines[3]!)}</p>
+<p style="margin:0;font-size:12px;color:#78716c">${esc(company)}</p>
+</div></body></html>`;
+  return { subject: `You are invited to the ${company} supplier pages`, html, text };
 }
 
 type Post = (input: string, init: RequestInit) => Promise<Response>;

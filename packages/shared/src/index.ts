@@ -3437,6 +3437,8 @@ export {
   type SupplierFinanceMonth,
   type SupplierFinanceOrder,
   type SupplierFinanceOrderState,
+  type SupplierFinanceScheduleRow,
   type SupplierFinanceSummary,
+  type SupplierFinanceSummaryOrder,
   type SupplierFinanceTotals,
 } from "./supplier-finance";

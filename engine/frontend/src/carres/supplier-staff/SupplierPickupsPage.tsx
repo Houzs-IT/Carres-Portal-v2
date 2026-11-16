@@ -1,14 +1,18 @@
 // Carres only (not part of Houzs's code): Supplier Pickups, the Carres side of a pickup request.
 //
 // Carres collects goods at the supplier's warehouse. Here staff tick the Sales Orders Carres will come for, name the
-// day, and send the request; the supplier sees it on its own pages and accepts; after the lorry has the goods, staff
-// record the collection. A supplier can be asked only for the lines it is shared in Settings › Supplier Access, and
-// a line sits on one live request at a time.
+// day, and send the request; the supplier sees it on its own pages and accepts; after the lorry has the goods, the
+// supplier marks it collected with the Delivery Order Carres signed, or staff record the collection here. A supplier
+// can be asked only for the lines it is shared in Settings › Supplier Access, and a line sits on one live request at
+// a time.
+//
+// The supplier may ASK to move an accepted pickup to another day, or to cancel it. Nothing changes until Carres
+// answers here (owner, 17 Nov 2026): Carres books its lorry for the day it asked for.
 //
 // A request is a notice and its answer. It moves no stock: goods still enter the books through the Purchase Order
 // and its goods receipt.
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Plus, Send, X as XIcon } from "lucide-react";
+import { ArrowLeft, Check, Download, Plus, Send, X as XIcon } from "lucide-react";
 import { PageHeader } from "../../components/Layout";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
@@ -21,8 +25,8 @@ import { useDialog } from "../../hooks/useDialog";
 import { useAuth } from "../../auth/AuthContext";
 import { cn } from "../../lib/utils";
 import { DateField } from "../../vendor/scm/components/DateField";
-import { Card, Drawer, Fact, LineList, Missing, SoStatusBadge, count, fmtDay, fmtStamp } from "../supplier/ui";
-import { pickupApi, type EligibleLine, type PickupStatus, type StaffPickup } from "./staffApi";
+import { Card, Drawer, Fact, LineList, Missing, SoStatusBadge, count, fmtDay, fmtStamp } from "./parts";
+import { pickupApi, type EligibleLine, type PickupAsk, type PickupStatus, type StaffPickup } from "./staffApi";
 
 const problem = (e: unknown): string => (e instanceof Error ? e.message : "Something went wrong. Please try again.");
 const INPUT = "h-9 rounded-md border border-border bg-surface px-3 text-[12.5px] text-ink outline-none placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -38,6 +42,13 @@ const STATUS: Record<PickupStatus, { label: string; tone: "neutral" | "accent" |
 };
 const StatusBadge = ({ status }: { status: PickupStatus }) => <Badge tone={STATUS[status].tone} size="sm" caseless>{STATUS[status].label}</Badge>;
 const collectOn = (p: { expectedDate: string; expectedTime: string | null }): string => `${fmtDay(p.expectedDate)}${p.expectedTime ? `, ${p.expectedTime}` : ""}`;
+
+/** What the supplier asked, in a few words. */
+const askWords = (a: Pick<PickupAsk, "kind" | "date">): string => (a.kind === "date" ? `Move to ${fmtDay(a.date)}` : "Cancel");
+/** The supplier's waiting ask, beside the status: Carres has to answer it. */
+const AskBadge = ({ ask }: { ask: PickupAsk }) => (
+  <Badge tone="warning" size="sm" caseless>{ask.kind === "date" ? "Supplier asks to move" : "Supplier asks to cancel"}</Badge>
+);
 
 // ── A new request: choose the supplier, tick the Sales Orders, name the day ─────────────────────────────────────
 
@@ -253,13 +264,53 @@ function RequestView({ pickup, canAct, onClose, onChanged }: { pickup: StaffPick
     catch (e) { toast.error(problem(e)); } finally { setBusy(false); }
   };
 
+  // The supplier's ask: approving it moves the day or cancels the request; declining keeps it as it is. The supplier
+  // reads the answer, and the reason when one is given.
+  const approve = async () => {
+    if (!p?.ask || busy) return;
+    const ask = p.ask;
+    if (!(await dialog.confirm({
+      title: ask.kind === "date" ? `Move ${p.requestNo} to ${fmtDay(ask.date)}?` : `Cancel ${p.requestNo}?`,
+      message: ask.kind === "date"
+        ? `${p.supplierName} asked to have the goods ready on ${fmtDay(ask.date)} instead of ${fmtDay(p.expectedDate)}. Approve only once the lorry is booked for the new day.`
+        : `${p.supplierName} asked to cancel this pickup. Its Sales Orders can be put on a new request afterwards.`,
+      confirmLabel: ask.kind === "date" ? "Approve new day" : "Approve cancel",
+    }))) return;
+    setBusy(true);
+    try {
+      const out = await pickupApi.approveAsk(p.id);
+      toast.success(ask.kind === "date" ? `${p.requestNo} moved to ${fmtDay(ask.date)}` : `${p.requestNo} is cancelled`);
+      onChanged(out.pickup);
+    } catch (e) { toast.error(problem(e)); } finally { setBusy(false); }
+  };
+
+  const decline = async () => {
+    if (!p?.ask || busy) return;
+    const reason = await dialog.prompt({
+      title: p.ask.kind === "date" ? `Keep ${p.requestNo} on ${fmtDay(p.expectedDate)}?` : `Keep ${p.requestNo}?`,
+      message: "The supplier reads your answer. A reason helps them, but you may leave it empty.",
+      placeholder: "Why the pickup stays as it is (optional)",
+      confirmLabel: "Decline",
+      cancelLabel: "Back",
+    });
+    if (reason === null) return;
+    setBusy(true);
+    try { const out = await pickupApi.declineAsk(p.id, reason.trim() || null); toast.success(`${p.requestNo} stays as it is`); onChanged(out.pickup); }
+    catch (e) { toast.error(problem(e)); } finally { setBusy(false); }
+  };
+
+  const downloadDo = async () => {
+    if (!p?.deliveryOrder) return;
+    try { await pickupApi.downloadDeliveryOrder(p.id, p.deliveryOrder.name); } catch (e) { toast.error(problem(e)); }
+  };
+
   return (
     <Drawer
       open={!!p}
       onClose={onClose}
       title={p?.requestNo ?? ""}
       subtitle="Pickup Request"
-      headerRight={p && <StatusBadge status={p.status} />}
+      headerRight={p && <span className="flex items-center gap-1.5">{p.ask && <AskBadge ask={p.ask} />}<StatusBadge status={p.status} /></span>}
       footer={p && live && canAct && (
         <>
           <Button icon={<Check size={14} />} onClick={collect} disabled={busy}>Mark collected</Button>
@@ -271,14 +322,53 @@ function RequestView({ pickup, canAct, onClose, onChanged }: { pickup: StaffPick
         <>
           <div className="text-[19px] font-bold text-ink">{p.supplierName}</div>
           <div className="mt-1 text-[12.5px] text-ink-secondary">Collect on {collectOn(p)} · {count(p.soDocNos.length, "sales order")} · {count(p.unitCount, "unit")}</div>
+          {p.ask && (
+            <div className="mt-4 rounded-md border border-warning-text/30 bg-warning-bg px-3 py-3 text-[12.5px] text-warning-text">
+              <div className="font-semibold">
+                {p.ask.kind === "date"
+                  ? `${p.supplierName} asks to move this pickup from ${fmtDay(p.expectedDate)} to ${fmtDay(p.ask.date)}.`
+                  : `${p.supplierName} asks to cancel this pickup.`}
+              </div>
+              <div className="mt-0.5">Asked by {p.ask.askedByName} on {fmtStamp(p.ask.askedAt)}. Nothing changes until Carres answers.</div>
+              {canAct && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button icon={<Check size={14} />} onClick={approve} disabled={busy}>{p.ask.kind === "date" ? "Approve new day" : "Approve cancel"}</Button>
+                  <Button variant="secondary" onClick={decline} disabled={busy}>Decline</Button>
+                </div>
+              )}
+            </div>
+          )}
           {p.status === "CANCELLED" && (
-            <div className="mt-4 rounded-md border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-ink-secondary">Cancelled: {p.cancelReason || "no reason recorded"}</div>
+            <div className="mt-4 rounded-md border border-border bg-surface-2 px-3 py-2 text-[12.5px] text-ink-secondary">
+              {p.cancelledBySupplier ? "Cancelled at the supplier's request." : `Cancelled: ${p.cancelReason || "no reason recorded"}`}
+            </div>
           )}
           <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 rounded-lg border border-border bg-surface-2 px-4 py-4">
             <Fact label="Requested">{fmtStamp(p.requestedAt)}{p.requestedByName ? ` · ${p.requestedByName}` : ""}</Fact>
             <Fact label="Accepted by supplier">{p.acceptedAt ? <>{fmtStamp(p.acceptedAt)}{p.acceptedByName ? ` · ${p.acceptedByName}` : ""}</> : <Missing>Not accepted yet</Missing>}</Fact>
-            <Fact label="Collected">{p.collectedAt ? <>{fmtStamp(p.collectedAt)}{p.collectedByName ? ` · ${p.collectedByName}` : ""}</> : <Missing>Not collected yet</Missing>}</Fact>
+            <Fact label="Collected">
+              {p.collectedAt
+                ? <>{fmtStamp(p.collectedAt)}{p.collectedBySupplierName ? ` · ${p.collectedBySupplierName} (${p.supplierName})` : p.collectedByName ? ` · ${p.collectedByName}` : ""}</>
+                : <Missing>Not collected yet</Missing>}
+            </Fact>
             <Fact label="Note to supplier">{p.note || <Missing>No note</Missing>}</Fact>
+            {p.previousExpectedDate && (
+              <Fact label="Date changed">{fmtDay(p.previousExpectedDate)} → {fmtDay(p.expectedDate)}{p.dateChangedAt ? ` · ${fmtStamp(p.dateChangedAt)}` : ""}</Fact>
+            )}
+            {p.deliveryOrder && (
+              <Fact label="Delivery Order">
+                <button type="button" onClick={downloadDo} className="inline-flex max-w-full items-center gap-1 text-left font-semibold text-primary-ink hover:underline">
+                  <Download size={12} className="shrink-0" /><span className="truncate">{p.deliveryOrder.name}</span>
+                </button>
+              </Fact>
+            )}
+            {!p.ask && p.answer && (
+              <Fact label="Supplier's last ask" wide>
+                {askWords(p.answer)}
+                {" · "}{p.answer.approved ? "Approved" : "Declined"}{p.answer.byName ? ` by ${p.answer.byName}` : ""} on {fmtStamp(p.answer.answeredAt)}
+                {p.answer.reason ? ` · ${p.answer.reason}` : ""}
+              </Fact>
+            )}
             {p.cancelledAt && <Fact label="Cancelled" wide>{fmtStamp(p.cancelledAt)}{p.cancelledByName ? ` · ${p.cancelledByName}` : ""}</Fact>}
           </dl>
           {bySo.map(([docNo, lines]) => (
@@ -294,7 +384,7 @@ function RequestView({ pickup, canAct, onClose, onChanged }: { pickup: StaffPick
 
 // ── The list ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-type Tab = "open" | "collected" | "cancelled" | "all";
+type Tab = "open" | "asked" | "collected" | "cancelled" | "all";
 
 const COLUMNS: Column<StaffPickup>[] = [
   {
@@ -316,7 +406,16 @@ const COLUMNS: Column<StaffPickup>[] = [
     ),
   },
   { key: "units", label: "Qty", align: "right", getValue: (p) => p.unitCount, render: (p) => p.unitCount, total: (rows) => rows.reduce((a, p) => a + p.unitCount, 0).toLocaleString("en-MY") },
-  { key: "status", label: "Status", getValue: (p) => STATUS[p.status].label, render: (p) => <StatusBadge status={p.status} /> },
+  {
+    key: "status", label: "Status", getValue: (p) => (p.ask ? `${STATUS[p.status].label} · ${askWords(p.ask)}` : STATUS[p.status].label),
+    getFilterValues: (p) => [STATUS[p.status].label],
+    render: (p) => (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <StatusBadge status={p.status} />
+        {p.ask && <AskBadge ask={p.ask} />}
+      </span>
+    ),
+  },
   {
     key: "requested", label: "Requested", getValue: (p) => p.requestedAt, disableFilter: true,
     render: (p) => <span className="text-ink-secondary">{fmtStamp(p.requestedAt)}{p.requestedByName ? ` · ${p.requestedByName}` : ""}</span>,
@@ -335,7 +434,10 @@ export function SupplierPickupsPage() {
 
   const rows = list.data?.rows ?? [];
   const isOpen = (p: StaffPickup) => p.status === "REQUESTED" || p.status === "ACCEPTED";
-  const shown = tab === "all" ? rows : tab === "open" ? rows.filter(isOpen) : rows.filter((p) => p.status === (tab === "collected" ? "COLLECTED" : "CANCELLED"));
+  const shown = tab === "all" ? rows
+    : tab === "open" ? rows.filter(isOpen)
+      : tab === "asked" ? rows.filter((p) => !!p.ask)
+        : rows.filter((p) => p.status === (tab === "collected" ? "COLLECTED" : "CANCELLED"));
   const opened = openId ? (fresh?.id === openId ? fresh : rows.find((p) => p.id === openId) ?? null) : null;
 
   if (creating) {
@@ -355,7 +457,7 @@ export function SupplierPickupsPage() {
       <PageHeader
         eyebrow="Supply Chain"
         title="Supplier Pickups"
-        description="Tell a supplier which Sales Order goods Carres will collect at its warehouse, and when. The supplier accepts on its own pages; mark the request collected after the lorry has the goods."
+        description="Tell a supplier which Sales Order goods Carres will collect at its warehouse, and when. The supplier accepts on its own pages and marks the request collected with the Delivery Order Carres signed. A supplier's ask to move or cancel a pickup waits here for your answer."
         primaryAction={canAct ? <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>New Pickup Request</Button> : undefined}
       />
       <div className="mb-3">
@@ -364,6 +466,7 @@ export function SupplierPickupsPage() {
           onChange={setTab}
           options={[
             { value: "open", label: "Open", count: rows.filter(isOpen).length },
+            { value: "asked", label: "Asked by supplier", count: rows.filter((p) => !!p.ask).length },
             { value: "collected", label: "Collected", count: rows.filter((p) => p.status === "COLLECTED").length },
             { value: "cancelled", label: "Cancelled", count: rows.filter((p) => p.status === "CANCELLED").length },
             { value: "all", label: "All", count: rows.length },
@@ -381,7 +484,7 @@ export function SupplierPickupsPage() {
           getRowKey={(p) => p.id}
           getRowClassName={(p) => (p.id === openId ? "bg-primary-soft/40" : undefined)}
           onRowClick={(p) => { setFresh(null); setOpenId(p.id); }}
-          emptyLabel={tab === "open" ? "No pickup request is open. Start one with New Pickup Request." : "No pickup requests here."}
+          emptyLabel={tab === "open" ? "No pickup request is open. Start one with New Pickup Request." : tab === "asked" ? "No supplier is waiting for an answer." : "No pickup requests here."}
           clientSearch={{ placeholder: "Search request no, supplier or SO no" }}
         />
       )}
