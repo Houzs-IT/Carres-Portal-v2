@@ -441,9 +441,9 @@ app.post("/users", async (c) => {
     name: b?.name, email: b?.email, how: b?.how, password: b?.password, mustChange: b?.mustChange, perms: b?.perms,
   });
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  if (!out.linkToken) return c.json({ user: out.person, mailed: null, mailNote: null });
+  if (!out.linkToken) return c.json({ user: out.person, mailed: null, mailNote: null, hadAccount: out.hadAccount });
   const sent = await sendInvite(c.env, { to: out.person.email, name: out.person.name, inviterName: u.name, supplierName: u.supplierName, token: out.linkToken });
-  return c.json({ user: out.person, mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason });
+  return c.json({ user: out.person, mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason, hadAccount: false });
 });
 
 app.patch("/users/:id", async (c) => {
