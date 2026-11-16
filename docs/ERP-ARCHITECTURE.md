@@ -1387,14 +1387,44 @@ only accept its own.
    browser never calls the portal.
 5. Nothing is shared until Settings › Supplier Access turns a supplier on. Turning it off, or
    disabling a person, ends their sessions on the next request.
+6. The supplier pages have an address of their own, `supp.carresofficial.com` (RULING, Loo,
+   2026-11-16). A small Worker stands at that address and hands out the supplier pages and the
+   supplier API and nothing else: the staff sign-in and the staff API do not exist there. The old
+   address, `/supplier` on the engine site, sends a visitor on to it.
+
+**Forgot password (RULING, Loo, 2026-11-16: the sign-in page had none; "please add on"). BUILT.**
+A person who forgot their password asks for a link on the sign-in page and is emailed one. It is
+the same one-time link Carres makes in Settings, with ONE HOUR to live instead of three days,
+because it travels by email. Using it ends every session the person had, and it lets a person
+locked by wrong passwords back in without asking Carres.
+
+```
+Says nothing        The page and the server answer the same words for every email, and the answer
+                    leaves before anything is looked up. Neither the words nor the time they take say
+                    whether an email signs in here.
+Who is emailed      Only a person who may sign in: active, and their supplier's access is on. For
+                    anyone else nothing is sent and nothing is written.
+How many            Three links an hour for one email, counted per email as wrong passwords are.
+                    It stops a stranger who knows an email from filling that inbox.
+Where the link is   In the email, and nowhere in the database but as its SHA-256. The message is
+                    handed straight to the mail provider. It does NOT go through the engine's own
+                    sender, which keeps a copy of every message it sends.
+What Carres sees    Latest activity says a link was asked for and emailed, or not emailed and why.
+                    Carres still makes a link by hand (`New password link`) when email cannot reach
+                    the person. The switch is the engine's own: Settings › Email ›
+                    `Supplier portal invites`, under the master switch.
+```
 
 **RULING (Loo, 2026-11-15): the in-engine design is accepted (choice A).** The supplier pages and
 their API run inside the engine (site and Worker), with the engine's own database account. The
-separation above is kept by code and its tests. **PROPOSAL / NOT BUILT, offered the same day and
-not taken:** (B) a database account for the supplier API that may run only the two functions, so the
-database itself refuses anything else, plus a web address of its own for the supplier pages; (C) a
-separate small server and site. Falsifier for staying on A: a second supplier with a different
-scope goes live, an outside security review is required, or a Houzs resync breaks a guard test.
+separation above is kept by code and its tests. **Of what was offered the same day and not taken,
+one part is now built (16 Nov 2026): the web address of its own (point 6). Still PROPOSAL / NOT
+BUILT:** (B) a database account for the supplier API that may run only the two functions, so the
+database itself refuses anything else; (C) a separate small server and site. The Worker at the new
+address is a second lock in front, not that database lock: it holds no secret and reads no
+database, and what a supplier may read is still decided by the engine. Falsifier for staying on A:
+a second supplier with a different scope goes live, an outside security review is required, or a
+Houzs resync breaks a guard test.
 
 **Rollout.** Deploying the code opens nothing. Giving a supplier its first production login (turning
 its access on, adding a person, sending the one-time link) is the external cutover of §6.4 and needs

@@ -32,6 +32,10 @@ const EVENT_WORDS: Record<string, string> = {
   password_set: "Chose a password",
   password_changed: "Changed password",
   link_issued: "Set-password link made",
+  // Forgot password, on the supplier's sign-in page: the person asked, and the link was or was not emailed.
+  reset_requested: "Asked for a password link",
+  reset_mailed: "Password link emailed",
+  reset_not_mailed: "Password link not emailed",
   person_added: "Person added",
   person_changed: "Person changed",
   access_saved: "Access saved",
@@ -403,10 +407,12 @@ function Activity({ rows }: { rows: ActivityRow[] }) {
         <ul className="divide-y divide-border-subtle">
           {rows.map((r, i) => (
             <li key={`${r.at}-${i}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-4 py-2.5 text-[12.5px]">
-              <span className={cn("text-ink", r.kind === "signin_failed" && "text-err")}>
+              <span className={cn("text-ink", (r.kind === "signin_failed" || r.kind === "reset_not_mailed") && "text-err")}>
                 {EVENT_WORDS[r.kind] ?? r.kind}
                 {r.subject ? <span className="text-ink-secondary"> · {r.subject}</span> : null}
                 {r.who ? <span className="text-ink-muted"> · {r.who}</span> : null}
+                {/* Why the link was not emailed, so Carres can make one by hand (New password link). */}
+                {r.note ? <span className="text-ink-secondary"> · {r.note}</span> : null}
               </span>
               {/* The address is there only when the server could tell this caller from another (backend callerAddress). */}
               <span className="text-[11.5px] text-ink-muted">{stamp(r.at)}{r.ip ? ` · ${r.ip}` : ""}</span>

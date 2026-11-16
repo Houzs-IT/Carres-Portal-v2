@@ -183,7 +183,8 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   `routing/appSurface.ts`, mounted in `main.tsx` outside `AuthProvider` and `AuthGate`, with no staff client and no
   staff install prompt. API `/api/carres-supplier/*` (`engine/backend/src/carres/supplier/routes.ts`), mounted in
   `index.ts` BEFORE the staff gate and gated by its own session (`carres_supplier_sessions`). Sign-in address:
-  `https://carres-scm.pages.dev/supplier`.
+  `https://supp.carresofficial.com` (its own address, below). The first address,
+  `https://carres-scm.pages.dev/supplier`, sends a visitor on to it.
 - *Carres side.* Settings › Supplier Access (`carres/supplier-staff/SupplierAccessTab.tsx`, API
   `/api/carres/supplier-access`, needs Settings at full) and Supply Chain › Procurement › Supplier Pickups
   (`/scm/supplier-pickups`, API `/api/carres/supplier-pickups`, the Purchase Orders page access: view to read, edit
@@ -214,6 +215,23 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   answers carry no `Server-Timing`. The two scope functions cannot be run by `PUBLIC`, `anon` or
   `authenticated`: the engine's role and the server's service key can. The supplier pages read the company's
   public name from the public `GET /api/track/company` and everything else from `/api/carres-supplier`.
+- *Forgot password (owner, 16 Nov 2026; rules in ERP-ARCHITECTURE §6.6).* `POST /api/carres-supplier/auth/forgot`
+  (`routes.ts`) answers `{ ok: true }` for every body and hands the work to after the response
+  (`lib/after-response.ts`), so the answer and its timing say nothing. The work is `reset.ts` `sendResetLink`:
+  `session.ts` `requestReset` finds a person who may sign in (active, access on), writes the ask BEFORE counting it
+  (`MAX_RESET_MAILS_PER_EMAIL` = 3 in `RESET_WINDOW_MINUTES` = 60, per email, as `takeTry` does for wrong
+  passwords) and makes the link with `issueLink({ forgot: true })`, which lives `RESET_LINK_HOURS` = 1.
+  `mail.ts` hands the message to Resend directly with `RESEND_API_KEY` and `EMAIL_FROM`. It does NOT call
+  `services/email.ts` `sendEmail`: that sender writes the whole message into `email_outbox`, and the message
+  holds the link, which is kept nowhere but as its SHA-256 (a guard test pins it). A send that fails is not
+  retried. The ask's own row in `carres_supplier_events` ends as `reset_mailed` or `reset_not_mailed` with a fixed
+  sentence in `detail.reason`, which Settings › Supplier Access shows under Latest activity
+  (`access.ts` `recentActivity` `note`). The engine's switch is honoured (`isChannelEnabled("supplier_invite")`:
+  Settings › Email › `Supplier portal invites` and the master switch; neither has ever been set, so on). Screens:
+  `SupplierApp.tsx` `ForgotPage` at `/supplier/forgot`, `Forgot password?` on the sign-in page, `Ask for a new
+  link` on a link that cannot be used. Tests: nine in `tests-pg/carresSupplierPlatform.pg.test.ts` (real
+  Postgres), the email and the guards in `supplier.test.ts` and `carresSupplierPlatformGuards.test.ts`, three in
+  `supplierSurface.test.tsx`.
 - *The supplier's own address (owner, 16 Nov 2026: `supp.carresofficial.com`).* A Worker of its own,
   `carres-supplier-site` (`engine/backend/src/carres/supplier-site/worker.ts`, `wrangler.supplier-site.toml`),
   stands in front of the supplier pages and the supplier API and serves nothing else of the engine.
@@ -229,7 +247,12 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   staff routes answer 404, and the page carries `frame-ancestors 'none'`. On the screen side the app is the
   supplier pages and nothing else at that address (`carres/supplier/host.ts`, `routing/appSurface.ts`). The
   address Carres shows and builds links on is `supplierPublicUrl` (`carres/supplier/address.ts`):
-  `SUPPLIER_PUBLIC_URL` when set, the engine site until then. Tests: `tests/carresSupplierSite.test.ts`.
+  `SUPPLIER_PUBLIC_URL` (set in `wrangler.toml` to `https://supp.carresofficial.com`), the engine site when it is
+  not set. The first address moved: the engine site's `functions/_middleware.ts` (`supplierMoveTo`) answers a
+  supplier page opened at `carres-scm.pages.dev` with a 302 to the same path at the new address. Only that exact
+  host, so a preview and a local run keep showing `/supplier`; only a page being read; and never in a circle,
+  because the Worker at the new address asks the site for its one page at `/` and for files by their own paths.
+  Tests: `tests/carresSupplierSite.test.ts`, `functions/supplierFrame.test.ts`.
   **Never give the engine Worker's own `wrangler.toml` a `routes` line:** that switches its `workers.dev` address
   off, and the engine site and the portal reach the Worker there (the test pins it).
 - *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts), `src/types.ts`
@@ -237,7 +260,7 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`
   says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`,
-  `functions/_middleware.ts` (the frame rule).
+  `functions/_middleware.ts` (the frame rule, and the move of `/supplier` to its own address).
 - *Tests.* Backend `src/carres/supplier/supplier.test.ts`, `tests/carresSupplierPlatformGuards.test.ts` (where the
   routes sit; every statement parameterised) and `tests-pg/carresSupplierPlatform.pg.test.ts` (real Postgres,
   `TEST_DATABASE_URL`, skipped without it; it re-runs step 2012 first, so it tests the file as it is); frontend

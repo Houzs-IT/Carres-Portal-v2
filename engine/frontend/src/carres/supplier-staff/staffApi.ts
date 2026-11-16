@@ -55,7 +55,8 @@ export interface AccessOptions {
 
 export interface AccessInput { enabled: boolean; ownItems: boolean; subscriptionShare: boolean; categories: string[]; modelIds: string[]; skuCodes: string[] }
 export interface Preview { orders: number; lines: number; units: number; incomingOrders: number }
-export interface ActivityRow { at: string; kind: string; who: string | null; subject: string | null; ip: string | null }
+/** `note`: why a password link asked for with Forgot password was not emailed (a fixed sentence from the server). */
+export interface ActivityRow { at: string; kind: string; who: string | null; subject: string | null; ip: string | null; note?: string | null }
 export interface SetupLink { url: string; expiresAt: string; purpose?: "setup" | "reset" }
 
 const ACCESS = "/api/carres/supplier-access";

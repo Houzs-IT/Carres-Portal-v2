@@ -392,7 +392,9 @@ export async function updatePerson(db: Db, userId: number, patch: PersonPatch, s
   return person ? { ok: true, person } : { ok: false, status: 404, error: "Person not found." };
 }
 
-export interface ActivityRow { at: string; kind: string; who: string | null; subject: string | null; ip: string | null }
+/** `note`: why a password link asked for with Forgot password was not emailed. A fixed sentence, written by the
+ *  platform itself (./reset.ts, ./mail.ts); nothing a person typed and never the link. */
+export interface ActivityRow { at: string; kind: string; who: string | null; subject: string | null; ip: string | null; note: string | null }
 
 /** The latest sign-ins and changes for a supplier, for Carres to read. `who` is the person who DID it: the Carres
  *  staff member when one acted (a link made, a person added or changed), otherwise the supplier's own person. */
@@ -400,7 +402,8 @@ export async function recentActivity(db: Db, supplierId: string, limit = 50): Pr
   if (!isUuid(supplierId)) return [];
   const rows = await db.query(
     `SELECT ${ts("e.at")} AS at, e.kind, e.subject, e.ip,
-            coalesce(st.name, u.name) AS who
+            coalesce(st.name, u.name) AS who,
+            CASE WHEN e.kind = 'reset_not_mailed' THEN e.detail->>'reason' END AS note
        FROM public.carres_supplier_events e
        LEFT JOIN public.carres_supplier_users u ON u.id = e.supplier_user_id
        LEFT JOIN public.users st ON st.id = e.staff_user_id
@@ -409,5 +412,5 @@ export async function recentActivity(db: Db, supplierId: string, limit = 50): Pr
       LIMIT $2`,
     [supplierId, Math.min(200, Math.max(1, limit))],
   );
-  return rows.map((r) => ({ at: str(r.at), kind: str(r.kind), who: strOrNull(r.who), subject: strOrNull(r.subject), ip: strOrNull(r.ip) }));
+  return rows.map((r) => ({ at: str(r.at), kind: str(r.kind), who: strOrNull(r.who), subject: strOrNull(r.subject), ip: strOrNull(r.ip), note: strOrNull(r.note) }));
 }

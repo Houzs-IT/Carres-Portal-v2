@@ -16,7 +16,8 @@
 import type { Db } from "./db";
 import { bool, first, int, str } from "./db";
 import {
-  FAIL_WINDOW_MINUTES, LINK_HOURS, MAX_FAILS_PER_EMAIL, MAX_PASSWORD, SESSION_HOURS,
+  FAIL_WINDOW_MINUTES, LINK_HOURS, MAX_FAILS_PER_EMAIL, MAX_PASSWORD, MAX_RESET_MAILS_PER_EMAIL, RESET_LINK_HOURS,
+  RESET_WINDOW_MINUTES, SESSION_HOURS,
   decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
 } from "./credentials";
 
@@ -355,10 +356,11 @@ export async function changePassword(
   });
 }
 
-/** A new one-time set-password link for a person (staff side). Older unused links stop working. The token is
- *  returned ONCE, to be sent to the person; only its hash is kept. */
+/** A new one-time set-password link for a person. Older unused links stop working. The token is returned ONCE, to
+ *  be sent to the person; only its hash is kept. Carres makes one from Settings (`staffUserId`); a person makes one
+ *  for themselves with Forgot password (`forgot`), and that one lives an hour, not three days. */
 export async function issueLink(
-  db: Db, input: { userId: number; staffUserId: number | null },
+  db: Db, input: { userId: number; staffUserId: number | null; forgot?: boolean },
 ): Promise<{ token: string; purpose: "setup" | "reset"; expiresAt: string } | null> {
   return db.tx(async (tx) => {
     const rows = await tx.query(
@@ -375,12 +377,99 @@ export async function issueLink(
       `INSERT INTO public.carres_supplier_links (token_hash, user_id, purpose, created_by, expires_at)
        VALUES ($1, $2, $3, $4, now() + make_interval(hours => $5))
        RETURNING to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS expires_at`,
-      [await sha256Hex(token), input.userId, purpose, input.staffUserId, LINK_HOURS],
+      [await sha256Hex(token), input.userId, purpose, input.staffUserId, input.forgot ? RESET_LINK_HOURS : LINK_HOURS],
     );
     await recordEvent(tx, {
       kind: "link_issued", subject: str(u.email), supplierId: str(u.supplier_id), supplierUserId: input.userId,
-      staffUserId: input.staffUserId, detail: { purpose },
+      staffUserId: input.staffUserId, detail: input.forgot ? { purpose, via: "forgot" } : { purpose },
     });
     return { token, purpose, expiresAt: str(made[0]?.expires_at) };
   });
+}
+
+/** What to email a person who asked for a link. The token is here and nowhere else: it is not stored. */
+export interface ResetToSend {
+  /** The ask's own row in the record, to be settled once the email has or has not left (settleReset). */
+  askId: number;
+  userId: number;
+  supplierId: string;
+  name: string;
+  email: string;
+  token: string;
+  purpose: "setup" | "reset";
+  expiresAt: string;
+}
+
+/** The links this email asked for inside the window (Forgot password), however each ask ended. */
+async function resetAsks(db: Db, email: string): Promise<number> {
+  const rows = await db.query<{ asks: number }>(
+    `SELECT count(*)::int AS asks
+       FROM public.carres_supplier_events e
+      WHERE e.kind IN ('reset_requested', 'reset_mailed', 'reset_not_mailed') AND e.subject = $1
+        AND e.at > now() - make_interval(mins => $2)`,
+    [email, RESET_WINDOW_MINUTES],
+  );
+  return int(first(rows)?.asks);
+}
+
+/** How an ask ended: its row stops saying "asked" and says the email left, or why it did not. One row an ask,
+ *  as a sign-in is one row whether it failed or not. The reason is a fixed sentence, never the link. */
+export async function settleReset(db: Db, askId: number, sent: boolean, reason: string | null = null): Promise<void> {
+  await db.query(
+    `UPDATE public.carres_supplier_events SET kind = $2, detail = $3::text::jsonb
+      WHERE id = $1 AND kind = 'reset_requested'`,
+    [askId, sent ? "reset_mailed" : "reset_not_mailed", JSON.stringify(sent || !reason ? {} : { reason })],
+  );
+}
+
+/**
+ * Forgot password: the person behind this email asks for a link. Answers what to email them, or null when there is
+ * nothing to send.
+ *
+ * NOTHING HERE REACHES THE CALLER. The route has already answered, with the same words for every email, so neither
+ * the answer nor the time it takes says whether an email signs in here. Null means any of: not an email, nobody
+ * with that email, a disabled person, a supplier whose access is off, or too many asks. For the first four nothing
+ * is written at all, so asking about emails that do not exist leaves no rows behind.
+ *
+ * THE ASK IS WRITTEN BEFORE IT IS COUNTED, as a wrong password is (takeTry above): asks sent at the same moment
+ * cannot all slip under the limit, and no more than MAX_RESET_MAILS_PER_EMAIL links are made for one email in a
+ * window however they arrive. An email already at the limit is refused without writing.
+ *
+ * A link made here replaces any link still waiting for the person (issueLink), the newest email is the one that
+ * works, and using it ends every session they had (useLink).
+ */
+export async function requestReset(db: Db, input: { email: unknown; ip: string | null }): Promise<ResetToSend | null> {
+  const email = normEmail(input.email);
+  if (!isEmail(email)) return null;
+  const rows = await db.query(
+    `SELECT u.id, u.name, u.email, u.supplier_id::text AS supplier_id
+       FROM public.carres_supplier_users u
+       JOIN public.carres_supplier_access a ON a.supplier_id = u.supplier_id AND a.enabled
+      WHERE u.email = $1 AND u.status = 'active' AND ${FRESH}`,
+    [email],
+  );
+  const u = first(rows);
+  if (!u) return null;
+  const userId = int(u.id);
+  const supplierId = str(u.supplier_id);
+
+  if ((await resetAsks(db, email)) >= MAX_RESET_MAILS_PER_EMAIL) return null;
+  const asked = await db.query<{ id: number }>(
+    `INSERT INTO public.carres_supplier_events (kind, supplier_id, supplier_user_id, subject, ip, detail)
+     VALUES ('reset_requested', $1::uuid, $2, $3, $4, '{}'::jsonb)
+     RETURNING id`,
+    [supplierId, userId, email, input.ip],
+  );
+  const askId = int(first(asked)?.id);
+  if ((await resetAsks(db, email)) > MAX_RESET_MAILS_PER_EMAIL) {
+    await settleReset(db, askId, false, "Too many links were asked for. The limit starts again after an hour.");
+    return null;
+  }
+
+  const link = await issueLink(db, { userId, staffUserId: null, forgot: true });
+  if (!link) {
+    await settleReset(db, askId, false, "The person was disabled before the link was made.");
+    return null;
+  }
+  return { askId, userId, supplierId, name: str(u.name), email, token: link.token, purpose: link.purpose, expiresAt: link.expiresAt };
 }

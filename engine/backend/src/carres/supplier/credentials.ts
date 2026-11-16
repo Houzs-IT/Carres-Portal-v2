@@ -10,6 +10,14 @@ export { hashPassword, verifyPassword };
 export const SESSION_HOURS = 12;
 /** A set-password link works once, within this many hours. */
 export const LINK_HOURS = 72;
+/** A link the person asked for themselves (Forgot password) works once, within this many hours. It travels by
+ *  email, which other people and machines may read on the way, so it is given far less time than a link Carres
+ *  hands over. */
+export const RESET_LINK_HOURS = 1;
+/** Forgot password: the links one email may be sent inside the window. It stops a stranger who knows the email from
+ *  filling that person's inbox. Counted per email, never per address (see callerAddress below). */
+export const MAX_RESET_MAILS_PER_EMAIL = 3;
+export const RESET_WINDOW_MINUTES = 60;
 
 /** Wrong passwords for one email inside the window before that email is refused (whether or not it exists).
  *  Nothing is counted per address: see callerAddress below. */

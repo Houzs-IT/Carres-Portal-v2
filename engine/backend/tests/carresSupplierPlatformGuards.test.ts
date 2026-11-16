@@ -34,9 +34,10 @@ describe('Carres supplier platform: where the routes sit', () => {
   it('the suppliers router answers every path, behind its own session gate', () => {
     at(ROUTES, 'app.all("*", (c) => c.json({ error: "Not found." }, 404));');
     const gate = at(ROUTES, 'app.use("*", session);');
-    // Only signing in and the one-time link come before the gate, by any way a route can be added.
+    // Only signing in, the one-time link and asking for one (Forgot password) come before the gate, by any way a
+    // route can be added.
     const before = ROUTES.slice(0, gate).match(/app\.(get|post|put|patch|delete|all|on|route|mount)\("([^"]+)"/g) ?? [];
-    expect(before).toEqual(['app.post("/auth/login"', 'app.post("/auth/link"', 'app.post("/auth/link/use"']);
+    expect(before).toEqual(['app.post("/auth/login"', 'app.post("/auth/link"', 'app.post("/auth/link/use"', 'app.post("/auth/forgot"']);
     // The one thing wrapped around every answer before the gate sets a header and reads nothing.
     expect(ROUTES.slice(0, gate).match(/app\.use\(/g) ?? []).toHaveLength(1);
     at(ROUTES.slice(0, gate), 'c.header("Cache-Control", "no-store");');
@@ -114,6 +115,24 @@ describe('Carres supplier platform: statements', () => {
     const reads = [...session.matchAll(/`\s*SELECT\b[^`]*`/g)].map((m) => m[0]).filter((s) => /password_hash(?! IS NOT NULL)/.test(s));
     expect(reads.length).toBeGreaterThanOrEqual(2);
     for (const s of reads) expect(s, s).toContain('${FRESH}');
+  });
+
+  it('the one-time link never goes through the engine\'s own sender, which keeps every message it sends', () => {
+    // services/email.ts sendEmail writes the whole message into email_outbox so a failed send can be retried. The
+    // Forgot password message carries the link, and a link is kept nowhere but as its SHA-256. So no file here may
+    // import or call that sender, or write to its tables; the message is handed to the provider by ./mail.ts.
+    for (const f of sources) {
+      const source = readFileSync(new URL(f, dir), 'utf8');
+      expect(source, f).not.toMatch(/import\s*\{[^}]*\bsendEmail\b[^}]*\}/);
+      expect(source, f).not.toMatch(/\bsendEmail\s*\(/);
+      expect(source, f).not.toMatch(/\b(INSERT INTO|UPDATE)\s+(public\.)?email_(outbox|log)\b/i);
+    }
+    const mail = readFileSync(new URL('mail.ts', dir), 'utf8');
+    at(mail, '"https://api.resend.com/emails"');
+    // And the route answers before any of it runs: the work is handed to after the response.
+    const forgot = ROUTES.slice(at(ROUTES, 'app.post("/auth/forgot"'), at(ROUTES, 'app.use("*", session);'));
+    expect(at(forgot, 'await afterResponse(')).toBeLessThan(at(forgot, 'return c.json({ ok: true });'));
+    expect(forgot).not.toMatch(/await\s+sendResetLink\(/);
   });
 
   it('a session is opened only by the statement that checks the password is still the stored one', () => {
