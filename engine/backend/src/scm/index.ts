@@ -128,6 +128,7 @@ import { scanLorryInvoice } from "./routes/scan-lorry-invoice";
 import { scanFilesSo, scanFilesPayment, scanFilesPv, scanFilesWorkshop } from "./routes/scan-files";
 import { slips } from "./routes/slips";
 import { deliveryPlanning } from "./routes/delivery-planning";
+import { carresSoCrewPlan } from "../carres/so-crew-plan"; // Carres: crew chosen before the DO exists
 import { crewStopPhotos } from "./routes/crew-stop-photos";
 import { deliveryJobProgress } from "./routes/delivery-job-progress";
 import { doDeliveryIssues, soDeliveryIssues, jobDeliveryIssues, lastMileDeliveryIssues } from "./routes/delivery-issues";
@@ -904,6 +905,7 @@ scm.route("/delivery-jobs", jobDeliveryIssues);
 scm.route("/delivery-jobs", crewStopPhotos);
 scm.route("/delivery-jobs", deliveryJobProgress);
 scm.route("/delivery-planning", lastMileDeliveryIssues);
+scm.route("/delivery-planning", carresSoCrewPlan); // Carres: PUT /so/:docNo/crew-plan (Pending Delivery crew)
 scm.route("/delivery-planning", deliveryPlanning);
 // openRead (2026-07-19, fix/so-maintenance-403) — this router is pure REFERENCE
 // data: the region master (code / name / sortOrder / active) and the per-state →

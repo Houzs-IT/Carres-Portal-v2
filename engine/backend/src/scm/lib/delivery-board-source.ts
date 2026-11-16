@@ -22,6 +22,7 @@ import { onlyDocsFilter } from './delivery-board-slice';
 import { loadRegionConfig, type RegionConfig } from './delivery-board-regions';
 import { loadBoardHeadSql, loadSoBoardMapsSql } from './delivery-board-sql';
 import { loadSoBoardMapsRest, type SoBoardMaps, type SoBoardHeader } from './delivery-board-maps';
+import { loadSoCrewPlans } from '../../carres/so-crew-plan'; // Carres
 import { assembleSoOrders, type SoHeaderRow, type SoRowCtx } from './delivery-board-so-rows';
 import { kickOffBoardReads } from './delivery-planning-board-reads';
 import { planningPoNosByDoc } from './planning-po-nos';
@@ -123,11 +124,20 @@ export async function loadBoardMaps(
   if (source === 'sql') {
     try {
       const maps = await loadSoBoardMapsSql(boardSql(c.env), c, { docNos, soRows, display }); lap('dp-data-sql');
-      return { ok: maps };
+      return { ok: await withCrewPlans(sb, maps, display ? docNos : []) };
     } catch (e) { warnSql('data', e); }
   }
   rest ??= kickOffRestBoardReads(sb, 'rest', docNos, soRows, display)!;
-  return loadSoBoardMapsRest(sb, c, { docNos, soRows, display, reads: rest.reads, poNosByDocP: rest.poNosByDocP, lap });
+  const res = await loadSoBoardMapsRest(sb, c, { docNos, soRows, display, reads: rest.reads, poNosByDocP: rest.poNosByDocP, lap });
+  return 'ok' in res ? { ok: await withCrewPlans(sb, res.ok, display ? docNos : []) } : res;
+}
+
+/* Carres: the crew planned on orders with no delivery order yet (carres/so-crew-plan.ts), for the rows to show. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the scm service client
+async function withCrewPlans(sb: any, maps: SoBoardMaps, docNos: string[]): Promise<SoBoardMaps> {
+  const noDo = docNos.filter((d) => !(maps.doByDoc.get(d)?.length));
+  if (!noDo.length) return maps;
+  return { ...maps, crewPlanByDoc: await loadSoCrewPlans(sb, noDo).catch(() => new Map()) };
 }
 
 /* ── Shadow compare ────────────────────────────────────────────────────── */

@@ -39,6 +39,7 @@ import {
   useScheduleDelivery,
   useUpdateDeliveryFields,
   useAssignDoCrew,
+  useSoCrewPlan, // Carres
   useDpCrew,
   DELIVERY_STATES,
   DELIVERY_STATE_LABEL,
@@ -945,6 +946,7 @@ export function DeliveryPlanningBoard({
      the store the board reads and the one that captures the driver's IC/contact.
      Helpers are fetched here (like updateFields) rather than threaded as a prop. */
   const assignCrew = useAssignDoCrew();
+  const soCrewPlan = useSoCrewPlan(); // Carres: crew before the DO exists
   const updateTrip = useUpdateTrip();
   const dpCrew = useDpCrew();
   const helpers = useHelpers().data ?? [];
@@ -961,6 +963,7 @@ export function DeliveryPlanningBoard({
   const schedRef = useRef(sched); schedRef.current = sched;
   const updateFieldsRef = useRef(updateFields); updateFieldsRef.current = updateFields;
   const assignCrewRef = useRef(assignCrew); assignCrewRef.current = assignCrew;
+  const soCrewPlanRef = useRef(soCrewPlan); soCrewPlanRef.current = soCrewPlan;
   const updateTripRef = useRef(updateTrip); updateTripRef.current = updateTrip;
   const dpCrewRef = useRef(dpCrew); dpCrewRef.current = dpCrew;
   const notifyRef = useRef(notify); notifyRef.current = notify;
@@ -968,7 +971,7 @@ export function DeliveryPlanningBoard({
   const updateFieldsMutate = useCallback<UpdateFieldsMutate>((...args) => updateFieldsRef.current.mutate(...args), []);
 
   /* One inline pick → one seat on the row's latest DO; the backend keeps the
-     other seats. No DO yet → nothing to write, so say so and leave the picker.
+     other seats. No DO yet → Carres keeps the crew on the order (useSoCrewPlan).
      Stable identity (reads the mutations through refs) so it lives in a column
      accessor without re-triggering the columns memo. */
   const writeCrewSeat = useCallback<CrewSeatWrite>((order, seat, onFail) => {
@@ -990,8 +993,10 @@ export function DeliveryPlanningBoard({
     }
     const doId = latestDoId(order.delivery_orders);
     if (!doId) {
-      void notifyRef.current({ title: 'Create a delivery order first', body: 'This order has no delivery order yet, so crew cannot be saved. Create a DO first.' });
-      return false;
+      // Carres: a Pending Delivery order keeps its crew on the order; it moves onto the DO when the DO is opened.
+      if ((order.row_type ?? 'so') !== 'so' || !order.so_doc_no) return false;
+      soCrewPlanRef.current.mutate({ soDocNo: order.so_doc_no, ...seat }, { onError: (e) => crewSaveFailed(notifyRef.current, onFail, e) });
+      return true;
     }
     assignCrewRef.current.mutate({ doId, ...seat }, { onError: (e) => crewSaveFailed(notifyRef.current, onFail, e) });
     return true;
@@ -1032,15 +1037,15 @@ export function DeliveryPlanningBoard({
           ...(seats.driver1Id ? { driverId: seats.driver1Id } : {}), ...(seats.lorryId ? { lorryId: seats.lorryId } : {}),
           ...(seats.helper1Id ? { helper1Id: seats.helper1Id } : {}), ...(seats.helper2Id ? { helper2Id: seats.helper2Id } : {}),
         });
-      } else if (!isDp(o) && !latestDoId(o.delivery_orders)) {
+      } else if (!isDp(o) && !latestDoId(o.delivery_orders) && !writeCrewSeat(o, seats)) { // Carres: a DO-less order takes the crew too
         noDo += 1;
-      } else {
+      } else if (isDp(o) || latestDoId(o.delivery_orders)) {
         writeCrewSeat(o, seats);
       }
     }
     if (noDo > 0) void notify({ title: 'Some rows skipped', body: `${noDo} row${noDo === 1 ? ' has' : 's have'} no delivery order yet, so crew cannot be saved there. Create the DO first, then paste again.` });
   };
-  const crewPending = assignCrew.isPending || sched.isPending || updateTrip.isPending || dpCrew.isPending;
+  const crewPending = assignCrew.isPending || soCrewPlan.isPending || sched.isPending || updateTrip.isPending || dpCrew.isPending;
   /* The volatile "a save is running" flags for the inline editors — recomputed
      only when a mutation's isPending actually toggles, so the context value (and
      the editors' disabled state) changes on save start / stop and nothing else. */
