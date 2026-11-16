@@ -67,6 +67,8 @@ export const DeliveryRateCards = ({ embedded = false }: {
   const [section, setSection] = useState<RateSection>('DELIVERY');
   const [creating, setCreating] = useState<{ carrierCompanyId: string | null } | null>(null);
   const [companiesOpen, setCompaniesOpen] = useState(false);
+  // Carres: the carrier double-clicked in the list, opened for editing in the 3PL Companies drawer.
+  const [editCompanyId, setEditCompanyId] = useState<string | null>(null);
   const cards = useRateCards();
   const meta = useRateCardMeta();
   const qc = useQueryClient();
@@ -77,6 +79,7 @@ export const DeliveryRateCards = ({ embedded = false }: {
   const onCreateCompany = () => setCompaniesOpen(true);
   const closeCompanies = () => {
     setCompaniesOpen(false);
+    setEditCompanyId(null);
     void qc.invalidateQueries({ queryKey: COMPANY_LIST_KEY });
   };
   const companies = meta.data?.companies ?? [];
@@ -131,6 +134,7 @@ export const DeliveryRateCards = ({ embedded = false }: {
             sel={sel}
             onSelect={setSel}
             onCreateCompany={onCreateCompany}
+            onEditCompany={(id) => { setEditCompanyId(id); setCompaniesOpen(true); }}
           />
           <div ref={editorRef} className="flex min-w-0 flex-[1_1_560px] scroll-mt-4 flex-col gap-4">
             {sel?.kind === 'card'
@@ -163,7 +167,7 @@ export const DeliveryRateCards = ({ embedded = false }: {
       {companiesOpen && (
         <ResizableDrawer onClose={closeCompanies} storageKey="carriers-3pl-drawer" defaultWidth={760} ariaLabel="3PL Companies"
           title="3PL Companies" subtitle="Each carrier, its lorries, drivers and helpers">
-          <div className="p-4"><ThreePLCompanies embedded /></div>
+          <div className="p-4"><ThreePLCompanies embedded editId={editCompanyId} /></div>
         </ResizableDrawer>
       )}
     </div>
@@ -188,7 +192,7 @@ const NoCardYet = ({ name, onCreate }: { name: string; onCreate: () => void }) =
 // 3PL appears, whether or not it has a card yet, and a carrier with no card opens
 // a clear create prompt. Own-fleet cost structures keep their own group below.
 const SEARCH_FROM = 8;
-const CardList = ({ cards, companies, isLoading, loadFailed, sel, onSelect, onCreateCompany }: {
+const CardList = ({ cards, companies, isLoading, loadFailed, sel, onSelect, onCreateCompany, onEditCompany }: {
   cards: RateCard[];
   companies: RateCardMeta['companies'];
   isLoading: boolean;
@@ -196,6 +200,7 @@ const CardList = ({ cards, companies, isLoading, loadFailed, sel, onSelect, onCr
   sel: Selection;
   onSelect: (s: Selection) => void;
   onCreateCompany: () => void;
+  onEditCompany?: (companyId: string) => void;
 }) => {
   const [q, setQ] = useState('');
   const byCompany = new Map<string, RateCard>();
@@ -222,8 +227,8 @@ const CardList = ({ cards, companies, isLoading, loadFailed, sel, onSelect, onCr
     : 'No supplier linked');
   const supplierTone = (co: RateCardMeta['companies'][number]) => (co.supplier ? 'text-ink-muted' : 'text-[#80501c] dark:text-[color:var(--hz-dk-warning-text)]');
   const inactive = (c: RateCard) => (c.isActive ? null : <Pill tone="grey">Inactive</Pill>);
-  const row = (key: string, on: boolean, name: string, sub: string | null, subTone: string, badge: ReactNode, onClick: () => void) => (
-    <button key={key} type="button" onClick={onClick} aria-current={on ? 'true' : undefined}
+  const row = (key: string, on: boolean, name: string, sub: string | null, subTone: string, badge: ReactNode, onClick: () => void, onDoubleClick?: () => void) => (
+    <button key={key} type="button" onClick={onClick} onDoubleClick={onDoubleClick} title={onDoubleClick ? 'Double-click to edit this carrier' : undefined} aria-current={on ? 'true' : undefined}
       className={cn('flex w-full items-start gap-3 border-l-[3px] px-[15px] py-[9px] text-left',
         on ? 'border-primary bg-[color:var(--hz-dk-surface-2,#eef6f3)]' : 'border-transparent hover:bg-surface-2')}>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -264,11 +269,11 @@ const CardList = ({ cards, companies, isLoading, loadFailed, sel, onSelect, onCr
           const card = byCompany.get(co.id);
           if (!card) return null;
           return row(co.id, sel?.kind === 'card' && sel.id === card.id, co.name, supplierLine(co), supplierTone(co), inactive(card),
-            () => onSelect({ kind: 'card', id: card.id }));
+            () => onSelect({ kind: 'card', id: card.id }), onEditCompany ? () => onEditCompany(co.id) : undefined);
         })}
         {shownUnpriced.length > 0 && group('No rate card yet')}
         {shownUnpriced.map((co) => row(co.id, sel?.kind === 'company' && sel.id === co.id, co.name, supplierLine(co), supplierTone(co), null,
-          () => onSelect({ kind: 'company', id: co.id })))}
+          () => onSelect({ kind: 'company', id: co.id }), onEditCompany ? () => onEditCompany(co.id) : undefined))}
         {companies.length > 0 && shownPriced.length + shownUnpriced.length === 0 && <p className="px-[18px] py-3 text-[13px] text-ink-muted">No carrier matches &ldquo;{q.trim()}&rdquo;.</p>}
         {ownFleet.length > 0 && (
           <>

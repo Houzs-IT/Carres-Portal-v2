@@ -14,7 +14,7 @@
 // Maintenance. Backed by scm.threepl_companies (migs 0210 + 0237).
 // ----------------------------------------------------------------------------
 
-import { useMemo, useState, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import { Button } from '@2990s/design-system';
 import { Building2, Plus, Trash2, Pencil, Check, X, ChevronRight, ChevronDown } from 'lucide-react';
 import { PageHeader } from '../../components/Layout';
@@ -59,7 +59,9 @@ const particularsOf = (row: ThreePLCompanyRow): Particulars => ({
   address: row.address ?? '',
 });
 
-export const ThreePLCompanies = ({ embedded = false }: { embedded?: boolean } = {}) => {
+/* Carres (owner, 16 Nov 2026: "我不能double click那些公司然后edit?"): `editId` opens that company in edit mode
+   (Carriers & Rates passes the carrier double-clicked in its list); a company row double-clicked here edits too. */
+export const ThreePLCompanies = ({ embedded = false, editId = null }: { embedded?: boolean; editId?: string | null } = {}) => {
   const companies = useThreePLCompanies();
   const createCo = useCreateThreePLCompany();
   const notify = useNotify();
@@ -189,6 +191,7 @@ export const ThreePLCompanies = ({ embedded = false }: { embedded?: boolean } = 
               row={r}
               open={open === r.id}
               onToggleOpen={() => setOpen((p) => (p === r.id ? null : r.id))}
+              editNow={editId != null && String(editId) === String(r.id)}
             />
           ))
         )}
@@ -205,7 +208,7 @@ export const ThreePLCompanies = ({ embedded = false }: { embedded?: boolean } = 
   );
 };
 
-const CompanyRow = ({ row, open, onToggleOpen }: { row: ThreePLCompanyRow; open: boolean; onToggleOpen: () => void }) => {
+const CompanyRow = ({ row, open, onToggleOpen, editNow = false }: { row: ThreePLCompanyRow; open: boolean; onToggleOpen: () => void; editNow?: boolean }) => {
   const update = useUpdateThreePLCompany();
   const del = useDeleteThreePLCompany();
   const notify = useNotify();
@@ -218,6 +221,12 @@ const CompanyRow = ({ row, open, onToggleOpen }: { row: ThreePLCompanyRow; open:
   /* Seeded from the row as it is NOW: a link refused last time, or changed since
      on the 3PL invoices tab, must not ride along on the next save. */
   const startEdit = () => { setForm(particularsOf(row)); setSupplier(row.supplier); setEditing(true); };
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!editNow) return;
+    startEdit();
+    rowRef.current?.scrollIntoView({ block: 'center' });
+  }, [editNow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = () => {
     if (!form.name.trim()) { void notify({ title: 'Name required', tone: 'error' }); return; }
@@ -300,7 +309,7 @@ const CompanyRow = ({ row, open, onToggleOpen }: { row: ThreePLCompanyRow; open:
   ].join(' · ');
 
   return (
-    <div className={cn(SHELL, !row.isActive && 'opacity-70')}>
+    <div ref={rowRef} className={cn(SHELL, !row.isActive && 'opacity-70')} onDoubleClick={() => { if (!editing) startEdit(); }}>
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <button type="button" onClick={onToggleOpen} aria-expanded={open} aria-label={open ? 'Close fleet' : 'Open fleet'}
           className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-surface-2 text-ink-secondary">

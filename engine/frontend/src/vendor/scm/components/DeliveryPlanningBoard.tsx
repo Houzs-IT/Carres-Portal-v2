@@ -58,6 +58,7 @@ import { compareByDeliverySlot, deliveryMonthKey, deliveryMonthLabel } from '../
 import type { LayoutSeed } from '../../../lib/tableLayouts';
 import { type DriverRow } from '../lib/drivers-queries';
 import { type LorryRow } from '../lib/lorries-queries';
+import { useThreePLCompanies } from '../lib/threepl-companies-queries';
 import { useHelpers, type HelperRow } from '../lib/helpers-queries';
 import { useStaffLookup } from '../../../hooks/useStaffLookup';
 import styles from './DeliveryPlanningBoard.module.css';
@@ -520,7 +521,7 @@ function DriverPickCell({ order, drivers, onSchedule, writeSeat }: {
       title={typed ? 'Typed on the delivery order, not picked from Fleet: no IC or phone. Pick the driver here.' : undefined}>
       {typed && <span aria-label="Driver not linked to Fleet" style={{ color: 'var(--c-burnt)', fontWeight: 700 }}>!</span>}
       <SearchCombo
-        fill aria-label="Driver" placeholder="— pick a driver —"
+        fill aria-label="Driver" placeholder="— pick a driver —" className={styles.cellCombo}
         options={options}
         value={val}
         disabled={pending}
@@ -546,7 +547,16 @@ function LorryPickCell({ order, lorries, onSchedule, writeSeat }: {
 }) {
   // SCROLL PERF: memoise the option list (see DriverPickCell) — stable identity
   // keeps SearchCombo's internal memos from recomputing on every board re-render.
-  const items = useMemo(() => lorries.map((l) => ({ id: l.id, label: l.plate })), [lorries]);
+  /* Carres: each plate is listed under its transport company, so the pick shows who delivers. */
+  const threepl = useThreePLCompanies();
+  const items = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const c of (threepl.data ?? []) as Array<{ id: string; name: string }>) names.set(String(c.id), c.name);
+    return lorries.map((l) => {
+      const cid = l.threepl_company_id ?? l.threeplCompanyId ?? null;
+      return { id: l.id, label: l.plate, group: cid ? (names.get(String(cid)) ?? '3PL') : 'Own fleet' };
+    });
+  }, [lorries, threepl.data]);
   const currentPlate = order.crew?.lorry_plate ?? null;
   const options = useMemo(() => crewComboOptions(items, currentPlate), [items, currentPlate]);
   const chosen = useMemo(() => crewComboValue(items, currentPlate), [items, currentPlate]);
@@ -562,7 +572,7 @@ function LorryPickCell({ order, lorries, onSchedule, writeSeat }: {
   return (
     <span {...stopRow} style={{ display: 'flex', width: '100%', minWidth: 0 }}>
       <SearchCombo
-        fill aria-label="Lorry plate" placeholder="— pick a lorry —"
+        fill aria-label="Lorry plate" placeholder="— pick a lorry —" className={styles.cellCombo}
         options={options}
         value={val}
         disabled={pending}
@@ -607,7 +617,7 @@ function HelperPickCell({ order, helpers, onSchedule, writeSeat, slot }: {
   return (
     <span {...stopRow} style={{ display: 'flex', width: '100%', minWidth: 0 }}>
       <SearchCombo
-        fill aria-label={`Helper ${slot}`} placeholder="— pick a helper —"
+        fill aria-label={`Helper ${slot}`} placeholder="— pick a helper —" className={styles.cellCombo}
         options={options}
         value={val}
         disabled={pending}
@@ -1079,6 +1089,20 @@ export function DeliveryPlanningBoard({
     }
     return split;
   }, [orders]);
+
+  /* Carres (owner, 16 Nov 2026: "通过我选的lorry plate带出来transport company的名称"): the transport company of
+     each lorry, so the plate a planner picks names who delivers. Own fleet when the lorry has no 3PL. */
+  const threepl = useThreePLCompanies();
+  const carrierOfPlate = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const c of (threepl.data ?? []) as Array<{ id: string; name: string }>) names.set(String(c.id), c.name);
+    const out = new Map<string, string>();
+    for (const l of lorries) {
+      const cid = l.threepl_company_id ?? l.threeplCompanyId ?? null;
+      out.set(l.plate, cid ? (names.get(String(cid)) ?? '3PL') : 'Own fleet');
+    }
+    return out;
+  }, [threepl.data, lorries]);
 
   const columns = useMemo<GridColumn<PlanningOrder>[]>(() => {
     /* The DEFAULT header order (owner 2026-07-22 header tidy): identity →
@@ -1646,6 +1670,14 @@ export function DeliveryPlanningBoard({
       exportValue: (o) => o.crew?.lorry_plate ?? '',
     },
     {
+      /* Carres: the transport company of the lorry picked beside it (owner, 16 Nov 2026). */
+      key: 'transport_company', label: 'Transport Company', width: 160, defaultHidden: true, groupable: true,
+      accessor: (o) => <span>{(o.crew?.lorry_plate && carrierOfPlate.get(o.crew.lorry_plate)) || '—'}</span>,
+      searchValue: (o) => (o.crew?.lorry_plate && carrierOfPlate.get(o.crew.lorry_plate)) || '',
+      groupValue: (o) => (o.crew?.lorry_plate && carrierOfPlate.get(o.crew.lorry_plate)) || '(none)',
+      exportValue: (o) => (o.crew?.lorry_plate && carrierOfPlate.get(o.crew.lorry_plate)) || '',
+    },
+    {
       /* Total Amount (owner 2026-08-19) — the SO's grand total (local_total_sen),
          same figure as the SO list's Amount column. Default-VISIBLE, unlike the
          Balance beside it: the outstanding balance is a finance lookup, but the
@@ -1733,7 +1765,7 @@ export function DeliveryPlanningBoard({
   // rides BoardPendingContext — so a mutation's identity / isPending no longer
   // rebuilds this array. (eslint-disable: those stable callbacks are intentionally
   // omitted from the deps.)
-  }, [isEmSg, drivers, lorries, helpers, msgStatuses, salespersonNameOf, pcIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isEmSg, drivers, lorries, helpers, msgStatuses, salespersonNameOf, pcIndex, carrierOfPlate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Map-open column narrowing: everything NOT in the override hides at render
      time (DataGrid overlayHidden). The user's persisted layout is untouched —
