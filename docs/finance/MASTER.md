@@ -1,5 +1,26 @@
 # FINANCE — MASTER
 
+## 0.0 · Houzs engine Finance — Chew's rulings (2026-11-15/16)
+
+**Status.** Since 11 Nov 2026 the menu's **Finance** row opens the engine's Finance (Houzs's code, `engine/`), on the engine's **own Supabase project** (`Carres-SCM-Engine`). The old Carres Finance (`/finance/*`) is **Finance (old)**, on the portal database. Everything below this section describes Finance (old) unless it says otherwise; where this section disagrees, this section wins for the engine.
+
+**Measured (2026-11-15, read only).** The engine database held 0 accounts, 0 item groups, 0 posting roles and 0 Finance settings; its one Sales Invoice (13 Nov, `SENT`) had no journal, because the engine posts an invoice best-effort and only logs a failure (`engine/backend/src/scm/routes/sales-invoices.ts` around `postSiRevenue`). Finance (old) holds Chew's 300 accounts; its last ledger entry is 30 Oct, and the old order book refuses new orders since 10 Nov (`OLD_ORDER_FLOWS = "off"`). The engine's code falls back to Houzs account codes (`engine/backend/src/acc/rules.ts` `DEFAULT_ROLE_CODES`: bank `310-0010`, card clearing `326-0000`, customer deposits `400-0001`); in Houzs's chart `315-0000` is Prepayments.
+
+**Chew's rulings for the engine** (in chat, 2026-11-15/16). Each changes engine code; where it touches Jess's areas (orders, sales invoices, logins, the owner's 11 Nov rule that the engine matches Houzs), Chew takes it to Jess before it is built (Conflicts, below).
+1. **Chart.** Chew's AutoCount chart is the authority in the engine (「还是要以我的autocount 为准」): load his chart, posting roles and item groups, and replace the hard-coded Houzs fallback codes.
+2. **Channel from the order.** A new order's channel is worked out from the order, never typed by Finance: Subscription when its Sale type is Subscription; otherwise its sale place (the showroom). Debtors split by channel as in §0 (`300-1000` / `300-2000` per dealer / `300-3000`).
+3. **Sale type locks.** Once an order has a sales invoice or a payment, its Outright / Subscription cannot be changed except by an amendment, which is recorded (today any header edit changes it: `mfg-sales-orders.ts` header field `saleType`).
+4. **Payment methods.** Online transfer, Cash, Cheque, Merchant → card machine PBB, GHL, HLBB, MBB, AhaPay, each on its own clearing account (§0); the approval code is required on every card payment, checked by the server.
+5. **Dealer commission, renovation rebate and KPI** move from Finance (old) into the engine (§3.2 rules).
+6. **Diglant's share** (`610-0090` / `401-0000`) is built with subscription billing.
+7. **Performance P&L** reads each sold line's cost from its PO (§3.6), not the catalogue cost, and drops the fixed 16% operating-expense rate.
+8. **Voucher control.** The preparer may not check their own voucher; the Finance approver may approve (today only Managing Director and Owner roles can).
+9. **Customer credit notes and refunds** follow §3.1: an invoiced order's refund is a Finance credit note to `520-0000`, kept in Finance, without cancelling the invoice.
+10. **Stock value: the engine's automatic way** (「那就自动啊」). Each month's stock value posts by itself at month end and the daily check re-posts a month when a late document changes it. This replaces the 2026-10-12 ruling that a month is stored only after Stock's confirmation and never changes.
+11. **Deposits are sales.** A customer deposit is booked as a sale, `509-0000` DEPOSIT PAY BY CUSTOMER, through the engine's deposit invoice (Chew 2026-11-16, 「销售 509-0000」). This replaces `440-0000` Deposits received. When the deposit invoice switch is on, the engine also raises the final sales invoice by itself when an order is delivered and closes each deposit invoice with a credit note (`engine/backend/src/scm/lib/auto-final-invoice.ts`); that touches who issues sales invoices, so the switch is turned on only after Jess agrees. The engine sends nothing to LHDN e-invoice.
+
+**Dealers — PROPOSAL / NOT LAW (2026-11-16).** Today no dealer can make an order: the old POS refuses new orders and the engine refuses a dealer login (`engine/backend/src/carres/sso.ts`). An order an HQ person keys for a dealer lands under the keyer's showroom, so its channel is wrong. Chew asked whether a dealer can enter orders the way showroom staff do. Recommended: yes. Each dealer becomes a sale place marked **Dealer** (not Showroom), so its orders carry the Dealer channel and that dealer; the dealer's people get an engine role without `scm.so.view_all`, so they see only their own orders (`engine/backend/src/scm/lib/salesScope.ts`); the engine admits the dealer login. An order stores its sale place as a name today (`venue`), so the place's id must be kept for the channel to be reliable. Orders and logins are Jess's: she decides. Falsifier: a dealer's order shows another channel, or a dealer login sees another dealer's or HQ's orders.
+
 > **12 Nov 2026 (owner rule of 11 Nov: the Houzs pages are the system).** The Operations → Workspace row `Payment Requests` opens Houzs's own Payment Requests (`/operation/sc/payment-requests`, the same engine page as Houzs Finance → Money out, same count), and an Operations person's old `/finance/payment-requests` link forwards there. Finance, the principal (Finance (old) → Payables, Payment Vouchers) and HR/BD (`RequestsOnly`) still open the Carres page. Who may raise a request inside Houzs is the engine's own role (Team → Roles & Permissions), not the Carres grant that shows the row.
 
 > **Status 2026-10-03: PR #1864 DEPLOYED** (merge `030ea3d8c`). Chew chose to test on production (no separate test database) and approved going live: the work below is on production, and its migrations 0635–0648 were applied through the governed path. Chew tests everything once, on production; that walk is owed. §4's menu (one row per report, the Forecast row, the area fold) is PR #1865, merged 2026-10-05 (`37405f70`).
@@ -80,7 +101,7 @@ Chew's answers on the chart, 2026-10-06:
 |---|---|
 | Money | Cash `320-0000`. Banks `310-1000` Alliance, `310-2000` Hong Leong, `310-3000` RHB, `310-4000` Maybank. New `315-0000` Card & online clearing: `315-1000` Public Bank card machine, `315-2000` GHL, `315-3000` Hong Leong card machine, `315-4000` Maybank card machine, `315-5000` Stripe, `315-6000` AhaPay. |
 | Customers | `300-0000` Trade debtors, with new `300-1000` Showroom, `300-2000` Dealer (one per dealer, `300-2001` and on, its customers under it) and `300-3000` Subscription (one per customer). Other debtors `305-0000`. Related companies `350-00xx`. Stock `330-0000`. |
-| Owed | Suppliers `400-0000` (advances stay here). Non-goods bills `405-0000`. ESH injection only `460-0000`. New `401-0000` Subscription creditors (Diglant's share). Accruals `410-0063`. Commission accrued: dealer `410-0061`, agent `410-0060`; new renovation rebate `410-0064`, KPI `410-0065`. Deposits received `440-0000`. Sales tax `430-0000`. Directors `450-00xx`, `470-0000`. |
+| Owed | Suppliers `400-0000` (advances stay here). Non-goods bills `405-0000`. ESH injection only `460-0000`. New `401-0000` Subscription creditors (Diglant's share). Accruals `410-0063`. Commission accrued: dealer `410-0061`, agent `410-0060`; new renovation rebate `410-0064`, KPI `410-0065`. Deposits received `440-0000` (Finance (old) only; in the engine a deposit is a sale on `509-0000`, §0.0 ruling 11). Sales tax `430-0000`. Directors `450-00xx`, `470-0000`. |
 | Equity | Capital `100-0000`. Retained earnings `150-0000`. New `160-0000` Opening balance, used at go-live only and zero after. |
 | Income | Sales `500-0000`, also a returned mattress sold again. New `500-2000` Subscription (monthly fees and the RM 1 sale), `500-3000` Service charges, `500-4000` Storage charges, `500-5000` 15-year guarantee. Interest `530-0000`. Additional income `580-0000`, including termination and loss compensation. Agents' small fees `560-0000` on the debit side. `500-1000` Cash sales normally unused. |
 | Cost | Purchases `610-00xx` by item group. New `604-0000` Cost of service (service and guarantee items). Purchase returns and supplier credit notes `612-0000`. Purchase transport `630-0000` (`615-0000` unused). New `610-0090` Diglant's share. |
@@ -318,13 +339,13 @@ Each changes only what Finance needs on that screen; nothing else on Jess's scre
 | Moving a deposit to another order | **Not built.** It changes payment records, and Payment already has `Correct allocation`. |
 | Old-slip approval window | **Not built.** |
 | Customer credit and debit notes | **Not built.** Customer invoices belong to Payment (Payment MASTER §1). |
-| Deposit invoices | **Not built** (measured 2026-10-12: no page, route, table or function for them was ever committed; this row said "built and switched OFF", which was wrong). Chew confirms them with Jess first (§5). See the rules below this table. |
+| Deposit invoices | Finance (old): not built. Engine: built and switched off; a deposit is a sale on `509-0000` (§0.0 ruling 11). Turned on only after Jess agrees, because it also raises the final sales invoice at delivery. |
 | Customer credit pot | **Not built.** |
 | Other debtors and other receipts | Keep. |
 
 Deposit invoice rules:
 - They are made from payment records, which Finance only reads. Payment's recording is not changed.
-- Before they are built, check them against Payment's invoice model, the approved numbering (owner 2026-09-23) and e-invoice.
+- In the engine they credit `509-0000` (§0.0 ruling 11). Before the switch is turned on, check the numbering (owner 2026-09-23) with Jess; the engine sends nothing to e-invoice.
 
 ### 3.2 Money out
 
@@ -629,7 +650,7 @@ Carres already has a simpler Card settlement. It takes Public Bank, GHL and Mayb
 |---|---|
 | Closed months lock | Keep, but **do not switch it on**. |
 | Month-end stock value: groups | Four groups: warehouse, showroom, in transit (road, transit points and partner legs) and sent for repair. Supplier consignment and dealer stock are excluded; Stock MASTER §12.9 says dealer display stock is the dealer's own. |
-| Month-end stock value: source | The P&L and Balance Sheet show the stock value live each time they are opened, worked out from Stock's Units (reading only) and marked **provisional**. Once Stock's Month-end Stock Confirmation (Stock MASTER §12.10, not built) confirms a month, Finance stores that month's value and it never changes again (Chew 2026-10-12, 「存货价值就不能定成我开P&L 时每次都是live 的，然后当jess 那边月底存货确认就 我这里储存起来不会再改」). **APPROVED. The live part is BUILT and APPLIED 2026-10-12 (0688); storing a confirmed month waits for Stock's confirmation.** See "Stock in the statements" below. |
+| Month-end stock value: source | Engine: posted automatically at each month end and re-posted by the daily check when a late document changes it (§0.0 ruling 10, Chew 2026-11-16). Finance (old): shown live and marked provisional (0688), never stored. |
 | Opening balances | Finance's own figures at go-live. No old transactions are brought in, because CLAUDE.md §6 stands; the opening is a set of balances, not history. **APPROVED (Chew 2026-10-21/22); BUILT, APPLIED and DEPLOYED 2026-10-22 (0705): the place to enter them is built; Chew gives the amounts later.** See "Opening balances" below. |
 | SST | Carres is not SST-registered, so there is no tax on invoices. |
 | Year-end close | Later, before year end. |
@@ -645,7 +666,7 @@ Carres already has a simpler Card settlement. It takes Public Bank, GHL and Mayb
 - **Customer deposits.** Each customer's deposit per order not yet delivered (customer, order, amount), pasted from Excel or keyed; when that order is invoiced the deposit is set against it automatically (Chew 2026-10-22, 「a」).
 - **Post.** Posting writes one ledger entry dated the day before go-live, every line balanced against `160-0000`, which must be zero after it. Each party's total posts on its control account with its party. Posted once; a mistake is corrected by reversing and posting again before the first month is closed. Every report then shows it as `Brought forward` instead of `No opening balances`.
 
-**How it is built (0705, on branch `finance-opening-balances`; not applied, not deployed).** Words: COPY-STANDARD "Opening balances (Chew 2026-10-22, approved design)".
+**How it is built (0705, applied and deployed 2026-10-22).** Words: COPY-STANDARD "Opening balances (Chew 2026-10-22, approved design)".
 - **Finance's own record.** Six tables: the one opening (draft or posted, its entry, who and when), its accounts, its parties with their open items, its Units with their cost, and its customer deposits. RLS on, read by Finance and the principal as every Finance table; no direct write. Stock's, Orders' and Payment's tables are only read; a Unit or an order is found by its exact Unit or SO No and is never held by a foreign key.
 - **Who.** Finance and the principal save the draft; `Post` and `Reverse` are the principal's, the same right as the manual journal and the go-live date (`is_principal()`, reused). Every save carries the draft's last saved time, so two people never overwrite each other unseen.
 - **Accounts tab.** Every active account that is not a heading or a control account, less `160-0000` itself, the stock account (the Stock tab posts it) and the old supplier advance account. Income and expense accounts take their year to date, so a whole-year Profit and Loss reads them.
@@ -832,7 +853,7 @@ FINANCE          its title folds the area (§4.1)
 │                Notes to follow up · Suppliers
 ├─ Receivables   AR · Receivables · Other debtors · Other receipts
 ├─ Bank & Cards  Daily Bank · Card settlement · Card money waiting · Money moves
-├─ Ledger        Journal · Opening balances (0705, on branch) · General Ledger · Trial Balance · Self-check
+├─ Ledger        Journal · Opening balances · General Ledger · Trial Balance · Self-check
 ├─ Reports       Profit and Loss · Balance Sheet · Cash Flow · AP Aging · Collection
 │                Card charges · Dealer commission · Stock value · Payment
 ├─ Forecast
@@ -886,9 +907,9 @@ FINANCE          its title folds the area (§4.1)
 
 1. **YH.** YH changes Finance code almost every day: over 100 commits from 2026-09-19 to 2026-10-01. Agree with YH before any Finance code changes.
 2. **File samples.** Before the readers are built, collect a sample card report and a sample bank statement from each provider. Hong Leong's card report is a secured PDF.
-3. **Deposit invoices.** Not built (§3.1). Chew confirms them with Jess (2026-10-03). Check them against Payment's invoice rules and e-invoice before building them.
+3. **Deposit invoices.** In the engine, switched off; deposits are sales (§0.0 ruling 11). Jess agrees before the switch is turned on.
 4. **Dealer commission.** Check the calculation with Chew step by step before anything about it changes.
-5. **Stock confirmation.** Stock's Month-end Stock Confirmation is not built, so every month's stock value stays live and provisional until it is; from then on each confirmed month is stored and never changes (§3.5, Chew 2026-10-12).
+5. **Stock value.** The engine posts it automatically each month (§0.0 ruling 10); no Stock confirmation is waited for.
 6. **Year-end close.** Complete review recommendation is now in §3.5. Chew must settle the fiscal period, close/correction permissions, accounting treatment and lock activation before build; this proposal is not approval.
 7. **New words.** New Finance screen words go through COPY-STANDARD before UI work.
 
