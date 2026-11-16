@@ -1292,6 +1292,20 @@ export function useAssignDoCrew() {
   });
 }
 
+/* Carres: crew chosen for an order that has no delivery order yet (Pending Delivery, owner 16 Nov 2026). Saved on
+   the order (backend carres/so-crew-plan.ts) and moved onto the DO's crew when the DO is opened. */
+export type SoCrewPlanVars = Omit<DoCrewVars, 'doId'> & { soDocNo: string };
+export function useSoCrewPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ soDocNo, ...body }: SoCrewPlanVars) =>
+      authedFetch<{ ok: boolean }>(`/delivery-planning/so/${encodeURIComponent(soDocNo)}/crew-plan`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }),
+    onSuccess: () => scheduleBoardRefresh(qc, [['delivery-planning'], ['mobile-delivery-planning']]),
+  });
+}
+
 /* ── Convert SO → DO from the Delivery Planning board ──────────────────────────
    REUSES the existing line-level converter POST /delivery-orders-mfg/from-sos
    (the variant-carry fix already lives there). That endpoint is LINE-level —

@@ -64,6 +64,8 @@ export type SoBoardMaps = ItemMaps & DoMaps & {
   poLockedDocs: Set<string>;
   poNosByDoc: Map<string, string[]>;
   acExpiryByDoc: Map<string, string>;
+  /** Carres: the crew chosen for an order that has no delivery order yet (carres/so-crew-plan.ts). */
+  crewPlanByDoc?: Map<string, CrewOut>;
 };
 
 /* Per-line readiness + per-line warehouse + the SO-list-matching Branding pick.

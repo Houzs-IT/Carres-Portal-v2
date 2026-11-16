@@ -121,7 +121,8 @@ export function assembleSoOrders(soRows: SoHeaderRow[], m: SoBoardMaps, x: SoRow
     const regionSet = new Set<Region>(stateRegions);
 
     const dos = m.doByDoc.get(docNo) ?? [];
-    const crew = pickDisplayCrew(dos.map((d) => d.id), (id) => m.crewByDo.get(id) ?? m.typedCrewByDo.get(id) ?? null, (cr) => !!cr.driver_1_name);
+    const crew = pickDisplayCrew(dos.map((d) => d.id), (id) => m.crewByDo.get(id) ?? m.typedCrewByDo.get(id) ?? null, (cr) => !!cr.driver_1_name)
+      ?? (dos.length === 0 ? m.crewPlanByDoc?.get(docNo) ?? null : null); // Carres: crew chosen before the DO exists
     const warehouseIds = [...(m.warehousesByDoc.get(docNo) ?? new Set<string>())];
     const primaryWh = warehouseIds[0] ?? null;
 

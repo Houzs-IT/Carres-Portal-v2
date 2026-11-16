@@ -51,9 +51,10 @@ describe("Invite Member", () => {
     expect(INVITE).toMatch(/if \(!made\.ok\) return c\.json\(\{ error: made\.error \}, made\.status\);/);
   });
 
-  test("the department name is what the portal maps a role from; the password goes only when the admin set one", () => {
+  test("the department name is what the portal maps a role from; the portal sends no email of its own", () => {
     expect(INVITE).toMatch(/department: dept,/);
-    expect(INVITE).toMatch(/delivery: directPassword \? "password" : "invite"/);
+    // One email and one password (16 Nov 2026): the portal login gets the admin's password or a throw-away one.
+    expect(INVITE).toMatch(/delivery: "password",\s*password: directPassword \?\? throwAwayPortalPassword\(\),/);
   });
 
   test("the response reports the portal login and never carries the password", () => {
