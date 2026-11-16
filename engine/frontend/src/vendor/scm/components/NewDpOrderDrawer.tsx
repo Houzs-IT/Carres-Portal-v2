@@ -789,7 +789,7 @@ export const NewDpOrderDrawer = ({ onClose }: { onClose: () => void }) => {
             )}
             {sourceControl === 'project-picker' && form.source !== '' && (
               <div style={{ marginTop: 'var(--space-1)', fontSize: 'var(--fs-11)', color: 'var(--c-muted, var(--hz-c-ink-muted))' }}>
-                Venue address + PIC contact auto-fill from the project on create.
+                Venue address + PIC contact auto-fill from the fair on create.
               </div>
             )}
           </label>

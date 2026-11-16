@@ -363,7 +363,7 @@ export function soColumns(hidden: ReadonlySet<string>, open: (so: string) => voi
   return [
     dateCol('date', 'Date', (r) => r.so_date),
     textCol('venue', 'Venue', (r) => r.venue),
-    textCol('project', 'Project', (r) => r.project),
+    textCol('project', 'Fair', (r) => r.project),
     soCol('so', 'SO No', (r) => r.so_no, open, true),
     docCol('form', 'Order Form', (r) => r.order_form),
     textCol('salesperson', 'Salesperson', (r) => r.salesperson),
@@ -408,7 +408,7 @@ export function doColumns(hidden: ReadonlySet<string>, open: (so: string) => voi
   return [
     dateCol('date', 'Date', (r) => r.delivery_date),
     textCol('venue', 'Venue', (r) => r.venue),
-    textCol('project', 'Project', (r) => r.project),
+    textCol('project', 'Fair', (r) => r.project),
     {
       key: 'do', label: 'DO No', getValue: (r) => r.do_no,
       render: (r) => (
@@ -462,7 +462,7 @@ export function invoiceColumns(hidden: ReadonlySet<string>, open: (so: string) =
   return [
     dateCol('date', 'Date', (r) => r.invoice_date),
     textCol('venue', 'Venue', (r) => r.venue),
-    textCol('project', 'Project', (r) => r.project),
+    textCol('project', 'Fair', (r) => r.project),
     docCol('inv', 'Invoice No', (r) => r.inv_no, true),
     soCol('so', 'SO No', (r) => r.so_no, open),
     textCol('salesperson', 'Salesperson', (r) => r.salesperson),
@@ -481,7 +481,7 @@ export function pnlColumns(hidden: ReadonlySet<string>, open: (so: string) => vo
   return [
     dateCol('date', 'Date', (r) => r.so_date),
     textCol('venue', 'Venue', (r) => r.venue),
-    textCol('project', 'Project', (r) => r.project),
+    textCol('project', 'Fair', (r) => r.project),
     soCol('so', 'SO No', (r) => r.so_no, open, true),
     textCol('salesperson', 'Salesperson', (r) => r.salesperson),
     textCol('branding', 'Branding', (r) => r.branding),
@@ -598,7 +598,7 @@ export function buildExport(data: FairReportResponse): { headers: string[]; body
   if (data.stage === 'so') {
     return {
       name: 'fair-report-sales-orders.csv',
-      headers: ['Date', 'Venue', 'Project', 'SO No', 'Order Form', 'Salesperson', 'Branding', 'Amount', 'Selling', 'Service Rev', 'Mattress/Sofa Cost', 'Bedframe Cost', 'Accessories Cost', 'Others Cost', 'Service Cost', 'Total SO Cost', 'Margin %', 'Balance', 'Payment', 'Cash', 'Merchant', 'Installment', 'Online', 'Below Deposit'],
+      headers: ['Date', 'Venue', 'Fair', 'SO No', 'Order Form', 'Salesperson', 'Branding', 'Amount', 'Selling', 'Service Rev', 'Mattress/Sofa Cost', 'Bedframe Cost', 'Accessories Cost', 'Others Cost', 'Service Cost', 'Total SO Cost', 'Margin %', 'Balance', 'Payment', 'Cash', 'Merchant', 'Installment', 'Online', 'Below Deposit'],
       body: data.rows.map((r) => [
         csvDate(r.so_date), r.venue, r.project, r.so_no, r.order_form, r.salesperson, r.branding,
         c(r.amount_sen), c(r.selling_sen), c(r.service_rev_sen),
@@ -611,7 +611,7 @@ export function buildExport(data: FairReportResponse): { headers: string[]; body
   if (data.stage === 'do') {
     return {
       name: 'fair-report-delivery-orders.csv',
-      headers: ['Delivery Date', 'Venue', 'Delivery Location', 'Delivery Address', 'Location', 'Project', 'Branding', 'DO No', 'Linked SO', 'Qty', 'SO Amount', 'Total SO Cost', 'Total DO Cost', 'Cost Delta', 'SO Margin %', 'DO Margin %', 'Legacy'],
+      headers: ['Delivery Date', 'Venue', 'Delivery Location', 'Delivery Address', 'Location', 'Fair', 'Branding', 'DO No', 'Linked SO', 'Qty', 'SO Amount', 'Total SO Cost', 'Total DO Cost', 'Cost Delta', 'SO Margin %', 'DO Margin %', 'Legacy'],
       body: data.rows.map((r) => [
         csvDate(r.delivery_date), r.venue, r.delivery_location, r.delivery_address, r.location, r.project, r.branding, r.do_no, r.so_no, r.qty,
         r.so_amount_sen == null ? '' : c(r.so_amount_sen),
@@ -636,7 +636,7 @@ export function buildExport(data: FairReportResponse): { headers: string[]; body
   if (data.stage === 'pnl') {
     return {
       name: 'fair-report-pnl.csv',
-      headers: ['Date', 'Venue', 'Project', 'SO No', 'Salesperson', 'Branding', 'Revenue', 'SO Cost', 'DO Cost', 'SI Cost', 'COGS', 'Cost Stage', 'Gross Profit', 'Margin %'],
+      headers: ['Date', 'Venue', 'Fair', 'SO No', 'Salesperson', 'Branding', 'Revenue', 'SO Cost', 'DO Cost', 'SI Cost', 'COGS', 'Cost Stage', 'Gross Profit', 'Margin %'],
       body: data.rows.map((r) => [
         csvDate(r.so_date), r.venue, r.project, r.so_no, r.salesperson, r.branding,
         c(r.revenue_sen), c(r.so_cost_sen), r.do_cost_sen == null ? '' : c(r.do_cost_sen), r.si_cost_sen == null ? '' : c(r.si_cost_sen),
@@ -646,7 +646,7 @@ export function buildExport(data: FairReportResponse): { headers: string[]; body
   }
   return {
     name: 'fair-report-invoices.csv',
-    headers: ['Invoice Date', 'Venue', 'Project', 'Branding', 'Invoice No', 'Linked SO', 'Invoiced', 'SO Cost', 'DO Cost', 'Landed (SI) Cost', 'Margin %'],
+    headers: ['Invoice Date', 'Venue', 'Fair', 'Branding', 'Invoice No', 'Linked SO', 'Invoiced', 'SO Cost', 'DO Cost', 'Landed (SI) Cost', 'Margin %'],
     body: data.rows.map((r) => [
       csvDate(r.invoice_date), r.venue, r.project, r.branding, r.inv_no, r.so_no,
       c(r.invoiced_sen), c(r.so_cost_sen), c(r.do_cost_sen), c(r.si_cost_sen), r.margin_pct == null ? '' : r.margin_pct.toFixed(1),
@@ -890,8 +890,8 @@ export function SalesReport() {
           options={opts.venues.map((v) => ({ value: v, label: v }))} allLabel="All venues" />
         <PickFilter label="State" value={sp.get('state') ?? ''} onChange={(v) => setParam('state', v)}
           options={opts.states.map((s) => ({ value: s, label: s }))} allLabel="All states" />
-        <PickFilter label="Project / Fair" value={project != null ? String(project) : ''} onChange={(v) => setParam('project', v)}
-          options={Object.entries(opts.projects).map(([id, label]) => ({ value: id, label }))} allLabel="All projects" />
+        <PickFilter label="Fair" value={project != null ? String(project) : ''} onChange={(v) => setParam('project', v)}
+          options={Object.entries(opts.projects).map(([id, label]) => ({ value: id, label }))} allLabel="All fairs" />
         <PickFilter label="Branding" value={sp.get('branding') ?? ''} onChange={(v) => setParam('branding', v)}
           options={opts.brandings.map((b) => ({ value: b, label: b }))} allLabel="All brands" />
         <PickFilter label="Salesperson" value={sp.get('salesperson') ?? ''} onChange={(v) => setParam('salesperson', v)}
@@ -1166,7 +1166,7 @@ function FairDrawer({ docNo, onClose, onOpenOrder }: { docNo: string | null; onC
                 <Meta k="SO No" v={<span className={docNoCls}>{d.so_no}</span>} />
                 <Meta k="Order Form" v={<span className={docNoCls}>{d.order_form ?? '—'}</span>} />
                 <Meta k="Salesperson" v={d.salesperson ?? '—'} />
-                <Meta k="Project / Fair" v={d.project ?? '—'} />
+                <Meta k="Fair" v={d.project ?? '—'} />
                 <Meta k="State" v={d.state ?? '—'} />
                 <Meta k="Payment" v={d.payment_methods.join(' + ') || '—'} />
               </dl>

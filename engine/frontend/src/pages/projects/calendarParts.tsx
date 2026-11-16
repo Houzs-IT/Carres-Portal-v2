@@ -205,7 +205,7 @@ export function CalendarTaskPopover({
   const top = Math.min(info.y + 14, vh - 180);
 
   const rows: Array<[string, string | null]> = [
-    ["Project", t.project_name],
+    ["Fair", t.project_name],
     ["Due", due],
     ["Owner", t.owner_name || "Unassigned"],
   ];
@@ -342,7 +342,7 @@ export function CalendarDayModal({
         </div>
         {projects.length === 0 ? (
           <div className="mb-4 rounded-md border border-dashed border-border px-3 py-3 text-[12px] text-ink-muted">
-            No projects on this day.
+            No fairs on this day.
           </div>
         ) : (
           <ul className="mb-4 divide-y divide-border-subtle rounded-md border border-border">

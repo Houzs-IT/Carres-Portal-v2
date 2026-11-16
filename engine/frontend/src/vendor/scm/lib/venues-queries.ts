@@ -113,7 +113,7 @@ export function useVenues(_opts?: { includeInactive?: boolean }) {
       api
         /* includeShowrooms: the SCM venue list is fed from project venues AND
            from Showroom-flagged warehouses (owner 2026-07-19). Opt-in, so
-           Project Maintenance's own CRUD list stays exactly the rows it owns. */
+           Fair Maintenance's own CRUD list stays exactly the rows it owns. */
         .get<{ data: ProjectVenueRow[] }>('/api/projects/venues?includeShowrooms=1')
         .then((r) => (r.data ?? []).map(mapVenue)),
     staleTime: 60_000,

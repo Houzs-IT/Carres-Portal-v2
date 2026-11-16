@@ -11,7 +11,7 @@
  *  gate, so a person still sees only what their role opens. The workspace tabs, search, hub pages and the Finance
  *  report list read this, so a page left out here was missing from them even when the portal opened it. */
 const KEEP = new Set([
-  "Overview", "Sales Orders", "Payment Requests", "Service Cases", "Projects", "Supply Chain", "Finance",
+  "Overview", "Sales Orders", "Payment Requests", "Service Cases", "Fairs", "Supply Chain", "Finance",
   "Mail Center", "Announcements", "Team", "IT", "Change Log", "Assistant", "Agent Console", "IT Support", "OCR",
   "Settings",
 ]);

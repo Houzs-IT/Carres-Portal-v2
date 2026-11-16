@@ -230,7 +230,7 @@ export const PORTAL_MODULES: ReadonlyArray<PortalModule> = [
   { section: "Delivery", label: "Transportation", icon: Truck, mIcon: "local_shipping" },
   { section: "Warehouse", label: "Warehouse", icon: Warehouse, landingKey: WAREHOUSE_LANDING_KEY },
   { section: "Customer Care", label: "Service Cases", icon: Zap, mIcon: "support_agent" },
-  { section: "Projects", label: "Projects", icon: FolderKanban, mIcon: "event" },
+  { section: "Projects", label: "Fairs", icon: FolderKanban, mIcon: "event" },
   /* Houzs Finance's sub-groups, Houzs words and icons (Sidebar.tsx:761-871). A Houzs group only opens and
    * shuts (it has no `to`), so the row goes nowhere. Reports is one entry, so it draws as a plain row. */
   { section: "Finance Money in", label: "Money in", icon: HandCoins, handleOnly: true },
@@ -396,10 +396,10 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "service-mine", label: "My Cases", icon: ClipboardCheck, path: "/operation/sc/service-mine", section: "Customer Care" },
 
       /* PROJECTS */
-      { key: "project-overview", label: "Project Overview", icon: DollarSign, path: "/operation/sc/project-overview", section: "Projects" },
-      { key: "projects", label: "Project List", icon: ClipboardList, path: "/operation/sc/projects", section: "Projects" },
+      { key: "project-overview", label: "Fair Overview", icon: DollarSign, path: "/operation/sc/project-overview", section: "Projects" },
+      { key: "projects", label: "Fair List", icon: ClipboardList, path: "/operation/sc/projects", section: "Projects" },
       { key: "project-calendar", label: "Calendar", icon: Calendar, path: "/operation/sc/project-calendar", section: "Projects" },
-      { key: "project-maintenance", label: "Project Maintenance", icon: Wrench, path: "/operation/sc/project-maintenance", section: "Projects" },
+      { key: "project-maintenance", label: "Fair Maintenance", icon: Wrench, path: "/operation/sc/project-maintenance", section: "Projects" },
 
       /* SUPPLY CHAIN — Houzs's Product Request row directly under Supply Chain (it is also in Consignment). */
       { key: "product-request", label: "Product Request", icon: Sofa, path: "/operation/sc/product-request", badge: "product-request-approvals", section: "Supply Chain" },

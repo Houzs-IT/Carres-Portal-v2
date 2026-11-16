@@ -94,7 +94,7 @@ export function CreateProjectPanel({
       return;
     }
     if (!stateName.trim()) {
-      toast.error("This venue has no state set. Open Project Maintenance → Venues and add one.");
+      toast.error("This venue has no state set. Open Fair Maintenance → Venues and add one.");
       return;
     }
     if (!derivedName.trim()) {
@@ -130,7 +130,7 @@ export function CreateProjectPanel({
     <Panel
       open
       onClose={onClose}
-      title="New Project"
+      title="New Fair"
       subtitle="Picking an event type pre-loads the default checklist"
       width={480}
       footer={
@@ -161,7 +161,7 @@ export function CreateProjectPanel({
       <PanelSection title="Basics">
         <div>
           <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-            Project Name
+            Fair Name
           </div>
           <div className="w-full rounded-md border border-dashed border-border bg-bg px-3 py-2 text-[13px] text-ink-secondary">
             {derivedName || (
@@ -210,7 +210,7 @@ export function CreateProjectPanel({
             </select>
             {brands.length === 0 && (
               <div className="mt-1 text-[10px] text-warning-text">
-                No brands configured yet. Add one under Project Maintenance → Brands.
+                No brands configured yet. Add one under Fair Maintenance → Brands.
               </div>
             )}
           </div>
@@ -286,7 +286,7 @@ export function CreateProjectPanel({
           </select>
           <div className="mt-1 text-[10px] text-ink-muted">
             Auto-fills from the venue's record. Override here if the venue
-            doesn't have one set yet — fix it later in Project Maintenance → Venues.
+            doesn't have one set yet — fix it later in Fair Maintenance → Venues.
           </div>
         </div>
         <div>

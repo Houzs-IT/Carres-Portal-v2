@@ -103,6 +103,6 @@ describe("CalendarDayModal", () => {
 
   it("says so when no project lands on the day", () => {
     render(<CalendarDayModal iso="2026-08-02" projects={[]} tasks={[]} holidays={[]} onClose={() => {}} onOpenProject={() => {}} />);
-    expect(screen.getByText("No projects on this day.")).toBeTruthy();
+    expect(screen.getByText("No fairs on this day.")).toBeTruthy();
   });
 });

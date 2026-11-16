@@ -1032,7 +1032,7 @@ export function MobileSODetail({ docNo, onBack, onEdit, onAddLine, flowNav, onCo
             {/* Order info */}
             <div className="card"><div className="card-h"><span className="card-t">Order info</span></div><div className="card-b">
               <div style={{ display: "flex", gap: 9 }}><div style={{ flex: 1, minWidth: 0 }}><RoField label="Building type" value={val(h.building_type)} /></div><div style={{ flex: 1, minWidth: 0 }}>{companyUsesShowroomSale(getBrandingCompanyCode()) /* Carres: the Showroom or Project, not a Fair (owner 2026-11-12) */
-                ? <RoField label={h.project_id != null ? "Project" : "Showroom"} value={val(h.venue)} />
+                ? <RoField label={h.project_id != null ? "Fair" : "Showroom"} value={val(h.venue)} />
                 : <RoField label="Fair" value={h.fair ? fairLabel(h.fair) : val(h.venue ?? h.venue_id)} />}</div></div>
               <RoField label="Sale type" value={soSaleTypeLabel(h.sale_type)} />{/* Carres (owner 2026-11-12) */}{h.fair_date ? <RoField label="Fair day" value={dl(h.fair_date)} mono /> : null}
               {h.fair && h.venue && fairElsewhereLine(h.venue, h.fair) ? <RoField label="Venue" value={`${h.venue} · Venue differs`} /> : null}{/* the fair is named above; its place is not the order's (owner 2026-10-19) */}

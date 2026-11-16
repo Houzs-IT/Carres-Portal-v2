@@ -85,7 +85,7 @@ export function googleCalendarUrl(p: {
   const end = endDate ? endDate.toISOString().slice(0, 10).replace(/-/g, "") : start;
   const dates = `${start}/${end}`;
   const details = [
-    `Project: ${p.code}`,
+    `Fair: ${p.code}`,
     p.organizer && `Organizer: ${p.organizer}`,
   ]
     .filter(Boolean)

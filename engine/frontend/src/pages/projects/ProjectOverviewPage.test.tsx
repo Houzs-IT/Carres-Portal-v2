@@ -73,7 +73,7 @@ describe("Project Overview — the project table", () => {
   it("keeps every cost, gives Project / Event type / Venue / State / Dates their own columns, and money as 1,234.56 / (1,234.56)", () => {
     show(PERIOD);
     const table = projectsTable();
-    for (const c of ["Project", "Event Type", "Venue", "State", "Dates", "Rental", "Setup", "Transport", "Commission", "Merchandise", "Others", "Net Profit"]) {
+    for (const c of ["Fair", "Event Type", "Venue", "State", "Dates", "Rental", "Setup", "Transport", "Commission", "Merchandise", "Others", "Net Profit"]) {
       expect(within(table).getByText(c)).toBeTruthy();
     }
     const row = within(table).getByText("[AKEMI] MYHOME").closest("tr") as HTMLTableRowElement;
@@ -113,7 +113,7 @@ describe("Project Overview — the project table", () => {
     show(PERIOD);
     const table = projectsTable();
     for (const c of [
-      "Project", "Event type", "Venue", "State", "Dates", "Sales", "Service", "COGS", "GP", "GP %", "Rental", "Setup", "Transport",
+      "Fair", "Event type", "Venue", "State", "Dates", "Sales", "Service", "COGS", "GP", "GP %", "Rental", "Setup", "Transport",
       "Commission", "Merchandise", "Others", "Net profit", "NP %", "Collected", "Collected %",
     ]) {
       expect(within(table).getByRole("button", { name: `Filter & sort ${c}` })).toBeTruthy();

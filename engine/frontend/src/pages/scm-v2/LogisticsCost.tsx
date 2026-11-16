@@ -295,7 +295,7 @@ function EventsView({ p, mode, split, showPct, period, months }: ViewProps) {
       { id: 'events', label: 'Total events', kind: 'ratio', int: true, cells: cellsBy(scopes, byMonth, (m, r) => m.fairs.filter((f) => f.region === r).length) },
       withPct(income), withPct(cost),
       { id: 'net', label: 'NET', kind: 'final', cells: net, pct: pctOf(net, sales) },
-      { id: 'check', label: 'Check: the fairs’ own books (Project Overview)', kind: 'check', cells: books },
+      { id: 'check', label: 'Check: the fairs’ own books (Fair Overview)', kind: 'check', cells: books },
       { id: 'diff', label: 'Difference (the fairs’ cost less their books)', kind: off ? 'bad' : 'check', zeroShows: true, cells: diff },
     ];
   }, [p, byMonth, scopes, rate, mode]);

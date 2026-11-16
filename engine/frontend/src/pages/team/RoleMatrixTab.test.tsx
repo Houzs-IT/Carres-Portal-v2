@@ -78,7 +78,7 @@ describe("RoleMatrixTab", () => {
     render(<RoleMatrixTab />);
     await waitFor(() => expect(screen.getByText("SCM · Sales")).toBeTruthy());
     expect(screen.getByText("SCM · Warehouse")).toBeTruthy();
-    expect(screen.getByText("Projects")).toBeTruthy();
+    expect(screen.getByText("Fairs")).toBeTruthy();
   });
 
   it("search narrows the list to the matching module", async () => {
@@ -90,7 +90,7 @@ describe("RoleMatrixTab", () => {
 
     expect(screen.getByText("SCM · Warehouse")).toBeTruthy();
     expect(screen.queryByText("SCM · Sales")).toBeNull();
-    expect(screen.queryByText("Projects")).toBeNull();
+    expect(screen.queryByText("Fairs")).toBeNull();
   });
 
   it("a sub-page match forces its module open and hides the rest", async () => {
@@ -152,9 +152,9 @@ describe("RoleMatrixTab", () => {
   it("set Projects=Full grants the Projects CRUD keys but never an approval key", async () => {
     mockApi();
     render(<RoleMatrixTab />);
-    await waitFor(() => expect(screen.getByText("Projects")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Fairs")).toBeTruthy());
 
-    fireEvent.click(within(rowFor("Projects")).getByText("Full"));
+    fireEvent.click(within(rowFor("Fairs")).getByText("Full"));
     fireEvent.click(await screen.findByText("Save changes"));
 
     await waitFor(() => expect(apiPatch.mock.calls.find((c) => c[0] === "/api/roles/7")).toBeTruthy());

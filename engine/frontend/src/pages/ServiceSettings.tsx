@@ -83,7 +83,7 @@ function GeneralTab() {
       <DefaultAssigneeSection />
 
       {/* Two-up grid on wide screens, single column on narrow. Same
-          packing pattern as Project Maintenance keeps the page tight. */}
+          packing pattern as Fair Maintenance keeps the page tight. */}
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <LookupManager
           apiPath="/api/assr/lookups/issue-categories"

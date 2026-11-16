@@ -116,7 +116,7 @@ const DEGRADED_LABEL: Record<SearchHitType, string> = {
   delivery_order: "Delivery Orders",
   sales_invoice: "Sales Invoices",
   purchase_invoice: "Purchase Invoices",
-  project: "Projects",
+  project: "Fairs",
   assr_case: "Service Cases",
   product: "Products",
   user: "People",

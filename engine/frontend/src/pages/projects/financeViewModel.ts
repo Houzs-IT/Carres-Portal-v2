@@ -156,7 +156,7 @@ export const FINANCE_TAB_HEADER: Record<
       "Every income and cost line across every project. Filter by date, brand, kind, category — or search.",
   },
   analytics: {
-    title: "Project Overview",
+    title: "Fair Overview",
     description:
       "Sales, COGS, rental, gross and net profit for the period — then by brand, event type, organizer and venue.",
   },

@@ -386,7 +386,7 @@ const BrandingInput = ({
       }}
       title={inPool || !current
         ? undefined
-        : `"${current}" is not in the current branding pool. Add it in Project Maintenance -> Brands.`}
+        : `"${current}" is not in the current branding pool. Add it in Fair Maintenance -> Brands.`}
       style={{
         width: 160,
         fontFamily: 'var(--font-sans)',

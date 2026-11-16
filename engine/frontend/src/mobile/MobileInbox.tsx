@@ -43,7 +43,7 @@ function activityLine(a: NotificationItem): string {
     case "stage_change":
       return `${who}Stage ${a.from_value || "?"} → ${a.to_value || "?"}`;
     case "created":
-      return `${who}Created the project`;
+      return `${who}Created the fair`;
     case "checklist_status":
       return `${who}${a.note || "Updated checklist"}`;
     case "checklist_add":
@@ -53,9 +53,9 @@ function activityLine(a: NotificationItem): string {
     case "finance_edit":
       return `${who}Updated finance`;
     case "archived":
-      return `${who}Archived the project`;
+      return `${who}Archived the fair`;
     case "restored":
-      return `${who}Restored the project`;
+      return `${who}Restored the fair`;
     default:
       return `${who}${a.action}${a.note ? ` · ${a.note}` : ""}`;
   }
@@ -228,7 +228,7 @@ function Row({
   unread: boolean;
   onOpen?: (item: NotificationItem) => void;
 }) {
-  const title = item.project_name || item.project_code || "Project";
+  const title = item.project_name || item.project_code || "Fair";
   return (
     <button
       onClick={() => onOpen?.(item)}

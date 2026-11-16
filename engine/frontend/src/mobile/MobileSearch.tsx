@@ -85,7 +85,7 @@ const dm = (d: string | null | undefined): string => {
 const TYPE_LABEL: Record<SearchHitType, string> = {
   // Openable on the phone.
   sales_order: "Sales Orders",
-  project: "Projects",
+  project: "Fairs",
   assr_case: "Service Cases",
   product: "Products",
   user: "People",
@@ -214,7 +214,7 @@ export function MobileSearch({
       <div className="scroll" style={{ padding: 12, paddingBottom: 40 }}>
         {term.length === 0 && (
           <div style={{ padding: "40px 16px", textAlign: "center", color: "var(--mut2)", fontSize: 12.5 }}>
-            Start typing to search across sales orders, purchase and delivery documents, projects, service cases, products and people.
+            Start typing to search across sales orders, purchase and delivery documents, fairs, service cases, products and people.
           </div>
         )}
         {term.length > 0 && term.length < GLOBAL_SEARCH_MIN_LENGTH && (

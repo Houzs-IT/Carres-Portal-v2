@@ -399,8 +399,8 @@ export const MOBILE_MENU_GROUPS: { group: string; items: MobileMenuItem[] }[] = 
        rep leaf, or the office leaf's keys (Consignment). */
     { to: "/scm/product-requests", label: "Product Requests" },
   ]},
-  { group: "Projects · PMS", items: [
-    { to: "/projects", label: "Projects" },
+  { group: "Fairs · PMS", items: [
+    { to: "/projects", label: "Fairs" },
   ]},
   { group: "After-sales", items: [
     { to: "/assr", label: "Service Case" },

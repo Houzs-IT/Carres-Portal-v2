@@ -239,7 +239,7 @@ export function MobileFairReport({ onBack }: { onBack: () => void }) {
               <div className="empty">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c2c6bd" strokeWidth="1.6"><path d="M4 4h16v4H4zM4 10h16v10H4z" /></svg>
                 <div className="empty-t">Pick a fair</div>
-                <div className="empty-s">Choose a Project / Fair in Filters to see its P&amp;L.</div>
+                <div className="empty-s">Choose a Fair in Filters to see its P&amp;L.</div>
               </div>
             ) : (
               <>
@@ -510,9 +510,9 @@ function FilterSheet({ filters, opts, onApply, onClose }: {
               {opts.states.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </FRow>
-          <FRow label="Project / Fair">
+          <FRow label="Fair">
             <select className="fld-i" style={selStyle} value={draft.project != null ? String(draft.project) : ""} onChange={(e) => set({ project: e.target.value ? Number(e.target.value) : undefined })}>
-              <option value="">All projects</option>
+              <option value="">All fairs</option>
               {Object.entries(opts.projects).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </FRow>
@@ -621,7 +621,7 @@ function FairDetail({ docNo, onBack }: { docNo: string; onBack: () => void }) {
             {/* Project / Fair pill */}
             {d.project && (
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginTop: 11, background: "var(--amber-bg)", border: "1px solid #ecdcb4", borderRadius: 10, padding: "9px 12px" }}>
-                <span style={{ fontSize: 8.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--gold)" }}>Project / Fair</span>
+                <span style={{ fontSize: 8.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--gold)" }}>Fair</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{d.project}</span>
               </div>
             )}

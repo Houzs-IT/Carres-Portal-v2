@@ -56,16 +56,16 @@ function Daily({ r }: { r: OvProject["chatReport"] }) {
 
 export const PROJECT_COLUMNS: Column<OverviewRow>[] = [
   {
-    key: "project", label: "Project", alwaysVisible: true, group: "Project",
+    key: "project", label: "Fair", alwaysVisible: true, group: "Fair",
     render: (r) => <span className="whitespace-nowrap font-semibold text-primary" title={r.p.name}>{projectLines(r.p).title}</span>,
     getValue: (r) => projectLines(r.p).title, sortValue: (r) => projectLines(r.p).title, searchValue: (r) => r.p.name,
     total: (rows) => <span className="whitespace-nowrap">Total · {rows.length} project{rows.length === 1 ? "" : "s"}</span>,
   },
-  { key: "eventType", label: "Event type", group: "Project", render: (r) => <span className="whitespace-nowrap text-ink-secondary">{r.p.eventType ?? "-"}</span>, getValue: (r) => r.p.eventType ?? "" },
-  { key: "venue", label: "Venue", group: "Project", render: (r) => <span className="whitespace-nowrap">{r.p.venue ?? "-"}</span>, getValue: (r) => r.p.venue ?? "" },
-  { key: "state", label: "State", group: "Project", render: (r) => <span className="whitespace-nowrap">{r.p.state ?? "-"}</span>, getValue: (r) => r.p.state ?? "" },
+  { key: "eventType", label: "Event type", group: "Fair", render: (r) => <span className="whitespace-nowrap text-ink-secondary">{r.p.eventType ?? "-"}</span>, getValue: (r) => r.p.eventType ?? "" },
+  { key: "venue", label: "Venue", group: "Fair", render: (r) => <span className="whitespace-nowrap">{r.p.venue ?? "-"}</span>, getValue: (r) => r.p.venue ?? "" },
+  { key: "state", label: "State", group: "Fair", render: (r) => <span className="whitespace-nowrap">{r.p.state ?? "-"}</span>, getValue: (r) => r.p.state ?? "" },
   {
-    key: "dates", label: "Dates", group: "Project", newestFirst: true,
+    key: "dates", label: "Dates", group: "Fair", newestFirst: true,
     render: (r) => <span className="whitespace-nowrap tabular-nums">{r.p.startDate ? fmtDayMonthRange(r.p.startDate, r.p.endDate) : "-"}</span>,
     /* By the day it starts: the funnel's presets and From / To range read it, and its list shows each start day. */
     getValue: (r) => r.p.startDate ?? "", filterLabel: (v) => fmtDateOrDash(v),

@@ -120,7 +120,7 @@ export function RoleSettingsDrawer({
                 Scope to PIC's projects
               </div>
               <div className="mt-0.5 text-[10.5px] leading-snug text-ink-muted">
-                Users with this role only see projects where they or their manager
+                Users with this role only see fairs where they or their manager
                 is the PIC. Finance, logistics, linked trips and payment stay hidden.
               </div>
             </div>

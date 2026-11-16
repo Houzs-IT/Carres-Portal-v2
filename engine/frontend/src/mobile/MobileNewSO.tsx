@@ -1148,7 +1148,7 @@ export function MobileNewSO({
   }, [isEdit]);
 
   /* Venue derives from the picked salesperson's staff.venue_id (falls back to
-     the auth user's own venue, or the active project's venue). Mirrors
+     the auth user's own venue, or the active fair's venue). Mirrors
      SalesOrderNew resolvedVenue*. On EDIT a venue already saved on the order
      wins: a default fills only an order with none (owner 2026-06-23, "never
      override a manual or loaded pick"). A saved venue with no venue_id used to

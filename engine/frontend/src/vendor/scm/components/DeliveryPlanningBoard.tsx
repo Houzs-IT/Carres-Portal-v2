@@ -451,7 +451,7 @@ function AmendReasonEditCell({ order, onUpdateFields }: { order: PlanningOrder; 
 /* A plain inline text editor for a free-text SO field (owner 2026-09-22:
    Disposal Request, Remarks). SO rows only, EXCEPT when allowNonSo — the Time Slot
    is editable on DP rows too (owner 2026-10-31, scm.dp_orders.time_range) and on
-   service-case legs (HC-0194) — and allowProject (Remarks: the project's board
+   service-case legs (HC-0194) — and allowProject (Remarks: the fair's board
    remark). Commits on blur / Enter. */
 function TextEditCell({ order, value, onCommit, placeholder, allowNonSo = false, allowProject = false }: {
   order: PlanningOrder; value: string | null; onCommit: (next: string | null) => void; placeholder?: string; allowNonSo?: boolean; allowProject?: boolean;
@@ -1441,7 +1441,7 @@ export function DeliveryPlanningBoard({
     {
       key: 'dp_remark', label: 'Remarks', width: 200, defaultHidden: true,
       /* Every row type takes a remark, each on its own record: SO header, DP job,
-         the service-case leg, or the project's board remark. */
+         the service-case leg, or the fair's board remark. */
       accessor: (o) => (
         <TextEditCell order={o} value={o.dp_remark} placeholder="Remarks…" allowNonSo allowProject={!o.remark_locked}
           onCommit={(v) => updateFieldsMutate(

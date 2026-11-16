@@ -79,7 +79,7 @@ export const BROWSER_STORAGE_KEY_REGISTRY: readonly StorageKeyRegistration[] = [
   // journal numbers a page had ticked when an order was opened from it, given back once
   // on return — ids and document numbers only, no identity data.
   { id: "return-picks", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.returnPicks.v1 (what a page had ticked when a document was opened from it, per address, taken once on return; last 20, 30 minutes)", matches: exact("houzs.returnPicks.v1") }, // gitleaks:allow — a sessionStorage key's name, not a credential
-  { id: "project-overview-scroll", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.projectOverview.scroll (where a project's Back goes — the Projects address it was opened from — and the Project Overview page + table scroll per address, given back once; last 20 entries, 30 minutes)", matches: exact("houzs.projectOverview.scroll") },
+  { id: "project-overview-scroll", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.projectOverview.scroll (where a fair's Back goes — the Projects address it was opened from — and the Fair Overview page + table scroll per address, given back once; last 20 entries, 30 minutes)", matches: exact("houzs.projectOverview.scroll") },
   { id: "assr-list-filter", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "houzs.assrListFilter.v1 (per-tab Service Cases search + stage, for detail Back)", matches: exact("houzs.assrListFilter.v1") },
   // Owner 2026-08-24: "i want make it my filter didnt close until i manually
   // clear filter or close erp then filter will auto clear". Session-scoped for

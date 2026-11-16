@@ -116,4 +116,4 @@ export function salePlaceFromKey(key: string, places: SalePlaces | null | undefi
 }
 
 /** The refusal shown before saving when nothing is picked (rule 4). */
-export const SALE_PLACE_MISSING = 'Pick the showroom this order was sold from, or a project.';
+export const SALE_PLACE_MISSING = 'Pick the showroom this order was sold from, or a fair.';
