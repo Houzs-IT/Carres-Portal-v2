@@ -885,7 +885,8 @@ export const Mrp = () => {
     <div className="space-y-4">
       <PageHeader
         eyebrow="Planning"
-        title="MRP · Stock Status Report"
+        // Carres: the full name, owner 16 Nov 2026
+        title="Material Resource Planning · Stock Status Report"
         actions={
           <>
             {/* Group 1 — VIEW SWITCH: segmented toggle, one connected control with
