@@ -9,7 +9,7 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../../types";
 import { requirePageAccess } from "../../middleware/auth";
-import { enginePublicUrl } from "../../services/email";
+import { supplierPublicUrl } from "./address";
 import { dbFor } from "./db";
 import {
   accessOptions, addPerson, getAccess, listAccess, previewAccess, recentActivity, saveAccess, updatePerson,
@@ -33,14 +33,14 @@ async function body<T>(c: Ctx): Promise<T> {
 
 /** Where a supplier person opens their one-time link. The secret sits after the `#`, which a browser never sends to
  *  a server, so it reaches no access log. Built here because only this answer ever holds the token. */
-const setupUrl = (c: Ctx, token: string) => `${enginePublicUrl(c.env, "/supplier/setup")}#t=${token}`;
+const setupUrl = (c: Ctx, token: string) => `${supplierPublicUrl(c.env, "/supplier/setup")}#t=${token}`;
 
 // ── Settings › Supplier Access ──────────────────────────────────────────────────────────────────────────────────
 
 export const supplierAccess = new Hono<{ Bindings: Env }>();
 supplierAccess.use("*", requirePageAccess("settings", "full"));
 
-supplierAccess.get("/", async (c) => c.json({ suppliers: await listAccess(dbFor(c.env)), signInUrl: enginePublicUrl(c.env, "/supplier") }));
+supplierAccess.get("/", async (c) => c.json({ suppliers: await listAccess(dbFor(c.env)), signInUrl: supplierPublicUrl(c.env, "/supplier") }));
 
 supplierAccess.get("/options", async (c) => c.json(await accessOptions(dbFor(c.env))));
 

@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import { currentHostname, isSupplierHost } from "../carres/supplier/host"; // Carres: the supplier's own address
 
 export type AppSurface =
   | "survey"
@@ -20,7 +21,10 @@ export type AppSurface =
  * reset/invite screens navigate back to `/`, and a frozen decision leaves the
  * new URL trapped inside the old public-only route tree.
  */
-export function appSurfaceForPath(pathname: string): AppSurface {
+export function appSurfaceForPath(pathname: string, hostname: string = currentHostname()): AppSurface {
+  // Carres: at the supplier's own address (carres/supplier/host.ts) every page is a supplier page. The staff app,
+  // its sign-in and the public staff links do not exist there.
+  if (isSupplierHost(hostname)) return "supplier";
   // Carres: the Supplier Platform. A supplier is not staff: its pages sit OUTSIDE the staff sign-in and carry their
   // own (carres/supplier/). The whole segment must match, so the staff /scm/suppliers pages are untouched.
   if (pathname === "/supplier" || pathname.startsWith("/supplier/")) return "supplier";

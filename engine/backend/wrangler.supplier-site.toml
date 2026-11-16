@@ -1,0 +1,29 @@
+# Carres only: the supplier's own web address, supp.carresofficial.com (src/carres/supplier-site/worker.ts).
+#
+# A small Worker in front of the supplier pages and the supplier API. It serves nothing else of the engine: the
+# staff API and the staff pages do not exist at this address. Deployed by .github/workflows/deploy-engine.yml after
+# the engine itself.
+#
+# The address is a Worker custom domain: Cloudflare makes the DNS record and the certificate when this is deployed
+# (the zone carresofficial.com is in the same Cloudflare account, as api.carresofficial.com shows). workers.dev is
+# off on purpose, so the one way in is the address suppliers are given.
+name = "carres-supplier-site"
+main = "src/carres/supplier-site/worker.ts"
+compatibility_date = "2024-12-01"
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "supp.carresofficial.com", custom_domain = true }
+]
+
+[observability]
+enabled = true
+
+[vars]
+# Where the built pages and files are (the engine site). No trailing slash.
+SITE_ORIGIN = "https://carres-scm.pages.dev"
+
+# The engine Worker, called Worker to Worker. The supplier API is the only part of it this Worker asks for.
+[[services]]
+binding = "ENGINE"
+service = "carres-scm-engine"
