@@ -11,7 +11,7 @@ import { Button } from "../../components/Button";
 import { LazySlot } from "../../components/LazySlot";
 import { usePublicCompany } from "../publicBranding";
 import { onSignedOut, supplierApi, supplierToken, SupplierApiError, type Me } from "./api";
-import { Card, LoadError, Loading, PageTitle } from "./ui";
+import { Card, LoadError, Loading, PageHeader } from "./ui";
 
 const OrdersPage = lazy(() => import("./OrdersPage").then((m) => ({ default: m.OrdersPage })));
 const OrderDetailPage = lazy(() => import("./OrdersPage").then((m) => ({ default: m.OrderDetailPage })));
@@ -273,7 +273,7 @@ function AccountPage() {
 
   return (
     <>
-      <PageTitle title="Your account" description="Your sign-in details. Carres adds and removes people for your company." />
+      <PageHeader eyebrow="Account" title="Your account" description="Your sign-in details. Carres adds and removes people for your company." />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="You">
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 text-[13px]">

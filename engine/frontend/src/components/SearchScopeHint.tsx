@@ -28,9 +28,10 @@ export function SearchScopeHint({
       {!searching && !countPending && resultCount != null && (
         <span>
           {" · "}
+          {/* Carres: one record, one match (16 Nov 2026). */}
           {term.trim()
-            ? `${resultCount.toLocaleString()} matches`
-            : `${resultCount.toLocaleString()} records`}
+            ? `${resultCount.toLocaleString()} ${resultCount === 1 ? "match" : "matches"}`
+            : `${resultCount.toLocaleString()} ${resultCount === 1 ? "record" : "records"}`}
         </span>
       )}
     </div>

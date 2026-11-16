@@ -133,10 +133,13 @@ export function ResizableDetailDrawer({
       {/* slide-over. Mobile keeps the original w-full max-w-[520px]; desktop
           drops the cap and takes the dragged width from the CSS var. Only the
           transform animates, so the drag stays instant. */}
+      {/* Carres: closed, the panel only slides out of view; `inert` keeps the Tab
+          key and a screen reader out of it until it opens again (16 Nov 2026). */}
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        inert={!open}
         style={{ "--hz-detail-drawer-w": `${width}px` } as CSSProperties}
         className={cn(
           "fixed right-0 top-0 z-[91] flex h-full w-full max-w-[520px] flex-col border-l border-border bg-surface shadow-slab transition-transform duration-200",

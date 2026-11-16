@@ -194,6 +194,22 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   `index.ts` BEFORE the staff gate and gated by its own session (`carres_supplier_sessions`). Sign-in address:
   `https://supp.carresofficial.com` (its own address, below). The first address,
   `https://carres-scm.pages.dev/supplier`, sends a visitor on to it.
+- *The look (owner, 16 Nov 2026: exactly like the staff Sales Orders page, `pages/scm-v2/MfgSalesOrdersListV2`).*
+  Every supplier list is drawn with the staff list's own parts: `StatCard`, `FilterPills`, `DataTable` (search,
+  Export, Wrap, Columns, sortable headers, column totals), `ListPager`, and the quick view in
+  `ResizableDetailDrawer`. Three are copies in `carres/supplier/ui.tsx`, because the staff ones need what a supplier
+  does not have: `PageHeader` (the staff one is in `components/Layout`, with the staff session), `ViewToggle` and
+  `CardsGrid` (private to the staff page). A phone always shows the cards and a search box of its own, as the
+  staff page does on a phone. Sales Orders' Export asks the supplier API for every page of the tab and search (200
+  at a time) and writes them with `lib/csv`, which keeps a cell that starts like a formula as text. The staff
+  table stays off the staff routes for a supplier: its saved layouts (`lib/tableLayouts`) start only when
+  `hydrateTableLayouts()` runs, which `auth/AuthContext` alone does after a staff sign-in; until then a layout is
+  kept in the browser only and the layout buttons do not show. Custom fields (`udfTable`), import, shared or
+  seeded layouts and the printed letterhead (`onExportPdf`) all reach the staff API, and no supplier page passes
+  them. `supplierSurface.test.tsx` pins both, and signs a supplier in and clicks through every page (Columns, the
+  quick view, Cards, Export, a phone's search, Accept, the Finance tabs, one subscription order), failing on any
+  request outside `/api/carres-supplier/*` and `/api/track/company`. At `supp.carresofficial.com` the staff API
+  answers 404 anyway, and that address holds no staff token.
 - *Carres side.* Settings › Supplier Access (`carres/supplier-staff/SupplierAccessTab.tsx`, API
   `/api/carres/supplier-access`, needs Settings at full) and Supply Chain › Procurement › Supplier Pickups
   (`/scm/supplier-pickups`, API `/api/carres/supplier-pickups`, the Purchase Orders page access: view to read, edit
@@ -269,7 +285,10 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`
   says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`,
-  `functions/_middleware.ts` (the frame rule, and the move of `/supplier` to its own address).
+  `functions/_middleware.ts` (the frame rule, and the move of `/supplier` to its own address); and three shared
+  parts, for every page that uses them: `components/ResizableDetailDrawer.tsx` (`inert` while closed, so the Tab
+  key cannot reach a panel that has slid out of view), `components/ColumnsDrawer.tsx` (its subtitle names custom
+  fields only on a table that has them), `components/SearchScopeHint.tsx` (`1 record`, `1 match`).
 - *Tests.* Backend `src/carres/supplier/supplier.test.ts`, `tests/carresSupplierPlatformGuards.test.ts` (where the
   routes sit; every statement parameterised) and `tests-pg/carresSupplierPlatform.pg.test.ts` (real Postgres,
   `TEST_DATABASE_URL`, skipped without it; it re-runs step 2012 first, so it tests the file as it is); frontend

@@ -4,16 +4,19 @@
 // paid a share of each month collected. These pages let the supplier's Finance people see, for the orders they have
 // a share in: what each is worth, which months came in, what is still to come, and which customers are behind.
 // Every figure is worked out by Carres's own books (the portal) and only shown here.
+//
+// Drawn with the staff list's own parts (owner, 16 Nov 2026): the header, the figure cards, the pills and the staff
+// table, whose foot adds up the rows showing and whose Export writes the columns showing.
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Badge } from "../../components/Badge";
-import { Button } from "../../components/Button";
+import { DataTable, type Column } from "../../components/DataTable";
 import { EmptyState } from "../../components/EmptyState";
+import { FilterPills } from "../../components/FilterPills";
 import { StatCard } from "../../components/StatCard";
-import { TabStrip } from "../../components/TabStrip";
 import { supplierApi, type FinanceInstalment, type FinanceMonth, type FinanceOrder } from "./api";
-import { Card, Fact, LoadError, Loading, Missing, PageTitle, Table, count, downloadCsv, fmtDay, fmtMonth, money, useLoad, type Column } from "./ui";
+import { Card, Fact, LoadError, Loading, Missing, PageHeader, count, fmtDay, fmtMonth, money, useLoad } from "./ui";
 
 type Tone = "neutral" | "accent" | "success" | "warning" | "error";
 const ORDER_STATE: Partial<Record<string, { label: string; tone: Tone }>> = {
@@ -23,63 +26,77 @@ const ORDER_STATE: Partial<Record<string, { label: string; tone: Tone }>> = {
   completed: { label: "Paid in full", tone: "neutral" },
   ended: { label: "Ended", tone: "neutral" },
 };
+const stateLabel = (state: string): string => ORDER_STATE[state]?.label ?? state;
 function StateBadge({ state }: { state: string }) {
   const s = ORDER_STATE[state] ?? { label: state, tone: "neutral" as Tone };
   return <Badge tone={s.tone} size="sm" caseless>{s.label}</Badge>;
 }
 
 const pct = (part: number, whole: number): string => (whole > 0 ? `${Math.round((part / whole) * 1000) / 10}%` : "0%");
+/** A column's foot: the rows showing added up, to the sen, so the column and its total can never disagree. */
+const sumMoney = <T,>(rows: T[], value: (r: T) => number): string => money(Math.round(rows.reduce((a, r) => a + value(r), 0) * 100) / 100);
 
 const ORDER_COLUMNS: Column<FinanceOrder>[] = [
   {
-    key: "order", header: "Order", sortValue: (o) => o.agreementNo,
-    cell: (o) => (
+    key: "order", label: "Order", alwaysVisible: true, getValue: (o) => o.soNo ?? o.agreementNo,
+    searchValue: (o) => `${o.soNo ?? ""} ${o.agreementNo} ${o.customerName} ${o.item}`,
+    render: (o) => (
       <div>
-        <div className="font-mono text-[12.5px] font-bold text-primary-ink">{o.soNo ?? o.agreementNo}</div>
-        {o.soNo && <div className="mt-0.5 font-mono text-[11px] text-ink-muted">{o.agreementNo}</div>}
+        <div className="font-docno text-[12.5px] font-semibold text-primary-ink">{o.soNo ?? o.agreementNo}</div>
+        {o.soNo && <div className="mt-0.5 font-docno text-[11px] text-ink-muted">{o.agreementNo}</div>}
       </div>
     ),
-    csv: (o) => o.soNo ?? o.agreementNo,
   },
-  { key: "agreement", header: "Agreement No", cell: () => null, className: "hidden", csv: (o) => o.agreementNo },
-  { key: "customer", header: "Customer", wrap: true, sortValue: (o) => o.customerName, cell: (o) => <span className="block min-w-[110px]">{o.customerName}</span>, csv: (o) => o.customerName },
-  { key: "item", header: "Item", wrap: true, sortValue: (o) => o.item, cell: (o) => <span className="block min-w-[150px]">{o.item}</span>, csv: (o) => o.item },
-  { key: "value", header: "Order Value", align: "right", sortValue: (o) => o.contractValue, cell: (o) => money(o.contractValue), csv: (o) => o.contractValue },
+  { key: "agreement", label: "Agreement No", defaultHidden: true, getValue: (o) => o.agreementNo, render: (o) => <span className="font-docno">{o.agreementNo}</span> },
+  { key: "customer", label: "Customer", getValue: (o) => o.customerName, render: (o) => <span className="block min-w-[110px] whitespace-normal">{o.customerName}</span> },
+  { key: "item", label: "Item", getValue: (o) => o.item, render: (o) => <span className="block min-w-[150px] whitespace-normal">{o.item}</span> },
+  {
+    key: "value", label: "Order Value", align: "right", getValue: (o) => o.contractValue, filterType: "number", numberValue: (o) => o.contractValue,
+    render: (o) => money(o.contractValue), total: (rows) => sumMoney(rows, (o) => o.contractValue),
+  },
   {
     // The money collected with the months it came from under it: one column, as Overdue is, so the table fits a
-    // laptop screen. The file keeps the two as separate columns.
-    key: "collected", header: "Collected", align: "right", sortValue: (o) => o.collected,
-    cell: (o) => <div><div>{money(o.collected)}</div><div className="mt-0.5 text-[11px] text-ink-muted">{o.paidCount} of {count(o.termMonths, "month")}</div></div>,
-    csv: (o) => o.collected,
+    // laptop screen. Months Paid and Months in Total are columns of their own in Columns, for the file.
+    key: "collected", label: "Collected", align: "right", getValue: (o) => o.collected, filterType: "number", numberValue: (o) => o.collected,
+    render: (o) => <div><div>{money(o.collected)}</div><div className="mt-0.5 text-[11px] text-ink-muted">{o.paidCount} of {count(o.termMonths, "month")}</div></div>,
+    total: (rows) => sumMoney(rows, (o) => o.collected),
   },
-  { key: "paid", header: "Months Paid", cell: () => null, className: "hidden", csv: (o) => o.paidCount },
-  { key: "term", header: "Months in Total", cell: () => null, className: "hidden", csv: (o) => o.termMonths },
-  { key: "earned", header: "Share Earned", align: "right", sortValue: (o) => o.shareEarned, cell: (o) => <span className="font-semibold">{money(o.shareEarned)}</span>, csv: (o) => o.shareEarned },
-  { key: "tocome", header: "Share to Come", align: "right", sortValue: (o) => o.shareToCome, cell: (o) => money(o.shareToCome), csv: (o) => o.shareToCome },
+  { key: "paid", label: "Months Paid", align: "right", defaultHidden: true, getValue: (o) => o.paidCount, render: (o) => o.paidCount },
+  { key: "term", label: "Months in Total", align: "right", defaultHidden: true, getValue: (o) => o.termMonths, render: (o) => o.termMonths },
   {
-    key: "overdue", header: "Overdue", align: "right", sortValue: (o) => o.overdueAmount,
-    cell: (o) => (o.overdueMonths > 0
+    key: "earned", label: "Share Earned", align: "right", getValue: (o) => o.shareEarned, filterType: "number", numberValue: (o) => o.shareEarned,
+    render: (o) => <span className="font-semibold">{money(o.shareEarned)}</span>, total: (rows) => sumMoney(rows, (o) => o.shareEarned),
+  },
+  {
+    key: "tocome", label: "Share to Come", align: "right", getValue: (o) => o.shareToCome, filterType: "number", numberValue: (o) => o.shareToCome,
+    render: (o) => money(o.shareToCome), total: (rows) => sumMoney(rows, (o) => o.shareToCome),
+  },
+  {
+    key: "overdue", label: "Overdue", align: "right", getValue: (o) => o.overdueAmount, filterType: "number", numberValue: (o) => o.overdueAmount,
+    render: (o) => (o.overdueMonths > 0
       ? <div><div className="font-semibold text-err">{money(o.overdueAmount)}</div><div className="mt-0.5 text-[11px] text-ink-muted">{count(o.overdueMonths, "month")}</div></div>
       : <Missing>None</Missing>),
-    csv: (o) => o.overdueAmount,
+    total: (rows) => <span className="text-err">{sumMoney(rows, (o) => o.overdueAmount)}</span>,
   },
-  { key: "overdueMonths", header: "Months Overdue", cell: () => null, className: "hidden", csv: (o) => o.overdueMonths },
-  { key: "next", header: "Next Due", sortValue: (o) => o.nextDueDate, cell: (o) => fmtDay(o.nextDueDate) || <Missing>Nothing due</Missing>, className: "whitespace-nowrap", csv: (o) => o.nextDueDate },
-  { key: "state", header: "Status", sortValue: (o) => o.state, cell: (o) => <StateBadge state={o.state} />, csv: (o) => ORDER_STATE[o.state]?.label ?? o.state },
+  { key: "overdueMonths", label: "Months Overdue", align: "right", defaultHidden: true, getValue: (o) => o.overdueMonths, render: (o) => o.overdueMonths },
+  {
+    key: "overdueShare", label: "Your Share Overdue", align: "right", defaultHidden: true, getValue: (o) => o.overdueShare,
+    render: (o) => (o.overdueShare > 0 ? money(o.overdueShare) : <Missing>None</Missing>), total: (rows) => sumMoney(rows, (o) => o.overdueShare),
+  },
+  {
+    key: "next", label: "Next Due", getValue: (o) => o.nextDueDate, filterType: "date", dateValue: (o) => o.nextDueDate, filterLabel: (v) => fmtDay(v) || v,
+    render: (o) => fmtDay(o.nextDueDate) || <Missing>Nothing due</Missing>,
+  },
+  { key: "state", label: "Status", getValue: (o) => stateLabel(o.state), render: (o) => <StateBadge state={o.state} /> },
 ];
-/** The columns that ride on the file only: the screen shows each beside the figure it belongs to. */
-const FILE_ONLY = new Set(["agreement", "paid", "term", "overdueMonths"]);
-const ORDER_SCREEN = ORDER_COLUMNS.filter((c) => !FILE_ONLY.has(c.key));
-/** Where Overdue sits on screen: the foot of the "Behind on payment" list puts its total under that column. */
-const OVERDUE_AT = ORDER_SCREEN.findIndex((c) => c.key === "overdue");
 
 const MONTH_COLUMNS: Column<FinanceMonth>[] = [
-  { key: "month", header: "Month Due", sortValue: (m) => m.month, cell: (m) => <span className="font-semibold">{fmtMonth(m.month)}</span>, csv: (m) => m.month },
-  { key: "due", header: "Instalments Due", align: "right", sortValue: (m) => m.due, cell: (m) => money(m.due), csv: (m) => m.due },
-  { key: "collected", header: "Collected", align: "right", sortValue: (m) => m.collected, cell: (m) => money(m.collected), csv: (m) => m.collected },
-  { key: "open", header: "Not Collected Yet", align: "right", sortValue: (m) => m.open, cell: (m) => (m.open > 0 ? money(m.open) : <Missing>None</Missing>), csv: (m) => m.open },
-  { key: "earned", header: "Share Earned", align: "right", sortValue: (m) => m.collectedShare, cell: (m) => <span className="font-semibold">{money(m.collectedShare)}</span>, csv: (m) => m.collectedShare },
-  { key: "tocome", header: "Share to Come", align: "right", sortValue: (m) => m.openShare, cell: (m) => (m.openShare > 0 ? money(m.openShare) : <Missing>None</Missing>), csv: (m) => m.openShare },
+  { key: "month", label: "Month Due", alwaysVisible: true, getValue: (m) => m.month, filterLabel: fmtMonth, render: (m) => <span className="font-semibold">{fmtMonth(m.month)}</span> },
+  { key: "due", label: "Instalments Due", align: "right", getValue: (m) => m.due, render: (m) => money(m.due), total: (rows) => sumMoney(rows, (m) => m.due) },
+  { key: "collected", label: "Collected", align: "right", getValue: (m) => m.collected, render: (m) => money(m.collected), total: (rows) => sumMoney(rows, (m) => m.collected) },
+  { key: "open", label: "Not Collected Yet", align: "right", getValue: (m) => m.open, render: (m) => (m.open > 0 ? money(m.open) : <Missing>None</Missing>), total: (rows) => sumMoney(rows, (m) => m.open) },
+  { key: "earned", label: "Share Earned", align: "right", getValue: (m) => m.collectedShare, render: (m) => <span className="font-semibold">{money(m.collectedShare)}</span>, total: (rows) => sumMoney(rows, (m) => m.collectedShare) },
+  { key: "tocome", label: "Share to Come", align: "right", getValue: (m) => m.openShare, render: (m) => (m.openShare > 0 ? money(m.openShare) : <Missing>None</Missing>), total: (rows) => sumMoney(rows, (m) => m.openShare) },
 ];
 
 type Tab = "orders" | "overdue" | "months";
@@ -91,13 +108,22 @@ export function FinancePage() {
   const data = finance.data;
 
   const overdue = useMemo(() => (data?.shared ? data.orders.filter((o) => o.overdueMonths > 0) : []), [data]);
+  const header = (
+    <PageHeader
+      eyebrow="Finance"
+      title="Finance"
+      description={data?.shared
+        ? <>Subscription orders you have a share in, as of {fmtDay(data.asOf)}. Your share of a month is earned when the customer's instalment is collected.</>
+        : "Subscription orders you have a share in. Your share of a month is earned when the customer's instalment is collected."}
+    />
+  );
 
-  if (finance.error) return <><PageTitle title="Finance" /><LoadError message={finance.error} onRetry={finance.reload} /></>;
-  if (!data) return <><PageTitle title="Finance" /><Loading /></>;
+  if (finance.error && !data) return <>{header}<LoadError message={finance.error} onRetry={finance.reload} /></>;
+  if (!data) return <>{header}<Loading /></>;
   if (!data.shared) {
     return (
       <>
-        <PageTitle title="Finance" />
+        {header}
         <EmptyState message="No subscription orders are shared with your company." description="When Carres shares subscription collections with you, they appear here." />
       </>
     );
@@ -107,78 +133,60 @@ export function FinancePage() {
   const rows = tab === "overdue" ? overdue : data.orders;
   return (
     <>
-      <PageTitle
-        title="Finance"
-        description={<>Subscription orders you have a share in, as of {fmtDay(data.asOf)}. Your share of a month is earned when the customer's instalment is collected.</>}
-        actions={(
-          <Button
-            variant="secondary"
-            icon={<Download size={14} />}
-            disabled={tab === "months" ? !data.months.length : !rows.length}
-            onClick={() => (tab === "months" ? downloadCsv("subscription-by-month.csv", MONTH_COLUMNS, data.months) : downloadCsv(`subscription-orders${tab === "overdue" ? "-overdue" : ""}.csv`, ORDER_COLUMNS, rows))}
-          >
-            Download CSV
-          </Button>
-        )}
-      />
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="Total order value" value={money(t.contractValue)} subtitle={count(t.orders, "order")} />
-        <StatCard label="Your share in full" value={money(t.shareTotal)} subtitle="Earned plus still to come" />
-        <StatCard label="Your share earned" value={money(t.shareEarned)} subtitle={`${money(t.collected)} collected · ${count(t.collectedCount, "month")}`} tone="success" />
-        <StatCard label="Your share to come" value={money(t.shareToCome)} subtitle={`${money(t.toCollect)} still to collect`} />
+      {header}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatCard label="Total Order Value" value={money(t.contractValue)} subtitle={count(t.orders, "order")} rail="bg-primary" active={tab === "orders"} onClick={() => setTab("orders")} />
+        <StatCard label="Your Share in Full" value={money(t.shareTotal)} subtitle="Earned plus still to come" rail="bg-accent" />
+        <StatCard label="Your Share Earned" value={money(t.shareEarned)} subtitle={`${money(t.collected)} collected · ${count(t.collectedCount, "month")}`} tone="success" rail="bg-synced" />
+        <StatCard label="Your Share to Come" value={money(t.shareToCome)} subtitle={`${money(t.toCollect)} still to collect`} rail="bg-warning-text" />
         <StatCard
-          label="Behind on payment"
+          label="Behind on Payment"
           value={`${t.overdueOrders} of ${t.orders}`}
           subtitle={t.overdueOrders ? `${pct(t.overdueOrders, t.orders)} of orders · ${money(t.overdueAmount)} overdue${t.defaultOrders ? ` · ${t.defaultOrders} in default` : ""}` : "Every order is on time"}
           tone={t.overdueOrders ? "error" : "default"}
+          rail="bg-err"
           onClick={t.overdueOrders ? () => setTab("overdue") : undefined}
           active={tab === "overdue"}
         />
       </div>
-      <TabStrip
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: "orders", label: "All orders", count: t.orders },
-          { value: "overdue", label: "Behind on payment", count: t.overdueOrders },
-          { value: "months", label: "By month" },
-        ]}
-      />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <FilterPills
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "orders", label: "All orders", count: t.orders },
+            { value: "overdue", label: "Behind on payment", count: t.overdueOrders },
+            { value: "months", label: "By month", count: data.months.length },
+          ]}
+        />
+      </div>
       {tab === "months" ? (
-        <Table
+        <DataTable<FinanceMonth>
+          tableId="carres-supplier-finance-months"
+          documentLabel="Finance by month"
+          exportName="subscription-by-month"
           columns={MONTH_COLUMNS}
           rows={data.months}
-          rowKey={(m) => m.month}
-          empty="No instalments yet."
-          footer={(
-            // The foot adds up the rows above it, so the column and its total can never disagree.
-            <tr className="bg-surface-2 font-bold">
-              <td className="px-3 py-2.5">Total</td>
-              {(["due", "collected", "open", "collectedShare", "openShare"] as const).map((k) => (
-                <td key={k} className="px-3 py-2.5 text-right tabular-nums">{money(Math.round(data.months.reduce((a, m) => a + m[k], 0) * 100) / 100)}</td>
-              ))}
-            </tr>
-          )}
+          getRowKey={(m) => m.month}
+          emptyLabel="No instalments yet."
         />
       ) : (
-        <Table
-          columns={ORDER_SCREEN}
+        <DataTable<FinanceOrder>
+          tableId="carres-supplier-finance-orders"
+          documentLabel="Subscription orders"
+          exportName={tab === "overdue" ? "subscription-orders-overdue" : "subscription-orders"}
+          columns={ORDER_COLUMNS}
           rows={rows}
-          rowKey={(o) => o.id}
+          getRowKey={(o) => o.id}
           onRowClick={(o) => navigate(`/supplier/finance/${o.id}`)}
-          empty={tab === "overdue" ? "No customer is behind on payment." : "No subscription orders yet."}
-          footer={tab === "overdue" ? (
-            <tr className="bg-surface-2 font-bold">
-              <td className="px-3 py-2.5" colSpan={OVERDUE_AT}>Total overdue · your share at risk {money(t.overdueShare)}</td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-err">{money(t.overdueAmount)}</td>
-              <td className="px-3 py-2.5" colSpan={ORDER_SCREEN.length - OVERDUE_AT - 1} />
-            </tr>
-          ) : undefined}
+          emptyLabel={tab === "overdue" ? "No customer is behind on payment." : "No subscription orders yet."}
+          clientSearch={{ placeholder: "Search order, agreement, customer or item" }}
         />
       )}
       {tab === "overdue" && overdue.length > 0 && (
         <p className="mt-3 text-[11.5px] text-ink-muted">
           An instalment is overdue once its due day has passed with no payment. Six unpaid instalments put an order in default.
+          Your share at risk on these orders: {money(t.overdueShare)}.
         </p>
       )}
     </>
@@ -192,14 +200,15 @@ const INSTALMENT_STATE: Partial<Record<string, { label: string; tone: Tone }>> =
   upcoming: { label: "To come", tone: "neutral" },
   waived: { label: "Not charged", tone: "neutral" },
 };
+const instalmentLabel = (state: string): string => INSTALMENT_STATE[state]?.label ?? state;
 
 const INSTALMENT_COLUMNS: Column<FinanceInstalment>[] = [
-  { key: "seq", header: "Month", align: "right", sortValue: (i) => i.seq, cell: (i) => i.seq, csv: (i) => i.seq },
-  { key: "due", header: "Due Date", sortValue: (i) => i.dueDate, cell: (i) => fmtDay(i.dueDate), className: "whitespace-nowrap", csv: (i) => i.dueDate },
-  { key: "amount", header: "Instalment", align: "right", sortValue: (i) => i.amountDue, cell: (i) => money(i.amountDue), csv: (i) => i.amountDue },
+  { key: "seq", label: "Month", align: "right", alwaysVisible: true, getValue: (i) => i.seq, disableFilter: true, render: (i) => i.seq },
+  { key: "due", label: "Due Date", getValue: (i) => i.dueDate, filterType: "date", dateValue: (i) => i.dueDate, filterLabel: (v) => fmtDay(v) || v, render: (i) => fmtDay(i.dueDate) },
+  { key: "amount", label: "Instalment", align: "right", getValue: (i) => i.amountDue, render: (i) => money(i.amountDue), total: (rows) => sumMoney(rows, (i) => i.amountDue) },
   {
-    key: "state", header: "Status", sortValue: (i) => i.state,
-    cell: (i) => {
+    key: "state", label: "Status", getValue: (i) => instalmentLabel(i.state),
+    render: (i) => {
       const s = INSTALMENT_STATE[i.state] ?? { label: i.state, tone: "neutral" as Tone };
       return (
         <span className="inline-flex items-center gap-2">
@@ -208,14 +217,13 @@ const INSTALMENT_COLUMNS: Column<FinanceInstalment>[] = [
         </span>
       );
     },
-    csv: (i) => INSTALMENT_STATE[i.state]?.label ?? i.state,
   },
-  { key: "paidOn", header: "Received On", sortValue: (i) => i.paidOn, cell: (i) => fmtDay(i.paidOn) || <Missing>Not received</Missing>, className: "whitespace-nowrap", csv: (i) => i.paidOn },
-  { key: "paid", header: "Received", align: "right", sortValue: (i) => i.paidAmount ?? 0, cell: (i) => (i.paidAmount == null ? <Missing>None</Missing> : money(i.paidAmount)), csv: (i) => i.paidAmount },
+  { key: "paidOn", label: "Received On", getValue: (i) => i.paidOn, filterType: "date", dateValue: (i) => i.paidOn, filterLabel: (v) => fmtDay(v) || v, render: (i) => fmtDay(i.paidOn) || <Missing>Not received</Missing> },
+  { key: "paid", label: "Received", align: "right", getValue: (i) => i.paidAmount ?? 0, render: (i) => (i.paidAmount == null ? <Missing>None</Missing> : money(i.paidAmount)), total: (rows) => sumMoney(rows, (i) => i.paidAmount ?? 0) },
   {
-    key: "share", header: "Your Share", align: "right", sortValue: (i) => i.share,
-    cell: (i) => (i.state === "paid" ? <span className="font-semibold">{money(i.share)}</span> : i.state === "waived" ? <Missing>None</Missing> : <span className="text-ink-muted">{money(i.share)}</span>),
-    csv: (i) => i.share,
+    key: "share", label: "Your Share", align: "right", getValue: (i) => i.share,
+    render: (i) => (i.state === "paid" ? <span className="font-semibold">{money(i.share)}</span> : i.state === "waived" ? <Missing>None</Missing> : <span className="text-ink-muted">{money(i.share)}</span>),
+    total: (rows) => sumMoney(rows, (i) => (i.state === "waived" ? 0 : i.share)),
   },
 ];
 
@@ -233,27 +241,28 @@ export function FinanceOrderPage() {
       {!one.data && !one.error && <Loading />}
       {one.data && o && (
         <>
-          <PageTitle
-            title={o.soNo ?? o.agreementNo}
+          <PageHeader
+            eyebrow="Subscription Order"
+            title={<span className="font-docno">{o.soNo ?? o.agreementNo}</span>}
             description={<span className="flex flex-wrap items-center gap-2"><StateBadge state={o.state} /><span>{o.customerName}</span><span className="text-ink-muted">· {o.item}</span></span>}
-            actions={<Button variant="secondary" icon={<Download size={14} />} onClick={() => downloadCsv(`${o.agreementNo}-instalments.csv`, INSTALMENT_COLUMNS, one.data!.instalments)}>Download CSV</Button>}
           />
-          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Order value" value={money(o.contractValue)} subtitle={`${o.termMonths} months × ${money(o.monthlyFee)}`} />
-            <StatCard label="Your share earned" value={money(o.shareEarned)} subtitle={`${o.paidCount} of ${o.termMonths} months collected`} tone="success" />
-            <StatCard label="Your share to come" value={money(o.shareToCome)} subtitle={`${money(o.toCollect)} still to collect`} />
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Order Value" value={money(o.contractValue)} subtitle={`${o.termMonths} months × ${money(o.monthlyFee)}`} rail="bg-primary" />
+            <StatCard label="Your Share Earned" value={money(o.shareEarned)} subtitle={`${o.paidCount} of ${o.termMonths} months collected`} tone="success" rail="bg-synced" />
+            <StatCard label="Your Share to Come" value={money(o.shareToCome)} subtitle={`${money(o.toCollect)} still to collect`} rail="bg-warning-text" />
             <StatCard
               label="Overdue"
               value={o.overdueMonths ? money(o.overdueAmount) : "None"}
               subtitle={o.overdueMonths ? `${count(o.overdueMonths, "month")} · your share ${money(o.overdueShare)}` : "Up to date"}
               tone={o.overdueMonths ? "error" : "default"}
+              rail="bg-err"
             />
           </div>
           <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
             <Card title="Order">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4">
-                <Fact label="Agreement No"><span className="font-mono">{o.agreementNo}</span></Fact>
-                <Fact label="Sales Order">{o.soNo ? <span className="font-mono">{o.soNo}</span> : <Missing>Not linked</Missing>}</Fact>
+                <Fact label="Agreement No"><span className="font-docno">{o.agreementNo}</span></Fact>
+                <Fact label="Sales Order">{o.soNo ? <span className="font-docno">{o.soNo}</span> : <Missing>Not linked</Missing>}</Fact>
                 <Fact label="Customer" wide>{o.customerName}</Fact>
                 <Fact label="Item" wide>{o.item}</Fact>
                 <Fact label="Start Date">{fmtDay(o.startDate) || <Missing>Not started</Missing>}</Fact>
@@ -262,7 +271,15 @@ export function FinanceOrderPage() {
                 <Fact label="Next Due">{fmtDay(o.nextDueDate) || <Missing>Nothing due</Missing>}</Fact>
               </dl>
             </Card>
-            <Table columns={INSTALMENT_COLUMNS} rows={one.data.instalments} rowKey={(i) => String(i.seq)} empty="No instalments." />
+            <DataTable<FinanceInstalment>
+              tableId="carres-supplier-finance-instalments"
+              documentLabel="Instalments"
+              exportName={`${o.agreementNo}-instalments`}
+              columns={INSTALMENT_COLUMNS}
+              rows={one.data.instalments}
+              getRowKey={(i) => String(i.seq)}
+              emptyLabel="No instalments."
+            />
           </div>
         </>
       )}
