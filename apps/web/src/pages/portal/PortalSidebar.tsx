@@ -424,7 +424,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   const ROW_REST = "font-medium text-c-ink hover:bg-c-hover";
   const ROW_ON = "bg-c-select-pill font-semibold text-c-select-fg [box-shadow:var(--shadow-lift)]";
   const PAGE =
-    "flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-[7px] text-left text-[12px] leading-[16px]";
+    "flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-[7px] text-left text-[12px] leading-[16px]";
   const PAGE_REST = "font-normal text-c-body hover:bg-c-hover";
   const PAGE_ON = "bg-c-select-pill font-semibold text-c-select-fg";
   const SECTION_LABEL = "text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-c-secondary";
@@ -455,7 +455,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
     const active = !child.soon && isItemActive(group, child);
     const line = active ? "border-c-select-fg" : "border-c-tree-line";
     return (
-      <div key={child.key} data-tree-row={last ? "last" : ""} className="relative flex py-px pl-[18px]">
+      <div key={child.key} data-tree-row={last ? "last" : ""} className="relative flex py-px pl-3">
         <span
           aria-hidden
           data-tree="trunk"
@@ -523,7 +523,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           aria-expanded={open}
           aria-disabled={forced || undefined}
           onClick={() => togglePageGroup(block.group.key, current)}
-          className={`flex h-6 items-center rounded-md pl-7 pr-1.5 text-left ${GROUP_LABEL} ${first ? "" : "mt-1.5"} ${
+          className={`flex h-6 items-center rounded-md pl-5 pr-1.5 text-left ${GROUP_LABEL} ${first ? "" : "mt-1.5"} ${
             forced ? "cursor-default" : "hover:bg-c-hover"
           }`}
         >
@@ -594,7 +594,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
           <MIcon name={expanded ? "expand_less" : "expand_more"} size={18} className="text-c-secondary" />
         </button>
         {expanded && (
-          <div data-testid={`nav-children-${slug}`} className="ml-[18px] flex flex-col">
+          <div data-testid={`nav-children-${slug}`} className="ml-2.5 flex flex-col">
             {blocks.map((b, i) =>
               b.kind === "page"
                 ? renderChild(group, b.item, i === blocks.length - 1 || blocks[i + 1]?.kind === "group")

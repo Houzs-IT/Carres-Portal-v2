@@ -579,10 +579,10 @@ describe("the accordion", () => {
  * colour. Both pieces are decoration: `aria-hidden`, outside the link.
  */
 describe("the tree line", () => {
-  it("every page hangs on a trunk and a rounded elbow, 18px in", () => {
+  it("every page hangs on a trunk and a rounded elbow, 10px in", () => {
     renderAt("/operation/sc/orders");
     const group = screen.getByTestId("nav-children-sales");
-    expect(group.className).toContain("ml-[18px]");
+    expect(group.className).toContain("ml-2.5");
     for (const key of ["orders", "delivery-returns"]) {
       expect(trunk(key).className).toContain("border-l-[1.5px]");
       expect(trunk(key).className).toContain("border-c-tree-line");
@@ -1385,10 +1385,10 @@ describe("PortalSidebar — the Maintenance group", () => {
    * is 18 in, the word is padded 28, the page is 18 + its own 10. */
   it("the group word is aligned with the page text beneath it", () => {
     renderAt("/operation/sc/fleet-day");
-    expect(screen.getByTestId("nav-children-delivery").className).toContain("ml-[18px]");
-    expect(group_(MAINTENANCE).className).toContain("pl-7");
-    expect(treeRow("fleet-day").className).toContain("pl-[18px]");
-    expect(child("coverage-fleet").className).toContain("px-2.5");
+    expect(screen.getByTestId("nav-children-delivery").className).toContain("ml-2.5");
+    expect(group_(MAINTENANCE).className).toContain("pl-5");
+    expect(treeRow("fleet-day").className).toContain("pl-3");
+    expect(child("coverage-fleet").className).toContain("px-2");
     expect(child("coverage-fleet").className).toContain("text-[12px]");
   });
 
