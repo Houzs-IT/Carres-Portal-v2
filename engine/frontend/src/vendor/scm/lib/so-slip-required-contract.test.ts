@@ -112,7 +112,8 @@ describe('the writers are still blind to the slip — the gate is before the sav
   });
 
   test('mobile: the create-time deposit gate counts every row the recorder will post', () => {
-    const body = sliceFrom(mobileSource, 'pendingDepositSen: (() => {', 'items,');
+    // Carres: the gate is a useCallback (it is also sent on an edit that sets a Processing Date, owner 2026-11-12).
+    const body = sliceFrom(mobileSource, 'const pendingDepositSen = useCallback(', '[pays],');
     expect(body).toContain('.filter((p) => toSen(p.amount) > 0 && !isBackdateRow(p))');
     expect(body).not.toContain('p.slipSession');
   });
