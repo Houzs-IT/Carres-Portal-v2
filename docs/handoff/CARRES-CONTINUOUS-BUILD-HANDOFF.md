@@ -9,6 +9,16 @@ Paste everything below the line into a fresh session. It is self-contained.
 
 ---
 
+**OLD PORTAL CODE CLEANUP · 17 Nov 2026 · this PR.** The Houzs engine (engine/) now serves Supply Chain,
+Service Cases, Fairs and Finance; the portal opens it for every Operation menu row. Removed only what nothing
+loads or calls, measured from the production build's module graph (index + preview pages) and a per-route
+search of live web code: 54 web files (old Catalog tabs, old Principal app, Operation Leave, unused csv/sku
+helpers) with their 34 tests, and 4 API routes with no caller (`/operation/purchase/demands`,
+`/operation/arrival-sources`, `/operation/leave`, `/principal/audit`). KEPT on purpose: kit components
+(governed by UI MASTER), Rental pages (Chew's future module), old Carres Finance and Dealer pages and the
+order/payment/work APIs they still call, the public delivery link and Stripe webhook. No database table was
+touched; dropping old tables needs the owner's word in that conversation.
+
 **PURCHASING / SHARED SHELL BUGFIX ·23Oct2026 · BUILT ON BRANCH, RELEASE PENDING.**
 Authority read at main `e67129076`: UI MASTER §0/§0.1–0.3/§2.2/§5/§6.0 and current21Oct values;
 Purchasing §9.1 and COPY. Desktop dirty work and kit-docs draft remain intact. Receiving#2111 and
