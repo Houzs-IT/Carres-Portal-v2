@@ -3464,7 +3464,7 @@ const CustomerCardInner = forwardRef<CustomerCardHandle, CustomerCardProps>(({
             {/* Carres: the Showroom, or a Project instead, in place of the Fair (owner 2026-11-12). */}
             {carresSale && (
               <label className={styles.field} style={{ gridColumn: 'span 2' }}>
-                <span className={styles.fieldLabel}>Showroom</span>
+                <span className={`${styles.fieldLabel} ${styles.fieldLabelReq}`}>Showroom <span className={styles.req}>*</span></span>
                 <SalePlacePicker
                   id="so-detail-showroom"
                   value={form.salePlaceTouched ? form.salePlace : (salePlaceFromOrder(header, salePlacesQ.data)
