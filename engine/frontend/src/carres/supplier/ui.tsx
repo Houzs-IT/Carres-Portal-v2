@@ -1,14 +1,20 @@
-// Carres only (not part of Houzs's code): the small set of parts the supplier pages are drawn from.
+// Carres only (not part of Houzs's code): the small parts the supplier pages share.
 //
-// They follow the engine's own look (the same tokens, table header, pills and drawer the staff Sales Orders page
-// uses) but are self-contained on purpose: the staff table keeps its column layouts on the server through the
-// STAFF client, and a supplier page must never call a staff route.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { ArrowDown, ArrowUp, ChevronsUpDown, X as XIcon } from "lucide-react";
+// Owner, 16 Nov 2026: the supplier pages look exactly like the staff list pages. So the lists are drawn with the
+// staff page's OWN parts (components/DataTable, StatCard, FilterPills, ListPager, ResizableDetailDrawer), and what
+// is here is only what the staff page keeps inside its own file: the page header's look (components/Layout's
+// PageHeader sits in a file that loads the staff shell), the Table / Cards switch and the cards.
+//
+// A supplier page still never calls a staff route. The staff table syncs its column layouts with the server only
+// after the STAFF sign-in starts that sync (auth/AuthContext hydrateTableLayouts), and the supplier pages are mounted
+// outside the staff sign-in, so the table keeps its layout in this browser alone. supplierSurface.test.tsx renders
+// every supplier page and fails on any request that is not the suppliers' own API.
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { LayoutGrid, Table as TableIcon, X as XIcon } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
+import { ResizableDetailDrawer } from "../../components/ResizableDetailDrawer";
 import { useEscapeLayer } from "../../lib/escapeStack";
 import { fmtDate, fmtDateTime } from "../../vendor/shared/format";
 import type { OrderPickupState, PickupLineState, PickupStatus } from "./api";
@@ -81,6 +87,8 @@ const ORDER_PICKUP: Record<OrderPickupState | PickupLineState, { label: string; 
   collected: { label: "Collected", tone: "success" },
 };
 
+export const orderPickupLabel = (state: OrderPickupState | PickupLineState): string => ORDER_PICKUP[state].label;
+
 export function OrderPickupBadge({ state }: { state: OrderPickupState | PickupLineState }) {
   const s = ORDER_PICKUP[state];
   return <Badge tone={s.tone} size="sm" caseless variant={state === "none" ? "outline" : "soft"}>{s.label}</Badge>;
@@ -112,14 +120,83 @@ export function useLoad<T>(key: string, load: () => Promise<T>): Loaded<T> {
 
 // ── Page furniture ──────────────────────────────────────────────────────────────────────────────────────────────
 
-export function PageTitle({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
+/**
+ * The staff page header (components/Layout PageHeader): a brass rule and an uppercase eyebrow, the title, one line
+ * of what the page is, the actions on the right, a rule under it. The same classes, so the two read as one product.
+ * Not pinned: on the staff pages it pins under the staff top bar, and the supplier pages have their own header.
+ */
+export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div className="min-w-0">
-        <h1 className="text-[20px] font-bold leading-tight text-ink">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-[12.5px] leading-relaxed text-ink-secondary">{description}</p>}
+    <div className="mb-4 flex flex-col gap-3 border-b border-border pb-3 sm:mb-6 sm:pb-5 md:flex-row md:flex-wrap md:items-end md:justify-between">
+      <div className="min-w-0 md:flex-1 md:basis-72">
+        {eyebrow && (
+          <div className="mb-1.5 flex items-center gap-2 sm:mb-2">
+            <span className="h-px w-5 bg-accent sm:w-6" />
+            <span className="font-mono text-[10.5px] font-semibold uppercase tracking-brand text-accent sm:text-[10px]">{eyebrow}</span>
+          </div>
+        )}
+        <h1 className="font-display text-[19px] font-extrabold leading-tight tracking-tight text-ink max-[359px]:text-[17px] sm:text-[26px] lg:text-[28px]">
+          {title}
+        </h1>
+        {description && <div className="mt-1 max-w-2xl text-[12px] leading-relaxed text-ink-secondary sm:mt-1.5 sm:text-sm">{description}</div>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2 md:shrink-0">{actions}</div>}
+    </div>
+  );
+}
+
+export type ViewMode = "table" | "cards";
+
+/** The staff list's Table / Cards switch (pages/scm-v2/MfgSalesOrdersListV2 ViewToggle), the same classes. */
+export function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
+  const btn = (which: ViewMode, label: string, Icon: typeof TableIcon) => {
+    const active = value === which;
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(which)}
+        aria-pressed={active}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+          active ? "bg-primary text-white shadow-sm" : "text-ink-secondary hover:bg-primary-soft hover:text-primary",
+        )}
+      >
+        <Icon size={13} />
+        {label}
+      </button>
+    );
+  };
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-md border border-border bg-surface p-1 shadow-stone">
+      {btn("table", "Table", TableIcon)}
+      {btn("cards", "Cards", LayoutGrid)}
+    </div>
+  );
+}
+
+/** The staff list's cards view (MfgSalesOrdersListV2 CardsGrid): one card a row, three across on a wide screen. */
+export function CardsGrid<T>({ rows, rowKey, render, onOpen, empty }: {
+  rows: T[];
+  rowKey: (row: T) => string;
+  render: (row: T) => ReactNode;
+  onOpen: (row: T) => void;
+  empty: ReactNode;
+}) {
+  if (rows.length === 0) {
+    return <div className="rounded-lg border border-dashed border-border bg-surface px-6 py-16 text-center text-[12.5px] text-ink-muted shadow-stone">{empty}</div>;
+  }
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      {rows.map((r) => (
+        <button
+          key={rowKey(r)}
+          type="button"
+          onClick={() => onOpen(r)}
+          className="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-surface px-4 py-4 text-left shadow-stone transition-all duration-200 hover:-translate-y-px hover:border-primary/40 hover:shadow-slab focus:outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+        >
+          {render(r)}
+        </button>
+      ))}
     </div>
   );
 }
@@ -163,172 +240,8 @@ export function Fact({ label, children, wide }: { label: string; children: React
 
 export const Missing = ({ children }: { children: ReactNode }) => <span className="text-ink-muted">{children}</span>;
 
-// ── The table ───────────────────────────────────────────────────────────────────────────────────────────────────
-
-export interface Column<T> {
-  key: string;
-  header: string;
-  cell: (row: T) => ReactNode;
-  /** Right-align numbers. */
-  align?: "left" | "right";
-  /** Sort in the browser by this value. Leave out for a column that does not sort. */
-  sortValue?: (row: T) => string | number | null;
-  /** Sort on the server under this name (the table then only reports the choice). */
-  serverSort?: string;
-  /** Let this column's text break onto more lines. Every other cell stays on one line: a number, a date, a
-   *  document number or a status never splits, and a table too wide for the screen scrolls sideways instead. */
-  wrap?: boolean;
-  className?: string;
-  /** Text for the CSV download. Leave out to keep the column off the file. */
-  csv?: (row: T) => string | number | null;
-}
-
-export interface SortChoice { key: string; dir: "asc" | "desc" }
-
-export function Table<T>({
-  columns, rows, rowKey, onRowClick, empty, sort, onSortChange, footer, selectedKey,
-}: {
-  columns: Column<T>[];
-  rows: T[];
-  rowKey: (row: T) => string;
-  onRowClick?: (row: T) => void;
-  empty: ReactNode;
-  /** Controlled sort, for a list the server sorts. Leave out to sort in the browser. */
-  sort?: SortChoice | null;
-  onSortChange?: (next: SortChoice) => void;
-  footer?: ReactNode;
-  selectedKey?: string | null;
-}) {
-  const [local, setLocal] = useState<SortChoice | null>(null);
-  const active = sort !== undefined ? sort : local;
-  const sorted = useMemo(() => {
-    if (sort !== undefined || !local) return rows;
-    const col = columns.find((c) => c.key === local.key);
-    if (!col?.sortValue) return rows;
-    const value = col.sortValue;
-    const dir = local.dir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const x = value(a);
-      const y = value(b);
-      if (x == null && y == null) return 0;
-      if (x == null) return 1; // unknown last, whichever way
-      if (y == null) return -1;
-      return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * dir;
-    });
-  }, [rows, columns, local, sort]);
-
-  const choose = (c: Column<T>) => {
-    const key = sort !== undefined ? c.serverSort : c.sortValue ? c.key : undefined;
-    if (!key) return;
-    const next: SortChoice = active?.key === key ? { key, dir: active.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
-    if (sort !== undefined) onSortChange?.(next);
-    else setLocal(next);
-  };
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
-      <div className="thin-scroll overflow-x-auto">
-        <table className="w-full border-collapse text-[12.5px]">
-          <thead>
-            <tr className="bg-surface-2">
-              {columns.map((c) => {
-                const key = sort !== undefined ? c.serverSort : c.sortValue ? c.key : undefined;
-                const on = !!key && active?.key === key;
-                return (
-                  <th
-                    key={c.key}
-                    scope="col"
-                    aria-sort={on ? (active.dir === "asc" ? "ascending" : "descending") : undefined}
-                    className={cn("h-10 whitespace-nowrap border-b border-border px-3 font-mono text-[10px] font-semibold uppercase tracking-brand text-ink-muted", c.align === "right" ? "text-right" : "text-left")}
-                  >
-                    {key ? (
-                      <button type="button" onClick={() => choose(c)} className={cn("group inline-flex items-center gap-1 uppercase hover:text-ink", on && "text-ink")}>
-                        {c.header}
-                        {on ? (active.dir === "asc" ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ChevronsUpDown size={11} className="opacity-0 group-hover:opacity-60" />}
-                      </button>
-                    ) : c.header}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((r) => {
-              const k = rowKey(r);
-              return (
-                <tr
-                  key={k}
-                  onClick={onRowClick ? () => onRowClick(r) : undefined}
-                  onKeyDown={onRowClick ? (e) => { if (e.key === "Enter") onRowClick(r); } : undefined}
-                  tabIndex={onRowClick ? 0 : undefined}
-                  className={cn(
-                    "border-b border-border-subtle last:border-b-0",
-                    onRowClick && "cursor-pointer hover:bg-surface-2 focus:outline-none focus-visible:bg-primary-soft/40",
-                    selectedKey === k && "bg-primary-soft/40",
-                  )}
-                >
-                  {columns.map((c) => (
-                    <td key={c.key} className={cn("px-3 py-2.5 align-top text-ink", !c.wrap && "whitespace-nowrap", c.align === "right" && "text-right tabular-nums", c.className)}>
-                      {c.cell(r)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-          {footer && sorted.length > 0 && <tfoot>{footer}</tfoot>}
-        </table>
-      </div>
-      {sorted.length === 0 && <div className="px-4 py-10 text-center text-[12.5px] text-ink-muted">{empty}</div>}
-    </div>
-  );
-}
-
-/** The rows as CSV text: only the columns that name a `csv` value. A text cell that starts like a formula gets a
- *  leading apostrophe, so a spreadsheet shows it as text instead of running it (a customer's name is typed by
- *  someone outside Carres). Numbers are left as numbers. */
-export function toCsv<T>(columns: Column<T>[], rows: T[]): string {
-  const cols = columns.filter((c) => c.csv);
-  const cell = (v: string | number | null) => {
-    if (typeof v === "number") return String(v);
-    let s = v == null ? "" : String(v);
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return [cols.map((c) => cell(c.header)).join(","), ...rows.map((r) => cols.map((c) => cell(c.csv!(r))).join(","))].join("\r\n");
-}
-
-/** Download the rows as a CSV file. */
-export function downloadCsv<T>(filename: string, columns: Column<T>[], rows: T[]): void {
-  const blob = new Blob([`﻿${toCsv(columns, rows)}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-export function Pager({ page, pageSize, total, onPage }: { page: number; pageSize: number; total: number; onPage: (page: number) => void }) {
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  if (total <= pageSize) return null;
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, total);
-  return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[11.5px] text-ink-secondary">
-      <span><span className="font-mono text-ink">{from.toLocaleString()}–{to.toLocaleString()}</span> of {total.toLocaleString()}</span>
-      <div className="flex items-center gap-2">
-        <Button variant="secondary" className="h-8 px-3" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</Button>
-        <span className="font-mono text-ink">{page} / {pages}</span>
-        <Button variant="secondary" className="h-8 px-3" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next</Button>
-      </div>
-    </div>
-  );
-}
-
-// ── The quick-view drawer (the staff Sales Orders drawer's shape: dark header, scrolling body) ────────────────────
+// ── The quick-view drawer: the staff drawer's chrome (ResizableDetailDrawer: scrim, panel, drag to widen, the width
+//    remembered) with the staff Sales Orders drawer's inside (dark header, scrolling body, footer) ────────────────
 
 export function Drawer({
   open, onClose, title, subtitle, headerRight, children, footer,
@@ -342,37 +255,21 @@ export function Drawer({
   footer?: ReactNode;
 }) {
   useEscapeLayer(onClose, open);
-  return createPortal(
-    <>
-      <div
-        aria-hidden
-        onClick={onClose}
-        className={cn("fixed inset-0 z-[90] bg-ink/35 transition-opacity duration-200", open ? "opacity-100" : "pointer-events-none opacity-0")}
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${subtitle} ${title}`}
-        className={cn(
-          "fixed inset-y-0 right-0 z-[91] flex w-full max-w-[560px] flex-col bg-surface shadow-slab transition-transform duration-200",
-          open ? "translate-x-0" : "pointer-events-none translate-x-full",
-        )}
-      >
-        <div className="flex h-[60px] shrink-0 items-center gap-3 bg-sidebar px-5 text-sidebar-ink">
-          <button type="button" onClick={onClose} className="text-sidebar-ink-muted hover:text-sidebar-ink" aria-label="Close details">
-            <XIcon size={18} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-mono text-[14px] font-bold tracking-wide">{title}</div>
-            <div className="mt-0.5 text-[11px] text-sidebar-ink-muted">{subtitle}</div>
-          </div>
-          {headerRight}
+  return (
+    <ResizableDetailDrawer open={open} onClose={onClose} ariaLabel={`${subtitle} ${title}`}>
+      <div className="flex h-[60px] shrink-0 items-center gap-3 bg-sidebar px-5 text-sidebar-ink">
+        <button type="button" onClick={onClose} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sidebar-ink-muted hover:text-sidebar-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40" aria-label="Close details">
+          <XIcon size={18} />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-mono text-[14px] font-bold tracking-wide">{title}</div>
+          <div className="mt-0.5 text-[11px] text-sidebar-ink-muted">{subtitle}</div>
         </div>
-        <div className="thin-scroll flex-1 overflow-y-auto px-5 py-5">{children}</div>
-        {footer && <div className="flex shrink-0 items-center gap-2 border-t border-border bg-surface-2 px-5 py-3">{footer}</div>}
-      </aside>
-    </>,
-    document.body,
+        {headerRight}
+      </div>
+      <div className="thin-scroll flex-1 overflow-y-auto px-5 py-5">{children}</div>
+      {footer && <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border bg-surface-2 px-5 py-3">{footer}</div>}
+    </ResizableDetailDrawer>
   );
 }
 

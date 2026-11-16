@@ -1,21 +1,30 @@
 // Carres only (not part of Houzs's code): the Sales Orders a supplier is shared.
 //
-// The staff Sales Orders page in the supplier's words: the same list with a quick view, "Open full page", the stage
-// history and the relationship map. It shows only what Carres shares (Settings › Supplier Access): the supplier's own
-// lines of each order, the customer's name and delivery address, and the dates. No price is ever on these pages.
-import { useEffect, useMemo, useState } from "react";
+// The staff Sales Orders page (pages/scm-v2/MfgSalesOrdersListV2), drawn with its own parts (owner, 16 Nov 2026: the
+// supplier pages look exactly like it): the header, four figure cards, the stage pills, Table / Cards, the staff
+// table with its search, Export, Wrap and Columns, the pager, and a row that opens the quick view beside the list.
+// It shows only what Carres shares (Settings › Supplier Access): the supplier's own lines of each order, the
+// customer's name and delivery address, and the dates. No price is ever on these pages.
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Download, ExternalLink, Search, Share2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Share2 } from "lucide-react";
 import { Button } from "../../components/Button";
-import { TabStrip } from "../../components/TabStrip";
+import { DataTable, type Column } from "../../components/DataTable";
+import { FilterPills } from "../../components/FilterPills";
+import { ListPager } from "../../components/ListPager";
+import { StatCard } from "../../components/StatCard";
 import { DocumentRelationshipMapModal, type ChainNode } from "../../components/scm-v2/DocumentRelationshipMapModal";
+import { downloadCSV, toCSV, type CSVColumn } from "../../lib/csv";
+import { cn } from "../../lib/utils";
+import { useDebouncedValue } from "../../vendor/scm/lib/hooks";
 import { supplierApi, type MapNode, type Order, type OrderDetail, type OrderView, type TrailEntry } from "./api";
+import { useSupplierSession } from "./SupplierApp";
 import {
-  Card, Drawer, Fact, LineList, LoadError, Loading, Missing, OrderPickupBadge, PageTitle, Pager, SoStatusBadge, Table,
-  count, downloadCsv, fmtDay, fmtStamp, soStatusLabel, useLoad, type Column, type SortChoice,
+  Card, CardsGrid, Drawer, Fact, LineList, LoadError, Loading, Missing, OrderPickupBadge, PageHeader, SoStatusBadge, ViewToggle,
+  count, fmtDay, fmtStamp, orderPickupLabel, soStatusLabel, useLoad, type ViewMode,
 } from "./ui";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZES = [25, 50, 100];
 
 const itemsSummary = (o: Order): string => {
   const first = o.lines.at(0);
@@ -24,29 +33,73 @@ const itemsSummary = (o: Order): string => {
   return o.lines.length > 1 ? `${name} +${o.lines.length - 1} more` : name;
 };
 
+/** Every line of the order, for the file: "2 UNIT Mattress Queen (183 x 190); ...". */
+const itemsInFull = (o: Order): string =>
+  o.lines.map((l) => `${l.qty} ${l.uom} ${l.description || l.itemCode}${l.spec ? ` (${l.spec})` : ""}`).join("; ");
+
+/** The keys of the columns the server sorts are the server's own sort names (backend carres/supplier/orders.ts
+ *  SORTS). Items, Pickup and the address sort the page on screen only. */
 const COLUMNS: Column<Order>[] = [
-  { key: "docNo", header: "SO No", serverSort: "docNo", cell: (o) => <span className="font-mono text-[12.5px] font-bold text-primary-ink">{o.docNo}</span>, csv: (o) => o.docNo },
-  { key: "soDate", header: "SO Date", serverSort: "date", cell: (o) => fmtDay(o.soDate) || <Missing>No date</Missing>, className: "whitespace-nowrap", csv: (o) => o.soDate },
-  { key: "customer", header: "Customer", serverSort: "customer", cell: (o) => o.customerName, csv: (o) => o.customerName },
   {
-    key: "items", header: "Items", wrap: true,
-    cell: (o) => (
-      <div className="min-w-[180px]">
+    key: "docNo", label: "SO No", alwaysVisible: true, getValue: (o) => o.docNo,
+    render: (o) => <span className="font-docno text-[12.5px] font-semibold text-primary-ink">{o.docNo}</span>,
+  },
+  {
+    key: "date", label: "SO Date", getValue: (o) => o.soDate, filterType: "date", dateValue: (o) => o.soDate, newestFirst: true,
+    filterLabel: (v) => fmtDay(v) || v, render: (o) => fmtDay(o.soDate) || <Missing>No date</Missing>,
+  },
+  { key: "customer", label: "Customer", getValue: (o) => o.customerName, render: (o) => o.customerName || <Missing>No name</Missing> },
+  {
+    key: "items", label: "Items", getValue: itemsSummary, exportValue: itemsInFull, disableSort: true,
+    render: (o) => (
+      <div className="min-w-[180px] whitespace-normal">
         <div>{itemsSummary(o)}</div>
         {o.lines[0]?.spec && <div className="mt-0.5 text-[11px] text-ink-muted">{o.lines[0].spec}</div>}
       </div>
     ),
-    csv: (o) => o.lines.map((l) => `${l.qty} ${l.uom} ${l.description || l.itemCode}${l.spec ? ` (${l.spec})` : ""}`).join("; "),
   },
-  { key: "units", header: "Qty", align: "right", serverSort: "units", cell: (o) => o.unitCount, csv: (o) => o.unitCount },
-  { key: "processing", header: "Processing Date", serverSort: "processing", cell: (o) => fmtDay(o.processingDate) || <Missing>Not processed</Missing>, className: "whitespace-nowrap", csv: (o) => o.processingDate },
-  { key: "delivery", header: "Delivery Date", serverSort: "delivery", cell: (o) => fmtDay(o.deliveryDate) || <Missing>Not set</Missing>, className: "whitespace-nowrap", csv: (o) => o.deliveryDate },
-  { key: "status", header: "Stage", serverSort: "status", cell: (o) => <SoStatusBadge status={o.status} />, csv: (o) => soStatusLabel(o.status) },
-  { key: "pickup", header: "Pickup", cell: (o) => <OrderPickupBadge state={o.pickupState} />, csv: (o) => o.pickupState.replace("_", " ") },
-  { key: "address", header: "Delivery Address", cell: () => null, className: "hidden", csv: (o) => o.addressLines.join(", ") },
+  { key: "units", label: "Qty", align: "right", getValue: (o) => o.unitCount, filterType: "number", numberValue: (o) => o.unitCount, render: (o) => o.unitCount },
+  {
+    key: "processing", label: "Processing Date", getValue: (o) => o.processingDate, filterType: "date", dateValue: (o) => o.processingDate,
+    filterLabel: (v) => fmtDay(v) || v, render: (o) => fmtDay(o.processingDate) || <Missing>Not processed</Missing>,
+  },
+  {
+    key: "delivery", label: "Delivery Date", getValue: (o) => o.deliveryDate, filterType: "date", dateValue: (o) => o.deliveryDate,
+    filterLabel: (v) => fmtDay(v) || v, render: (o) => fmtDay(o.deliveryDate) || <Missing>Not set</Missing>,
+  },
+  { key: "status", label: "Stage", getValue: (o) => soStatusLabel(o.status), render: (o) => <SoStatusBadge status={o.status} /> },
+  { key: "pickup", label: "Pickup", getValue: (o) => orderPickupLabel(o.pickupState), disableSort: true, render: (o) => <OrderPickupBadge state={o.pickupState} /> },
+  {
+    // Off until a person turns it on in Columns; it is always in the quick view.
+    key: "address", label: "Delivery Address", defaultHidden: true, disableSort: true, getValue: (o) => o.addressLines.join(", "),
+    render: (o) => <span className="block min-w-[200px] whitespace-normal">{o.addressLines.join(", ")}</span>,
+  },
 ];
-/** The address rides on the CSV only; on screen it is in the quick view. */
-const SCREEN_COLUMNS = COLUMNS.filter((c) => c.key !== "address");
+
+/** One order as a card: the staff Sales Orders card, with the supplier's facts in place of the money. */
+function OrderCard({ o }: { o: Order }) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-docno text-[12.5px] font-semibold text-ink">{o.docNo}</span>
+        <SoStatusBadge status={o.status} />
+      </div>
+      <div className="mt-2 truncate text-[15px] font-semibold text-ink">{o.customerName || <Missing>No name</Missing>}</div>
+      <div className="mt-1 flex items-center gap-2">
+        <OrderPickupBadge state={o.pickupState} />
+        <span className="text-[11.5px] text-ink-muted">{fmtDay(o.soDate)}</span>
+      </div>
+      <div className="mt-2 truncate text-[12px] text-ink-secondary">{itemsSummary(o)}</div>
+      <div className="mt-3.5 flex items-end justify-between border-t border-border-subtle pt-3">
+        <div className="min-w-0">
+          <div className="font-mono text-[9.5px] font-semibold uppercase tracking-brand text-ink-muted">Delivery Date</div>
+          <div className="mt-0.5 truncate font-mono text-[12px] font-semibold text-ink-secondary">{fmtDay(o.deliveryDate) || "Not set"}</div>
+        </div>
+        <span className="font-mono text-[15px] font-bold text-ink">{o.unitCount} <span className="text-[10.5px] font-semibold text-ink-muted">{o.unitCount === 1 ? "UNIT" : "UNITS"}</span></span>
+      </div>
+    </>
+  );
+}
 
 const TRAIL_WORDS: Record<string, string> = {
   RECEIVED: "Order received",
@@ -177,90 +230,179 @@ function QuickView({ order, onClose }: { order: Order | null; onClose: () => voi
 }
 
 export function OrdersPage() {
+  const navigate = useNavigate();
+  const { me } = useSupplierSession();
   const [view, setView] = useState<OrderView>("all");
-  const [typed, setTyped] = useState("");
+  const [mode, setMode] = useState<ViewMode>("table");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<SortChoice>({ key: "date", dir: "desc" });
+  const [pageSize, setPageSize] = useState(50);
+  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "date", dir: "desc" });
   const [selected, setSelected] = useState<Order | null>(null);
-  const [exporting, setExporting] = useState(false);
 
-  // The search runs a moment after typing stops, and always from the first page.
-  useEffect(() => {
-    const t = window.setTimeout(() => { setQ(typed.trim()); setPage(1); }, 300);
-    return () => window.clearTimeout(t);
-  }, [typed]);
+  const key = `orders:${view}:${q}:${page}:${pageSize}:${sort.key}:${sort.dir}`;
+  const list = useLoad(key, () => supplierApi.orders({ view, q, page, pageSize, sort: sort.key, dir: sort.dir }));
+  // The figures stay on screen while the next page or search loads; they are only unknown before the first answer.
+  const [counts, setCounts] = useState(list.data?.counts ?? null);
+  useEffect(() => { if (list.data) setCounts(list.data.counts); }, [list.data]);
+  const total = list.data?.total ?? 0;
+  const pickups = me.badges.pickupsToAccept;
 
-  const key = `orders:${view}:${q}:${page}:${sort.key}:${sort.dir}`;
-  const list = useLoad(key, () => supplierApi.orders({ view, q, page, pageSize: PAGE_SIZE, sort: sort.key, dir: sort.dir }));
-  const counts = list.data?.counts;
-
-  const tabs = useMemo(() => [
+  const pills = useMemo(() => [
     { value: "all" as const, label: "All", count: counts?.all },
     { value: "incoming" as const, label: "Incoming", count: counts?.incoming },
     { value: "processing" as const, label: "In production", count: counts?.processing },
     { value: "delivered" as const, label: "Delivered", count: counts?.delivered },
   ], [counts]);
 
-  /** Every row of this view and search, a page at a time, into one file. */
-  const exportAll = async () => {
+  const chooseView = (v: OrderView) => { setView(v); setPage(1); };
+
+  // The phone's own search box (the table's box is on the computer layout only), asked once typing stops.
+  const [typed, setTyped] = useState("");
+  const settled = useDebouncedValue(typed, 300);
+  const firstSettle = useRef(true);
+  useEffect(() => {
+    if (firstSettle.current) { firstSettle.current = false; return; }
+    setQ(settled.trim());
+    setPage(1);
+  }, [settled]);
+
+  /** Export: every order of this view and search, a page at a time, with the columns showing. The file is written by
+   *  the staff table's own CSV writer (lib/csv), which keeps a cell that starts like a formula as text. */
+  const [exporting, setExporting] = useState(false);
+  const [exportProblem, setExportProblem] = useState<string | null>(null);
+  const exportAll = async (columns: CSVColumn<Order>[]) => {
     if (exporting) return;
     setExporting(true);
+    setExportProblem(null);
+    const rows: Order[] = [];
     try {
-      const rows: Order[] = [];
       for (let p = 1; p <= 50; p++) {
         const chunk = await supplierApi.orders({ view, q, page: p, pageSize: 200, sort: sort.key, dir: sort.dir });
         rows.push(...chunk.rows);
         if (rows.length >= chunk.total || chunk.rows.length === 0) break;
       }
-      downloadCsv(`sales-orders-${view}.csv`, COLUMNS, rows);
-    } catch {
-      /* the list on screen already shows a load problem; nothing is downloaded */
+      downloadCSV(`sales-orders-${view}.csv`, toCSV(rows, columns));
+    } catch (e) {
+      // Nothing is downloaded: half a file would look like every order.
+      setExportProblem(e instanceof Error ? e.message : "The file could not be made. Try again.");
     } finally {
       setExporting(false);
     }
   };
 
+  const pager = list.data && (
+    <ListPager
+      page={list.data.page - 1}
+      pageSize={list.data.pageSize}
+      total={list.data.total}
+      perPageOptions={PAGE_SIZES}
+      onPageChange={(p) => setPage(p + 1)}
+      onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+    />
+  );
+  const empty = q ? `No sales order matches "${q}".` : view === "incoming" ? "No incoming orders right now." : "No sales orders are shared with you yet.";
+
   return (
-    <>
-      <PageTitle
+    // While the quick view is open the list makes room for it beside it, as the staff list does.
+    <div className={cn("transition-[padding] duration-200", selected && "md:pr-[540px]")}>
+      <PageHeader
+        eyebrow="Warehouse and Operation"
         title="Sales Orders"
-        description="Carres sales orders that carry your items. Incoming orders are not processed yet: use them to plan stock. Click a row for the quick view."
-        actions={<Button variant="secondary" icon={<Download size={14} />} onClick={exportAll} disabled={exporting || !list.data?.total}>{exporting ? "Preparing" : "Download CSV"}</Button>}
+        description="Carres sales orders that carry your items. Incoming orders are not processed yet: use them to plan stock. Click any row for the quick view."
       />
-      <TabStrip value={view} onChange={(v) => { setView(v); setPage(1); }} options={tabs} />
-      <div className="mb-3 flex items-center gap-2">
-        <div className="relative w-full max-w-sm">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-          <input
-            type="search"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            placeholder="Search SO No, customer or item"
-            aria-label="Search sales orders"
-            className="h-9 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-[12.5px] text-ink outline-none placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </div>
-        {list.loading && list.data && <span className="text-[11.5px] text-ink-muted">Updating</span>}
+
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label="Total Orders" value={counts?.all.toLocaleString("en-MY")} subtitle="Shared with you" rail="bg-primary" active
+          pending={!counts && !list.error} failed={!counts && !!list.error} onRetry={list.reload}
+        />
+        <StatCard
+          label="Incoming" value={counts?.incoming.toLocaleString("en-MY")} subtitle="Not processed yet" rail="bg-accent"
+          pending={!counts && !list.error} failed={!counts && !!list.error} onRetry={list.reload}
+        />
+        <StatCard
+          label="In Production" value={counts?.processing.toLocaleString("en-MY")} subtitle="Processed, not collected" rail="bg-warning-text"
+          pending={!counts && !list.error} failed={!counts && !!list.error} onRetry={list.reload}
+        />
+        <StatCard
+          label="Pickups to Accept" value={pickups.toLocaleString("en-MY")} subtitle={pickups ? "Waiting for you" : "Nothing waiting"}
+          tone={pickups ? "warning" : "default"} rail={pickups ? "bg-err" : "bg-synced"} onClick={() => navigate("/supplier/pickups")}
+        />
       </div>
-      {list.error && <div className="mb-3"><LoadError message={list.error} onRetry={list.reload} /></div>}
-      {!list.data && !list.error ? <Loading /> : list.data && (
+
+      {/* A phone has the search box above the pills, as the staff list on a phone. */}
+      <div className="mb-3 md:hidden">
+        <input
+          type="search"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder="Search SO No, customer or item"
+          aria-label="Search sales orders"
+          className="h-10 w-full rounded-lg border border-border bg-surface px-3.5 text-[16px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <FilterPills options={pills} value={view} onChange={chooseView} />
+        <div className="flex-1" />
+        <div className="hidden md:block"><ViewToggle value={mode} onChange={setMode} /></div>
+      </div>
+
+      {list.error && !list.data && <div className="mb-3"><LoadError message={list.error} onRetry={list.reload} /></div>}
+      {exportProblem && <div role="alert" className="mb-3 rounded-md border border-err/30 bg-err/5 px-3 py-2 text-[12.5px] text-err">The file was not made. {exportProblem}</div>}
+
+      {/* A phone always has the cards; on a computer Table / Cards decides (as the staff list). */}
+      <div className="md:hidden">
+        {list.data ? (
+          <CardsGrid rows={list.data.rows} rowKey={(o) => o.docNo} onOpen={setSelected} empty={empty} render={(o) => <OrderCard o={o} />} />
+        ) : !list.error && <Loading />}
+        {pager}
+      </div>
+
+      <div className="hidden md:block">
+      {mode === "table" ? (
         <>
-          <Table
-            columns={SCREEN_COLUMNS}
-            rows={list.data.rows}
-            rowKey={(o) => o.docNo}
+          <DataTable<Order>
+            tableId="carres-supplier-orders"
+            documentLabel="Sales Orders"
+            exportName="sales-orders"
+            columns={COLUMNS}
+            rows={list.data?.rows ?? null}
+            loading={list.loading && !list.data}
+            error={list.error && list.data ? list.error : null}
+            getRowKey={(o) => o.docNo}
+            getRowClassName={(o) => (selected?.docNo === o.docNo ? "bg-primary-soft/40" : undefined)}
             onRowClick={setSelected}
-            selectedKey={selected?.docNo ?? null}
-            sort={sort}
-            onSortChange={(s) => { setSort(s); setPage(1); }}
-            empty={q ? `No sales order matches "${q}".` : view === "incoming" ? "No incoming orders right now." : "No sales orders are shared with you yet."}
+            serverSort
+            onSortChange={(s) => { setSort(s ?? { key: "date", dir: "desc" }); setPage(1); }}
+            onExport={(columns) => void exportAll(columns)}
+            exportLabel={exporting ? "Exporting…" : "Export"}
+            emptyLabel={empty}
+            search={{
+              value: q,
+              onChange: (v) => { setQ(v.trim()); setPage(1); },
+              placeholder: "Search SO No, customer or item",
+              scope: "server",
+              searching: list.loading && !!list.data,
+              countPending: list.loading,
+              searchingLabel: "Searching…",
+              totalRecords: total,
+            }}
           />
-          <Pager page={list.data.page} pageSize={list.data.pageSize} total={list.data.total} onPage={setPage} />
+          {pager}
+        </>
+      ) : (
+        <>
+          {list.data ? (
+            <CardsGrid rows={list.data.rows} rowKey={(o) => o.docNo} onOpen={setSelected} empty={empty} render={(o) => <OrderCard o={o} />} />
+          ) : !list.error && <Loading />}
+          {pager}
         </>
       )}
+      </div>
       <QuickView order={selected} onClose={() => setSelected(null)} />
-    </>
+    </div>
   );
 }
 
@@ -279,8 +421,9 @@ export function OrderDetailPage() {
       {!order && !detail.error && <Loading />}
       {order && (
         <>
-          <PageTitle
-            title={order.docNo}
+          <PageHeader
+            eyebrow="Sales Order"
+            title={<span className="font-docno">{order.docNo}</span>}
             description={<span className="flex flex-wrap items-center gap-2"><SoStatusBadge status={order.status} /><OrderPickupBadge state={order.pickupState} /><span>{order.customerName}</span></span>}
             actions={<Button variant="secondary" icon={<Share2 size={14} />} onClick={() => setMapOpen(true)}>Relationship map</Button>}
           />

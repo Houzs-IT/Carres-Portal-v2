@@ -529,7 +529,8 @@ export function ColumnsDrawer({
           Columns
         </h2>
         <div className="mt-1 text-[11.5px] text-ink-muted">
-          Show, reorder, pin and manage custom fields
+          {/* Carres: custom fields only where the table has them (a supplier's table has none). */}
+          {udf ? "Show, reorder, pin and manage custom fields" : "Show, reorder and pin columns"}
         </div>
       </div>
       <div className="flex gap-0.5">

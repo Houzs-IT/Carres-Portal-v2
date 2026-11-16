@@ -12,7 +12,8 @@ import { ArrowLeft, Check, Plus, Send, X as XIcon } from "lucide-react";
 import { PageHeader } from "../../components/Layout";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
-import { TabStrip } from "../../components/TabStrip";
+import { DataTable, type Column } from "../../components/DataTable";
+import { FilterPills } from "../../components/FilterPills";
 import { ListSkeleton } from "../../components/Skeleton";
 import { useQuery } from "../../hooks/useQuery";
 import { useToast } from "../../hooks/useToast";
@@ -20,7 +21,7 @@ import { useDialog } from "../../hooks/useDialog";
 import { useAuth } from "../../auth/AuthContext";
 import { cn } from "../../lib/utils";
 import { DateField } from "../../vendor/scm/components/DateField";
-import { Card, Drawer, Fact, LineList, Missing, SoStatusBadge, Table, count, fmtDay, fmtStamp, type Column } from "../supplier/ui";
+import { Card, Drawer, Fact, LineList, Missing, SoStatusBadge, count, fmtDay, fmtStamp } from "../supplier/ui";
 import { pickupApi, type EligibleLine, type PickupStatus, type StaffPickup } from "./staffApi";
 
 const problem = (e: unknown): string => (e instanceof Error ? e.message : "Something went wrong. Please try again.");
@@ -296,21 +297,30 @@ function RequestView({ pickup, canAct, onClose, onChanged }: { pickup: StaffPick
 type Tab = "open" | "collected" | "cancelled" | "all";
 
 const COLUMNS: Column<StaffPickup>[] = [
-  { key: "no", header: "Request No", sortValue: (p) => p.requestNo, cell: (p) => <span className="font-mono text-[12.5px] font-bold text-primary-ink">{p.requestNo}</span> },
-  { key: "supplier", header: "Supplier", sortValue: (p) => p.supplierName, cell: (p) => p.supplierName },
-  { key: "date", header: "Collect on", sortValue: (p) => `${p.expectedDate} ${p.expectedTime ?? ""}`, cell: collectOn, className: "whitespace-nowrap" },
   {
-    key: "orders", header: "Sales Orders", wrap: true,
-    cell: (p) => (
-      <div className="flex min-w-[150px] max-w-[300px] flex-wrap gap-x-2 gap-y-0.5 font-mono text-[11.5px]">
+    key: "no", label: "Request No", alwaysVisible: true, getValue: (p) => p.requestNo,
+    render: (p) => <span className="font-docno text-[12.5px] font-semibold text-primary-ink">{p.requestNo}</span>,
+  },
+  { key: "supplier", label: "Supplier", getValue: (p) => p.supplierName, render: (p) => p.supplierName },
+  {
+    key: "date", label: "Collect on", getValue: (p) => `${p.expectedDate} ${p.expectedTime ?? ""}`.trim(), filterType: "date",
+    dateValue: (p) => p.expectedDate, filterLabel: (v) => fmtDay(v) || v, render: collectOn,
+  },
+  {
+    key: "orders", label: "Sales Orders", getValue: (p) => p.soDocNos.join(", "), getFilterValues: (p) => p.soDocNos, disableSort: true,
+    render: (p) => (
+      <div className="flex min-w-[150px] max-w-[300px] flex-wrap gap-x-2 gap-y-0.5 whitespace-normal font-docno text-[11.5px]">
         {p.soDocNos.slice(0, 3).map((d) => <span key={d}>{d}</span>)}
         {p.soDocNos.length > 3 && <span className="text-ink-muted">+{p.soDocNos.length - 3} more</span>}
       </div>
     ),
   },
-  { key: "units", header: "Qty", align: "right", sortValue: (p) => p.unitCount, cell: (p) => p.unitCount },
-  { key: "status", header: "Status", sortValue: (p) => p.status, cell: (p) => <StatusBadge status={p.status} /> },
-  { key: "requested", header: "Requested", sortValue: (p) => p.requestedAt, cell: (p) => <span className="text-ink-secondary">{fmtStamp(p.requestedAt)}{p.requestedByName ? ` · ${p.requestedByName}` : ""}</span> },
+  { key: "units", label: "Qty", align: "right", getValue: (p) => p.unitCount, render: (p) => p.unitCount, total: (rows) => rows.reduce((a, p) => a + p.unitCount, 0).toLocaleString("en-MY") },
+  { key: "status", label: "Status", getValue: (p) => STATUS[p.status].label, render: (p) => <StatusBadge status={p.status} /> },
+  {
+    key: "requested", label: "Requested", getValue: (p) => p.requestedAt, disableFilter: true,
+    render: (p) => <span className="text-ink-secondary">{fmtStamp(p.requestedAt)}{p.requestedByName ? ` · ${p.requestedByName}` : ""}</span>,
+  },
 ];
 
 export function SupplierPickupsPage() {
@@ -348,25 +358,31 @@ export function SupplierPickupsPage() {
         description="Tell a supplier which Sales Order goods Carres will collect at its warehouse, and when. The supplier accepts on its own pages; mark the request collected after the lorry has the goods."
         primaryAction={canAct ? <Button icon={<Plus size={14} />} onClick={() => setCreating(true)}>New Pickup Request</Button> : undefined}
       />
-      <TabStrip
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: "open", label: "Open", count: rows.filter(isOpen).length },
-          { value: "collected", label: "Collected" },
-          { value: "cancelled", label: "Cancelled" },
-          { value: "all", label: "All" },
-        ]}
-      />
+      <div className="mb-3">
+        <FilterPills
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "open", label: "Open", count: rows.filter(isOpen).length },
+            { value: "collected", label: "Collected", count: rows.filter((p) => p.status === "COLLECTED").length },
+            { value: "cancelled", label: "Cancelled", count: rows.filter((p) => p.status === "CANCELLED").length },
+            { value: "all", label: "All", count: rows.length },
+          ]}
+        />
+      </div>
       {list.error && <div className="mb-3 rounded-lg border border-err/30 bg-err/5 px-4 py-3 text-[12.5px] text-err">{list.error}</div>}
       {!list.data && !list.error ? <ListSkeleton rows={5} /> : (
-        <Table
+        <DataTable<StaffPickup>
+          tableId="carres-staff-supplier-pickups"
+          documentLabel="Supplier Pickups"
+          exportName={`supplier-pickups-${tab}`}
           columns={COLUMNS}
           rows={shown}
-          rowKey={(p) => p.id}
+          getRowKey={(p) => p.id}
+          getRowClassName={(p) => (p.id === openId ? "bg-primary-soft/40" : undefined)}
           onRowClick={(p) => { setFresh(null); setOpenId(p.id); }}
-          selectedKey={openId}
-          empty={tab === "open" ? "No pickup request is open. Start one with New Pickup Request." : "No pickup requests here."}
+          emptyLabel={tab === "open" ? "No pickup request is open. Start one with New Pickup Request." : "No pickup requests here."}
+          clientSearch={{ placeholder: "Search request no, supplier or SO no" }}
         />
       )}
       <RequestView

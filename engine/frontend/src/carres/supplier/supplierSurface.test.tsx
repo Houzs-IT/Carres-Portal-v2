@@ -4,20 +4,24 @@
  * that means three things, each pinned here:
  *   1. /supplier/* is its own surface, so the staff app, its providers and its sign-in never load for a supplier,
  *      while the staff pages whose address merely starts with the same letters stay staff pages;
- *   2. the supplier pages never import the staff client, the staff session or the staff table (whose layouts are
- *      saved through staff routes): a supplier's browser must not call a staff route;
+ *   2. a supplier's browser never calls a staff route. The supplier pages never import the staff client, the staff
+ *      session or the staff menu. They do draw the staff list's own parts (owner, 16 Nov 2026: they look exactly like
+ *      the staff Sales Orders page), and the staff table stays off the staff routes for them: its saved layouts load
+ *      only after the staff sign-in (lib/tableLayouts, started by auth/AuthContext alone), and no supplier table asks
+ *      for custom fields, import, shared layouts or the printed letterhead. A signed-in walk through every page, with
+ *      its clicks, proves the browser then asks the suppliers' own API and nothing else;
  *   3. the supplier's token and the staff token are different keys, and the one-time link's secret is read from the
  *      address fragment and removed from the address at once. */
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { appSurfaceForPath } from "../../routing/appSurface";
 import { supplierToken } from "./api";
 import { SUPPLIER_HOSTS, isSupplierHost } from "./host";
-import { Table, downloadCsv, fmtDay, fmtMonth, fmtStamp, money, soStatusLabel, toCsv, type Column } from "./ui";
+import { fmtDay, fmtMonth, fmtStamp, money, soStatusLabel } from "./ui";
 import { SupplierApp } from "./SupplierApp";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -107,33 +111,25 @@ describe("the supplier surface", () => {
   });
 });
 
-describe("the supplier's table", () => {
-  afterEach(cleanup);
-  type Row = { no: string; state: string; items: string };
-  const columns: Column<Row>[] = [
-    { key: "no", header: "No", cell: (r) => r.no },
-    { key: "state", header: "Status", cell: (r) => r.state },
-    { key: "items", header: "Items", wrap: true, cell: (r) => r.items },
-  ];
-
-  it("keeps a number and a status on one line; only a column that asks may break", () => {
-    render(<Table columns={columns} rows={[{ no: "CR-SO-2611-040", state: "In default", items: "A long item name" }]} rowKey={(r) => r.no} empty="None" />);
-    expect(screen.getByText("CR-SO-2611-040").closest("td")?.className).toContain("whitespace-nowrap");
-    expect(screen.getByText("In default").closest("td")?.className).toContain("whitespace-nowrap");
-    expect(screen.getByText("A long item name").closest("td")?.className).not.toContain("whitespace-nowrap");
-  });
-});
-
 describe("the supplier pages keep away from the staff app", () => {
   it("has source files to check", () => {
     expect(sources).toEqual(expect.arrayContaining(["api.ts", "ui.tsx", "SupplierApp.tsx", "OrdersPage.tsx", "ForecastPage.tsx", "PickupsPage.tsx", "FinancePage.tsx"]));
   });
 
-  it.each(sources)("%s imports no staff client, session, layout or table", (file) => {
+  it.each(sources)("%s imports no staff client, session, menu or saved layouts", (file) => {
     const text = readFileSync(resolve(HERE, file), "utf8");
     const imports = [...text.matchAll(/from\s+"([^"]+)"/g)].map((m) => m[1]!);
-    for (const banned of ["api/client", "auth/AuthContext", "auth/AuthGate", "components/Layout", "components/DataTable", "hooks/useQuery", "lib/tableLayouts", "supplier-staff"]) {
+    for (const banned of ["api/client", "auth/AuthContext", "auth/AuthGate", "components/Layout", "hooks/useQuery", "hooks/useUdf", "lib/tableLayouts", "supplier-staff"]) {
       expect(imports.filter((i) => i.includes(banned)), `${file} imports ${banned}`).toEqual([]);
+    }
+  });
+
+  it.each(sources)("%s gives the staff table nothing that reaches a staff route", (file) => {
+    // Custom fields are read and written through the staff API; import is not a supplier's; shared and seeded
+    // layouts are saved through the staff API; the printed letterhead reads the staff branding.
+    const text = readFileSync(resolve(HERE, file), "utf8");
+    for (const prop of ["udfTable", "onImport", "layoutPresets", "layoutSeeds", "onApplyLayoutSeed", "onExportPdf"]) {
+      expect(text, `${file} passes ${prop}`).not.toMatch(new RegExp(`\\b${prop}\\s*=`));
     }
   });
 
@@ -180,37 +176,202 @@ describe("words and numbers", () => {
     expect(soStatusLabel("CONFIRMED")).toBe("Submitted");
     expect(soStatusLabel("SOMETHING_NEW")).toBe("Something new");
   });
+});
 
-  type Row = { a: string; b: number };
-  const csvColumns = [
-    { key: "a", header: "Name", cell: () => null, csv: (r: Row) => r.a },
-    { key: "b", header: "Qty", cell: () => null, csv: (r: Row) => r.b },
-    { key: "c", header: "Screen only", cell: () => null },
-  ];
+// ── A signed-in walk ─────────────────────────────────────────────────────────────────────────────────────────────
 
-  it("a CSV keeps only the columns meant for it, and a text cell that starts like a formula is written as text", () => {
-    const text = toCsv(csvColumns, [
-      { a: '=HYPERLINK("http://x")', b: 2 },
-      { a: "Tan, Ah Kow", b: 1 },
-      { a: "+60 12 777", b: -3 },
-      { a: "@cmd", b: 0 },
-    ]);
-    expect(text.split("\r\n")).toEqual([
-      "Name,Qty",
-      `"'=HYPERLINK(""http://x"")",2`,
-      '"Tan, Ah Kow",1',
-      // A number stays a number, even a negative one; only text is guarded.
-      "'+60 12 777,-3",
-      "'@cmd,0",
-    ]);
+const ME = {
+  user: { name: "Ops", email: "ops@supplier.test", canOperation: true, canFinance: true },
+  supplier: { name: "Maker", code: "400-X" },
+  badges: { pickupsToAccept: 1 },
+};
+const orderLine = (soItemId: string, qty: number) => ({
+  soItemId, lineNo: 1, itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", category: "mattress", modelName: null, uom: "UNIT", qty,
+  pickup: { state: "none", requestId: null, requestNo: null, expectedDate: null },
+});
+// A customer name that starts like a spreadsheet formula: the file must keep it as text.
+const ORDER_1 = {
+  docNo: "CR-SO-2611-001", soDate: "2026-11-02", status: "CONFIRMED", saleType: "outright", processingDate: null, deliveryDate: "2026-11-20",
+  customerName: '=HYPERLINK("http://x")', addressLines: ["1 Jalan Ujian", "Klang"], receivedAt: "2026-11-02T02:00:00Z",
+  lineCount: 1, unitCount: 2, pickupState: "none", lines: [orderLine("i1", 2)],
+};
+const ORDER_2 = { ...ORDER_1, docNo: "CR-SO-2611-002", customerName: "Tan Ah Kow", unitCount: 1, lines: [orderLine("i2", 1)] };
+const PICKUP = {
+  id: "p1", requestNo: "CR-PU-2611-001", supplierName: "Maker", expectedDate: "2026-11-25", expectedTime: null, note: null, status: "REQUESTED",
+  requestedAt: "2026-11-16T02:00:00Z", acceptedAt: null, acceptedByName: null, collectedAt: null, cancelledAt: null, cancelReason: null,
+  soDocNos: ["CR-SO-2611-001"], lineCount: 1, unitCount: 2,
+  lines: [{ soDocNo: "CR-SO-2611-001", soItemId: "i1", itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", modelName: null, uom: "UNIT", qty: 2 }],
+};
+const FIN_ORDER = {
+  id: "f1", agreementNo: "CR-AG-2611-001", soNo: "CR-SO-2611-001", customerName: "Tan Ah Kow", item: "Mattress Queen", termMonths: 60, monthlyFee: 100,
+  ratePct: 20, startDate: "2026-11-01", status: "active", state: "on_time", contractValue: 6000, shareTotal: 1200, paidCount: 1, collected: 100,
+  shareEarned: 20, toCollect: 5900, shareToCome: 1180, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, nextDueDate: "2026-12-01", lastPaidOn: "2026-11-01",
+};
+
+/** The suppliers' API, as far as these pages ask it. Anything else is answered 404 and fails the walk. */
+function supplierServer(path: string, method: string, search: URLSearchParams): unknown {
+  if (path === "/api/track/company") return { companyName: "Carres" };
+  if (path === "/api/carres-supplier/auth/me") return ME;
+  if (path === "/api/carres-supplier/orders") {
+    const page = Number(search.get("page") ?? 1);
+    return { rows: page === 1 ? [ORDER_1, ORDER_2] : [], total: 2, page, pageSize: Number(search.get("pageSize") ?? 50), counts: { all: 2, incoming: 1, processing: 1, delivered: 0 } };
+  }
+  if (path === `/api/carres-supplier/orders/${ORDER_1.docNo}`) {
+    return { order: { ...ORDER_1, trail: [{ at: "2026-11-02T02:00:00Z", kind: "received", code: "RECEIVED", ref: null, detail: null }], map: [] } };
+  }
+  if (path === "/api/carres-supplier/forecast") {
+    return {
+      rows: [{ itemCode: "MAT-Q", description: "Mattress Queen", spec: "183 x 190", modelName: null, category: "mattress", uom: "UNIT", incoming: 2, processing: 1, total: 3, byMonth: { "2026-11": 3 } }],
+      months: ["2026-11"], totals: { incoming: 2, processing: 1, total: 3, orders: 2 },
+    };
+  }
+  if (path === "/api/carres-supplier/pickups") return { rows: [PICKUP] };
+  if (path === "/api/carres-supplier/pickups/p1") return { pickup: PICKUP };
+  if (path === "/api/carres-supplier/pickups/p1/accept" && method === "POST") return { pickup: { ...PICKUP, status: "ACCEPTED", acceptedAt: "2026-11-16T03:00:00Z", acceptedByName: "Ops" } };
+  if (path === "/api/carres-supplier/finance/summary") {
+    return {
+      shared: true, asOf: "2026-11-16",
+      totals: { orders: 1, contractValue: 6000, shareTotal: 1200, collected: 100, collectedCount: 1, shareEarned: 20, toCollect: 5900, shareToCome: 1180, overdueOrders: 0, overdueMonths: 0, overdueAmount: 0, overdueShare: 0, defaultOrders: 0 },
+      months: [{ month: "2026-11", due: 100, dueShare: 20, collected: 100, collectedShare: 20, open: 0, openShare: 0 }],
+      orders: [FIN_ORDER],
+    };
+  }
+  if (path === "/api/carres-supplier/finance/orders/f1") {
+    return { asOf: "2026-11-16", order: FIN_ORDER, instalments: [{ seq: 1, dueDate: "2026-11-01", amountDue: 100, state: "paid", paidOn: "2026-11-01", paidAmount: 100, share: 20, daysLate: 0 }] };
+  }
+  return null;
+}
+
+const readBlob = (blob: Blob) => new Promise<string>((done) => {
+  const reader = new FileReader();
+  reader.onload = () => done(String(reader.result).replace(/^﻿/, ""));
+  reader.readAsText(blob);
+});
+
+describe("a signed-in supplier, clicking through every page, asks the suppliers' own API and nothing else", () => {
+  const asked: Array<{ method: string; url: string }> = [];
+  const allowed = (url: string) => {
+    const path = new URL(url, "http://localhost").pathname;
+    return path.startsWith("/api/carres-supplier/") || path === "/api/track/company";
+  };
+
+  beforeEach(() => {
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+    asked.length = 0;
+    supplierToken.set("tok-1");
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      asked.push({ method, url });
+      const u = new URL(url, "http://localhost");
+      const body = supplierServer(u.pathname, method, u.searchParams);
+      return Promise.resolve(new Response(JSON.stringify(body ?? { error: "Not found." }), { status: body ? 200 : 404, headers: { "content-type": "application/json" } }));
+    }));
+    // The other ways a page can reach a server are watched too.
+    vi.stubGlobal("XMLHttpRequest", class { open(_m: string, url: string) { asked.push({ method: "XHR", url: String(url) }); } send() {} setRequestHeader() {} addEventListener() {} abort() {} });
+    Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: (url: string) => { asked.push({ method: "BEACON", url: String(url) }); return true; } });
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    Reflect.deleteProperty(navigator, "sendBeacon");
+    supplierToken.clear();
   });
 
-  it("downloads the file through a link", () => {
-    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+  const walk = (path: string) => render(<MemoryRouter initialEntries={[path]}><SupplierApp /></MemoryRouter>);
+  const settle = () => new Promise((r) => setTimeout(r, 1500)); // past the table's layout save delay (1.2 s)
+  const strays = () => asked.filter((a) => !allowed(a.url));
+  // Each page is its own chunk, loaded on first use: the first sight of a page may take a while in a test run.
+  const LOAD = { timeout: 15_000 };
+  const inTable = (els: HTMLElement[]) => els.find((el) => el.closest("td")) ?? els[0]!;
+
+  it("Sales Orders: the list, its Columns, the quick view, Cards and the exported file", { timeout: 40_000 }, async () => {
+    const files: Blob[] = [];
+    Object.assign(URL, { createObjectURL: vi.fn((b: Blob) => { files.push(b); return "blob:x"; }), revokeObjectURL: vi.fn() });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    downloadCsv("t.csv", csvColumns, [{ a: "x", b: 1 }]);
-    expect(click).toHaveBeenCalledOnce();
+    walk("/supplier/orders");
+
+    expect(await screen.findByRole("heading", { name: "Sales Orders" }, LOAD)).toBeTruthy();
+    // In the table, and in the cards a phone shows instead.
+    expect(await screen.findAllByText("Tan Ah Kow")).toHaveLength(2);
+    // The figure cards read the counts the list answers.
+    expect(screen.getByText("Total Orders")).toBeTruthy();
+    expect(screen.getByText("Pickups to Accept")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Columns/ }));
+    expect(await screen.findByText("Delivery Address")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    fireEvent.click(inTable(screen.getAllByText("Tan Ah Kow")));
+    const view = await screen.findByRole("dialog");
+    expect(within(view).getByText("CR-SO-2611-002")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    await waitFor(() => expect(files).toHaveLength(1));
+    const lines = (await readBlob(files[0]!)).split("\r\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatch(/^SO No,SO Date,Customer,Items,Qty/);
+    // The staff writer keeps a cell that starts like a formula as text, and Items carries every line.
+    expect(lines[1]).toContain(`"'=HYPERLINK(""http://x"")"`);
+    expect(lines[1]).toContain("2 UNIT Mattress Queen (183 x 190)");
+    // The file covers every order of the view, asked a page of 200 at a time.
+    expect(asked.some((a) => a.url.includes("/api/carres-supplier/orders?") && a.url.includes("pageSize=200"))).toBe(true);
     click.mockRestore();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cards" }));
+    expect(await screen.findAllByText("CR-SO-2611-001")).toBeTruthy();
+
+    // A phone's search box asks the suppliers' API once typing stops.
+    fireEvent.change(screen.getByLabelText("Search sales orders"), { target: { value: "Tan " } });
+    await waitFor(() => expect(asked.some((a) => a.url.includes("/api/carres-supplier/orders?") && a.url.includes("q=Tan&"))).toBe(true));
+
+    await settle();
+    expect(strays()).toEqual([]);
+  });
+
+  it("an order's own page", { timeout: 40_000 }, async () => {
+    walk("/supplier/orders/CR-SO-2611-001");
+    expect(await screen.findByText("Order received", {}, LOAD)).toBeTruthy();
+    await settle();
+    expect(strays()).toEqual([]);
+  });
+
+  it("Forecast", { timeout: 40_000 }, async () => {
+    walk("/supplier/forecast");
+    expect(await screen.findByRole("heading", { name: "Forecast" }, LOAD)).toBeTruthy();
+    expect(await screen.findByText("Mattress Queen")).toBeTruthy();
+    await settle();
+    expect(strays()).toEqual([]);
+  });
+
+  it("Pickup Requests: the list, the quick view and accepting", { timeout: 40_000 }, async () => {
+    walk("/supplier/pickups");
+    expect(await screen.findByRole("heading", { name: "Pickup Requests" }, LOAD)).toBeTruthy();
+    // The number is also under Next Pickup; the row is the one in the table.
+    fireEvent.click(inTable(await screen.findAllByText("CR-PU-2611-001")));
+    fireEvent.click(await screen.findByRole("button", { name: "Accept pickup" }));
+    await waitFor(() => expect(asked.some((a) => a.method === "POST" && a.url.endsWith("/api/carres-supplier/pickups/p1/accept"))).toBe(true));
+    await settle();
+    expect(strays()).toEqual([]);
+  });
+
+  it("Finance: the orders, by month, and one order's instalments", { timeout: 40_000 }, async () => {
+    walk("/supplier/finance");
+    fireEvent.click(await screen.findByRole("button", { name: /By month/ }, LOAD));
+    expect(await screen.findByText("Instalments Due")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /All orders/ }));
+    fireEvent.click(inTable(await screen.findAllByText("Tan Ah Kow")));
+    expect(await screen.findByText("Agreement No", {}, LOAD)).toBeTruthy();
+    await settle();
+    expect(strays()).toEqual([]);
+  });
+
+  it("Account", { timeout: 40_000 }, async () => {
+    walk("/supplier/account");
+    expect(await screen.findByRole("heading", { name: "Your account" }, LOAD)).toBeTruthy();
+    await settle();
+    expect(strays()).toEqual([]);
   });
 });
 
