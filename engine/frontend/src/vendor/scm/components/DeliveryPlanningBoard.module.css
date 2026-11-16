@@ -203,3 +203,22 @@
 }
 .bulkControl:focus { outline: none; border-color: #2F55E0; }
 .bulkSpacer { flex: 1 1 auto; }
+
+/* Carres (owner, 16 Nov 2026: "lorry plate的UI有问题"): the crew pickers in a row read like the cells around them —
+   one line, cell font, a quiet border that shows on hover and focus. */
+.cellCombo {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--hz-c-ink, inherit);
+  text-overflow: ellipsis;
+}
+.cellCombo:hover { border-color: var(--hz-c-border, #d9d4c7); background: var(--hz-c-surface, #fff); }
+.cellCombo:focus { outline: none; border-color: var(--hz-c-accent, #b5452c); background: var(--hz-c-surface, #fff); }
+.cellCombo::placeholder { color: var(--hz-c-ink-muted, #8a8579); }
