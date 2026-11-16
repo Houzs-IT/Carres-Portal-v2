@@ -220,7 +220,11 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   `/api/carres-supplier/*` and `/api/track/company` go to the engine Worker over a service binding; every other
   `/api/*` answers 404, so the staff API does not exist at that address; a file comes from the engine site; a
   page under `/supplier` is the site's one page; any other page is sent to `/supplier`. It holds no secret and no
-  database, and `workers.dev` is off for it. The address is a Worker custom domain, made by the LAST step of the
+  database, and it answers at that one host: a request for any other host, its own `workers.dev` address
+  included, gets 404 before anything else is decided. (`workers_dev` is `true` in its config because with it
+  `false` wrangler lists the zone's routes first, which the deploy token may not read: the first deploy failed
+  there on 16 Nov 2026. `carres-portal-v2-api` deploys its custom domain the same way.) The address is a Worker
+  custom domain, made by the LAST step of the
   engine deploy (`deploy-engine.yml`), which then checks it: the page answers, the supplier API answers 401, two
   staff routes answer 404, and the page carries `frame-ancestors 'none'`. On the screen side the app is the
   supplier pages and nothing else at that address (`carres/supplier/host.ts`, `routing/appSurface.ts`). The
