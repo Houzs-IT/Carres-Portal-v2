@@ -35,6 +35,8 @@
 // ----------------------------------------------------------------------------
 
 import { requireActiveCompanyId, scopeToCompanyId } from './companyScope';
+import { carresFinanceRules } from '../../carres/finance-rules';
+import { creditedRefundCap } from '../../carres/credited-refund';
 import { resolveRoles } from '../../acc/rules';
 import { addCustomerCredit } from './customer-credits';
 import { standingDeposits, type RefundInput } from '../../acc/deposit-refunds';
@@ -131,6 +133,9 @@ export async function loadRefundSource(
   docNoRaw: unknown,
   excludePvId: string | null = null,
   excludeRequestId: string | null = null,
+  /* Carres (CARRES_FINANCE_RULES): a live invoice may be refunded up to the credit notes knocked off it,
+     without cancelling it (Chew, docs/finance/MASTER.md §0.0 ruling 9). */
+  refundCreditedInvoice = false,
 ): Promise<{ ok: true; source: RefundSource } | { ok: false; status: number; error: string; message: string }> {
   const type = normType(typeRaw);
   const docNo = String(docNoRaw ?? '').trim();
@@ -141,6 +146,7 @@ export async function loadRefundSource(
   let customer: RefundSource['customer'] = { name: null, phone: null, customerId: null, debtorCode: null };
   let payments: RefundPayment[] = [];
   let ineligible: string | null = null;
+  let creditCapSen: number | null = null; // Carres: a live invoice's refund stops at its credit notes
 
   if (type === 'SO') {
     const { data: so, error } = await sb.from('mfg_sales_orders')
@@ -175,7 +181,11 @@ export async function loadRefundSource(
     if (row.migrated_no_stock === true) {
       ineligible = `${docNo} was migrated — its money is in AutoCount's book, not this ledger.`;
     } else if (String(row.status ?? '').trim().toUpperCase() !== 'CANCELLED') {
-      ineligible = `${docNo} still stands (${row.status ?? 'open'}) — a refund would leave the customer owing it again. Cancel the invoice first, or raise a credit note when that paper exists.`;
+      const credited = refundCreditedInvoice ? await creditedRefundCap(sb, companyId, row.id) : null;
+      if (credited != null && credited > 0) creditCapSen = credited;
+      else ineligible = refundCreditedInvoice
+        ? `${docNo} still stands (${row.status ?? 'open'}). Knock a credit note off it first (Discount allowed), then refund up to that credit.`
+        : `${docNo} still stands (${row.status ?? 'open'}) — a refund would leave the customer owing it again. Cancel the invoice first, or raise a credit note when that paper exists.`;
     }
     const { data: pays, error: pErr } = await sb.from('sales_invoice_payments')
       .select('id, paid_at, method, merchant_provider, amount_sen').eq('sales_invoice_id', row.id).order('paid_at');
@@ -211,7 +221,10 @@ export async function loadRefundSource(
     if (!asked.ok) return { ok: false, status: 500, error: 'load_failed', message: asked.reason };
     requestedSen = heldSen(asked.byDoc.get(docNo) ?? []);
   }
-  const refundableSen = Math.max(0, bookedSen - refundedSen - requestedSen - convertedSen);
+  const refundableSen = Math.max(0, Math.min(
+    bookedSen - refundedSen - requestedSen - convertedSen,
+    creditCapSen == null ? Number.POSITIVE_INFINITY : creditCapSen - refundedSen,
+  ));
   if (!ineligible && bookedSen === 0) {
     ineligible = payments.length === 0
       ? `${docNo} collected nothing — there is no money to refund.`
@@ -237,6 +250,7 @@ export const refundSourceHandler = async (c: any): Promise<Response> => {
     String(c.req.query('excludePvId') ?? '').trim() || null,
     /* The refund request a voucher is being raised to answer (owner 2026-10-14). */
     String(c.req.query('excludeRequestId') ?? '').trim() || null,
+    carresFinanceRules(c.env),
   );
   if (!r.ok) return c.json({ error: r.error, message: r.message }, r.status);
   return c.json({ source: r.source });
@@ -268,7 +282,7 @@ export async function refundCreateGuard(
   /* A voucher answering a refund request (owner 2026-10-14) is not held back by
      that request's own amount — every other waiting request still is. */
   const answering = typeof body.paymentRequestId === 'string' && body.paymentRequestId.trim() ? body.paymentRequestId.trim() : null;
-  const src = await loadRefundSource(sb, co.companyId, body.refundSourceType, body.refundSourceDocNo, excludePvId, answering);
+  const src = await loadRefundSource(sb, co.companyId, body.refundSourceType, body.refundSourceDocNo, excludePvId, answering, carresFinanceRules(c.env));
   if (!src.ok) return { ok: false, resp: c.json({ error: src.error, message: src.message }, src.status) };
   const s = src.source;
   if (!s.eligible) return { ok: false, resp: c.json({ error: 'refund_not_allowed', message: s.reason ?? `${s.docNo} cannot be refunded.` }, 409) };
