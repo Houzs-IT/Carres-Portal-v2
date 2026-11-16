@@ -556,7 +556,10 @@ function LorryPickCell({ order, lorries, onSchedule, writeSeat }: {
     return lorries.map((l) => {
       const cid = l.threepl_company_id ?? l.threeplCompanyId ?? null;
       return { id: l.id, label: l.plate, group: cid ? (names.get(String(cid)) ?? '3PL') : 'Own fleet' };
-    });
+    })
+      // One heading per company: Own fleet first, then companies A to Z, plates A to Z inside each.
+      .sort((a, b) => (a.group === b.group ? 0 : a.group === 'Own fleet' ? -1 : b.group === 'Own fleet' ? 1 : a.group.localeCompare(b.group))
+        || a.label.localeCompare(b.label, undefined, { numeric: true }));
   }, [lorries, threepl.data]);
   const currentPlate = order.crew?.lorry_plate ?? null;
   const options = useMemo(() => crewComboOptions(items, currentPlate), [items, currentPlate]);
