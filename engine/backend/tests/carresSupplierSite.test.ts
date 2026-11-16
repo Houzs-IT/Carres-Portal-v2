@@ -14,6 +14,7 @@ function world() {
   const site: Array<{ url: string; init?: RequestInit }> = [];
   const env = {
     SITE_ORIGIN: `${SITE}/`,
+    PUBLIC_HOST: 'supp.carresofficial.com',
     ENGINE: {
       fetch: async (request: Request) => {
         engine.push(request);
@@ -34,7 +35,10 @@ function world() {
     return new Response('<!doctype html><div id="root"></div>', { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
   };
   const ask = (path: string, init?: RequestInit) => handle(new Request(`https://supp.carresofficial.com${path}`, init), env, siteFetch);
-  return { engine, site, ask };
+  /** The same Worker asked at another host, or (`publicHost`: "" or null for unset) set up with no address named. */
+  const askAt = (origin: string, path: string, init?: RequestInit, publicHost: string | null = env.PUBLIC_HOST) =>
+    handle(new Request(`${origin}${path}`, init), { ...env, PUBLIC_HOST: (publicHost ?? undefined) as string }, siteFetch);
+  return { engine, site, ask, askAt };
 }
 
 describe('Carres supplier address: what each request gets', () => {
@@ -158,6 +162,27 @@ describe('Carres supplier address: the answers', () => {
     expect(moved.status).toBe(404);
   });
 
+  it('answers at the one address only: its workers.dev address, and any other host, gets nothing', async () => {
+    const w = world();
+    for (const origin of [
+      'https://carres-supplier-site.wwch.workers.dev', 'https://carres-scm.pages.dev', 'https://supp.carresofficial.com.evil.test',
+      'https://xsupp.carresofficial.com', 'https://carresofficial.com', 'https://127.0.0.1',
+    ]) {
+      for (const [path, method] of [['/supplier', 'GET'], ['/', 'GET'], ['/assets/app-1a2b.js', 'GET'], ['/robots.txt', 'GET'], ['/api/carres-supplier/auth/login', 'POST'], ['/api/track/company', 'GET']] as const) {
+        const res = await w.askAt(origin, path, { method });
+        expect(res.status, `${method} ${origin}${path}`).toBe(404);
+        expect(await res.text()).toBe('Not found.');
+      }
+    }
+    // Set up with no address named, it answers nowhere: a missing setting must not open it everywhere.
+    expect((await w.askAt('https://supp.carresofficial.com', '/supplier', undefined, '')).status).toBe(404);
+    expect((await w.askAt('https://supp.carresofficial.com', '/supplier', undefined, null)).status).toBe(404);
+    expect(w.engine).toHaveLength(0);
+    expect(w.site).toHaveLength(0);
+    // The name is matched whole, whatever its letter case.
+    expect((await w.askAt('https://SUPP.CarresOfficial.com', '/supplier')).status).toBe(200);
+  });
+
   it('search engines are told to stay out, and writing to a page is refused', async () => {
     const w = world();
     const robots = await w.ask('/robots.txt');
@@ -174,8 +199,15 @@ describe('Carres supplier address: how it is deployed', () => {
   it('answers at the one address suppliers are given, and nowhere else', () => {
     expect(toml).toContain('name = "carres-supplier-site"');
     expect(toml).toContain('{ pattern = "supp.carresofficial.com", custom_domain = true }');
-    expect(toml).toMatch(/^workers_dev = false$/m);
+    expect(toml).toMatch(/^PUBLIC_HOST = "supp\.carresofficial\.com"$/m);
     expect(toml).toMatch(/^preview_urls = false$/m);
+    // workers_dev is on because the deploy needs it on (the file says why). What closes that second address is the
+    // Worker itself, before it decides anything else.
+    expect(toml).toMatch(/^workers_dev = true$/m);
+    const worker = readFileSync(new URL('../src/carres/supplier-site/worker.ts', import.meta.url), 'utf8');
+    const guard = worker.indexOf('if (!isPublicHost(url.hostname, env.PUBLIC_HOST)) return plain("Not found.", 404);');
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(worker.indexOf('const decided = plan('));
   });
 
   it('holds no secret and no database: one binding, to the engine Worker', () => {

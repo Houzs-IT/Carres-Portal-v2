@@ -5,12 +5,18 @@
 # the engine itself.
 #
 # The address is a Worker custom domain: Cloudflare makes the DNS record and the certificate when this is deployed
-# (the zone carresofficial.com is in the same Cloudflare account, as api.carresofficial.com shows). workers.dev is
-# off on purpose, so the one way in is the address suppliers are given.
+# (the zone carresofficial.com is in the same Cloudflare account, as api.carresofficial.com shows).
+#
+# workers_dev STAYS TRUE, and that is not an oversight. With it false, wrangler first lists every route of the zone
+# to look for a clash (wrangler-dist `if (!wantWorkersDev && workersDevInSync && routes.length !== 0)`), and the
+# deploy token is not allowed to read the zone's routes: the first deploy failed there on 16 Nov 2026 ("No access to
+# the specified resource", /zones/…/workers/routes). With it true that check is skipped and only the custom domain
+# is asked for, which is how carres-portal-v2-api deploys with the same token. The workers.dev address this leaves
+# on answers nothing: the Worker refuses every host but PUBLIC_HOST below.
 name = "carres-supplier-site"
 main = "src/carres/supplier-site/worker.ts"
 compatibility_date = "2024-12-01"
-workers_dev = false
+workers_dev = true
 preview_urls = false
 routes = [
   { pattern = "supp.carresofficial.com", custom_domain = true }
@@ -20,6 +26,8 @@ routes = [
 enabled = true
 
 [vars]
+# The one address this Worker answers at. A request for any other host (its workers.dev address) gets 404.
+PUBLIC_HOST = "supp.carresofficial.com"
 # Where the built pages and files are (the engine site). No trailing slash.
 SITE_ORIGIN = "https://carres-scm.pages.dev"
 

@@ -21,7 +21,14 @@ interface Env {
   ENGINE: { fetch: (request: Request) => Promise<Response> };
   /** The engine site that holds the built pages and files (https://carres-scm.pages.dev). */
   SITE_ORIGIN: string;
+  /** The one address this Worker answers at (supp.carresofficial.com). */
+  PUBLIC_HOST: string;
 }
+
+/** Whether a request came for the address suppliers are given. The Worker also has a workers.dev address, on only
+ *  because the deploy needs it on (wrangler.supplier-site.toml says why). It must answer nothing: one way in. */
+export const isPublicHost = (hostname: string, publicHost: string | undefined): boolean =>
+  !!publicHost && hostname.toLowerCase() === publicHost.trim().toLowerCase();
 
 /** What one request gets. Decided from the method and the path alone, so it can be read and tested as a table. */
 export type Plan =
@@ -98,6 +105,8 @@ type SiteFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 export async function handle(request: Request, env: Env, siteFetch: SiteFetch = fetch): Promise<Response> {
   const url = new URL(request.url);
+  // Any other host is not this address. Nothing is answered there, and nothing behind it is asked.
+  if (!isPublicHost(url.hostname, env.PUBLIC_HOST)) return plain("Not found.", 404);
   const decided = plan(request.method, url.pathname);
   const site = (env.SITE_ORIGIN || "").replace(/\/+$/, "");
 
