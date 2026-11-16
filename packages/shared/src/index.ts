@@ -3442,3 +3442,5 @@ export {
   type SupplierFinanceSummaryOrder,
   type SupplierFinanceTotals,
 } from "./supplier-finance";
+// A supplier's ask waiting for Carres, as the portal's Alerts bell lists it (owner, 17 Nov 2026).
+export type { SupplierAsk, SupplierAsksResponse } from "./supplier-asks";

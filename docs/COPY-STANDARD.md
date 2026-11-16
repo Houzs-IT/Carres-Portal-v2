@@ -5194,11 +5194,10 @@ which the NO RELATIVE DATE WORDS rule permits; a printed date is still `fmtDate`
 | Finance modules | `Money in` · `Money out` · `Bank & cards` · `Books` · `Reports` |
 | Finance rows renamed | `Outstanding` · `Other Debtors` · `AP Invoices` · `Supplier Maintenance` · `Merchant Recon` · `Journal Entries` · `P&L` · `Merchant charges` · `Forecast P&L` · `Opening Balance` |
 
-## Supplier Platform words — owner's redesign 17 Nov 2026 · BUILT ON BRANCH, NOT DEPLOYED · AWAITS THE OWNER'S REVIEW
+## Supplier Platform words — owner's redesign 17 Nov 2026 · BUILT · DEPLOYED 17 Nov 2026 (#2347) · AWAITS THE OWNER'S REVIEW
 
 Rules and ownership: ERP-ARCHITECTURE §6.6. These are the words of the owner's redesign of the supplier pages (Claude
-Design, "Supplier Portal v2", 17 Nov 2026). They are built on a branch and not deployed: until they are,
-supp.carresofficial.com still shows the pages of 15 Nov 2026. A date is the engine's one format (`2026/11/20`,
+Design, "Supplier Portal v2", 17 Nov 2026), live at supp.carresofficial.com since 17 Nov 2026. A date is the engine's one format (`2026/11/20`,
 `2026/11/20 10:30`), a month `2026/12`. A weekday may stand in front of a date (`Sun 2026/11/22`), and the pickup
 calendar's heading names the month (`November 2026`). A pickup time is the warehouse's 12-hour clock (`2:00 PM`).
 Money is `RM 1,234.00`. A value that is not known is said in words, never a dash. A button names the act.
@@ -5256,6 +5255,7 @@ whose access has no Export does not see the button. A page that does not load: `
 | One request | buttons `Mark collected` · `Cancel request` (asks why: the supplier reads the reason) · facts `Requested` · `Accepted by supplier` · `Collected` (`{time} · {person} ({supplier})` when the supplier marked it) · `Date changed` · `Delivery Order` (a link to the PDF the supplier uploaded) · `Note to supplier` · `Cancelled: {reason}` · `Cancelled at the supplier's request.` |
 | The supplier's ask | `Supplier asks to move` (`Move to {date}`) · `Supplier asks to cancel` · buttons `Approve new day` · `Approve cancel` · `Decline` · confirmations `Move {request no} to {date}?` · `Cancel {request no}?` · `Keep {request no} on {date}?` · `Keep {request no}?` · `Why the pickup stays as it is (optional)` · `The supplier reads your answer. A reason helps them, but you may leave it empty.` · afterwards `Supplier's last ask` · `Approved` · `Declined` · refusal `The day the supplier asked for has passed. Decline it, and the supplier can ask for another day.` · a cancel Carres approves gives the supplier the reason `Asked by the supplier` |
 | Request number | `CR-PKR-{YYMM}-{NNN}`, by the month of the pickup day |
+| The portal's Alerts bell (owner, 17 Nov 2026; operation and the principal) | group `Asked by supplier` with the number waiting, counted in the bell's number · a row `{request no} · {supplier}` with `Move to {date}` (the portal's date, `Thu, 26 Nov`) or `Cancel pickup` · `Nothing waiting` · `+{n} more` · a row opens Supplier Pickups on `Asked by supplier` with that request open |
 
 ## Sales Orders navigation — owner approved 2026-09-23 · BUILT 2026-09-23
 

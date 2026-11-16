@@ -1316,7 +1316,7 @@ Owners: Delivery owns the confirmation contact and the first-leg handover refusa
 timing"); Sales Orders' DO gate reads that one clock unchanged. **PROPOSAL / NOT LAW:** no COD
 approval for outstation orders. Falsifier: the owner approves an outstation COD case.
 
-## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15 · redesign and supplier-side acts 2026-11-17 · BUILT ON BRANCH, NOT DEPLOYED)
+## §6.6 · Supplier Platform — a supplier's own pages (owner request 2026-11-15 · BUILT · DEPLOYED 2026-11-15 · redesign and supplier-side acts 2026-11-17 · BUILT · DEPLOYED 2026-11-17 · supplier asks on the portal's Alerts bell 2026-11-17 · BUILT, deploys with its pull request)
 
 **RULING (Loo, 2026-11-15).** A supplier signs in to pages of its own and sees only what Carres
 shares with it. Carres collects goods at the supplier's warehouse, so the supplier's warehouse must
@@ -1394,6 +1394,14 @@ supplier may take an ask back while it waits. An approved day replaces the old o
 kept and shown as `Date changed`); an approved cancel frees the lines, so their Sales Orders read
 `Not requested` again and wait for a new request. One ask is open at a time.
 
+**Carres sees a waiting ask without opening Supplier Pickups (RULING, Loo, 2026-11-17: "need show up in
+portal notification").** An ask nobody reads runs out: the lorry still goes on the old day, and once the
+asked-for day has passed the ask can only be declined. So every waiting ask is on the portal's Alerts
+bell, in its own group `Asked by supplier`, counted in the bell's number, for operation and the
+principal (the people who answer it). A row opens Supplier Pickups on that request. The bell reads the
+asks from the engine each time and keeps no copy, so an answered ask is gone from its next reading; the
+engine still owns the ask and its answer. No email, WhatsApp or Workspace task is made for an ask.
+
 A line sits on one live request at a time. **It is a notice and its answer. It moves no stock** and
 is not evidence of receipt, ownership or a Unit's handover: goods still enter Carres's books through
 the Purchase Order and its goods receipt, and the Unit handover facts of Rental §5.8 and Stock stay
@@ -1466,8 +1474,9 @@ Houzs resync breaks a guard test.
 
 **Rollout.** Deploying the code opens nothing. Giving a supplier its first production login (turning
 its access on, adding a person, sending the one-time link) is the external cutover of §6.4 and needs
-the owner's word for that supplier. **State (2026-11-16):** deployed with #2312. No supplier's own
-person has a login. One TEST login exists, opened on 16 Nov 2026 at the owner's request so he can read
+the owner's word for that supplier. **State (2026-11-17):** deployed with #2312 (15 Nov 2026); the
+owner's redesign, supplier admins and asks with #2347 (17 Nov 2026, engine step 2017 applied). No
+supplier's own person has a login. One TEST login exists, opened on 16 Nov 2026 at the owner's request so he can read
 the pages as a supplier does: Carres holds it, on one supplier, with that supplier's own items and the
 subscription share. It is turned off before the first real supplier is turned on (one supplier holds
 the subscription share at a time; `carry-forwards.md` `supplier-test-login-is-on`). The production

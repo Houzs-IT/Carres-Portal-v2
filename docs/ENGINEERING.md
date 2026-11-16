@@ -188,7 +188,8 @@ edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `/
    `consignment_delivery_orders` and `consignment_delivery_returns`; those columns exist but nothing reads or
    writes them, by owner decision. Do not drop them without a new migration and the owner's word.
 
-**Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT · DEPLOYED 15 Nov 2026).** A
+**Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT · DEPLOYED 15 Nov 2026; the owner's
+redesign DEPLOYED 17 Nov 2026).** A
 supplier's own pages inside the engine, a Carres addition, each Houzs file it touches marked `// Carres:`.
 - *Supplier side.* Site `/supplier/*` (`engine/frontend/src/carres/supplier/`): a surface of its own in
   `routing/appSurface.ts`, mounted in `main.tsx` outside `AuthProvider` and `AuthGate`, with no staff client and no
@@ -196,22 +197,37 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   `index.ts` BEFORE the staff gate and gated by its own session (`carres_supplier_sessions`). Sign-in address:
   `https://supp.carresofficial.com` (its own address, below). The first address,
   `https://carres-scm.pages.dev/supplier`, sends a visitor on to it.
-- *The look (owner, 16 Nov 2026: exactly like the staff Sales Orders page, `pages/scm-v2/MfgSalesOrdersListV2`).*
-  Every supplier list is drawn with the staff list's own parts: `StatCard`, `FilterPills`, `DataTable` (search,
-  Export, Wrap, Columns, sortable headers, column totals), `ListPager`, and the quick view in
-  `ResizableDetailDrawer`. Three are copies in `carres/supplier/ui.tsx`, because the staff ones need what a supplier
-  does not have: `PageHeader` (the staff one is in `components/Layout`, with the staff session), `ViewToggle` and
-  `CardsGrid` (private to the staff page). A phone always shows the cards and a search box of its own, as the
-  staff page does on a phone. Sales Orders' Export asks the supplier API for every page of the tab and search (200
-  at a time) and writes them with `lib/csv`, which keeps a cell that starts like a formula as text. The staff
-  table stays off the staff routes for a supplier: its saved layouts (`lib/tableLayouts`) start only when
-  `hydrateTableLayouts()` runs, which `auth/AuthContext` alone does after a staff sign-in; until then a layout is
-  kept in the browser only and the layout buttons do not show. Custom fields (`udfTable`), import, shared or
-  seeded layouts and the printed letterhead (`onExportPdf`) all reach the staff API, and no supplier page passes
-  them. `supplierSurface.test.tsx` pins both, and signs a supplier in and clicks through every page (Columns, the
-  quick view, Cards, Export, a phone's search, Accept, the Finance tabs, one subscription order), failing on any
-  request outside `/api/carres-supplier/*` and `/api/track/company`. At `supp.carresofficial.com` the staff API
-  answers 404 anyway, and that address holds no staff token.
+- *The look (owner's redesign, 17 Nov 2026: Claude Design "Supplier Portal v2"; #2347).* The supplier pages draw
+  their own parts and no longer the staff list's: `Shell.tsx` (the header with the tabs a person's access opens, the
+  grey page bar, the stepper), `ListTable.tsx` (search, row and column counts, Export to xlsx of the rows and columns
+  showing, Wrap, Columns with widths kept in this browser only, ticking, totals, the open row, the cards),
+  `ui.tsx` (badges, figure cards, toasts, the motion), `Calendar.tsx` (the new-day picker), `data.ts` (one shared
+  reading per list; Sales Orders reads every page, 200 at a time), `docs.ts` (the PDFs drawn in the browser with
+  jspdf: an order's own items, a pickup, a subscription statement), `supplier.css`, and `SettingsPage.tsx`
+  (My account, and Users and access for a supplier's admin). Nothing of the staff table, its saved layouts or the
+  staff client is imported, and only `api.ts` calls `fetch`: `supplierSurface.test.tsx` fails on either, and signs
+  a supplier in and clicks through every page, failing on any request outside `/api/carres-supplier/*` and
+  `/api/track/company`. At `supp.carresofficial.com` the staff API answers 404 anyway, and that address holds no
+  staff token. Carres's own staff parts of the old file moved to `carres/supplier-staff/parts.tsx`.
+- *Who may see and press what (owner, 16 Nov 2026).* `perms.ts` is the list of keys per department; every supplier
+  route checks its key on the server (`routes.ts` `need`), so a hidden button is also refused. `people.ts`: a
+  supplier person holding Manage users in a department adds, changes and removes that department's people of their
+  own company only, never their own Manage users or themselves; an email that already signs in anywhere, or is a
+  Carres staff email, is refused with one sentence that names no company. `invite.ts` mails the invite (Resend
+  directly, as Forgot password does, with the same switch); a person given a password with
+  `must_change_password` reaches only who-am-I, sign out and Change password until they choose their own
+  (`routes.ts` `ownPasswordFirst`). A person Carres adds holds every key of their department.
+- *Pickups the supplier marks collected, and asks.* `POST /pickups/collect` takes the Delivery Order PDFs
+  (checked as PDFs, at most 10 MB each), stores them in the `POD_BUCKET` store under `carres-supplier-do/`, then
+  moves the requests all or none, and takes the files back if they could not move. `POST /pickups/:id/ask`
+  (`date` or `cancel`) and `/ask/withdraw`; Carres answers in Supplier Pickups (`POST /:id/ask/approve`,
+  `/:id/ask/decline`) and reads the PDF (`GET /:id/do`).
+- *The portal's Alerts bell (owner, 17 Nov 2026).* The portal's `GET /api/operation/scm-engine/supplier-asks`
+  (operation and principal only) signs `supplier-asks.<ts>.<body>` under the sign-on secret and calls the engine's
+  `POST /api/carres-portal/supplier-asks` (`carres/supplier/portal-asks.ts`, mounted before the staff gate: the
+  signature is its gate, one minute either way) over the `SCM_ENGINE` binding; the answer carries only what the
+  bell shows, at most the 50 oldest asks and their count. `GlobalTopBar.tsx` reads it every minute; nothing is
+  stored on the portal. The supplier's address refuses that path (`carresSupplierSite.test.ts`).
 - *Carres side.* Settings › Supplier Access (`carres/supplier-staff/SupplierAccessTab.tsx`, API
   `/api/carres/supplier-access`, needs Settings at full) and Supply Chain › Procurement › Supplier Pickups
   (`/scm/supplier-pickups`, API `/api/carres/supplier-pickups`, the Purchase Orders page access: view to read, edit
@@ -219,6 +235,10 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
 - *Database.* Engine migration `2012_supplier_platform.sql`: nine `carres_*` tables (row level security on, no
   policy, no `anon` / `authenticated` grant) and the two functions that name every column a supplier may read
   (`carres_supplier_scope_items`, `carres_supplier_scope_orders`). The engine deploy applies it on merge.
+  Migration `2017_supplier_pickup_asks_and_people.sql`: `carres_supplier_users.perms` (the keys a person holds per
+  department) and `must_change_password`; on `carres_pickup_requests` the supplier's ask and Carres's answer, the
+  day an approved move came from, the supplier person who marked it collected and the Delivery Order's file key,
+  with checks that an ask lives only on an accepted request and a Delivery Order only on a collected one.
 - *Finance.* The engine asks the portal: `POST /engine/supplier-finance`
   (`apps/api/src/routes/engine-supplier-finance.ts`), signed with the secret the two Workers already share
   (`CARRES_SSO_SECRET` on the engine, `SCM_ENGINE_SSO_SECRET` on the portal) under its own purpose word, over the
@@ -282,8 +302,8 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   Tests: `tests/carresSupplierSite.test.ts`, `functions/supplierFrame.test.ts`.
   **Never give the engine Worker's own `wrangler.toml` a `routes` line:** that switches its `workers.dev` address
   off, and the engine site and the portal reach the Worker there (the test pins it).
-- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts), `src/types.ts`
-  (`SUPPLIER_PUBLIC_URL`),
+- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (four mounts), `src/types.ts`
+  (`SUPPLIER_PUBLIC_URL`), `scripts/data/date-format-allowlist.json` (the pickup calendar's month heading),
   `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`
   says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`,
@@ -293,7 +313,8 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   fields only on a table that has them), `components/SearchScopeHint.tsx` (`1 record`, `1 match`).
 - *Tests.* Backend `src/carres/supplier/supplier.test.ts`, `tests/carresSupplierPlatformGuards.test.ts` (where the
   routes sit; every statement parameterised) and `tests-pg/carresSupplierPlatform.pg.test.ts` (real Postgres,
-  `TEST_DATABASE_URL`, skipped without it; it re-runs step 2012 first, so it tests the file as it is); frontend
+  `TEST_DATABASE_URL`, skipped without it; it re-runs steps 2012 and 2017 first, so it tests the files as they
+  are); frontend
   `src/carres/supplier/supplierSurface.test.tsx`, `functions/supplierFrame.test.ts`; portal
   `apps/api/src/routes/engine-supplier-finance.test.ts`, `packages/shared/src/supplier-finance.test.ts`. The
   engine's own suites are not part of `ci.yml`: run them by hand before merging an engine change.
@@ -321,6 +342,16 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   Which supplier and which email are not written here: this repository is public. **Owed:** the owner's
   signed-in walk of the supplier pages, now possible, and turning the test login off before a real supplier is
   turned on (`carry-forwards.md` `supplier-test-login-is-on`).
+- *Production, measured 17 Nov 2026 (re-measure before quoting).* #2347 (the owner's redesign, supplier admins,
+  collecting with the Delivery Order, asks) merged as `2be678e7b`; both deploy runs passed, and the engine deploy
+  printed `applying: 2017_supplier_pickup_asks_and_people.sql` at 17:22 UTC on 16 Nov (01:22 on 17 Nov in
+  Kuala Lumpur), then checked the supplier address. A signed-in walk with the test login at
+  `supp.carresofficial.com`, reading only: the five tabs (the test person holds both departments, every key, from
+  the step's backfill), Sales Orders with its open row, Forecast, Pickup Requests, Collections with the portal's
+  month schedules, By Month, Settings and Sign out, with no request answered 4xx or 5xx. The browser console showed
+  only Cloudflare's own analytics script failing its integrity check, which this code does not load.
+  Its `tests-pg` suite is not run by CI; it passed 59 of 59 on PostgreSQL 16 by hand, building all 215 engine steps
+  from empty, and again re-running 2012 and 2017 on the built database.
 
 **What the engine leaves out of Houzs, and what it needs to run** (checked 12 Nov 2026 against Houzs `efa70b116`,
 after normalising the recolour; carried unchanged to `c780a870b`, where the Carres edits and Houzs's 16 commits

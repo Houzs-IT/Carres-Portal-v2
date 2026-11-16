@@ -11,6 +11,7 @@ import { forSupplier, pickupIds, todayMyt, type StaffPickup } from "./pickups";
 import { allPerms, cleanPerms, readPerms } from "./perms";
 import { attachmentHeader, deliveryOrderName, isPdf } from "./files";
 import { inviteMail } from "./mail";
+import portalCalls, { ASKS_PURPOSE, verifyPortalRequest } from "./portal-asks";
 
 const line = (state: OrderLine["pickup"]["state"], requestNo: string | null = null): OrderLine => ({
   soItemId: "i", lineNo: 0, itemCode: "M1", description: "Mattress", spec: null, category: "MATTRESS", modelName: null, uom: "UNIT", qty: 1,
@@ -448,5 +449,51 @@ describe("the invite email", () => {
     expect(m.text.split(url)).toHaveLength(2);
     expect(m.html.split(url)).toHaveLength(2);
     expect(inviteMail({ name: "<b>x</b>", inviterName: "a", supplierName: "b", companyName: "c", url }).html).not.toContain("<b>x</b>");
+  });
+});
+
+describe("the portal's call for the supplier asks waiting on Carres", () => {
+  const SECRET = "s".repeat(40);
+  const b64url = (bytes: ArrayBuffer) =>
+    btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  /** What the portal sends: `<purpose>.<ts>.<body>` under the shared secret. */
+  const sign = async (purpose: string, ts: string, body: string, secret = SECRET) => {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return b64url(await crypto.subtle.sign("HMAC", key, enc.encode(`${purpose}.${ts}.${body}`)));
+  };
+
+  it("takes the portal's signature over this body, made within the minute", async () => {
+    const now = 1_794_850_000_000;
+    const ts = String(now);
+    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now)).toBe(true);
+    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now + 59_000)).toBe(true);
+  });
+
+  it("refuses another purpose, another body, another secret, an old or future time and a broken signature", async () => {
+    const now = 1_794_850_000_000;
+    const ts = String(now);
+    // A finance call's or a sign-on's signature never passes here.
+    expect(await verifyPortalRequest(SECRET, ts, await sign("supplier-finance", ts, "{}"), "{}", now)).toBe(false);
+    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), '{"a":1}', now)).toBe(false);
+    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}", "t".repeat(40)), "{}", now)).toBe(false);
+    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now + 61_000)).toBe(false);
+    expect(await verifyPortalRequest(SECRET, ts, await sign(ASKS_PURPOSE, ts, "{}"), "{}", now - 61_000)).toBe(false);
+    expect(await verifyPortalRequest(SECRET, "12ab", await sign(ASKS_PURPOSE, "12ab", "{}"), "{}", now)).toBe(false);
+    expect(await verifyPortalRequest(SECRET, ts, "not*base64", "{}", now)).toBe(false);
+  });
+
+  it("answers nobody without the signature, and nothing but its one route", async () => {
+    const env = { CARRES_SSO_SECRET: SECRET } as unknown as Record<string, unknown>;
+    const post = (headers: Record<string, string>) =>
+      portalCalls.request("/supplier-asks", { method: "POST", headers: { "content-type": "application/json", ...headers }, body: "{}" }, env);
+    expect((await post({})).status).toBe(401);
+    const ts = String(Date.now());
+    expect((await post({ "x-carres-portal-ts": ts, "x-carres-portal-signature": await sign(ASKS_PURPOSE, ts, '{"x":1}') })).status).toBe(401);
+    expect((await post({ "x-carres-portal-ts": ts, "x-carres-portal-signature": await sign("supplier-finance", ts, "{}") })).status).toBe(401);
+    expect((await portalCalls.request("/supplier-asks", { method: "GET" }, env)).status).toBe(404);
+    expect((await portalCalls.request("/anything", { method: "POST", body: "{}" }, env)).status).toBe(404);
+    // Without the secret set, it says so and reads nothing.
+    expect((await portalCalls.request("/supplier-asks", { method: "POST", body: "{}" }, {})).status).toBe(501);
   });
 });
