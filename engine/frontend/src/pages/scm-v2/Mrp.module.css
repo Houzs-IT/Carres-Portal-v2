@@ -335,6 +335,9 @@
 .cWh { width: 130px; }
 .cModule { width: 220px; }
 .cState { width: 130px; }
+/* Carres: Ref beside SO No, and a real width for Customer so it cannot shrink under State. */
+.cRef { width: 110px; }
+.cCustomer { width: 160px; }
 .cDate { width: 150px; }
 .cQty { width: 60px; }
 .cCoverage { width: 230px; }
