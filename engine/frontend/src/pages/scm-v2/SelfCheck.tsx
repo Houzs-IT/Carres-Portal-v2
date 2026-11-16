@@ -129,12 +129,14 @@ const Act = ({ label, primary, busy, onClick }: { label: string; primary?: boole
 export function controlTitle(role: string): string {
   switch (role) {
     case 'AR': return 'Trade debtors';
+    case 'AR_SHOWROOM': return 'Showroom debtors'; // Carres: the channel debtor controls
+    case 'AR_SUBSCRIPTION': return 'Subscription debtors';
     case 'AR_OTHER': return 'Other debtors';
     case 'AP_OTHER': return 'Other creditors';
     default: return 'Trade creditors';
   }
 }
-const debtorSide = (role: string): boolean => role === 'AR' || role === 'AR_OTHER';
+const debtorSide = (role: string): boolean => role === 'AR' || role === 'AR_OTHER' || role === 'AR_SHOWROOM' || role === 'AR_SUBSCRIPTION';
 
 /** A document of the drift list opens on its own page once the read names its id. */
 export function driftDocHref(d: ControlDrift): string | null {

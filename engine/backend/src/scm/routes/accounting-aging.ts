@@ -27,6 +27,7 @@ import type { Env, Variables } from '../env';
 import { requireActiveCompanyId } from '../lib/companyScope';
 import { todayMyt } from '../lib/my-time';
 import { resolveRoles } from '../../acc/rules';
+import { arControlCodes } from '../../carres/channel-ar';
 import { ageEntries, agingTotals, type AgingBasis, type AgingBuckets } from '../../acc/aging';
 import { loadApAging, loadArAging, type AgingLoad } from '../../acc/aging-load';
 
@@ -52,9 +53,10 @@ async function agingHandler(c: Ctx, side: 'AR' | 'AP'): Promise<Response> {
   if ('error' in q) return c.json({ error: 'bad_date', message: q.error }, 400);
   const sb = c.get('supabase');
   const roles = await resolveRoles(sb, co.companyId);
-  const trade = side === 'AR' ? roles.AR : roles.AP;
+  /* Carres: a customer's trade debt is every channel debtor control (carres/channel-ar.ts). */
+  const trade = side === 'AR' ? arControlCodes(roles) : [roles.AP];
   const other = side === 'AR' ? roles.AR_OTHER : roles.AP_OTHER;
-  const codes = q.control === 'trade' ? [trade] : q.control === 'other' ? [other] : [trade, other];
+  const codes = q.control === 'trade' ? trade : q.control === 'other' ? [other] : [...trade, other];
 
   const loaded: AgingLoad = side === 'AR'
     ? await loadArAging(sb, co.companyId, codes, q.asOf)

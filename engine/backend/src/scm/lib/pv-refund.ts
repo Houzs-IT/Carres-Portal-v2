@@ -38,6 +38,7 @@ import { requireActiveCompanyId, scopeToCompanyId } from './companyScope';
 import { carresFinanceRules } from '../../carres/finance-rules';
 import { creditedRefundCap } from '../../carres/credited-refund';
 import { resolveRoles } from '../../acc/rules';
+import { arForSource } from '../../carres/channel-ar';
 import { addCustomerCredit } from './customer-credits';
 import { standingDeposits, type RefundInput } from '../../acc/deposit-refunds';
 import { IMPORTED_METHOD, conversionsFrom } from './so-money';
@@ -297,11 +298,12 @@ export async function refundCreateGuard(
     };
   }
   const roles = await resolveRoles(sb, co.companyId);
+  const ar = await arForSource(sb, roles, co.companyId, s.type, s.docNo); // Carres: the source's channel debtor control
   return {
     ok: true,
-    arControl: roles.AR,
+    arControl: ar,
     total: amount,
-    rows: [{ line_no: 1, description: `Refund on ${s.docNo}`, debit_account_code: roles.AR, amount_sen: amount }],
+    rows: [{ line_no: 1, description: `Refund on ${s.docNo}`, debit_account_code: ar, amount_sen: amount }],
     fields: {
       refund_source_type: s.type,
       refund_source_doc_no: s.docNo,
@@ -315,9 +317,13 @@ export async function refundCreateGuard(
 
 /** The refund's own control (roles.AR) — what the typing-time control lock
     exempts, the way a supplier payment's own AP control is exempt. */
-export async function refundOwnControl(sb: any, companyId: number | null | undefined): Promise<string | null> {
+export async function refundOwnControl(
+  sb: any, companyId: number | null | undefined,
+  source: { type?: unknown; docNo?: unknown } = {}, // Carres: the refund's source, for its channel debtor control
+): Promise<string | null> {
   if (companyId == null) return null;
-  return (await resolveRoles(sb, companyId)).AR;
+  const roles = await resolveRoles(sb, companyId);
+  return arForSource(sb, roles, companyId, source.type == null ? null : String(source.type), source.docNo == null ? null : String(source.docNo));
 }
 
 /**

@@ -20,6 +20,7 @@
 
 import { postJournal, reverseJournal } from './engine';
 import { creditNoteLines, debitNoteLines, otherDebtorCreditNoteLines, supplierCreditNoteLines, resolveRoles, type NoteLine, type NoteParty } from './rules';
+import { arForInvoice, arForOrder, withAr } from '../carres/channel-ar';
 import { docMonthTag, mintMonthlyDocNo } from '../scm/lib/doc-no';
 import { todayMyt } from '../scm/lib/my-time';
 import { removeAllAllocations } from './credit-note-allocations';
@@ -195,7 +196,13 @@ export async function postCreditNote(
     tagged.forEach((t, i) => { lines[i] = { ...lines[i]!, projectId: t.projectId ?? null }; });
   }
   const party: NoteParty = { code: note.party_code ?? null, name: note.party_name ?? null };
-  const roles = await resolveRoles(sb, p.companyId);
+  const allRoles = await resolveRoles(sb, p.companyId);
+  /* Carres: a customer note sits on its order's channel debtor control — the order it names, else its invoice's. */
+  const roles = kind === 'CN' || kind === 'DN'
+    ? withAr(allRoles, note.so_doc_no
+      ? await arForOrder(sb, allRoles, p.companyId, String(note.so_doc_no))
+      : await arForInvoice(sb, allRoles, p.companyId, { id: note.sales_invoice_id ? String(note.sales_invoice_id) : null }))
+    : allRoles;
   const ruleLines = kind === 'CN' ? creditNoteLines(roles, { note_number: String(note.note_number) }, party, lines)
     : kind === 'DN' ? debitNoteLines(roles, { note_number: String(note.note_number) }, party, lines)
     : kind === 'OCN' ? otherDebtorCreditNoteLines(roles, { note_number: String(note.note_number) }, party, lines)

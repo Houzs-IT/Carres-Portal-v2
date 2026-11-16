@@ -52,6 +52,7 @@ import { hasHouzsPerm } from '../lib/houzs-perms';
 import { requireActiveCompanyId } from '../lib/companyScope';
 import { chunkIn, paginateAll } from '../lib/paginate-all';
 import { resolveRoles, type RoleCodes } from '../../acc/rules';
+import { arControlCodes } from '../../carres/channel-ar';
 import { countsInTheBooks } from '../../acc/reversal-pairs';
 import { layOutCashFlow, type LaidLine, type LaidNode, type SplitTo } from '../../acc/report-layout';
 import { OPENING_CLEARING, OPENING_SOURCE } from '../../acc/opening-balance';
@@ -382,7 +383,8 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
   const moneySet = new Set(allMoney.map((a) => a.code));
 
   const roles = await src.roles();
-  const controlCodes = new Set([roles.AR, roles.AP, roles.AP_OTHER, roles.AR_OTHER].filter(Boolean) as string[]);
+  const customerControls = new Set(arControlCodes(roles)); // Carres: every channel debtor control
+  const controlCodes = new Set([...customerControls, roles.AP, roles.AP_OTHER, roles.AR_OTHER].filter(Boolean) as string[]);
   const apControls = new Set([roles.AP, roles.AP_OTHER].filter(Boolean) as string[]);
 
   const acquirers = await src.acquirerTransits();
@@ -546,7 +548,7 @@ export async function buildReceiptsPayments(companyId: number, q: RpQuery, src: 
         const key = byParty && onControl ? `${l.account_code}:${l.party_code ?? partyNameKey(l.party_name) ?? '—'}` : l.account_code;
         const name = byParty && onControl ? `${l.party_name ?? '(no party)'} · ${l.account_name ?? l.account_code}` : String(l.account_name ?? l.account_code);
         const lineMeta = { ...meta, party: l.party_name ?? null };
-        if (!byParty && l.account_code === roles.AR) {
+        if (!byParty && customerControls.has(l.account_code)) {
           /* A customer's money, always a receipt: money back out of the bank is a negative one. */
           const signed = side === 'R' ? amt : -amt;
           const kind = base === 'SOPAY' && first.source_doc_no ? kinds.get(first.source_doc_no) : undefined;

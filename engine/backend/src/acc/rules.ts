@@ -68,7 +68,11 @@ export type AccountRole =
   | 'DEPOSIT_INCOME'
   /* Carres: where a payment voucher's bank charges post, set per company like any role
      (Chew's chart: 902-0000 BANK CHARGES; there 900-B001 is a roadshow booth account). */
-  | 'BANK_CHARGES';
+  | 'BANK_CHARGES'
+  /* Carres: the debtor control by channel (Chew 2026-11-16, Finance MASTER §0.0 ruling 2):
+     a showroom order's customer on 300-1000, a subscription order's on 300-3000. Unset,
+     each is AR — one debtor control, the Houzs books unchanged (carres/channel-ar.ts). */
+  | 'AR_SHOWROOM' | 'AR_SUBSCRIPTION';
 
 /* Fallback = the accountant's own AutoCount codes (migration 0344; owner
    decision 2026-09-02: 迁到 AutoCount 码). Every company carries these codes,
@@ -109,6 +113,8 @@ export const DEFAULT_ROLE_CODES: Record<AccountRole, string> = {
   PURCHASE_RETURNS: '612-0000',  // PURCHASES RETURN (a supplier credit note's default line)
   DEPOSIT_INCOME: '509-0000',    // DEPOSIT PAY BY CUSTOMER (a deposit invoice's credit side)
   BANK_CHARGES: '900-B001',      // Carres: the role's Houzs default; a voucher's bank charges (PV_BANK_CHARGE_ACCOUNT)
+  AR_SHOWROOM: '300-0000',       // Carres: resolveRoles — AR when unset
+  AR_SUBSCRIPTION: '300-0000',   // Carres: resolveRoles — AR when unset
 };
 
 /** The accounts each closing-stock bucket books on (acc/stock-close.ts). */
@@ -123,7 +129,7 @@ export const STOCK_BUCKET_ROLES: Record<StockBucket, { inventory: AccountRole; o
 /* Control accounts (brief §2.4): system-maintained, and a MANUAL journal may
    not touch them — the engine enforces this. AR and AP today; the
    settlement-in-transit roles join in phase 2. */
-export const CONTROL_ROLES: AccountRole[] = ['AR', 'AR_OTHER', 'AP', 'AP_OTHER'];
+export const CONTROL_ROLES: AccountRole[] = ['AR', 'AR_OTHER', 'AP', 'AP_OTHER', 'AR_SHOWROOM', 'AR_SUBSCRIPTION']; // Carres: + the channel debtor controls
 
 /** Which AP control a supplier's paper belongs to. 405-x supplier codes are
     AutoCount's OTHER CREDITORS — their bills and payments land on AP_OTHER
@@ -187,6 +193,9 @@ export async function resolveRoles(sb: any, companyId: number | null): Promise<R
     if (r.role in codes && r.account_code) codes[r.role as AccountRole] = r.account_code;
   }
   if (!rows.some((r) => r.role === 'BANK_PAY_DEFAULT' && r.account_code)) codes.BANK_PAY_DEFAULT = codes.BANK_DEFAULT;
+  // Carres: a channel debtor control nobody set is the one AR control.
+  if (!rows.some((r) => r.role === 'AR_SHOWROOM' && r.account_code)) codes.AR_SHOWROOM = codes.AR;
+  if (!rows.some((r) => r.role === 'AR_SUBSCRIPTION' && r.account_code)) codes.AR_SUBSCRIPTION = codes.AR;
   return codes;
 }
 
@@ -582,12 +591,15 @@ export function orderMoneyTransferLines(
     toDocNo: string;
     from: { code: string | null; name: string | null };
     to: { code: string | null; name: string | null };
+    /* Carres: each order's channel debtor control (carres/channel-ar.ts); AR when absent. */
+    fromAr?: string;
+    toAr?: string;
   },
   amountSen: number,
 ): RuleLine[] {
   return [
     {
-      accountCode: roles.AR,
+      accountCode: p.fromAr ?? roles.AR,
       debitSen: amountSen,
       creditSen: 0,
       partyType: 'CUSTOMER',
@@ -596,7 +608,7 @@ export function orderMoneyTransferLines(
       notes: `Money on ${p.fromDocNo} moved to ${p.toDocNo}`,
     },
     {
-      accountCode: roles.AR,
+      accountCode: p.toAr ?? roles.AR,
       debitSen: 0,
       creditSen: amountSen,
       partyType: 'CUSTOMER',

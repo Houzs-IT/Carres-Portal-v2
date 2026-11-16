@@ -20,6 +20,7 @@
 
 import { postJournal, reverseJournal, validateJournal, type ReverseJournalResult } from './engine';
 import { resolveRoles, customerPaymentLines, orderMoneyTransferLines, type RuleLine } from './rules';
+import { arForOrder, withAr } from '../carres/channel-ar';
 import { accMastersCompanyId } from './masters-company';
 import { merchantKeyedAs } from './merchant-names';
 import { paymentEntryDrift, type EntryFact, type PaymentDrift, type PaymentFact } from './payment-drift';
@@ -133,7 +134,8 @@ export async function postSoPayment(sb: any, p: SoPaymentRow, opts: { dryRun?: b
   const customerName = order?.debtor_name ?? null;
   const customerCode = customerPartyCode(order?.debtor_code, order?.customer_id);
 
-  const roles = await resolveRoles(sb, companyId);
+  const allRoles = await resolveRoles(sb, companyId);
+  const roles = withAr(allRoles, await arForOrder(sb, allRoles, companyId, p.so_doc_no)); // Carres: the order's channel debtor control
   const transit = p.method === 'merchant' || p.method === 'installment'
     ? await transitFor(sb, companyId, p.merchant_provider)
     : null;
@@ -203,13 +205,16 @@ async function postConvertedPayment(sb: any, p: SoPaymentRow, opts: { dryRun?: b
   const entryDate = (p.created_at ? mytDateOf(p.created_at) : null) ?? paymentDate(p.paid_at);
   if (!entryDate) return { ok: false, status: 'bad_paid_at', reason: `converted payment ${p.id} has no usable date` };
   const roles = await resolveRoles(sb, companyId);
+  // Carres: each order's own channel debtor control — money moved from a showroom order to a subscription one moves between them.
+  const fromAr = await arForOrder(sb, roles, companyId, fromDocNo);
+  const toAr = await arForOrder(sb, roles, companyId, p.so_doc_no);
   const input = {
     companyId,
     entryDate,
     sourceType: CONVERT_SOURCE,
     sourceDocNo: p.id,
     narration: `Money on ${fromDocNo} moved to ${p.so_doc_no}${to.name ? ` — ${to.name}` : ''}`,
-    lines: orderMoneyTransferLines(roles, { fromDocNo, toDocNo: p.so_doc_no, from: { code: from.code, name: from.name }, to: { code: to.code, name: to.name } }, amountSen),
+    lines: orderMoneyTransferLines(roles, { fromDocNo, toDocNo: p.so_doc_no, from: { code: from.code, name: from.name }, to: { code: to.code, name: to.name }, fromAr, toAr }, amountSen),
   };
   if (opts.dryRun) {
     const v = await validateJournal(sb, input);
@@ -296,7 +301,8 @@ export async function postSiPayment(sb: any, p: SiPaymentRow, opts: { bankAccoun
     customerCode = customerPartyCode(order?.debtor_code, order?.customer_id);
   }
 
-  const roles = await resolveRoles(sb, companyId);
+  const allRoles = await resolveRoles(sb, companyId);
+  const roles = withAr(allRoles, await arForOrder(sb, allRoles, companyId, inv.so_doc_no)); // Carres: the invoice's order's channel debtor control
   const transit = p.method === 'merchant' || p.method === 'installment'
     ? await transitFor(sb, companyId, p.merchant_provider)
     : null;
