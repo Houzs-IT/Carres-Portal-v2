@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useParams, useLocation, createRoutesFromChildr
 import { CARRES_HOME, CARRES_EXTRAS, isCarresHiddenPath } from "./carres/navOnly";
 import { CARRES_EMBEDDED } from "./carres/embed";
 import { CarresBadgeReporter } from "./carres/BadgeReporter";
+import { CarresAccessReporter } from "./carres/AccessReporter";
 import { lazyPage, preloadElementChunks } from "./lib/lazyPage";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./auth/AuthContext";
@@ -540,6 +541,8 @@ export default function App() {
       <QuickActionsFAB />
       {/* Carres: the menu counts go to the portal's menu (carres/BadgeReporter.tsx). */}
       {CARRES_EMBEDDED && <CarresBadgeReporter />}
+      {/* Carres: the portal menu shows only the pages this person's Houzs role opens (carres/AccessReporter.tsx). */}
+      {CARRES_EMBEDDED && <CarresAccessReporter />}
       <BackToTopFAB />
       <LineGridNav />
       <AssistantPanelProvider>

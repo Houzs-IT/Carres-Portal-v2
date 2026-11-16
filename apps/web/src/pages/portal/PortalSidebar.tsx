@@ -27,6 +27,7 @@ import {
   ENGINE_SETTINGS_HREF,
 } from "./portal-nav";
 import { useEngineBadges } from "./engine-badges";
+import { useEngineAccess } from "./engine-access";
 import {
   moduleChildBlocks,
   activePageGroup,
@@ -186,6 +187,8 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   const lpRejected = badgesQ.data?.lpRejected ?? 0;
   // Houzs's own menu counts, from the engine frame (engine-badges.ts).
   const engineCounts = useEngineBadges((s) => s.counts);
+  // Re-draw when the engine says which pages this person's Houzs role opens (visibleItems reads it).
+  useEngineAccess((s) => s.access);
   const badgeCount: Record<string, number> = {
     orders: (badgesQ.data?.orders ?? 0) + lpRejected,
     procurement: badgesQ.data?.procurement ?? 0,

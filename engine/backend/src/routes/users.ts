@@ -32,6 +32,12 @@ import {
   setPortalStaffStatus,
   type PortalCreated,
 } from "../carres/portal-staff";
+
+/** Carres: a random password nobody knows, for a portal login whose real password is set from the invite email. */
+function throwAwayPortalPassword(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "x") + "Aa9!";
+}
 import { getBrandingForCompany, resolveCompanyCode } from "../services/branding";
 
 // Invite/reset emails carry the ACTIVE company's identity (the admin's top-bar
@@ -830,8 +836,12 @@ app.post("/invite", requirePermissionOrSalesDirector("users.manage"), async (c) 
       name,
       department: dept,
       title: null,
-      delivery: directPassword ? "password" : "invite",
-      ...(directPassword ? { password: directPassword } : {}),
+      /* Carres, one email and one password (owner, 16 Nov 2026: "invitation 发不出去 发了没用"): the portal
+         login is made with a throw-away password and sends nothing (Supabase's mailer only reaches a few
+         pre-approved addresses); this engine's own invite email goes out, and the password the person
+         chooses on it is written to the portal login too (auth.ts accept-invite). */
+      delivery: "password",
+      password: directPassword ?? throwAwayPortalPassword(),
       actor: me.email,
     });
     if (!made.ok) return c.json({ error: made.error }, made.status);
