@@ -178,6 +178,8 @@ export type Env = {
   PUBLIC_APP_URL?: string;
   /** Carres: the engine's own site (public survey / invite / reset pages). */
   ENGINE_PUBLIC_URL?: string;
+  /** Carres: the supplier pages' own address (src/carres/supplier/address.ts). Unset: the engine site. */
+  SUPPLIER_PUBLIC_URL?: string;
   /** Carres: who gets the daily client-error digest; blank = the Branding email. */
   CLIENT_ERROR_DIGEST_TO?: string;
   // Commit this Worker build was deployed from. Stamped ONLY by deploy.yml

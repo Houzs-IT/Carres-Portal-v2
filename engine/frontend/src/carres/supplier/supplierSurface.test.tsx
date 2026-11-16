@@ -16,6 +16,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router-dom";
 import { appSurfaceForPath } from "../../routing/appSurface";
 import { supplierToken } from "./api";
+import { SUPPLIER_HOSTS, isSupplierHost } from "./host";
 import { Table, downloadCsv, fmtDay, fmtMonth, fmtStamp, money, soStatusLabel, toCsv, type Column } from "./ui";
 import { SupplierApp } from "./SupplierApp";
 
@@ -40,6 +41,21 @@ describe("the supplier surface", () => {
     ["/portal/supplier/token", "portal"],
   ] as const)("classifies %s as %s", (path, surface) => {
     expect(appSurfaceForPath(path)).toBe(surface);
+  });
+
+  it("at the supplier's own address every page is a supplier page: the staff app does not exist there", () => {
+    for (const path of ["/", "/login", "/scm/sales-orders", "/scm/suppliers", "/settings", "/reset/token", "/invite/token", "/track", "/supplier/orders"]) {
+      expect(appSurfaceForPath(path, "supp.carresofficial.com"), path).toBe("supplier");
+      expect(appSurfaceForPath(path, "SUPP.CarresOfficial.com"), path).toBe("supplier");
+    }
+    // Every other address is as it was: the engine site, a preview of it, a look-alike name.
+    for (const host of ["carres-scm.pages.dev", "abc123.carres-scm.pages.dev", "localhost", "supp.carresofficial.com.evil.test", "xsupp.carresofficial.com", ""]) {
+      expect(appSurfaceForPath("/", host), host).toBe("staff");
+      expect(appSurfaceForPath("/scm/suppliers", host), host).toBe("staff");
+      expect(appSurfaceForPath("/supplier/login", host), host).toBe("supplier");
+    }
+    expect(SUPPLIER_HOSTS).toEqual(["supp.carresofficial.com"]);
+    expect(isSupplierHost(null)).toBe(false);
   });
 
   it("main.tsx mounts it outside AuthProvider and AuthGate", () => {

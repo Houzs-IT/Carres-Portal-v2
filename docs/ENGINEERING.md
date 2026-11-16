@@ -214,7 +214,22 @@ supplier's own pages inside the engine, a Carres addition, each Houzs file it to
   answers carry no `Server-Timing`. The two scope functions cannot be run by `PUBLIC`, `anon` or
   `authenticated`: the engine's role and the server's service key can. The supplier pages read the company's
   public name from the public `GET /api/track/company` and everything else from `/api/carres-supplier`.
-- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts),
+- *The supplier's own address (owner, 16 Nov 2026: `supp.carresofficial.com`).* A Worker of its own,
+  `carres-supplier-site` (`engine/backend/src/carres/supplier-site/worker.ts`, `wrangler.supplier-site.toml`),
+  stands in front of the supplier pages and the supplier API and serves nothing else of the engine.
+  `/api/carres-supplier/*` and `/api/track/company` go to the engine Worker over a service binding; every other
+  `/api/*` answers 404, so the staff API does not exist at that address; a file comes from the engine site; a
+  page under `/supplier` is the site's one page; any other page is sent to `/supplier`. It holds no secret and no
+  database, and `workers.dev` is off for it. The address is a Worker custom domain, made by the LAST step of the
+  engine deploy (`deploy-engine.yml`), which then checks it: the page answers, the supplier API answers 401, two
+  staff routes answer 404, and the page carries `frame-ancestors 'none'`. On the screen side the app is the
+  supplier pages and nothing else at that address (`carres/supplier/host.ts`, `routing/appSurface.ts`). The
+  address Carres shows and builds links on is `supplierPublicUrl` (`carres/supplier/address.ts`):
+  `SUPPLIER_PUBLIC_URL` when set, the engine site until then. Tests: `tests/carresSupplierSite.test.ts`.
+  **Never give the engine Worker's own `wrangler.toml` a `routes` line:** that switches its `workers.dev` address
+  off, and the engine site and the portal reach the Worker there (the test pins it).
+- *Houzs files touched* (re-apply on a resync): backend `src/index.ts` (three mounts), `src/types.ts`
+  (`SUPPLIER_PUBLIC_URL`),
   `src/middleware/requestLog.ts` (no `Server-Timing` on the supplier API); frontend `src/main.tsx`,
   `routing/appSurface.ts`, `routing/routeManifest.ts` (Houzs's count plus one, as `routeManifestDrift.test.ts`
   says), `App.tsx`, `pages/Settings.tsx`, `lib/routeLabels.ts`, `lib/browserStorageRegistry.ts`,

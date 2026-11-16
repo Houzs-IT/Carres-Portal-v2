@@ -88,3 +88,19 @@ jobs:
         run: |
           curl -fsS --retry 5 --retry-delay 5 https://carres-scm-engine.wwch.workers.dev/health | grep -q '"ok":true'
           curl -fsS --retry 5 --retry-delay 5 -o /dev/null https://carres-scm.pages.dev/
+      # The supplier's own address, supp.carresofficial.com: a small Worker in front of the supplier pages and the
+      # supplier API (engine/backend/src/carres/supplier-site/). It is a Worker custom domain, so Cloudflare makes
+      # the DNS record and the certificate here. LAST on purpose: if the Cloudflare token may not attach a custom
+      # domain, this step fails and says so, and the engine above is already live.
+      - name: Deploy the supplier address
+        working-directory: engine/backend
+        run: npx wrangler deploy --config wrangler.supplier-site.toml --message "main ${GITHUB_SHA}"
+      # A new address needs a minute or two for its certificate. Then: the supplier page answers, the supplier API
+      # answers "not signed in", and the staff API does not exist there.
+      - name: Check the supplier address
+        run: |
+          curl -fsS --retry 20 --retry-delay 15 --retry-all-errors -o /dev/null https://supp.carresofficial.com/supplier
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://supp.carresofficial.com/api/carres-supplier/auth/me)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://supp.carresofficial.com/api/auth/status)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://supp.carresofficial.com/api/carres/supplier-access)" = "404"
+          curl -sI https://supp.carresofficial.com/supplier | grep -qi "^content-security-policy: frame-ancestors 'none'"

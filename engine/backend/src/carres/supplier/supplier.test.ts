@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addressLines, buildMap, buildTrail, foldForecast, orderPickupState, type OrderLine } from "./orders";
 import { cleanAccessInput } from "./access";
+import { supplierPublicUrl } from "./address";
 import {
   WORKER_SUBREQUEST_ADDRESS, callerAddress, decoyHash, hashPassword, isEmail, newToken, normEmail, passwordProblem, sha256Hex, verifyPassword,
 } from "./credentials";
@@ -152,6 +153,16 @@ describe("credentials", () => {
     const real = await hashPassword("correct horse battery");
     expect(await verifyPassword("correct horse battery", real)).toBe(true);
     expect(await verifyPassword("correct horse batterx", real)).toBe(false);
+  });
+});
+
+describe("the supplier pages' address", () => {
+  it("is the supplier's own address once it is named, and the engine site until then", () => {
+    expect(supplierPublicUrl({}, "/supplier")).toBe("https://carres-scm.pages.dev/supplier");
+    expect(supplierPublicUrl({ ENGINE_PUBLIC_URL: "https://engine.test/" }, "/supplier/setup")).toBe("https://engine.test/supplier/setup");
+    expect(supplierPublicUrl({ SUPPLIER_PUBLIC_URL: "https://supp.carresofficial.com/", ENGINE_PUBLIC_URL: "https://engine.test" }, "/supplier/setup"))
+      .toBe("https://supp.carresofficial.com/supplier/setup");
+    expect(supplierPublicUrl({ SUPPLIER_PUBLIC_URL: "https://supp.carresofficial.com" }, "supplier")).toBe("https://supp.carresofficial.com/supplier");
   });
 });
 
