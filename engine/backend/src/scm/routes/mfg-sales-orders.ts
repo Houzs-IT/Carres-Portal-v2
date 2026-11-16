@@ -250,6 +250,8 @@ import { findColourKivLines, findIncompleteVariantLines, type ColourKivOffender,
    returning on the first (owner 2026-07-18). Pure — no I/O. */
 import { collectProcessingGateProblems, validationFailedBody } from '../shared/so-save-problems';
 import { carresDepositProblem, carresDepositProblemForDoc, pendingDepositOf } from '../lib/carres-deposit-gate';
+import { cardCodeProblem, soCreateCardRows } from '../../carres/card-approval-code';
+import { carresFinanceRules } from '../../carres/finance-rules';
 /* The gate's DB reads and its refusals. Lifted out of this file (2026-08-18)
    when the proceed refusal grew the per-condition detail it now carries — this
    router is at its file-size ceiling, and the three helpers were already a
@@ -4020,6 +4022,14 @@ async function createSalesOrderCore(c: SoCreateContext): Promise<SoCreateOutcome
       return c.json({ error: 'invalid_payments', issues: parsed.error.issues }, 400);
     }
     posPayments = parsed.data;
+  }
+  /* Carres: a card payment carries its approval code (carres/card-approval-code.ts), asked before the order exists. */
+  if (carresFinanceRules(c.env) && !isScanCreate(c.auditSource, body)) {
+    const cardProblem = cardCodeProblem(soCreateCardRows(body, posPayments));
+    if (cardProblem) {
+      await rollbackPwpClaims();
+      return c.json(validationFailedBody([cardProblem]), 422);
+    }
   }
   const posPaymentsTotalSen = posPayments
     ? posPayments.reduce((acc, p) => acc + p.amountSen, 0)
@@ -10674,6 +10684,11 @@ export const postSoPaymentHandler = async (c: any) => {
   const parsed = paymentCreateSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400);
   const p = parsed.data;
+  // Carres: a card payment carries its approval code (carres/card-approval-code.ts).
+  if (carresFinanceRules(c.env)) {
+    const cardProblem = cardCodeProblem([{ method: p.method, approvalCode: p.approvalCode, amountSen: p.amountSen }]);
+    if (cardProblem) return c.json(validationFailedBody([cardProblem]), 422);
+  }
 
   /* A role holding the correction right says why it records money, too
      (docs/bugs/0888) — the rule in lib/so-payment-reason; never a window gate. */
@@ -10928,6 +10943,11 @@ mfgSalesOrders.patch('/:docNo/payments/:id', async (c) => {
     }
   }
   const nextApproval = p.approvalCode !== undefined ? (p.approvalCode ?? null) : before.approval_code;
+  // Carres: an edited card payment keeps an approval code (carres/card-approval-code.ts).
+  if (carresFinanceRules(c.env) && (p.method !== undefined || p.approvalCode !== undefined)) {
+    const cardProblem = cardCodeProblem([{ method: nextMethod, approvalCode: nextApproval }]);
+    if (cardProblem) return c.json(validationFailedBody([cardProblem]), 422);
+  }
   const nextCollectedBy = p.collectedBy !== undefined ? (p.collectedBy ?? null) : before.collected_by;
   /* Account Sheet on EDIT (owner 2026-07-16, "Acc sheet 亂填?") — the sheet is
      DERIVED from the payment's own method + bank / online sub-type, and a

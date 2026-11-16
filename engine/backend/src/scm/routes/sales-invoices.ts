@@ -33,6 +33,8 @@
 //
 // Mounted at '/sales-invoices' in scm/index.ts.
 
+import { cardCodeProblem } from '../../carres/card-approval-code';
+import { carresFinanceRules } from '../../carres/finance-rules';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
@@ -1578,6 +1580,11 @@ export const postSalesInvoicePaymentHandler = async (c: any) => {
   const parsed = paymentCreateSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: 'invalid_body', issues: parsed.error.issues }, 400);
   const p = parsed.data;
+  // Carres: a card payment carries its approval code (carres/card-approval-code.ts).
+  if (carresFinanceRules(c.env)) {
+    const cardProblem = cardCodeProblem([{ method: p.method, approvalCode: p.approvalCode, amountSen: p.amountSen }]);
+    if (cardProblem) return c.json({ error: cardProblem.code, message: cardProblem.message, field: cardProblem.field }, 422);
+  }
 
   /* The refusals above only read, so they released the Idempotency-Key (noWriteUntilMarked). */
   writesFromHere(c);
