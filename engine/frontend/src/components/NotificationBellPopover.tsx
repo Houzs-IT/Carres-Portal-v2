@@ -237,14 +237,14 @@ export default function BellPopover({
                   <div className="flex min-w-0 flex-col gap-[3px]">
                     <div className="flex items-center gap-1.5">
                       <span className="rounded-full border border-border bg-surface-dim px-[7px] py-px text-[9px] font-bold uppercase tracking-[.05em] text-ink-muted">
-                        Project
+                        Fair
                       </span>
                       <span className="ml-auto font-mono text-[9.5px] text-ink-muted" title={item.created_at}>
                         {relativeTime(item.created_at)}
                       </span>
                     </div>
                     <span className="truncate text-[12.5px] font-[650] leading-[1.4] text-ink">
-                      {item.project_name || "Project"}
+                      {item.project_name || "Fair"}
                       {item.brand && (
                         <span className="ml-1.5 font-mono text-[9.5px] font-normal text-ink-muted">{item.brand}</span>
                       )}
@@ -300,7 +300,7 @@ function renderActivityLine(a: NotificationItem): string {
     case "stage_change":
       return `${who}Stage ${a.from_value || "?"} → ${a.to_value || "?"}`;
     case "created":
-      return `${who}Created the project`;
+      return `${who}Created the fair`;
     case "checklist_status":
       return `${who}${a.note || "Updated checklist"}`;
     case "checklist_add":
@@ -310,9 +310,9 @@ function renderActivityLine(a: NotificationItem): string {
     case "finance_edit":
       return `${who}Updated finance`;
     case "archived":
-      return `${who}Archived the project`;
+      return `${who}Archived the fair`;
     case "restored":
-      return `${who}Restored the project`;
+      return `${who}Restored the fair`;
     default:
       return `${who}${a.action}${a.note ? ` · ${a.note}` : ""}`;
   }

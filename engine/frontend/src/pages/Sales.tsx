@@ -342,7 +342,7 @@ export function Sales() {
     },
     {
       key: "project_code",
-      label: "Project",
+      label: "Fair",
       getValue: (e) => e.project_code ?? "",
       render: (e) => (
         <span className="font-mono text-[11px] text-ink-secondary">
@@ -1287,10 +1287,10 @@ export function EntryPanel({
           {/* Project picker — preserved (locked or selectable). Keeps the
               quick-log + in-project flow working even though the boss
               mockup doesn't show this field. */}
-          <Field label="Project">
+          <Field label="Fair">
             {lockedProjectId ? (
               <div className="flex h-9 items-center rounded-md border border-border bg-bg/40 px-3 text-[12px] text-ink-secondary">
-                {lockedProjectLabel || `Project #${lockedProjectId}`}
+                {lockedProjectLabel || `Fair #${lockedProjectId}`}
               </div>
             ) : (
               <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={selectCls}>

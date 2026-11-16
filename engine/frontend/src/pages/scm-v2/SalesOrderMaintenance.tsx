@@ -1124,7 +1124,7 @@ const DROPDOWN_CARDS: Array<{ category: SoDropdownCategory; title: string; help:
               '36 months. Stored as the term in months on the payment row.',
   },
   /* Venues are NOT in this editable so_dropdown_options list. Houzs sources
-     venues centrally from Project Maintenance (PMS, /api/projects/venues) and
+     venues centrally from Fair Maintenance (PMS, /api/projects/venues) and
      the SO venue picker is locked to the salesperson's staff.venue_id — the
      so_dropdown_options category='venue' was never read by any picker. The
      read-only PMS venue list is rendered above by <VenuesSection>; the
@@ -1469,9 +1469,9 @@ const VenuesSection = (_props: { canEdit: boolean }) => {
       {/* Venue mastering genuinely lives in Project Maintenance
           (routes/projects.ts /venues; VenueManager in ProjectMaintenance.tsx) —
           ONE source of truth, deliberately not duplicated here. But "maintained
-          in Project Maintenance" with no way to get there is a dead end: the
+          in Fair Maintenance" with no way to get there is a dead end: the
           operator is told the control exists and not where. The link makes the
-          notice actionable. Project Maintenance is its own page-access gate
+          notice actionable. Fair Maintenance is its own page-access gate
           (projects.maintenance = full), so this may land a user on Forbidden —
           that is the honest answer, and better than silence. */}
       <div className={styles.banner} style={{ marginBottom: 10 }}>
@@ -1480,7 +1480,7 @@ const VenuesSection = (_props: { canEdit: boolean }) => {
           to="/projects?view=maintenance"
           className="font-semibold text-primary underline underline-offset-2"
         >
-          Project Maintenance
+          Fair Maintenance
         </Link>
         . Showroom venues come from warehouses marked as a Showroom — set the
         Showroom flag and its Venue name in Warehouses. This list is read-only;
@@ -1505,7 +1505,7 @@ const VenuesSection = (_props: { canEdit: boolean }) => {
                 className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
                   v.origin === 'SHOWROOM' ? 'bg-surface-2 text-ink-secondary' : 'bg-primary-soft text-primary-ink'
                 }`}
-                title={v.origin === 'SHOWROOM' ? 'From a warehouse marked as a Showroom' : 'From the Project Maintenance venue master'}
+                title={v.origin === 'SHOWROOM' ? 'From a warehouse marked as a Showroom' : 'From the Fair Maintenance venue master'}
               >
                 {v.origin === 'SHOWROOM' ? 'Showroom' : 'Exhibition'}
               </span>
@@ -1527,7 +1527,7 @@ const VenuesSection = (_props: { canEdit: boolean }) => {
         ]}
         rows={venues.data ?? (venues.isError ? [] : null)}
         loading={venues.isLoading}
-        emptyLabel="No venues yet — add exhibition venues in Project Maintenance, or mark a warehouse as a Showroom and give it a Venue name."
+        emptyLabel="No venues yet — add exhibition venues in Fair Maintenance, or mark a warehouse as a Showroom and give it a Venue name."
         getRowKey={(v) => v.id}
       />
     </section>

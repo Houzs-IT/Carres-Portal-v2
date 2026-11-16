@@ -156,7 +156,7 @@ export function Palette({ onClose }: { onClose: () => void }) {
             role="combobox"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search orders, projects, service cases, products, people…"
+            placeholder="Search orders, fairs, service cases, products, people…"
             aria-label="Search orders, projects, service cases, products and people"
             aria-controls="global-search-results"
             aria-expanded={orderedHits.length > 0}
@@ -366,7 +366,7 @@ function EmptyHelp() {
         </li>
         <li className="flex items-center gap-2">
           <Layers size={12} className="text-primary/70" />
-          Projects by code, name, venue, organizer, or brand
+          Fairs by code, name, venue, organizer, or brand
         </li>
         <li className="flex items-center gap-2">
           <Wrench size={12} className="text-primary/70" />
@@ -472,7 +472,7 @@ const TYPE_META: Record<
     tile: "bg-[#B76B00]/[.14] text-[#B76B00]",
   },
   project: {
-    label: "Projects",
+    label: "Fairs",
     icon: <Layers size={13} />,
     tile: "bg-learning/[.12] text-learning",
   },

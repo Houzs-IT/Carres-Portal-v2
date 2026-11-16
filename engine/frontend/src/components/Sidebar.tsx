@@ -386,7 +386,7 @@ export const ALL_NAV_TABS: NavTab[] = [
   // so a role with calendar-only access only sees the Calendar entry.
   {
     section: "operations",
-    label: "Projects",
+    label: "Fairs",
     icon: FolderKanban,
     groupId: "projects",
     to: "/projects?view=hub",
@@ -394,7 +394,7 @@ export const ALL_NAV_TABS: NavTab[] = [
     children: [
       {
         to: "/projects?view=finances",
-        label: "Project Overview",
+        label: "Fair Overview",
         icon: DollarSign,
         pageAccess: "projects.finances",
         // Directors open it without the page-access row (owner 2026-10-20: they
@@ -404,7 +404,7 @@ export const ALL_NAV_TABS: NavTab[] = [
       },
       {
         to: "/projects?view=list",
-        label: "Project List",
+        label: "Fair List",
         icon: ClipboardList,
         pageAccess: "projects.list",
       },
@@ -416,7 +416,7 @@ export const ALL_NAV_TABS: NavTab[] = [
       },
       {
         to: "/projects?view=maintenance",
-        label: "Project Maintenance",
+        label: "Fair Maintenance",
         icon: Wrench,
         pageAccessFull: "projects.maintenance",
       },

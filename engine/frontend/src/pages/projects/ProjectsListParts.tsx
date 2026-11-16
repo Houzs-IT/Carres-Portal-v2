@@ -353,7 +353,7 @@ export function ImportCsvPanel({
     <Panel
       open
       onClose={onClose}
-      title="Import Projects from CSV"
+      title="Import Fairs from CSV"
       subtitle="Paste rows from the Google Sheet — header row recognised"
       width={560}
       footer={

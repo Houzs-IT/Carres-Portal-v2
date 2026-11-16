@@ -58,7 +58,7 @@ const joinedFrom = (r: DpOrderRow): string =>
    supplier/project/case refs only need to say WHERE the snapshot came from. */
 const sourceRef = (r: DpOrderRow): string => {
   if (r.so_doc_no) return r.so_doc_no;
-  if (r.project_id != null) return `Project #${r.project_id}`;
+  if (r.project_id != null) return `Fair #${r.project_id}`;
   if (r.assr_case_id != null) return `Case #${r.assr_case_id}`;
   if (r.supplier_id) return 'Supplier master';
   return 'Manual';

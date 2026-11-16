@@ -86,7 +86,7 @@ function summarise(a: NotificationItem): string {
     case "stage_change":
       return `${who}Stage ${a.from_value || "?"} → ${a.to_value || "?"}`;
     case "created":
-      return `${who}Created the project`;
+      return `${who}Created the fair`;
     case "checklist_status":
       return `${who}${a.note || "Updated checklist"}`;
     case "finance_edit":

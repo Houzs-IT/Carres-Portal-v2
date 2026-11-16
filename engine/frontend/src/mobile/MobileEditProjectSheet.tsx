@@ -107,7 +107,7 @@ export function EditProjectSheet({
         <div className="grab" />
         <div className="sheet-head">
           <div>
-            <div className="ey" style={{ color: "var(--brand)" }}>Projects</div>
+            <div className="ey" style={{ color: "var(--brand)" }}>Fairs</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>Edit event</div>
           </div>
           <button className="sheet-x" onClick={onClose} aria-label="Close">

@@ -76,7 +76,7 @@ export function SalePlacePicker({ value, places, onChange, disabled, selectClass
           </optgroup>
         )}
         {projects.length > 0 && (
-          <optgroup label="Project">
+          <optgroup label="Fair">
             {projects.map((p) => <option key={p.id} value={`project:${p.id}`}>{p.name}</option>)}
           </optgroup>
         )}

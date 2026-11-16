@@ -488,10 +488,10 @@ export function Projects() {
   if (view === "hub") {
     const hubCards = (
       [
-        { key: "list", label: "Project List", description: "All projects — status, brand, dates, PIC, budget.", icon: ClipboardList, v: "list" },
+        { key: "list", label: "Fair List", description: "All fairs — status, brand, dates, PIC, budget.", icon: ClipboardList, v: "list" },
         { key: "calendar", label: "Calendar", description: "Projects & tasks on a month timeline.", icon: Calendar, v: "calendar" },
-        { key: "finances", label: "Project Overview", description: "Sales, COGS, GP and NP across projects.", icon: DollarSign, v: "finances" },
-        { key: "maintenance", label: "Project Maintenance", description: "Templates, checklists and defaults.", icon: Wrench, v: "maintenance" },
+        { key: "finances", label: "Fair Overview", description: "Sales, COGS, GP and NP across fairs.", icon: DollarSign, v: "finances" },
+        { key: "maintenance", label: "Fair Maintenance", description: "Templates, checklists and defaults.", icon: Wrench, v: "maintenance" },
       ] as const
     ).filter(
       (c) =>
@@ -503,7 +503,7 @@ export function Projects() {
       <div>
         <PageHeader
           eyebrow="Operations · Projects"
-          title="Projects"
+          title="Fairs"
           description="Pick a section — list, calendar, finances or maintenance."
         />
         <HubGrid
@@ -948,7 +948,7 @@ function ProjectsListView() {
     },
     {
       key: "name",
-      label: "Project",
+      label: "Fair",
       alwaysVisible: true,
       render: (r) => {
         const unread = unreadByProject[r.id] ?? 0;
@@ -1278,7 +1278,7 @@ function ProjectsListView() {
     <div>
       <PageHeader
         eyebrow="Operations · Projects"
-        title="Project List"
+        title="Fair List"
         description="Exhibitions and solo events — lifecycle, checklist, logistics, finance"
         secondaryActions={
           can("projects.manage")
@@ -1294,7 +1294,7 @@ function ProjectsListView() {
         primaryAction={
           canCreateEvent(user) ? (
             <Button variant="primary" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
-              New Project
+              New Fair
             </Button>
           ) : undefined
         }
@@ -1423,7 +1423,7 @@ function ProjectsListView() {
         <DateRangeFilter from={from} to={to} onChange={setDateRange} />
         <MultiSelectFilter
           placeholder="All statuses"
-          title="Filter by project status"
+          title="Filter by fair status"
           summary={(n) => `${n} statuses`}
           panelWidth="w-[200px]"
           selected={statusList}
@@ -1550,7 +1550,7 @@ function ProjectsListView() {
           <SearchPendingPanel label={searchTransition.statusText} />
         ) : cardRows.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface p-8 text-center text-[12px] text-ink-muted shadow-stone">
-            No projects yet
+            No fairs yet
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -1581,7 +1581,7 @@ function ProjectsListView() {
                       <span className="font-mono text-[11px] font-bold text-accent">{r.code}</span>
                       {/* My Pending mode tags the card with the CALLER's own
                           pending work (owner 2026-07-22, Syu report) — the
-                          project's section chip reads as someone else's stage
+                          fair's section chip reads as someone else's stage
                           (e.g. CONTRACT for a logistic caller) so it yields
                           when the row carries my_pending_titles. */}
                       {myPending && (r as any).my_pending_titles ? (
@@ -1665,7 +1665,7 @@ function ProjectsListView() {
           rows={rows}
           loading={list.loading || searchTransition.isSearching}
           error={list.error}
-          emptyLabel="No projects yet"
+          emptyLabel="No fairs yet"
           getRowKey={(r) => r.id}
           getRowClassName={(r) => (r.archived_at ? "opacity-60" : undefined)}
           onRowClick={(r) => openProject(r.id)}
@@ -1681,7 +1681,7 @@ function ProjectsListView() {
             <div className="mt-1.5 font-display text-[28px] font-extrabold leading-none text-primary-ink">
               {list.data?.total ?? 0}
             </div>
-            <div className="mt-1 text-[11px] text-primary-ink/70">projects (filtered)</div>
+            <div className="mt-1 text-[11px] text-primary-ink/70">fairs (filtered)</div>
             <div className="mt-3 grid grid-cols-2 gap-2 border-t border-primary/20 pt-3">
               <div>
                 <div className="font-mono text-[16px] font-bold text-primary-ink">{summary.data?.live_count ?? 0}</div>
@@ -1702,7 +1702,7 @@ function ProjectsListView() {
                 .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""))
                 .slice(0, 6);
               return upcoming.length === 0 ? (
-                <div className="py-3 text-center text-[11px] text-ink-muted">No upcoming projects</div>
+                <div className="py-3 text-center text-[11px] text-ink-muted">No upcoming fairs</div>
               ) : (
                 <ul className="space-y-2">
                   {upcoming.map((r) => (
@@ -1775,7 +1775,7 @@ function ProjectsFinancesView() {
   // P&L by month / quarter / year is the trend on Project Overview.
   return (
     <div>
-      <PageHeader eyebrow="Operations · Projects · Project Overview" title="Project Overview"
+      <PageHeader eyebrow="Operations · Fairs · Fair Overview" title="Fair Overview"
         description="Sales, costs and profit of every event in the period — from the keyed books, or from the Sales Orders until an event is settled." />
       <ProjectOverviewPage />
     </div>
@@ -2035,10 +2035,10 @@ function ProjectDetailContent({
   return (
     <DetailLayout
       breadcrumbs={[
-        { label: "Projects", to: projectBackTo(id) },
+        { label: "Fairs", to: projectBackTo(id) },
         { label: detailName || "Loading…" },
       ]}
-      eyebrow="Project"
+      eyebrow="Fair"
       title={detailName || "Loading…"}
       description={p ? `${STAGE_LABEL[p.stage]}${p.brand ? ` · ${p.brand}` : ""}${p.venue ? ` · ${p.venue}` : ""}${p.duration_days ? ` · ${p.duration_days} day${p.duration_days === 1 ? "" : "s"}` : ""}` : undefined}
       // Owner 2026-07-29: keep the event title (+ actions) pinned while
@@ -2071,7 +2071,7 @@ function ProjectDetailContent({
                       title={p.archived_at ? "Already archived" : undefined}
                       onClick={async () => {
                         setArchiveMenuOpen(false);
-                        if (!(await dialog.confirm("Archive this project?"))) return;
+                        if (!(await dialog.confirm("Archive this fair?"))) return;
                         try {
                           await api.post(`/api/projects/${id}/archive`);
                           toast.success("Archived");
@@ -2116,10 +2116,10 @@ function ProjectDetailContent({
             <PrintPreviewModal
               open={projectPrint.open}
               onClose={projectPrint.close}
-              docTitle="Project"
+              docTitle="Fair"
               docNo={p.code ?? String(id)}
               rows={[
-                { label: "Project", value: detailName || "—" },
+                { label: "Fair", value: detailName || "—" },
                 { label: "Status", value: p.status || "—" },
                 { value: "Print now opens the print view in a new tab." },
               ]}
@@ -2156,7 +2156,7 @@ function ProjectDetailContent({
       )}
       {detail.error && !detail.loading && (
         <div className="m-5 rounded-md border border-err/40 bg-err/5 p-4 text-sm">
-          <div className="font-semibold text-err">Failed to load project</div>
+          <div className="font-semibold text-err">Failed to load fair</div>
           <div className="mt-1 text-[12px] text-ink-secondary break-words">{detail.error}</div>
         </div>
       )}
@@ -2171,7 +2171,7 @@ function ProjectDetailContent({
               permission" sends them to their manager. */}
           {accessUnresolved && (
             <ProjectBanner
-              message="We couldn't load your permissions for this project, so some sections are hidden. This is a system problem, not a restriction on your account — please reload, and tell IT if it persists."
+              message="We couldn't load your permissions for this fair, so some sections are hidden. This is a system problem, not a restriction on your account — please reload, and tell IT if it persists."
               tone="error"
             />
           )}
@@ -2250,7 +2250,7 @@ function ProjectDetailContent({
 
               {/* Setup & Dismantle (crew-per-lorry editor + phase photos).
                   Owner 2026-07-15: hidden entirely from non-director Sales —
-                  even this project's PIC — via the PMS SETUP_DISMANTLE flag.
+                  even this fair's PIC — via the PMS SETUP_DISMANTLE flag.
                   Layered ON TOP of the existing fullAccess gate so no other
                   role's visibility widens; the new flag only SUBTRACTS. When
                   hidden it renders NOTHING (off, not read-only): the
@@ -2269,8 +2269,8 @@ function ProjectDetailContent({
 
                   This was `pms ? pms.canFinancial : fullAccess`. The fallback
                   was not just fail-open, it was fail-open to the WRONG COHORT:
-                  `fullAccess` is the ROW tier (PIC on this project), which every
-                  project's own PIC satisfies, while canFinancial is the SECTION
+                  `fullAccess` is the ROW tier (PIC on this fair), which every
+                  fair's own PIC satisfies, while canFinancial is the SECTION
                   tier (isFinanceViewer). An unresolved payload therefore opened
                   the Finance Ledger to every PIC. It now closes. */}
               {access.canFinancial && (
@@ -2469,7 +2469,7 @@ function ProjectTeamSection({
     const label = a.rep_name || a.user_name || `Rep #${a.sales_rep_id}`;
     const ok = await dialog.confirm({
       title: "Remove from attendance?",
-      message: `${label} will no longer be listed as attending this project.`,
+      message: `${label} will no longer be listed as attending this fair.`,
       confirmLabel: "Remove",
       danger: true,
     });
@@ -2485,7 +2485,7 @@ function ProjectTeamSection({
   }
 
   return (
-    <PanelSection title="Project Team">
+    <PanelSection title="Fair Team">
       {/* PIC row */}
       <div>
         <div className="mb-1 flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-brand text-ink-muted">
@@ -2783,7 +2783,7 @@ function ProjectSpecStrip({
       <header className="mb-2 flex items-center justify-between border-b border-border-strong pb-2">
         <div className="flex items-baseline gap-3">
           <h2 className="text-[10px] font-semibold uppercase tracking-brand text-ink-muted">
-            Project Detail
+            Fair Detail
           </h2>
         </div>
         {fullAccess && (
@@ -2796,7 +2796,7 @@ function ProjectSpecStrip({
                 ? "border-primary bg-primary text-white hover:bg-primary-ink"
                 : "border-border bg-surface text-ink hover:border-accent/40 hover:text-accent"
             )}
-            title={editing ? "Lock edits" : "Edit project details"}
+            title={editing ? "Lock edits" : "Edit fair details"}
           >
             {editing ? (
               <>
@@ -3814,7 +3814,7 @@ export function TasklistSections({
       action={
         <div className="flex items-center gap-1.5">
           {/* List / Gantt toggle. URL-backed (?tasklist_view=) so a
-              Sales Director can deep-link to a single project's
+              Sales Director can deep-link to a single fair's
               Gantt without further navigation. */}
           <div className="inline-flex overflow-hidden rounded-md border border-border bg-bg/40 font-mono text-[9.5px] font-semibold uppercase tracking-wider">
             <button
@@ -7031,7 +7031,7 @@ function ProjectSalesEntriesSection({
                   ? "border-emerald-600/60 bg-emerald-600 text-white"
                   : "border-emerald-600/40 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/50",
               )}
-              title="Set the project's total sales figure directly (shows on the Project List + dashboard)"
+              title="Set the fair's total sales figure directly (shows on the Fair List + dashboard)"
             >
               <Plus size={11} /> Total Sales
             </button>
@@ -7073,7 +7073,7 @@ function ProjectSalesEntriesSection({
         <div className="mb-2 rounded-md border border-emerald-600/40 bg-emerald-50/60 p-2.5">
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-              Total Sales · lump sum for this project
+              Total Sales · lump sum for this fair
             </span>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -7106,7 +7106,7 @@ function ProjectSalesEntriesSection({
             </button>
           </div>
           <p className="mt-1.5 text-[9.5px] text-ink-secondary">
-            Sets the project's total sales directly — shows in the Project List
+            Sets the fair's total sales directly — shows in the Fair List
             "Sales" column and the dashboard. Use for exhibitions where you only
             record the final total. (If individual sales are logged, those take over.)
           </p>

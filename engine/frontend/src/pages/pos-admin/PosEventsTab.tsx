@@ -69,15 +69,15 @@ export function PosEventsTab() {
         <span className="flex gap-1">
           {CHIPS.map((c) => <button key={c.value} type="button" className={cn(ghostBtn, chip === c.value && "border-accent bg-accent/10 text-accent")} onClick={() => setChip(c.value)}>{c.label} <span className="text-ink-muted">{counts[c.value]}</span></button>)}
         </span>
-        <span className="text-[11px] text-ink-muted">Cash & Carry projects and the fairs of the booth brands (General tab) are listed on their own; pick a row to set it up for the booth.</span>
-        <span className="ml-auto"><button type="button" className={ghostBtn} onClick={() => setLinking(true)} title="Find an older project by name"><Link2 size={11} /> Older project</button></span>
+        <span className="text-[11px] text-ink-muted">Cash & Carry fairs and the fairs of the booth brands (General tab) are listed on their own; pick a row to set it up for the booth.</span>
+        <span className="ml-auto"><button type="button" className={ghostBtn} onClick={() => setLinking(true)} title="Find an older fair by name"><Link2 size={11} /> Older fair</button></span>
       </div>
       {events.loading && !events.data && <div className="text-[11px] text-ink-muted">Loading events…</div>}
       {events.error && <div className="rounded-md border border-err/40 bg-err/5 p-2 text-[11px] text-err">{events.error}</div>}
       {events.data && rows.length === 0 && <Empty>{chip === "ALL" ? "No recent or coming fair. Create the project under Projects first; it appears here on its own." : "Nothing in this group."}</Empty>}
       {rows.length > 0 && (
         <Table minWidth={1040} head={<>
-          <th className={th}>Project</th><th className={th}>Type</th><th className={th}>Dates</th><th className={th}>When</th><th className={th}>POS</th><th className={th}>Terminals</th><th className={th}>Cashiers</th><th className={th}>Catalog</th><th className={th} />
+          <th className={th}>Fair</th><th className={th}>Type</th><th className={th}>Dates</th><th className={th}>When</th><th className={th}>POS</th><th className={th}>Terminals</th><th className={th}>Cashiers</th><th className={th}>Catalog</th><th className={th} />
         </>}>
           {rows.map((e) => (
             <tr key={e.project_id} className={cn("cursor-pointer border-t border-border-subtle hover:bg-bg/40", e.status === "DONE" && !e.linked && "opacity-60")} onClick={() => setEditing(e)}>
@@ -257,14 +257,14 @@ function LinkProject({ onClose, onLinked }: { onClose: () => void; onLinked: () 
   return (
     <ResizableDrawer onClose={onClose} title="Link a project to POS" subtitle="Search by project name or code" storageKey="pos-admin-link-project" defaultWidth={520}>
       <div className="space-y-2 p-3">
-        <SearchInput value={q} onChange={(v) => void search(v)} placeholder="Type at least 2 characters" widthClassName="w-full" autoFocus aria-label="Search projects" />
+        <SearchInput value={q} onChange={(v) => void search(v)} placeholder="Type at least 2 characters" widthClassName="w-full" autoFocus aria-label="Search fairs" />
         {found.map((p) => (
           <div key={p.project_id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-[11.5px]">
             <div className="flex-1"><div className="font-semibold">{p.name}</div><div className="font-mono text-[9.5px] text-ink-muted">{p.code ?? ""} {p.event_type_name ?? ""} {p.start_date ? formatDate(p.start_date) : ""}</div></div>
             <button type="button" className={primaryBtn} disabled={busy === p.project_id} onClick={() => void link(p.project_id)}><Link2 size={11} /> Link</button>
           </div>
         ))}
-        {q.trim().length >= 2 && found.length === 0 && <Empty>No project matches.</Empty>}
+        {q.trim().length >= 2 && found.length === 0 && <Empty>No fair matches.</Empty>}
       </div>
     </ResizableDrawer>
   );

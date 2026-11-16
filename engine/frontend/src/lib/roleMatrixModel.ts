@@ -122,7 +122,7 @@ interface ModuleSpec {
 // a matrix cell for it would control nothing — it stays in the Roles tab.
 const MODULE_SPECS: ModuleSpec[] = [
   { id: "service_cases", labelZh: "售后", labelEn: "Service Cases", pagePrefixes: ["service_cases"], resources: ["Service Cases"] },
-  { id: "projects", labelZh: "项目", labelEn: "Projects", pagePrefixes: ["projects"], resources: ["Projects"] },
+  { id: "projects", labelZh: "项目", labelEn: "Fairs", pagePrefixes: ["projects"], resources: ["Projects"] },
   { id: "sales", labelZh: "销售录入", labelEn: "Sales Entries", pagePrefixes: ["sales"], resources: ["Sales Entries"] },
   { id: "scm.sales", labelZh: "供应链·销售", labelEn: "SCM · Sales", pagePrefixes: ["scm.sales"], resources: [], scmArea: true },
   { id: "scm.consignment", labelZh: "供应链·寄售", labelEn: "SCM · Consignment", pagePrefixes: ["scm.consignment"], resources: [], scmArea: true },

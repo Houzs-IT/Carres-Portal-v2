@@ -77,7 +77,7 @@ export function ProjectDataGapsPanel({ onOpen }: { onOpen: (id: number) => void 
   return (
     <Panel title="Books not complete" hint={`events that ended ${g.from} – ${g.to} (${g.books.length} events) · what still makes the P&L above read wrong`}>
       <StepTabs value={tab} onChange={(v) => setTab(v as BooksTab)}
-        tabs={[["daily", "Sales Orders not daily", bills.length, 0], ["nocogs", "SO no COGS", g.soNoCogs.length, 0], ["rental", "Rental missing or no sales", rentalRows.length, 0], ["report", "No chat sales report", noReport.length, 0], ["size", "No project size", noSize.length, 0]] as Array<[string, string, number, number]>} />
+        tabs={[["daily", "Sales Orders not daily", bills.length, 0], ["nocogs", "SO no COGS", g.soNoCogs.length, 0], ["rental", "Rental missing or no sales", rentalRows.length, 0], ["report", "No chat sales report", noReport.length, 0], ["size", "No fair size", noSize.length, 0]] as Array<[string, string, number, number]>} />
       <div className="max-h-[460px] overflow-auto">
         {tab === "daily" && (
           <table className="w-full border-collapse">

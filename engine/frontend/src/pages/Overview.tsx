@@ -156,11 +156,11 @@ export function Overview() {
       : (d.period?.doList ?? []).filter((x) => !!d.today && (x.date ?? "").slice(0, 10) === d.today).length;
 
   const kpis: { label: string; value: string; sub: string }[] = [
-    { label: "Project sales", value: pnl.loading ? "…" : pt ? formatCurrency(pt.sales) : "—", sub: pt ? `${pt.projects} projects · GP ${pct(pt.gp, pt.sales)}${pt.fromSalesOrders ? ` · ${pt.fromSalesOrders} from Sales Orders` : ""}` : pnl.error ? "Couldn't load" : "Project finance viewers only" },
+    { label: "Fair sales", value: pnl.loading ? "…" : pt ? formatCurrency(pt.sales) : "—", sub: pt ? `${pt.projects} fairs · GP ${pct(pt.gp, pt.sales)}${pt.fromSalesOrders ? ` · ${pt.fromSalesOrders} from Sales Orders` : ""}` : pnl.error ? "Couldn't load" : "Fair finance viewers only" },
     { label: "PO not received", value: proc.loading ? "…" : po ? fmtSen(po.sen) : "—", sub: po ? `${po.lines} open lines · ${po.late} late` : proc.error ? "Couldn't load" : "Procurement only" },
     { label: "Open Cases", value: assr.loading ? "…" : num(assrUnknown, assr.data?.active_count), sub: assrUnknown ? "Couldn't load" : `${slaRisk} SLA risks` },
     { label: "Runs today", value: logi.loading ? "…" : logi.data ? String(runsTodayOf(logi.data)) : "—", sub: thisWeek ? `${thisWeek.doCount} DO issued this week` : logi.error ? "Couldn't load" : "Logistics only" },
-    { label: "Active Projects", value: projects.loading ? "…" : num(projectsUnknown, projects.data?.live_count), sub: projectsUnknown ? "Couldn't load" : `${projects.data?.upcoming_30d ?? 0} due this month` },
+    { label: "Active Fairs", value: projects.loading ? "…" : num(projectsUnknown, projects.data?.live_count), sub: projectsUnknown ? "Couldn't load" : `${projects.data?.upcoming_30d ?? 0} due this month` },
   ];
 
   return (
@@ -213,7 +213,7 @@ export function Overview() {
       {/* ── KPI ribbon ──────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
         <DashboardPeriodPicker period={period} today={today} onChange={setPeriod} />
-        <span className="text-[11.5px] text-ink-muted">Project sales, P&amp;L and PO figures follow this period; open cases, runs and projects are live.</span>
+        <span className="text-[11.5px] text-ink-muted">Fair sales, P&amp;L and PO figures follow this period; open cases, runs and fairs are live.</span>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {kpis.map((k) => (
@@ -287,7 +287,7 @@ export function Overview() {
             <div className="font-mono text-[10px] font-bold uppercase tracking-brand text-primary-ink">Project P&amp;L · {period.label}</div>
             <div className="mt-1.5 font-display text-[30px] font-extrabold leading-none text-primary-ink">{pt ? formatCurrency(pt.np) : "—"}</div>
             <div className="mt-1.5 text-[11px] text-primary-ink/70">
-              {pt ? `Net profit ${pct(pt.np, pt.sales)} on sales ${formatCurrency(pt.sales)} · COGS ${formatCurrency(pt.cogs)} · rental ${formatCurrency(pt.rental)}${pt.fromSalesOrders ? ` · ${pt.fromSalesOrders} projects from Sales Orders, not settled` : ""}` : pnl.error ? "Couldn't load" : "Project finance viewers only"}
+              {pt ? `Net profit ${pct(pt.np, pt.sales)} on sales ${formatCurrency(pt.sales)} · COGS ${formatCurrency(pt.cogs)} · rental ${formatCurrency(pt.rental)}${pt.fromSalesOrders ? ` · ${pt.fromSalesOrders} projects from Sales Orders, not settled` : ""}` : pnl.error ? "Couldn't load" : "Fair finance viewers only"}
             </div>
           </button>
         </div>

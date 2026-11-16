@@ -75,7 +75,7 @@ export function NewProjectSheet({
     // instead of coming back as a 400 from the code generator.
     if (!brand) { await notify({ title: "Brand is required", body: "Pick the brand this event runs under.", tone: "error" }); return; }
     if (!venueName.trim()) { await notify({ title: "Venue is required", body: "Pick the venue — the event name and code are built from it.", tone: "error" }); return; }
-    if (!stateName.trim()) { await notify({ title: "This venue has no state", body: "Open Project Maintenance → Venues on a PC and set the venue's state first.", tone: "error" }); return; }
+    if (!stateName.trim()) { await notify({ title: "This venue has no state", body: "Open Fair Maintenance → Venues on a PC and set the venue's state first.", tone: "error" }); return; }
     if (!derivedName.trim()) { await notify({ title: "Name can't be derived", body: "Pick a venue and brand so the event name can be composed.", tone: "error" }); return; }
     if (dateInvalid) { await notify({ title: "Check the dates", body: "End date must be on or after the start date.", tone: "error" }); return; }
     setSaving(true);
@@ -113,7 +113,7 @@ export function NewProjectSheet({
         <div className="grab" />
         <div className="sheet-head">
           <div>
-            <div className="ey" style={{ color: "var(--brand)" }}>Projects</div>
+            <div className="ey" style={{ color: "var(--brand)" }}>Fairs</div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>New event</div>
           </div>
           <button className="sheet-x" onClick={onClose} aria-label="Close">

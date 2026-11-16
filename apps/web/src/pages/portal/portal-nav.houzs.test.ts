@@ -27,7 +27,7 @@ describe("the Houzs tree", () => {
       { head: "Workspace", blocks: ["Overview", "Sales Orders"] },
       {
         head: "Operations",
-        blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases", "Projects: Project Overview · Project List · Calendar · Project Maintenance"],
+        blocks: ["Service Cases: Quality Overview · Service Cases · Service Maintenance · My Cases", "Fairs: Fair Overview · Fair List · Calendar · Fair Maintenance"],
       },
       {
         head: "row:Supply Chain",

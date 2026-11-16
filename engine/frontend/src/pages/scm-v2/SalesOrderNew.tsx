@@ -1090,7 +1090,7 @@ export const SalesOrderNew = () => {
   /* Houzs venue auto-fill (owner 2026-06-25) — the logged-in salesperson is
      assigned to an exhibition project (Sales Attending), so the system already
      knows that week's venue; the operator shouldn't have to type it. Resolve
-     the active project's venue (latest project by start_date <= today they
+     the active fair's venue (latest project by start_date <= today they
      attend; attribution stays on the previous event until the next one starts)
      and pre-select it in the Venue dropdown. A venue present in the
      project_venues master gets its option auto-selected; one not in the master
@@ -2048,7 +2048,7 @@ export const SalesOrderNew = () => {
                 <span style={{ fontSize: '11px', marginTop: '4px', opacity: 0.7 }}>
                   {autoVenue.venueId
                     ? `Auto-filled from ${autoVenue.source === 'PMS' ? (autoVenue.projectName ?? 'your fair') : `your showroom${autoVenue.showroomName ? ` (${autoVenue.showroomName})` : ''}`} — change it if you are somewhere else today`
-                    : `${autoVenue.venueName} is not in the venue list yet — it still saves on the order; add it in Project Maintenance to show it here.`}
+                    : `${autoVenue.venueName} is not in the venue list yet — it still saves on the order; add it in Fair Maintenance to show it here.`}
                 </span>
               )}
               {/* When no fair is picked: the back-keying date + the No-fair escape

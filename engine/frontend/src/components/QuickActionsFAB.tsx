@@ -87,7 +87,7 @@ export function QuickActionsFAB() {
   if (canNewProject) {
     actions.push({
       key: "project",
-      label: "New Project",
+      label: "New Fair",
       icon: FolderPlus,
       // Force the LIST view: the ?new=1 create-modal handler lives in
       // ProjectsListView, so a bare /projects?new=1 falls through to the user's

@@ -8,7 +8,7 @@ describe("carresNavOnly", () => {
       { label: "Supply Chain", to: "/scm", children: [{ label: "Consignment", to: "/scm/consignment" }, { label: "HR payroll", to: "/scm/hr/payroll" }] },
       { label: "HR", to: "/scm/hr" },
       { label: "Service Cases", to: "/service-cases" },
-      { label: "Projects", to: "/projects?view=hub" },
+      { label: "Fairs", to: "/projects?view=hub" },
       { label: "Finance", to: "/scm/finance", children: [{ label: "To do", to: "/scm/finance" }, { label: "Dashboard", to: "/scm/finance-dashboard" }] },
       { label: "Mail Center", to: "/mail-center" },
     ];
@@ -16,7 +16,7 @@ describe("carresNavOnly", () => {
       { label: "Overview", to: "/" },
       { label: "Supply Chain", to: "/scm", children: [{ label: "Consignment", to: "/scm/consignment" }] },
       { label: "Service Cases", to: "/service-cases" },
-      { label: "Projects", to: "/projects?view=hub" },
+      { label: "Fairs", to: "/projects?view=hub" },
       { label: "Finance", to: "/scm/finance", children: [{ label: "To do", to: "/scm/finance" }, { label: "Dashboard", to: "/scm/finance-dashboard" }] },
       { label: "Mail Center", to: "/mail-center" },
     ]);

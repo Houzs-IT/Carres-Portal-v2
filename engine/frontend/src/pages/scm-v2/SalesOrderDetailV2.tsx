@@ -1431,7 +1431,7 @@ function SalesOrderDetailV2ReadOnly() {
                 <Field label="Sale type" value={soSaleTypeLabel(salesOrder.sale_type)} />
                 {companyUsesShowroomSale(getBrandingCompanyCode()) && (
                   <Field
-                    label={salesOrder.project_id != null ? "Project" : "Showroom"}
+                    label={salesOrder.project_id != null ? "Fair" : "Showroom"}
                     value={salesOrder.venue || "—"}
                     muted={!salesOrder.venue}
                   />

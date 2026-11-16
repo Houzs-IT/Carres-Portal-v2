@@ -184,7 +184,7 @@ export function ProjectGantt({
   if (!projectStartDate || !projectEndDate) {
     return (
       <div className="rounded-md border border-dashed border-warning-text/40 bg-warning-bg/40 px-4 py-6 text-[12px] text-warning-text">
-        Set the project start and end dates to anchor the Gantt timeline.
+        Set the fair start and end dates to anchor the Gantt timeline.
         Without them, the chart auto-extends to whatever range your tasks
         span — useful, but harder to read.
       </div>

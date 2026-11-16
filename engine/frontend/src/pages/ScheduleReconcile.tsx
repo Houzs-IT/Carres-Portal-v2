@@ -115,7 +115,7 @@ export function ScheduleReconcile() {
                       </button>
                     )}
                     {r.status === "MISSING" && <span style={{ color: "var(--fg-muted,#999)" }}>Check: postponed or cancelled?</span>}
-                    {r.status === "NEW" && <span style={{ color: "var(--fg-muted,#999)" }}>Create the project</span>}
+                    {r.status === "NEW" && <span style={{ color: "var(--fg-muted,#999)" }}>Create the fair</span>}
                   </div>
                 </div>
               );

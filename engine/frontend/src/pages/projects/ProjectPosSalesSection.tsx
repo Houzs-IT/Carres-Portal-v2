@@ -247,7 +247,7 @@ export function ProjectPosSalesSection({
     if (!totals) return;
     const ok = await dialog.confirm({
       title: "Set Total Sales from POS",
-      message: `Write ${formatCurrency(netRm)} (net POS takings${filtered ? ", filtered view" : ""}: paid bills minus returns) as this project's Total Sales?${currentTotalSales != null ? ` It is ${formatCurrency(currentTotalSales)} now.` : ""}`,
+      message: `Write ${formatCurrency(netRm)} (net POS takings${filtered ? ", filtered view" : ""}: paid bills minus returns) as this fair's Total Sales?${currentTotalSales != null ? ` It is ${formatCurrency(currentTotalSales)} now.` : ""}`,
       confirmLabel: "Set Total Sales",
     });
     if (!ok) return;
@@ -276,7 +276,7 @@ export function ProjectPosSalesSection({
             {Object.entries(totals.by_method).map(([m, sen]) => (
               <Tile key={m} label={posMethodLabel(m)} value={fmtSen(sen)} />
             ))}
-            {currentTotalSales != null && <Tile label="Project total sales" value={formatCurrency(currentTotalSales)} />}
+            {currentTotalSales != null && <Tile label="Fair total sales" value={formatCurrency(currentTotalSales)} />}
           </div>
         )}
         <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto sm:flex-nowrap">
@@ -295,7 +295,7 @@ export function ProjectPosSalesSection({
               onClick={setTotalSales}
               disabled={!totals || busy !== null}
               className="inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-md border border-emerald-600/40 bg-emerald-100 dark:bg-emerald-900/40 px-2 text-[10.5px] font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/50 disabled:opacity-50"
-              title="Write the net POS takings as this project's Total Sales (Project List, dashboard and Google Sheet read it)"
+              title="Write the net POS takings as this fair's Total Sales (Fair List, dashboard and Google Sheet read it)"
             >
               <Plus size={11} /> Total Sales
             </button>

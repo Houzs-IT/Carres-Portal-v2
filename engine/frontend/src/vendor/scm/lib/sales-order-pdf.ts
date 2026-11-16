@@ -570,7 +570,7 @@ export async function renderSalesOrderInto(
         ['Agent', header.agent],
         ['Sales Location', header.sales_location],
         /* Carres: a Sales Order names its Showroom, or the Project it was sold for (owner 2026-11-12). */
-        [header.sale_type === undefined ? 'Venue' : header.project_id != null ? 'Project' : 'Showroom', header.venue],
+        [header.sale_type === undefined ? 'Venue' : header.project_id != null ? 'Fair' : 'Showroom', header.venue],
         ...(header.sale_type === undefined ? [] : [['Sale Type', soSaleTypeLabel(header.sale_type)] as [string, string]]),
         /* Owner batch 2026-07 — salesperson name (· phone when scm.staff has
            one) + the customer's emergency contact phone. Value-gated: rows

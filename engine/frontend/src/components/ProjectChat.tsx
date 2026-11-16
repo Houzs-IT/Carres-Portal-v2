@@ -535,7 +535,7 @@ function ChatBubble({
 function actionLabel(action: string): string {
   switch (action) {
     case "created":
-      return "Project created";
+      return "Fair created";
     case "stage_change":
       return "Stage changed";
     case "checklist_status":

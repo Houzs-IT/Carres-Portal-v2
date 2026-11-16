@@ -78,7 +78,7 @@ type CalTask = {
 type CalEvent = {
   key: string;
   kind: "project" | "task" | "holiday";
-  projectId: number; // tapping a project/task drills into this project (0 for holidays)
+  projectId: number; // tapping a project/task drills into this fair (0 for holidays)
   date: string; // YYYY-MM-DD
   label: string; // day-sheet title (unchanged mobile design)
   // Compact grid-bar caption. For a project this leads with the STATE
@@ -849,7 +849,7 @@ function DaySheet({ year, month, day, events, onClose, onOpen }: {
             </div>
           )}
           {items.length === 0 ? (
-            <div style={{ textAlign: "center", color: "var(--mut2)", fontSize: 12, padding: "20px 0" }}>No projects or tasks on this day.</div>
+            <div style={{ textAlign: "center", color: "var(--mut2)", fontSize: 12, padding: "20px 0" }}>No fairs or tasks on this day.</div>
           ) : (
             items.map((e, i) => (
               <div

@@ -2634,7 +2634,7 @@ const BrandingsReadOnlyPanel = () => {
       <p className={styles.stateInfo} style={{ marginBottom: 12 }}>
         {fromConfig ? (
           <>
-            Brandings are maintained in <strong>Project Maintenance</strong>.
+            Brandings are maintained in <strong>Fair Maintenance</strong>.
             This list is read-only; add, rename, or deactivate a branding there
             and it flows to every Branding input here.
           </>
@@ -2642,7 +2642,7 @@ const BrandingsReadOnlyPanel = () => {
           <>
             This read-only list is derived from the brandings on this company’s
             own products and models. Maintain brandings centrally in{' '}
-            <strong>Project Maintenance</strong>.
+            <strong>Fair Maintenance</strong>.
           </>
         )}
       </p>
@@ -2650,7 +2650,7 @@ const BrandingsReadOnlyPanel = () => {
         <p className={styles.eyebrow}>Loading brandings…</p>
       ) : pool.length === 0 ? (
         <p className={styles.eyebrow}>
-          No brandings yet — add them in Project Maintenance.
+          No brandings yet — add them in Fair Maintenance.
         </p>
       ) : (
         pool.map((name, i) => (

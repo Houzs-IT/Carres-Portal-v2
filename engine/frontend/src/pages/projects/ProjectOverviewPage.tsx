@@ -45,7 +45,7 @@ export function ProjectOverviewPage() {
   const setDrill = (d: Drill) => setView({ drill: d });
 
   /* And the place you were looking at: kept, with this page's address, when a
-     project is opened; the project's Back button returns to that address
+     project is opened; the fair's Back button returns to that address
      (projectBackTo) — browser Back does too — and the place is given back once
      the figures are on the page (owner 2026-10-21: 我点9月的project，按 back
      后又跳回10月，然后会跑回最上面). The page scrolls inside the app's <main>;
@@ -137,7 +137,7 @@ export function ProjectOverviewPage() {
         <div className="relative">
           <div className="font-mono text-[10px] font-bold uppercase tracking-brand text-accent-bright">{period.label} · {t.projects} projects</div>
           <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Hero label="Sales" value={money(t.sales)} sub={t.fromSalesOrders ? `${t.fromSalesOrders} projects from Sales Orders` : "all from keyed books"} />
+            <Hero label="Sales" value={money(t.sales)} sub={t.fromSalesOrders ? `${t.fromSalesOrders} fairs from Sales Orders` : "all from keyed books"} />
             <Hero label="Gross profit %" value={pctTxt(pctOf(t.gp, t.sales))} sub={`GP ${money(t.gp)}`} tone={t.gp >= 0 ? "good" : "bad"} />
             <Hero label="Net profit" value={money(t.np)} sub={`NP ${pctTxt(pctOf(t.np, t.sales))}`} tone={t.np >= 0 ? "good" : "bad"} />
             <Hero label="Collected" value={pctTxt(pctOf(paidSen, orderedSen))} sub={`${money(paidSen / 100)} of ${money(orderedSen / 100)} ordered`} />
@@ -164,7 +164,7 @@ export function ProjectOverviewPage() {
             line={{ name: "Net profit %", color: PALETTE[1]!, values: trend.map((b) => pctOf(b.np, b.sales)), format: (x) => `${x.toFixed(1)}%` }} />
           <div className="mt-2 overflow-x-auto">
             <table className="w-full border-collapse">
-              <thead><tr><Th left>{unit}</Th><Th>Projects</Th><Th>Sales</Th><Th>GP</Th><Th>GP %</Th><Th>NP</Th><Th>NP %</Th></tr></thead>
+              <thead><tr><Th left>{unit}</Th><Th>Fairs</Th><Th>Sales</Th><Th>GP</Th><Th>GP %</Th><Th>NP</Th><Th>NP %</Th></tr></thead>
               <tbody>{trend.slice().reverse().map((b) => (
                 <tr key={b.key} className="cursor-pointer hover:bg-surface-2/50" onClick={() => openBucket(b)}>
                   <Td left className="text-primary">{b.label}{b.next ? " ›" : ""}</Td><Td>{b.projects}</Td><Td>{money(b.sales)}</Td><Td>{money(b.gp)}</Td><Td>{pctTxt(pctOf(b.gp, b.sales))}</Td>
@@ -194,7 +194,7 @@ export function ProjectOverviewPage() {
         <div className="max-h-[420px] overflow-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-surface"><tr>
-              <SortTh left k="key" sort={gSort.sort} onSort={gSort.toggle}>{DIMS.find(([d]) => d === dim)?.[1]}</SortTh><SortTh k="projects" sort={gSort.sort} onSort={gSort.toggle}>Projects</SortTh>
+              <SortTh left k="key" sort={gSort.sort} onSort={gSort.toggle}>{DIMS.find(([d]) => d === dim)?.[1]}</SortTh><SortTh k="projects" sort={gSort.sort} onSort={gSort.toggle}>Fairs</SortTh>
               <SortTh k="sales" sort={gSort.sort} onSort={gSort.toggle}>Sales</SortTh><SortTh k="gpPct" sort={gSort.sort} onSort={gSort.toggle}>GP %</SortTh>
               <SortTh k="rental" sort={gSort.sort} onSort={gSort.toggle}>Rental</SortTh><SortTh k="rentalPct" sort={gSort.sort} onSort={gSort.toggle}>Rental %</SortTh>
               <SortTh k="cost" sort={gSort.sort} onSort={gSort.toggle}>Event costs</SortTh><SortTh k="np" sort={gSort.sort} onSort={gSort.toggle}>Net profit</SortTh>
@@ -207,7 +207,7 @@ export function ProjectOverviewPage() {
                 <Td left className="w-[18%]"><div className="h-2 rounded-full bg-surface-2"><div className="h-2 rounded-full" style={{ width: `${(Math.abs(g.np) / npMax) * 100}%`, background: g.np < 0 ? TONE.bad : TONE.good }} /></div></Td>
                 <Td>{pctTxt(pctOf(g.np, g.sales))}</Td>
               </tr>))}
-              {groups.length === 0 && <tr><Td left className="text-ink-muted">No projects in this period.</Td></tr>}
+              {groups.length === 0 && <tr><Td left className="text-ink-muted">No fairs in this period.</Td></tr>}
             </tbody>
           </table>
         </div>
@@ -215,7 +215,7 @@ export function ProjectOverviewPage() {
 
       {/* The project list first, the venue rent after it (owner 2026-10-25:
           把venue rent 和 project 倒反位置). */}
-      <Panel title={`Projects${pick ? ` · ${pick}` : ""}`} hint={`${listed.length} projects · amounts in RM · click one to open it`}
+      <Panel title={`Fairs${pick ? ` · ${pick}` : ""}`} hint={`${listed.length} fairs · amounts in RM · click one to open it`}
         right={pick ? <button type="button" className="text-[12px] text-primary hover:underline" onClick={() => setView({ pick: null })}>Show all</button> : undefined}>
         <div ref={tableRef}>
           <ProjectOverviewTable rows={listed} loading={q.loading} onOpen={openProject} />

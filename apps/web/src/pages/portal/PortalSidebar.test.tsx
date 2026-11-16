@@ -225,7 +225,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       ["team", "Team"],
       // The Customer Care module's word is `Service Cases` (Houzs tree, 2026-11-01).
       ["customer-care", "Service Cases"],
-      ["projects", "Projects"],
+      ["projects", "Fairs"],
     ] as const) {
       const row = module_(slug);
       expect(row.tagName).toBe("BUTTON");

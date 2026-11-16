@@ -107,7 +107,7 @@ export function ProjectMaintenanceView() {
     <div>
       <PageHeader
         eyebrow="Operations · Projects"
-        title="Project Maintenance"
+        title="Fair Maintenance"
         description="All the picker lists that drive the new-project form: brands, event types, organizers, venues, plus the default checklist that clones into every new project."
       />
       {/* Picker lists are short — pack them two-up on wide screens to

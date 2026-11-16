@@ -44,13 +44,13 @@ export function SetupInvoiceFill() {
   async function apply() {
     setDone(null);
     const amt = Number(amount);
-    if (!projectId) { setDone({ ok: false, msg: "Pick a project." }); return; }
+    if (!projectId) { setDone({ ok: false, msg: "Pick a fair." }); return; }
     if (!Number.isFinite(amt) || amt <= 0) { setDone({ ok: false, msg: "Enter a valid amount." }); return; }
     setApplying(true);
     try {
       await api.post(`/projects/${projectId}/setup-invoice/apply`, { vendor: vendor.trim(), amountRM: amt, note: null });
       const p = projects.find((x) => String(x.id) === projectId);
-      setDone({ ok: true, msg: `Added ${rm(amt)} setup cost to ${p?.code ?? "the project"}.` });
+      setDone({ ok: true, msg: `Added ${rm(amt)} setup cost to ${p?.code ?? "the fair"}.` });
     } catch (e) {
       setDone({ ok: false, msg: e instanceof Error ? e.message : "Apply failed." });
     } finally { setApplying(false); }
@@ -61,7 +61,7 @@ export function SetupInvoiceFill() {
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Setup Invoice</h1>
       <p style={{ fontSize: 13, color: "var(--fg-muted,#666)", marginBottom: 16 }}>
         Upload a scanned setup / booth invoice. The vendor and total are read automatically; pick the
-        project and apply to add it as a <strong>setup</strong> cost line to that project's P&L.
+        project and apply to add it as a <strong>setup</strong> cost line to that fair's P&L.
       </p>
 
       <label style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "10px 14px", border: "1px solid var(--border,#ccc)", borderRadius: 8, cursor: "pointer", background: "var(--bg-subtle,#f7f7f7)" }}>
@@ -86,10 +86,10 @@ export function SetupInvoiceFill() {
                 style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--border,#ccc)", fontSize: 13, width: 140 }} />
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 11, color: "var(--fg-muted,#666)" }}>Apply to project</span>
+              <span style={{ fontSize: 11, color: "var(--fg-muted,#666)" }}>Apply to fair</span>
               <select value={projectId} onChange={(e) => setProjectId(e.target.value)}
                 style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--border,#ccc)", fontSize: 13, minWidth: 240 }}>
-                <option value="">— pick a project —</option>
+                <option value="">— pick a fair —</option>
                 {projects.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}{p.startDate ? ` (${p.startDate})` : ""}</option>)}
               </select>
             </label>

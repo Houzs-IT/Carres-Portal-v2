@@ -154,7 +154,7 @@ export function FairReportFill() {
                     </button>
                   </>
                 ) : (
-                  <span style={{ fontSize: 12, color: "var(--fg-muted,#999)" }}>No matching project (same brand + venue) — create it first.</span>
+                  <span style={{ fontSize: 12, color: "var(--fg-muted,#999)" }}>No matching fair (same brand + venue) — create it first.</span>
                 )}
                 {res && (
                   <span style={{ fontSize: 12 }}>

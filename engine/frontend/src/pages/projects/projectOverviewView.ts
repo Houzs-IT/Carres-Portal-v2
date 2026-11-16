@@ -111,7 +111,7 @@ export function writeView(prev: URLSearchParams, patch: Partial<OverviewView>, t
    The project page's Back button used to go to the bare /projects, which opens
    on this month and the top of the page (owner 2026-10-21: 我点9月的project，按
    back 后又跳回10月，然后会跑回最上面). So opening a project notes TWO things:
-   the address it was opened from — the project's Back goes there, period,
+   the address it was opened from — the fair's Back goes there, period,
    sort and filters included — and where that page was scrolled, given back
    once when the page is shown again at that address. Both live in one
    per-tab store, the newest 20 kept, each for thirty minutes. */

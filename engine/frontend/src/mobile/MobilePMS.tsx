@@ -590,7 +590,7 @@ function ProjectListView({
             )}
             <div>
               <div className="eyebrow">PMS</div>
-              <div className="scr-title">Projects</div>
+              <div className="scr-title">Fairs</div>
             </div>
           </div>
           {/* New event (owner 2026-07-31) — same gate as the desktop button:
@@ -638,7 +638,7 @@ function ProjectListView({
       <div ref={scrollRef} className="scroll" style={{ padding: 14, paddingBottom: 120 }} onScroll={(e) => { if (scrollMemory) scrollMemory.current = e.currentTarget.scrollTop; }}>
 
         {isLoading && <div style={{ textAlign: "center", color: "var(--hz-c-ink-soft)", fontSize: 12, padding: "26px 0" }}>Loading…</div>}
-        {error && <div style={{ textAlign: "center", color: "var(--hz-c-err)", fontSize: 12, padding: "26px 0" }}>Couldn't load projects. Pull to retry.</div>}
+        {error && <div style={{ textAlign: "center", color: "var(--hz-c-err)", fontSize: 12, padding: "26px 0" }}>Couldn't load fairs. Pull to retry.</div>}
         {!isLoading && !error && myPendingOn && rows.length === 0 && (
           <div style={{ textAlign: "center", padding: "26px 0" }}>
             <div style={{ color: "var(--hz-c-ink-soft)", fontSize: 12 }}>Nothing pending on your side.</div>
@@ -733,8 +733,8 @@ function ProjectListView({
             )}
             {!visibleRows.length && !searchTransition.isSearching && (
               <div className="empty">
-                <div className="empty-t">No projects</div>
-                <div className="empty-s">No projects match this filter.</div>
+                <div className="empty-t">No fairs</div>
+                <div className="empty-s">No fairs match this filter.</div>
               </div>
             )}
           </>
@@ -798,7 +798,7 @@ function ProjectDetailView({
     const list: Array<{ key: "so" | "case" | "project"; label: string; onClick: () => void }> = [];
     if (canNewSo && onCreateSO) list.push({ key: "so", label: "New Sales Order", onClick: onCreateSO });
     if (canNewCase && onCreateCase) list.push({ key: "case", label: "New Service Case", onClick: onCreateCase });
-    if (canNewProject && onCreateProject) list.push({ key: "project", label: "New Project", onClick: onCreateProject });
+    if (canNewProject && onCreateProject) list.push({ key: "project", label: "New Fair", onClick: onCreateProject });
     return list;
   }, [canNewSo, canNewCase, canNewProject, onCreateSO, onCreateCase, onCreateProject]);
 
@@ -1218,7 +1218,7 @@ function ProjectDetailView({
                     } finally { setBusy(false); }
                     return;
                   }
-                  if (!(await confirm({ title: "Archive this project?", confirmLabel: "Archive", danger: true }))) return;
+                  if (!(await confirm({ title: "Archive this fair?", confirmLabel: "Archive", danger: true }))) return;
                   setBusy(true);
                   try {
                     await api.post(`/api/projects/${id}/archive`);
@@ -1262,7 +1262,7 @@ function ProjectDetailView({
               <button
                 className="tinybtn"
                 disabled={busy}
-                aria-label="Edit project"
+                aria-label="Edit fair"
                 style={{ background: "rgba(255,255,255,.08)", borderColor: "rgba(231,234,228,.18)", color: "#e7eae4" }}
                 onClick={() => { if (!busy) setEditOpen(true); }}
               >
@@ -1297,7 +1297,7 @@ function ProjectDetailView({
         )}
         <div
           role="button"
-          aria-label="Project code"
+          aria-label="Fair code"
           aria-expanded={metaExpanded}
           onClick={() => setMetaExpanded((v) => !v)}
           style={{
@@ -1323,7 +1323,7 @@ function ProjectDetailView({
 
       <div className="scroll" style={{ padding: 14, paddingBottom: 120 }}>
         {isLoading && <div style={{ textAlign: "center", color: "var(--hz-c-ink-soft)", fontSize: 12, padding: "26px 0" }}>Loading…</div>}
-        {error && <div style={{ textAlign: "center", color: "var(--hz-c-err)", fontSize: 12, padding: "26px 0" }}>Couldn't load this project.</div>}
+        {error && <div style={{ textAlign: "center", color: "var(--hz-c-err)", fontSize: 12, padding: "26px 0" }}>Couldn't load this fair.</div>}
 
         {!isLoading && !error && data && p && (
           <>
@@ -1341,7 +1341,7 @@ function ProjectDetailView({
                   background: "rgba(178,58,58,0.06)",
                 }}
               >
-                We couldn't load your permissions for this project, so some sections
+                We couldn't load your permissions for this fair, so some sections
                 are hidden. This is a system problem, not a restriction on your
                 account — please reload, and tell IT if it persists.
               </div>
