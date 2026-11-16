@@ -24,6 +24,7 @@ export type MrpLine = {
   createdAt?: string | null;
   debtorName: string | null;
   customerState: string | null;  // staff #8 — info-only, from the SO's customer_state
+  refNo?: string | null;         // Carres: the SO's Ref number
   soDate: string | null;
   deliveryDate: string | null;
   processingDate: string | null;
@@ -84,6 +85,7 @@ export type SofaSet = {
   createdAt: string | null;
   debtorName: string | null;
   customerState: string | null;  // staff #8 — info-only, from the SO's customer_state
+  refNo?: string | null;         // Carres: the SO's Ref number
   soDate: string | null;
   deliveryDate: string | null;
   processingDate: string | null;

@@ -1404,9 +1404,10 @@ const SoLineCols = ({ module }: { module?: boolean }) => (
   <colgroup>
     <col className={styles.colSelect} />
     <col className={styles.cSoNo} />
+    <col className={styles.cRef} />
     <col className={styles.cWh} />
     {module && <col className={styles.cModule} />}
-    <col />
+    <col className={styles.cCustomer} />
     <col className={styles.cState} />
     <col className={styles.cDate} />
     <col className={styles.cDate} />
@@ -1432,6 +1433,7 @@ const OrderLines = ({ sku, selected, onToggleLine, lineSupplier, onLineSupplierC
       <tr>
         <th className={styles.colSelect} />
         <th>SO No</th>
+        <th>Ref</th>
         <th>Warehouse</th>
         <th>Customer</th>
         <th>State</th>
@@ -1484,6 +1486,7 @@ const ChildLine = ({ ln, suppliers, whCode, whName, selected, onToggleLine, chos
         )}
       </td>
       <td className={styles.codeCell}>{ln.soDocNo}</td>
+      <td>{ln.refNo || '—'}</td>
       <td className={styles.whCell}>
         {whCode
           ? <span className={styles.whTag} title={whName ?? undefined}>{whCode}</span>
@@ -1552,6 +1555,7 @@ const SofaSoTable = ({ group, selected, onToggleLine, lineSupplier, onLineSuppli
       <tr>
         <th className={styles.colSelect} />
         <th>SO No</th>
+        <th>Ref</th>
         <th>Warehouse</th>
         <th>Module</th>
         <th>Customer</th>
@@ -1579,6 +1583,7 @@ const SofaSoTable = ({ group, selected, onToggleLine, lineSupplier, onLineSuppli
               )}
             </td>
             <td className={styles.codeCell}>{ln.soDocNo}</td>
+            <td>{ln.refNo || '—'}</td>
             <td className={styles.whCell}>
               {v.warehouseCode
                 ? <span className={styles.whTag} title={v.warehouseName ?? undefined}>{v.warehouseCode}</span>
@@ -1623,7 +1628,7 @@ const SofaSoTable = ({ group, selected, onToggleLine, lineSupplier, onLineSuppli
       {accessoryRiders.length > 0 && (
         <tr className={styles.detailRow}>
           <td />
-          <td colSpan={10} className="py-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+          <td colSpan={11} className="py-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
             {poMode === 'combined'
               ? 'Accessories on this order (皮套 / pillow) — ride on the sofa PO when a supplier matches, else their own PO'
               : 'Accessories on this order (皮套 / pillow) — ordered on their own PO (Per-SO); switch to Combined to ride on the sofa PO'}
@@ -1640,6 +1645,7 @@ const SofaSoTable = ({ group, selected, onToggleLine, lineSupplier, onLineSuppli
               <span className={styles.variantBranch}>↳</span>
             </td>
             <td className={styles.codeCell}>{line.soDocNo}</td>
+            <td>{line.refNo || '—'}</td>
             <td className={styles.whCell}>
               {sku.warehouseCode
                 ? <span className={styles.whTag} title={sku.warehouseName ?? undefined}>{sku.warehouseCode}</span>

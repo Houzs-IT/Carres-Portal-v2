@@ -226,6 +226,7 @@ type DemandRow = {
        derived from the delivery date and the category lead time. NOT a
        production date: there is no production. */
     customer_state: string | null;       // staff #8 — show the customer's state (info-only)
+    ref: string | null;                  // Carres: the SO's own Ref number, shown beside the SO No
     sales_location: string | null;       // the SO's OWN warehouse of record (lib/so-warehouse.ts)
   } | null;
 };
@@ -280,6 +281,7 @@ export type MrpLine = {
   soDocNo: string;
   debtorName: string | null;
   customerState: string | null;  // staff #8 — info-only, from the SO's customer_state
+  refNo: string | null;          // Carres: the SO's Ref number (owner, 16 Nov 2026)
   soDate: string | null;
   deliveryDate: string | null;
   processingDate: string | null;
@@ -350,6 +352,7 @@ type SofaSet = {
   createdAt: string | null;
   debtorName: string | null;
   customerState: string | null;  // staff #8 — info-only, from the SO's customer_state
+  refNo: string | null;          // Carres: the SO's Ref number (owner, 16 Nov 2026)
   soDate: string | null;
   deliveryDate: string | null;
   processingDate: string | null;
@@ -675,7 +678,7 @@ export async function computeMrp(
     .from('mfg_sales_order_items')
     .select(`
       id, doc_no, item_code, description, item_group, variants, qty, warehouse_id, line_delivery_date, line_delivery_date_overridden, line_no, created_at, cancelled, allocated_batch_no,
-      so:mfg_sales_orders!inner ( debtor_name, status, on_hold, so_date, customer_delivery_date, amended_delivery_date, processing_date, customer_state, sales_location )${embedDelivered ? `, ${MRP_DELIVERED_EMBED}` : ''}
+      so:mfg_sales_orders!inner ( debtor_name, status, on_hold, so_date, customer_delivery_date, amended_delivery_date, processing_date, customer_state, sales_location, ref )${embedDelivered ? `, ${MRP_DELIVERED_EMBED}` : ''}
     `)
     .eq('cancelled', false)
     .not('so.status', 'in', SO_DONE_SQL)
@@ -1402,6 +1405,7 @@ export async function computeMrp(
         soDocNo: r.doc_no,
         debtorName: r.so?.debtor_name ?? null,
         customerState: r.so?.customer_state ?? null,
+        refNo: r.so?.ref ?? null,
         soDate: r.so?.so_date ?? null,
         deliveryDate: lineDelivery,
         processingDate: r.so?.processing_date ?? null,
@@ -1615,6 +1619,7 @@ export async function computeMrp(
         createdAt: d.created_at ?? null,
         debtorName: d.so?.debtor_name ?? null,
         customerState: d.so?.customer_state ?? null,
+        refNo: d.so?.ref ?? null,
         soDate: d.so?.so_date ?? null,
         deliveryDate: setDelivery,
         processingDate: d.so?.processing_date ?? null,
@@ -1947,6 +1952,17 @@ mrp.get('/', async (c) => {
        `computedAt` let the page show "as of <time>". */
     if (isDefaultMrpView(catFilter, whFilter, includeUndated)) {
       const snap = await readMrpSnapshot(sb, companyId);
+      /* Carres (owner, 16 Nov 2026: "这张单有date了还没有出来"): a sales order saved after the snapshot was taken
+         (a Processing Date set, a line added) would stay off this page until the next 15-minute run. When any
+         order of this company changed since, compute now and store it, so the page is never older than the
+         orders behind it. */
+      if (snap && companyId != null) {
+        const { data: changed } = await sb.from('mfg_sales_orders').select('doc_no')
+          .eq('company_id', companyId).gt('updated_at', snap.computedAt).limit(1);
+        if ((changed ?? []).length === 0) return c.json({ ...snap.result, computedAt: snap.computedAt, stored: true });
+        const fresh = await refreshMrpSnapshot(sb, companyId, await loadLeadBuffers(c.env.DB), new Date().toISOString());
+        return c.json({ ...fresh.result, computedAt: fresh.computedAt, stored: true });
+      }
       if (snap) return c.json({ ...snap.result, computedAt: snap.computedAt, stored: true });
     }
     const result = await computeMrp(sb, { catFilter, whFilter, includeUndated, companyId, leadBuffers: await loadLeadBuffers(c.env.DB), nettingCheck: c.req.query('nettingCheck') === '1' });
