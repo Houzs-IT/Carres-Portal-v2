@@ -2464,7 +2464,7 @@ export function MobileNewSO({
                 </div>
                 {/* Carres: the Showroom, or a Project instead, in place of the Fair (owner 2026-11-12). */}
                 {carresSale && (
-                  <Field label="Showroom">
+                  <Field label="Showroom *">
                     <SalePlacePicker
                       id="mob-so-showroom"
                       value={salePlace.value}
