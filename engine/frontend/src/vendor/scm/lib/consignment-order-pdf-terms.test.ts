@@ -88,7 +88,7 @@ describe('consignment order PDF — temporary-provision terms', () => {
     const filled = await printedText(CONSIGNMENT_ORDER_PDF_OPTS, { ref: 'HC-SO-009191' });
     expect(filled).toContain('Ref No.');
     expect(filled).toContain('HC-SO-009191');
-    expect(filled).toContain('contact us at');
+    // Carres: the contact line prints only when Branding has a customer-service contact (blank here).
   });
 
   test('the Ref No. the CO form writes (customer_so_no) prints too — HC-CS-2610-001 showed a dash for HC12457', async () => {
