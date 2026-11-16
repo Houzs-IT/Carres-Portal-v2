@@ -424,13 +424,14 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
   const ROW_REST = "font-medium text-c-ink hover:bg-c-hover";
   const ROW_ON = "bg-c-select-pill font-semibold text-c-select-fg [box-shadow:var(--shadow-lift)]";
   const PAGE =
-    "flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] leading-[17px]";
+    "flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2.5 py-[7px] text-left text-[12px] leading-[16px]";
   const PAGE_REST = "font-normal text-c-body hover:bg-c-hover";
   const PAGE_ON = "bg-c-select-pill font-semibold text-c-select-fg";
   const SECTION_LABEL = "text-[11px] font-semibold uppercase leading-[14px] tracking-[0.06em] text-c-secondary";
-  const GROUP_LABEL = "text-[13px] font-normal leading-[17px] text-c-body";
-  /** A long name wraps to a second line; it is never cut. */
-  const WRAP = "min-w-0 flex-1 break-words [text-wrap:pretty]";
+  const GROUP_LABEL = "text-[12px] font-normal leading-[16px] text-c-body";
+  /** One line per page, as in Houzs's menu (owner, 16 Nov 2026: "全部变两排了 也是要缩小"); a name too long for
+   *  the menu ends in "…" and shows whole on hover. */
+  const WRAP = "min-w-0 flex-1 truncate whitespace-nowrap";
 
   /** The row icon: the Material Symbol when the menu row has one, else the
    *  area's own icon (Finance · People · Admin rows). */
@@ -492,7 +493,7 @@ export default function PortalSidebar({ drawer = false, compactForCanvas = false
             {group.area === "operation" && child.section && HOUZS_ICON_SECTIONS.has(child.section) && (
               <child.icon size={16} strokeWidth={1.5} aria-hidden data-testid={`houzs-icon-${child.key}`} className={`shrink-0 ${active ? "" : "text-c-tab"}`} />
             )}
-            <span className={WRAP}>{child.label}</span>
+            <span className={WRAP} title={child.label}>{child.label}</span>
             {child.badge && <NavBadge count={badgeCount[child.badge] ?? 0} label={child.label} />}
           </Link>
         )}

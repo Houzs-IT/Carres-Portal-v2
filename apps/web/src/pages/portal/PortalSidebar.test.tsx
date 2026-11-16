@@ -631,12 +631,11 @@ describe("the tree line", () => {
     expect(screen.queryByTestId("houzs-icon-work")).toBeNull();
   });
 
-  it("a long name wraps to a second line and is never cut", () => {
+  it("a page name stays on one line and shows whole on hover (owner, 16 Nov 2026)", () => {
     renderAt("/operation/sc/delivery-planning");
     const label = within(child("delivery-planning-driver")).getByText("Last Mile Delivery (Driver)");
-    expect(label.className).toContain("break-words");
-    expect(label.className).not.toContain("truncate");
-    expect(document.querySelector("[data-testid='portal-sidebar'] .truncate")).toBeNull();
+    expect(label.className).toContain("whitespace-nowrap");
+    expect(label.getAttribute("title")).toBe("Last Mile Delivery (Driver)");
   });
 
   /* The menu draws its own tree; it does not import the connector the
@@ -1337,10 +1336,10 @@ describe("PortalSidebar — the Maintenance group", () => {
     expect(within(row).getByText("Maintenance")).toBeInTheDocument();
   });
 
-  it("the word is a normal-case 13px row label, never a caps heading or a destination", () => {
+  it("the word is a normal-case 12px row label, never a caps heading or a destination", () => {
     renderAt("/operation/sc/fleet-day");
     const row = group_(MAINTENANCE);
-    expect(row.className).toContain("text-[13px]");
+    expect(row.className).toContain("text-[12px]");
     expect(row.className).toContain("font-normal");
     expect(row.className).not.toContain("uppercase");
     expect(row.className).not.toContain("text-[11px]");
@@ -1390,7 +1389,7 @@ describe("PortalSidebar — the Maintenance group", () => {
     expect(group_(MAINTENANCE).className).toContain("pl-7");
     expect(treeRow("fleet-day").className).toContain("pl-[18px]");
     expect(child("coverage-fleet").className).toContain("px-2.5");
-    expect(child("coverage-fleet").className).toContain("text-[13px]");
+    expect(child("coverage-fleet").className).toContain("text-[12px]");
   });
 
   it("the group word carries no trunk and no elbow: the line stops before it", () => {
