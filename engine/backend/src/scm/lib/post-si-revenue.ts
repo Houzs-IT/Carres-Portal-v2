@@ -21,6 +21,7 @@ import { resolveRoles, siLines, DEFAULT_ROLE_CODES } from '../../acc/rules';
 import { splitByItemGroup } from '../../acc/item-group-split';
 import { customerPartyCode } from '../../acc/payments';
 import { applyDepositInvoicesBestEffort } from '../../acc/deposit-invoices';
+import { arForOrder, withAr } from '../../carres/channel-ar';
 
 export type PostSiResult =
   | { ok: true; status: 'posted'; jeNo: string; jeId: string; totalSen: number }
@@ -97,7 +98,8 @@ export async function postSiRevenue(sb: any, invoiceNumber: string): Promise<Pos
     partyCode = customerPartyCode(order?.debtor_code, order?.customer_id);
   }
 
-  const roles = await resolveRoles(sb, companyId);
+  const allRoles = await resolveRoles(sb, companyId);
+  const roles = withAr(allRoles, await arForOrder(sb, allRoles, companyId, soDocNo)); // Carres: the order's channel debtor control
   const r = await postJournal(sb, {
     companyId,
     entryDate: si.invoice_date,

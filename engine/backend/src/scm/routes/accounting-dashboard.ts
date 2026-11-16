@@ -38,6 +38,7 @@ import { todayMyt } from '../lib/my-time';
 import type { StockBucket } from '../lib/stock-bucket';
 import { countsInTheBooks } from '../../acc/reversal-pairs';
 import { resolveRoles, type AccountRole } from '../../acc/rules';
+import { arControlCodes } from '../../carres/channel-ar';
 import { bucketByWarehouse, foldStockByBucket, foldStockByItem, loadOwnedMovementsUpTo, type OwnedMovement } from '../../acc/stock-close';
 import { loadBooksOpening, type BooksOpening } from '../../acc/books-opening';
 import type { LaidNode, LayoutItem, ReportKey } from '../../acc/report-layout';
@@ -240,7 +241,7 @@ async function preload(sb: Sb, companyId: number, layoutIds: number[], windowSta
      card asks for every column). */
   const liveDocs = orders.orders.filter((o) => !SO_NOT_AN_ORDER.has(String(o.status))).map((o) => o.doc_no);
   const itemCodes = [...new Set(moves.rows.map((r) => String(r.item_code ?? '')).filter(Boolean))];
-  const controlCodes = new Set([roles.AR, roles.AP, roles.AP_OTHER, roles.AR_OTHER].filter(Boolean) as string[]);
+  const controlCodes = new Set([...arControlCodes(roles), roles.AP, roles.AP_OTHER, roles.AR_OTHER].filter(Boolean) as string[]); // Carres: + the channel debtor controls
   const apControls = new Set([roles.AP, roles.AP_OTHER].filter(Boolean) as string[]);
   const moneySet = new Set(money.accounts.map((a) => a.code));
   const vouchers = supplierVouchersOf(glRows.filter((r) => r.entry_date >= windowStart && r.entry_date <= windowEnd), moneySet, apControls);

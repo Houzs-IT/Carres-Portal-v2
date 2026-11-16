@@ -101,7 +101,7 @@ async function verifyBinding(
     .map((r) => [r.account_code, r]));
   const headers = new Set(((kids.data ?? []) as Array<{ parent_code: string | null }>).map((r) => String(r.parent_code ?? '')));
   const controlRoleOf = new Map<string, string>();
-  for (const role of CONTROL_ROLES) if (roles[role]) controlRoleOf.set(roles[role], role);
+  for (const role of CONTROL_ROLES) if (roles[role] && !controlRoleOf.has(roles[role])) controlRoleOf.set(roles[role], role); // Carres: the first role names a shared code
   for (const slot of Object.keys(SLOT_LABEL) as Array<keyof GroupBinding>) {
     const code = binding[slot];
     const row = found.get(code);

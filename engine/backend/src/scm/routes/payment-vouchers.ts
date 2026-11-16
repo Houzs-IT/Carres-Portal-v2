@@ -558,9 +558,10 @@ export async function learnVendorMemory(
    CLOSED (500), the same way requireLeafAccount does. */
 async function supplierOwnControl(
   c: any, purposeRaw: unknown, supplierIdRaw: unknown,
+  refundSource: { type?: unknown; docNo?: unknown } = {}, // Carres: a refund's own control is its source's channel debtor control
 ): Promise<{ code: string | null; control: string | null; wrong: string | null } | { resp: Response }> {
   const none = { code: null, control: null, wrong: null };
-  if (isRefund(purposeRaw)) return { ...none, control: await refundOwnControl(c.get('supabase'), activeCompanyId(c)) };
+  if (isRefund(purposeRaw)) return { ...none, control: await refundOwnControl(c.get('supabase'), activeCompanyId(c), refundSource) };
   if (normalizePurpose(purposeRaw) !== 'SUPPLIER_PAYMENT' || !supplierIdRaw) return none;
   const coId = activeCompanyId(c);
   if (coId == null) return none;
@@ -620,7 +621,7 @@ export const createPaymentVoucherCore = async (c: any, body: Record<string, unkn
      the control lock below must let the supplier payment's OWN control line
      through (docs/bugs/0649 — it refused every AP Payment for three days),
      and the wrong-control door refuses the OTHER control. */
-  const own = await supplierOwnControl(c, body.purpose, body.supplierId);
+  const own = await supplierOwnControl(c, body.purpose, body.supplierId, { type: body.refundSourceType, docNo: body.refundSourceDocNo });
   if ('resp' in own) return own.resp;
 
   if (own.control != null && own.wrong != null && built.rows.some((r) => r.debit_account_code === own.wrong)) {
@@ -895,6 +896,7 @@ export const updatePaymentVoucherHandler = async (c: any) => {
       c,
       body.purpose !== undefined ? body.purpose : before.purpose,
       body.supplierId !== undefined ? body.supplierId : before.supplier_id,
+      { type: before.refund_source_type, docNo: before.refund_source_doc_no },
     );
     if ('resp' in own) return own.resp;
     for (const dCode of [...new Set(built.rows.map((r) => r.debit_account_code))]) {
@@ -1131,7 +1133,7 @@ export const postPaymentVoucherHandler = async (c: any) => {
     sourceDocNo: pv.pv_number,
     narration: isRefund(pv.purpose) ? `Customer refund ${pv.pv_number} — ${pv.payee_name} (${refundPv.refund_source_doc_no ?? '?'})` : `Payment voucher ${pv.pv_number} — ${pv.payee_name}`,
     lines: (isRefund(pv.purpose)
-      ? customerRefundLines({ ...pv, refund_source_doc_no: refundPv.refund_source_doc_no ?? null }, (await resolveRoles(sb, companyId)).AR, { code: customerPartyCode(refundPv.debtor_code, refundPv.customer_id), name: pv.payee_name }, totalSen)
+      ? customerRefundLines({ ...pv, refund_source_doc_no: refundPv.refund_source_doc_no ?? null }, await refundOwnControl(sb, companyId, { type: refundPv.refund_source_type, docNo: refundPv.refund_source_doc_no }) ?? (await resolveRoles(sb, companyId)).AR, { code: customerPartyCode(refundPv.debtor_code, refundPv.customer_id), name: pv.payee_name }, totalSen)
       : pvLines(pv, debitLegs, supplier, apControlCode)
     ).concat(pvBankChargeLines(pv, feeSen, bankChargeAccount)),
   });

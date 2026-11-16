@@ -65,7 +65,7 @@ async function staffNames(sb: Db, ids: string[]): Promise<{ ok: true; names: Map
   return { ok: true, names: new Map(rows.data.filter((r) => r.name).map((r) => [String(r.id), String(r.name)])) };
 }
 
-async function runOne(sb: Db, companyId: number, role: 'AR' | 'AP' | 'AP_OTHER' | 'AR_OTHER', accountCode: string): Promise<ControlCheckRow> {
+async function runOne(sb: Db, companyId: number, role: 'AR' | 'AP' | 'AP_OTHER' | 'AR_OTHER' | 'AR_SHOWROOM' | 'AR_SUBSCRIPTION', accountCode: string): Promise<ControlCheckRow> {
   const expectedSource = role === 'AR' ? 'SI' : 'PI';
   /* AP_OTHER (405-0000, the 2026-09-03 split) and AR_OTHER (305-0000, the
      Other Debtors module): the document↔journal drift walk below is
@@ -73,7 +73,8 @@ async function runOne(sb: Db, companyId: number, role: 'AR' | 'AP' | 'AP_OTHER' 
      once, and a debtor bill cannot exist without its journal (the create is
      atomic). These arms contribute what IS control-specific: the GL balance
      and any foreign line parked on the control. */
-  const docDrift = role !== 'AP_OTHER' && role !== 'AR_OTHER';
+  /* Carres: a channel debtor control (AR_SHOWROOM / AR_SUBSCRIPTION) checks its balance and foreign lines; the invoice walk runs once, on AR. */
+  const docDrift = role === 'AR' || role === 'AP';
 
   const jeByDoc = new Map<string, { jeTotal: number; jeNo: string | null }>();
   if (docDrift) {
@@ -203,7 +204,7 @@ async function runOne(sb: Db, companyId: number, role: 'AR' | 'AP' | 'AP_OTHER' 
      saw its two lines as findings); AP moves on purchase invoices AND on the
      payment vouchers that settle them. Anything else on the account is the
      finding. */
-  const family = role === 'AR'
+  const family = role === 'AR' || role === 'AR_SHOWROOM' || role === 'AR_SUBSCRIPTION'
     ? new Set(['SI', 'SI_REVERSAL', 'SOPAY', 'SOPAY_REVERSAL', 'SIPAY', 'SIPAY_REVERSAL',
       'DI', 'DI_REVERSAL', 'CN', 'CN_REVERSAL', 'PV', 'PV_REVERSAL', CONVERT_SOURCE, `${CONVERT_SOURCE}_REVERSAL`])
     : role === 'AR_OTHER'
@@ -255,6 +256,9 @@ export async function runControlCheck(sb: Db, companyId: number): Promise<Contro
   const roles = await resolveRoles(sb, companyId);
   const checks = [
     await runOne(sb, companyId, 'AR', roles.AR),
+    // Carres: each channel debtor control of its own (carres/channel-ar.ts), when the company splits them.
+    ...(roles.AR_SHOWROOM !== roles.AR ? [await runOne(sb, companyId, 'AR_SHOWROOM', roles.AR_SHOWROOM)] : []),
+    ...(roles.AR_SUBSCRIPTION !== roles.AR && roles.AR_SUBSCRIPTION !== roles.AR_SHOWROOM ? [await runOne(sb, companyId, 'AR_SUBSCRIPTION', roles.AR_SUBSCRIPTION)] : []),
     await runOne(sb, companyId, 'AR_OTHER', roles.AR_OTHER),
     await runOne(sb, companyId, 'AP', roles.AP),
     await runOne(sb, companyId, 'AP_OTHER', roles.AP_OTHER),
