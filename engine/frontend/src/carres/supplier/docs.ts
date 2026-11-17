@@ -7,6 +7,7 @@
 // sign-in, which a supplier page never touches.
 import type { FinanceOrder, FinanceVisible, Order, Pickup, ScheduleItem } from "./api";
 import { clock12, fmtDay, fmtStamp, instalmentBadge, money, orderPickupBadge, pickupBadge, stageBadge } from "./ui";
+import { PDF_COMPRESS } from "../../vendor/scm/lib/pdf-options";
 
 type JsPdf = import("jspdf").jsPDF;
 type AutoTable = (doc: JsPdf, options: Record<string, unknown>) => void;
@@ -18,7 +19,7 @@ const LINE: [number, number, number] = [229, 231, 235];
 
 async function start(): Promise<{ doc: JsPdf; table: AutoTable }> {
   const [{ jsPDF }, auto] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-  return { doc: new jsPDF({ compress: true, unit: "mm", format: "a4", orientation: "portrait" }), table: auto.default as unknown as AutoTable };
+  return { doc: new jsPDF({ ...PDF_COMPRESS, unit: "mm", format: "a4", orientation: "portrait" }), table: auto.default as unknown as AutoTable };
 }
 
 /** The letterhead: the company on the left, the document's name and number on the right, a rule under them. */

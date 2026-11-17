@@ -57,6 +57,8 @@ export const BROWSER_STORAGE_KEY_REGISTRY: readonly StorageKeyRegistration[] = [
   { id: "carres-supplier-session", classification: "AUTH", storage: ["sessionStorage"], keyFamily: "carres.supplier.session", matches: exact("carres.supplier.session") },
   // Carres: the portal's phone flag for this tab (carres/embed.ts), so a reload inside the frame keeps the phone app.
   { id: "carres-embed-phone", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "carres:phone", matches: exact("carres:phone") },
+  // Carres: a supplier person's column and sort choices on the Supplier Platform lists (carres/supplier/ListTable.tsx).
+  { id: "carres-supplier-list-prefs", classification: "DEVICE_PREF", storage: ["localStorage"], keyFamily: "carres.supplier.list.<list>", matches: prefix("carres.supplier.list.") },
   { id: "active-company", classification: "AUTH", storage: ["localStorage", "sessionStorage"], keyFamily: "houzs.activeCompanyId.v2 (durable, keyed u<user>) + houzs.activeCompanyId.tab (this tab) + pre-v2 ownerless keys, cleanup only", matches: prefix("houzs.activeCompanyId") },
   { id: "remembered-login", classification: "AUTH", storage: ["localStorage"], keyFamily: "houzs:login:lastEmail:v1 (+ legacy aliases)", matches: (key) => ["houzs:login:lastEmail:v1", "auth:lastEmail", "houzs_remember_email"].includes(key) },
   { id: "mail-drafts", classification: "DRAFT_UI", storage: ["localStorage"], keyFamily: "houzs-mail-local:v1|v2:u<user>:c<company>", matches: (key) => key === "houzs-mail-local:v1" || key.startsWith("houzs-mail-local:v2:") },
@@ -176,6 +178,8 @@ export const PRODUCTION_STORAGE_CALLERS = [
   "carres/embed.ts",
   // Carres: the Supplier Platform's own session token (carres-supplier-session). Its own key, its own API.
   "carres/supplier/api.ts",
+  // Carres: the Supplier Platform lists keep their column and sort choices (carres-supplier-list-prefs).
+  "carres/supplier/ListTable.tsx",
   "components/AndroidInstallGuide.tsx",
   "components/announcementLocalAcks.ts",
   "components/AssistantLauncher.tsx",
