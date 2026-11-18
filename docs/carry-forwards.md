@@ -25,7 +25,10 @@ history and pickup requests with sample Delivery Orders. Each order's `CREATE` a
 and source `database`; the customers' notes say they are test data. In the portal: 96 subscription agreements
 whose notes begin `TEST: sample subscription for the supplier Finance view`, made and approved through the
 real functions, with their customers, schedules and the months recorded as paid (which also posted ledger
-entries). One earlier sample sofa order and its pickup request were removed on 19 Nov 2026.
+entries). One earlier sample sofa order and its pickup request were removed on 19 Nov 2026. **Before the
+Venture Portal feed is switched on:** the engine queued all 120 test orders in `scm.venture_portal_outbox`
+(`pending`; measured 19 Nov 2026: 130 pending, none ever sent), so they would be sent with the first run unless
+those rows are cleared first.
 
 **Close it** when the owner has finished looking, and in any case before the first real supplier is turned
 on: Settings › Supplier Access, that supplier, untick `may sign in`, Save. Its sessions end on the next
