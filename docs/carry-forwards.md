@@ -1,14 +1,39 @@
-## `supplier-test-login-is-on` — OPEN, with the owner, 2026-11-16
+## `subscription-so-link-writer` — OPEN, found 2026-11-19
 
-**What.** One test login exists on the Supplier Platform, opened at the owner's request so he can read the
-pages as a supplier does. Carres holds it, not a supplier's person. It sees one supplier's own items (one
-order on the day it was opened) and, as the supplier marked for the subscription share, every subscription
-order. Which supplier and which email are not written here: this repository is public.
+**What.** The Supplier Platform's Finance page names each subscription's Sales Order from
+`rental_agreements.so_doc_no` (0781): the engine's number, the one the supplier sees on its Sales Orders page.
+Nothing writes that column. Staff make a subscription Sales Order in the engine (`sale_type`, owner ruling
+12 Nov 2026); the agreement is signed in the portal's rental sell lane, which makes a portal order of its own.
+The two never meet, so a real subscription shows `SO-<n>` or `Not linked`. Only the test subscriptions behind
+the test login carry the link, filled from their notes.
+
+**Close it** by deciding which side makes the other: the engine Sales Order opening the agreement, or the
+signed agreement opening the engine Sales Order. Whichever does writes `so_doc_no` in the same act. That is a
+Sales Orders + Rental decision for the owner, not an engineering one.
+
+## `supplier-test-login-is-on` — OPEN, with the owner, 2026-11-16 (test data added 2026-11-18/19)
+
+**What.** Two test logins exist on the Supplier Platform, one per department (Operation; Finance, which may
+also read the Operation pages), opened at the owner's request so he can read the pages as a supplier does.
+Carres holds them, not a supplier's person. Their supplier sees three Carres house mattress models, bound to
+no supplier, and, as the supplier marked for the subscription share, every subscription order. Which supplier
+and which emails are not written here: this repository is public.
+
+**Test data written for it, at the owner's request (18–19 Nov 2026), straight into the databases.** In the
+engine: 120 mattress Sales Orders (96 subscription, 24 outright), their customers (named `TEST …`), their stage
+history and pickup requests with sample Delivery Orders. Each order's `CREATE` audit row has actor `Test data`
+and source `database`; the customers' notes say they are test data. In the portal: 96 subscription agreements
+whose notes begin `TEST: sample subscription for the supplier Finance view`, made and approved through the
+real functions, with their customers, schedules and the months recorded as paid (which also posted ledger
+entries). One earlier sample sofa order and its pickup request were removed on 19 Nov 2026. **Before the
+Venture Portal feed is switched on:** the engine queued all 120 test orders in `scm.venture_portal_outbox`
+(`pending`; measured 19 Nov 2026: 130 pending, none ever sent), so they would be sent with the first run unless
+those rows are cleared first.
 
 **Close it** when the owner has finished looking, and in any case before the first real supplier is turned
 on: Settings › Supplier Access, that supplier, untick `may sign in`, Save. Its sessions end on the next
 request. Only one supplier can hold the subscription share, so the real one cannot be marked until this one is
-unmarked.
+unmarked. Removing the test data is a delete, so it waits for the owner's word in that conversation.
 
 ## `engine-frame-has-no-camera-location-or-share` — OPEN, found 2026-11-16
 

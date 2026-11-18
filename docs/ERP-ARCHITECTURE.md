@@ -1361,6 +1361,13 @@ and the share. **Never:** a price, cost or margin of a Sales Order, a payment me
 a Stripe id, a commission, a phone number, an email, a remark or note, a staff name, another
 supplier's lines or requests.
 
+**The SO number of a subscription is the engine's (Loo, 2026-11-19: "suppose is link").** The
+agreement names the Sales Order it was sold on (`rental_agreements.so_doc_no`, 0781), the same number
+as on the supplier's Sales Orders page. An agreement that names none shows the portal order it was
+sold through (`SO-<n>`), or `Not linked`. Nothing writes that link yet: a subscription Sales Order
+made in the engine and an agreement signed in the portal are two paths that do not meet
+(carry-forward `subscription-so-link-writer`).
+
 **The specification is what the goods are, and stops there.** A line's second description ends with
 `SPECIAL: …` (the add-ons, with the salesperson's free-text note among them) and `FREE · …` (the
 line cost the customer nothing). The note is free text and `FREE` is a price signal, so the supplier
