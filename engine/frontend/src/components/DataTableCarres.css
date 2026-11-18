@@ -1,0 +1,180 @@
+/* Opt-in shared presentation. Existing PO / GRN callers retain their styles. */
+.dt-carres {
+  --hz-c-primary: #1b1b39;
+  --hz-c-primary-soft: #eef3ff;
+}
+
+.dt-carres table {
+  border-radius: 8px;
+}
+
+.dt-carres thead th {
+  height: 40px;
+  padding: 4px 7px;
+  background: #f8f9fa;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dt-carres tbody > tr[data-rowkey] > td {
+  padding: 8px 7px;
+  height: 52px;
+  vertical-align: middle;
+}
+
+.dt-carres tbody > tr[data-rowkey]:hover > td {
+  background: #eef3ff;
+}
+
+.dt-carres tbody > tr[data-rowkey][aria-selected="true"] > td {
+  background: #dce6fd;
+}
+
+.dt-carres th > span.inline-flex {
+  display: flex;
+  width: 100%;
+}
+
+.dt-paired-header {
+  width: 100%;
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.dt-paired-header > div {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 2px;
+}
+
+.dt-paired-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.dt-paired-filter {
+  flex-shrink: 0;
+  color: #6b7280;
+  opacity: 0;
+}
+
+.dt-carres th:hover .dt-paired-filter, .dt-paired-filter:focus-visible, .dt-paired-header:focus-within .dt-paired-filter {
+  opacity: 1;
+}
+
+.dt-paired-value {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  line-height: 18px;
+}
+
+.dt-paired-value > div {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-size: 13px;
+  color: #111827;
+}
+
+.dt-paired-value > div:first-child {
+  font-weight: 600;
+}
+
+.dt-paired-value > div:nth-child(2), .dt-paired-value > div:nth-child(2) span {
+  font-size: 12px;
+  color: #4b5563;
+  font-weight: 400;
+}
+
+.dt-carres[data-wrap="true"] .dt-paired-value > div {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dt-carres[data-compact-baseline="true"] table {
+  min-width: 0;
+}
+
+.dt-carres td[data-col-key="amount"], .dt-carres th[data-col-key="amount"] {
+  text-align: right;
+}
+
+.carres-so-summary {
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+  padding: 12px 16px;
+}
+
+.carres-so-summary > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.carres-so-summary > div {
+  margin-top: 12px;
+}
+
+.carres-so-summary > div > div {
+  box-shadow: none;
+  border-radius: 8px;
+}
+
+.carres-so-list {
+  --hz-c-primary: #1b1b39;
+  --hz-c-primary-soft: #eef3ff;
+}
+
+.carres-so-list [data-badge-tone] {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  padding: 4px 8px;
+}
+
+.carres-so-list [data-badge-tone="success"] {
+  background: #e7f6ec;
+  color: #1e7a40;
+}
+
+.carres-so-list [data-badge-tone="warning"] {
+  background: #fbf0d6;
+  color: #7a5a00;
+}
+
+.carres-so-list [data-badge-tone="error"] {
+  background: #fde8e6;
+  color: #b42318;
+}
+
+.carres-so-list [data-badge-tone="neutral"] {
+  background: #f1f2f4;
+  color: #374151;
+}
+
+.carres-so-list [role="dialog"] {
+  border-radius: 8px 0 0 8px;
+}
+
+.carres-so-date {
+  white-space: nowrap;
+}
+
+.carres-so-weekday {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 400;
+}

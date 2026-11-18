@@ -146,6 +146,66 @@ describe("Sales Orders list: the ONE Export", () => {
     expect(h.written[0]).toMatch(/\.xlsx$/);
   });
 
+  it("shows nine two-line columns while retaining all 20 original Excel fields", async () => {
+    h.rows = [so("CR-SO-2611-099", { debtor_name: "TEST LONG CUSTOMER NAME FOR CARRES ROUND ONE",
+      city: "Petaling Jaya", customer_state: "Selangor", local_total_sen: 12845000 })];
+    const { header } = await exportNow("/scm/sales-orders");
+    expect(document.querySelectorAll("th[data-col-key]")).toHaveLength(9);
+    expect(document.querySelector('[data-field-key="city"]')?.textContent).toBe("Petaling Jaya");
+    expect(document.querySelector('[data-field-key="customer_state"]')?.textContent).toBe("Selangor");
+    expect(document.querySelector('[data-field-key="currency"]')).toBeNull();
+    expect(header).toContain("Curr. Code");
+    expect(header).toContain("UOM");
+    expect(header).toContain("Unit Price");
+    expect(header).not.toContain("City");
+    expect(header).toHaveLength(20);
+    expect(screen.getByRole("button", { name: "Processing Date" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Proceed Date" })).toBeNull();
+  });
+
+  it("sorts the second field of a pair through its original server key", async () => {
+    mount("/scm/sales-orders");
+    fireEvent.click(screen.getByRole("button", { name: "Date" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    await waitFor(() => expect(h.written).toHaveLength(1));
+    expect(h.authed.mock.calls.some(([path]) => path.includes("/export/rows") && new URLSearchParams(path.split("?")[1]).get("sort") === "so_date:asc")).toBe(true);
+  });
+
+  it("reopens old field order and distinct widths without forcing the compact view", async () => {
+    localStorage.setItem("dt:order:sales-orders-v2", JSON.stringify(["currency", "unit_price", "so_date", "reference"]));
+    localStorage.setItem("dt:shown:sales-orders-v2", JSON.stringify(["currency", "unit_price"]));
+    localStorage.setItem("dt:widths:sales-orders-v2", JSON.stringify({ currency: 96, unit_price: 211 }));
+    const { header } = await exportNow("/scm/sales-orders");
+    expect(header.slice(0, 3)).toEqual(["Doc. No.", "Curr. Code", "Unit Price"]);
+    expect((document.querySelector('th[data-col-key="unit_price"]') as HTMLElement).style.width).toBe("211px");
+    cleanup();
+    mount("/scm/sales-orders");
+    expect((document.querySelector('th[data-col-key="unit_price"]') as HTMLElement).style.width).toBe("211px");
+    expect(document.querySelector('.dt-carres[data-compact-baseline="true"]')).toBeNull();
+  });
+
+  it("keeps expand, row opening and checkbox selection as separate operations", async () => {
+    mount("/scm/sales-orders");
+    fireEvent.click(screen.getByRole("button", { name: "Expand row" }));
+    expect(screen.getByRole("button", { name: "Collapse row" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open full page" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select row" }));
+    expect(screen.getByRole("button", { name: "Print all (1)" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open full page" })).toBeNull();
+    fireEvent.click(document.querySelector('tr[data-rowkey]')!);
+    expect(screen.getByRole("button", { name: "Open full page" })).toBeTruthy();
+  });
+
+  it("freezes a visual pair when its second field opens the header menu", () => {
+    mount("/scm/sales-orders");
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Date" }));
+    fireEvent.click(screen.getByRole("button", { name: "Freeze up to here" }));
+    expect(JSON.parse(localStorage.getItem("dt:pinned:sales-orders-v2")!)).toEqual(["so_date"]);
+    expect(document.querySelectorAll("th[data-col-key]")).toHaveLength(9);
+    expect((document.querySelector('th[data-col-key="doc_no"]') as HTMLElement).style.position).toBe("sticky");
+    expect((document.querySelector('td[data-col-key="doc_no"]') as HTMLElement).style.position).toBe("sticky");
+  });
+
   /* HC-0122 / 2990-0010 (Syu 2026-10-19): the column is the ORIGINAL delivery
      date (BUG-51): the ERP's frozen sales_exemption_expiry, else the AutoCount
      book's value, else the delivery date. Never blank just because the order is

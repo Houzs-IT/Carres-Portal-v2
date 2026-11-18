@@ -170,6 +170,7 @@ function ReadOnlyBanner() {
 
 interface PageHeaderProps {
   title: string;
+  titleMeta?: ReactNode;
   description?: string;
   /** Always-rendered ReactNode (status pill, filter strip, bespoke chrome).
    *  Same shape as before — pages that don't opt into the new split keep working. */
@@ -223,6 +224,7 @@ interface PageHeaderProps {
 
 export function PageHeader({
   title,
+  titleMeta,
   description,
   actions,
   primaryAction,
@@ -357,6 +359,7 @@ export function PageHeader({
         )}
         {/* Two literal class strings, not an interpolated one — Tailwind only
             emits classes it can see whole in the source. */}
+        <div className={titleMeta ? "flex flex-wrap items-center gap-x-4 gap-y-1" : undefined}>
         <h1
           className={
             titleSize === "sm"
@@ -366,6 +369,8 @@ export function PageHeader({
         >
           {title}
         </h1>
+        {titleMeta}
+        </div>
         {description && (
           <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-ink-secondary sm:mt-1.5 sm:text-sm">
             {description}

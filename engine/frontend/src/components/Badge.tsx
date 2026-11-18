@@ -69,6 +69,7 @@ export function Badge({
 }: Props) {
   return (
     <span
+      data-badge-tone={tone}
       title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-full font-bold leading-none",

@@ -146,7 +146,16 @@ export interface ColumnLayoutPreset {
   isDefault?: boolean;
 }
 
+/** An opt-in two-line display over the existing field/layout/export model. */
+export interface PairedTablePresentation {
+  pairs: readonly (readonly string[])[];
+  defaultFields: readonly string[];
+  baselinePresetId: string;
+}
+
 export interface DataTableProps<T, L = never> {
+  pairedPresentation?: PairedTablePresentation;
+  onMoreFilters?: () => void;
   /** Stable identifier used for persisting column visibility, order, sort,
    *  and density per page (localStorage). */
   tableId?: string;

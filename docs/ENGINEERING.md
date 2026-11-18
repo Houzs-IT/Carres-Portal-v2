@@ -367,7 +367,10 @@ after normalising the recolour; carried unchanged to `c780a870b`, where the Carr
 met in only `mail-center.ts` and `fair-binding.ts`, both merged cleanly): the only non-colour differences are the Carres integration (`src/carres/*`, the
 frame/top-bar branches in `Layout.tsx`/`TopNavbar.tsx`/`App.tsx`/`main.tsx`, `backend/src/carres/sso.ts`), the brand
 name and blank Branding defaults, `CR-` document numbers, the Carres hosts and dev fallbacks, showroom venues in
-`fair-binding.ts`, and the supplier-code check in `ProductModels.tsx`. Every loading feature is Houzs's unchanged
+`fair-binding.ts`, the supplier-code check in `ProductModels.tsx`, and the Sales Orders list's two-line view
+(Jess, 18 Nov 2026: `DataTable.tsx`/`DataTableRowCells.tsx` behind the opt-in `pairedPresentation`, `DataTablePaired.tsx`,
+`DataTableCarres.css`, `Badge.tsx` `data-badge-tone`, `Layout.tsx` `titleMeta`, `QuickActionsFAB.tsx`, and
+`pages/scm-v2/MfgSalesOrdersListV2.tsx`, `SoListFilterBar.tsx`, `so-list-presentation.tsx`). Every loading feature is Houzs's unchanged
 (lazy routes, boot preload, react-query, service worker, `_headers`, vite build). Left out on purpose: HR, AutoCount
 Sync, POS Admin and Venture Portal Feed (`navOnly.ts`). Not wired yet: the scan queue (`SCAN_QUEUE`, Houzs
 `houzs-scan-ocr`; without it scans run in `waitUntil`), the metrics dataset (`ERP_METRICS`, optional). Features that

@@ -21,6 +21,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getTableLayoutsSnapshot, subscribeTableLayouts } from "../../lib/tableLayouts"; // Carres
+import { SO_CARRES_PRESENTATION, soDisplayDate } from "./so-list-presentation";
 import { shippedProgressColumn, ShippedProgressPill } from "./so-list-shipped-column";
 import { SO_STATUS_TABS, statusFor, type StatusTab } from "./so-list-status";
 import { SoListStatusCell } from "./SoListStatusCell";
@@ -1468,6 +1469,7 @@ export function MfgSalesOrdersListV2() {
   /* Labels are AutoCount's captions and Doc No / Agent / Debtor Code / Venue /
      Branding are the book's spellings where the order is in AutoCount (the
      server stamps ac_*; 2990 prints its own). The ERP number stays on ERP Doc No. */
+  const [filterOpenNonce, setFilterOpenNonce] = useState(0);
   const soLineColumnList = Object.values(soLineColumns<SoRow>());
   const columns: Column<SoRow, SoListLine>[] = withSoFunnelSeeds<Column<SoRow, SoListLine>>(funnelValues, [
     {
@@ -1942,7 +1944,9 @@ export function MfgSalesOrdersListV2() {
         ]
       : []),
     ...soLineColumnList,
-  ]);
+  ]).map((column) => ["so_date", "processing_date", "sales_exemption_expiry"].includes(column.key)
+    ? { ...column, render: (row: SoRow) => soDisplayDate(String(column.getValue?.(row) ?? "")) }
+    : column);
 
   /* ── Column layouts ──────────────────────────────────────────────────────
      Houzs and 2990 run their sales desks off the SAME list page but read it for
@@ -2023,7 +2027,7 @@ export function MfgSalesOrdersListV2() {
   };
 
   return (
-    <PullToRefresh onRefresh={onPullToRefresh}>
+    <PullToRefresh onRefresh={onPullToRefresh} className="carres-so-list">
       {/* When the drawer is open the desktop shell reflows into the left
           520 + gutter, so stats/table are cleanly visible next to it instead
           of being half-covered. Mobile keeps the full-width overlay. */}
@@ -2058,9 +2062,9 @@ export function MfgSalesOrdersListV2() {
       <div className="-mx-4 hidden pb-3 sm:-mx-6 md:block">
         <div className="px-4 sm:px-6">
           <PageHeader
-            eyebrow="Supply Chain"
             title="Sales Orders"
-            description={`Every ${shortCompanyName(branding.companyName)} sales order — Draft to Delivered. Click any row for the quick view; open the full page to edit.`}
+            titleMeta={<MrpAsOf status={mrpStatus} />}
+            dense
             primaryAction={
               <div className="flex items-stretch">
                 <Button
@@ -2086,53 +2090,54 @@ export function MfgSalesOrdersListV2() {
             ]}
           />
 
-          <MrpAsOf status={mrpStatus} className="mb-2" />
-
           {/* No data-freeze-anchor here: the owner revised the SO ruling to
               match Service Cases — cards + status pills scroll away, and the
               freeze keeps only the DataTable's own toolbar + header + pager
               (the component-root default). */}
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard
-              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
-              label="Total Orders"
-              value={total.toLocaleString("en-MY")}
-              subtitle="All matching orders"
-              rail="bg-primary"
-              active
-            />
-            <StatCard
-              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
-              label="Revenue"
-              value={fmtRm(stats.revenueSen)}
-              subtitle={stats.fullSet ? "All matching orders" : "Sum on this page"}
-              rail="bg-accent"
-            />
-            <StatCard
-              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
-              label="Outstanding"
-              value={fmtRm(stats.outstandingSen)}
-              subtitle={stats.fullSet ? "Balance due" : "Balance on this page"}
-              tone="error"
-              rail="bg-err"
-            />
-            <StatCard
-              pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
-              label="Paid"
-              value={fmtRm(stats.paidSen)}
-              subtitle={stats.fullSet ? "Receipts to date" : "Receipts on this page"}
-              tone="success"
-              rail="bg-synced"
-            />
-          </div>
+          <details className="carres-so-summary">
+            <summary>Summary</summary>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard
+                pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
+                label="Total Orders"
+                value={total.toLocaleString("en-MY")}
+                subtitle="All matching orders"
+                rail="bg-primary"
+                active
+              />
+              <StatCard
+                pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
+                label="Revenue"
+                value={fmtRm(stats.revenueSen)}
+                subtitle={stats.fullSet ? "All matching orders" : "Sum on this page"}
+                rail="bg-accent"
+              />
+              <StatCard
+                pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
+                label="Outstanding"
+                value={fmtRm(stats.outstandingSen)}
+                subtitle={stats.fullSet ? "Balance due" : "Balance on this page"}
+                tone="error"
+                rail="bg-err"
+              />
+              <StatCard
+                pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
+                label="Paid"
+                value={fmtRm(stats.paidSen)}
+                subtitle={stats.fullSet ? "Receipts to date" : "Receipts on this page"}
+                tone="success"
+                rail="bg-synced"
+              />
+            </div>
 
+          </details>
           <div className="flex flex-wrap items-center gap-3">
             <FilterPills
               options={statusPillOptions}
               value={status}
               onChange={(v) => setStatusChip(v)}
             />
-            <SoListFilterBar q={debouncedSearch} />
+            <SoListFilterBar q={debouncedSearch} openNonce={filterOpenNonce} hideTrigger={view === "table"} />
             <div className="flex-1" />
             <ViewToggle value={view} onChange={setView} />
           </div>
@@ -2236,6 +2241,8 @@ export function MfgSalesOrdersListV2() {
               onError: (e) => void notify({ title: "Export failed", body: e.message || "The export could not be completed.", tone: "error" }),
             }}
             tableId="sales-orders-v2"
+            pairedPresentation={SO_CARRES_PRESENTATION}
+            onMoreFilters={() => setFilterOpenNonce((nonce) => nonce + 1)}
             documentLabel="Sales Orders"
             layoutPresets={layoutPresets}
             rows={rows}

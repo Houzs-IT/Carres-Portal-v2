@@ -18,7 +18,7 @@ import { SoFilterRowsEditor } from "../../components/so-list-filter/SoFilterRows
 import { useSoFilterLookups } from "../../components/so-list-filter/useSoFilterLookups";
 import { SO_FILTER_SKINS } from "../../components/so-list-filter/soFilterSkin";
 
-export function SoListFilterBar({ q }: { q: string }) {
+export function SoListFilterBar({ q, openNonce = 0, hideTrigger = false }: { q: string; openNonce?: number; hideTrigger?: boolean }) {
   const { filters, status, apply } = useSoListFilters();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<SoListFilter[]>([]);
@@ -28,6 +28,12 @@ export function SoListFilterBar({ q }: { q: string }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const k = SO_FILTER_SKINS.desktop;
+
+  useEffect(() => {
+    if (openNonce > 0) { setDraft(filters); setOpen(true); }
+    // A request opens the current filters once; edits remain in the editor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNonce]);
 
   // Adaptive placement. The panel is position:fixed so it escapes the two
   // horizontal-overflow clips it lives inside (<main> overflow-x-hidden +
@@ -40,7 +46,8 @@ export function SoListFilterBar({ q }: { q: string }) {
   const place = useCallback(() => {
     const btn = triggerRef.current;
     if (!btn) return;
-    const r = btn.getBoundingClientRect();
+    const r = hideTrigger ? boxRef.current?.getBoundingClientRect() : btn.getBoundingClientRect();
+    if (!r) return;
     const margin = 8;
     const vw = document.documentElement.clientWidth;
     const vh = document.documentElement.clientHeight;
@@ -49,7 +56,7 @@ export function SoListFilterBar({ q }: { q: string }) {
     const top = r.bottom + 6;
     const maxHeight = Math.max(200, vh - top - margin);
     setPos({ top, left, width, maxHeight });
-  }, []);
+  }, [hideTrigger]);
 
   useLayoutEffect(() => {
     if (!open) { setPos(null); return; }
@@ -92,7 +99,7 @@ export function SoListFilterBar({ q }: { q: string }) {
           </button>
         </span>
       ))}
-      <button ref={triggerRef} type="button" onClick={() => (open ? setOpen(false) : openPanel())} aria-expanded={open}
+      <button ref={triggerRef} hidden={hideTrigger} style={hideTrigger ? { display: "none" } : undefined} type="button" onClick={() => (open ? setOpen(false) : openPanel())} aria-expanded={open}
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[12px] font-semibold uppercase tracking-wider text-ink-secondary hover:border-primary/60 hover:text-primary">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M3 5h18M6 12h12M10 19h4" /></svg>
         {filters.length > 0 ? `Filters · ${filters.length}` : "More filters"}

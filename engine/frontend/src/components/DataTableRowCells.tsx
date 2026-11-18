@@ -29,8 +29,10 @@ const showDash = (node: ReactNode): ReactNode =>
    its file-size ceiling. */
 function DataRowCellsInner<T>({
   row, columns, widths, stickyLeft, stickyRight, stickyCount, stickyRightCount,
-  cellPad, wrapOn, fillerAt, fillerCount, stickyBg, firstColGutter,
+  cellPad, wrapOn, fillerAt, fillerCount, stickyBg, firstColGutter, paired = false, fitPresentation = false,
 }: {
+  paired?: boolean;
+  fitPresentation?: boolean;
   row: T;
   columns: Column<T>[];
   widths: Record<string, number>;
@@ -89,7 +91,7 @@ function DataRowCellsInner<T>({
             {i === fillerAt && fillerCount > 0 && <td aria-hidden className="border-b border-border-subtle p-0 group-hover:bg-[#3f6b53]/25" />}
             <td
               data-col-key={c.key}
-              style={cellStyle}
+              style={fitPresentation ? { ...cellStyle, width: undefined, minWidth: undefined, maxWidth: undefined } : cellStyle}
               title={cellTitle}
               className={cn(
                 "border-b border-border-subtle text-[13px] text-ink transition-colors",
@@ -107,7 +109,7 @@ function DataRowCellsInner<T>({
                 c.className
               )}
             >
-              {showDash(c.render(row))}
+              {paired ? c.render(row) : showDash(c.render(row))}
             </td>
           </Fragment>
         );

@@ -14,7 +14,7 @@ import { TableLoadError } from "./TableLoadError";
 import { scrollPanelNearRow } from "./dataTableScrollToRow";
 import {
   Download, Upload, Search, ArrowUp, ArrowDown, ArrowDownAZ, ArrowUpAZ, ChevronsUpDown, ChevronRight, LayoutList,
-  Table as TableIcon, Pin, PinOff, EyeOff, Eye, MoveHorizontal, Filter, Rows3, WrapText,
+  Table as TableIcon, Pin, PinOff, EyeOff, Eye, MoveHorizontal, Filter, Rows3, WrapText, Columns3,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { headerLabel } from "../lib/columnHeaderLabel";
@@ -22,7 +22,7 @@ import { columnDescription } from "../lib/columnDescriptions";
 import { rowsToTsv } from "./dataTableClipboard";
 import { useCellRange } from "./dataTableCellRange";
 import { tickedOrAll } from "./dataTableTicked";
-import { DataTableFreezeItems, keysThrough } from "./DataTableFreezeItems";
+import { DataTableFreezeItems } from "./DataTableFreezeItems";
 import { DataTableExportItems, HEADER_MENU_ITEM_CLASS, sheetExportLabel } from "./DataTableExportItems";
 import { parseUrlColFilters, serializeUrlColFilters, UrlFilterResync } from "./dataTableUrlFilters";
 import { useInRouterContext } from "react-router-dom";
@@ -91,6 +91,9 @@ import { MobileVirtualList } from "../mobile/MobileVirtualList";
 import { reorderKeys } from "../lib/reorder";
 import { useDragAutoScroll } from "./useDragAutoScroll";
 import type { Column, DataTableProps, SortDir, SortState } from "./dataTableTypes";
+import { pairedColumn, pairedColumnGroups } from "./DataTablePaired";
+import "./DataTableCarres.css";
+import { RowActionsMenu } from "./RowActionsMenu";
 import { DataRowCells } from "./DataTableRowCells";
 import {
   DEFAULT_COL_WIDTH,
@@ -131,6 +134,8 @@ export function DataTable<T, L = never>(props: Props<T, L>) {
 
 function DataTableInner<T, L>({
   tableId,
+  pairedPresentation,
+  onMoreFilters,
   layoutFamily,
   persistFilters = true,
   persistSort = true,
@@ -785,15 +790,31 @@ function DataTableInner<T, L>({
      Widths and pinning are deliberately NOT imposed here even when the saved
      default carries them — an admin's 1920px column widths are not a good
      default on a 13" laptop. Clicking the layout in the panel applies them. */
+  const compactPreset = resolvedPresets.find((preset) => {
+    if (!pairedPresentation || !preset.isDefault || preset.fromServer) return false;
+    const seed = layoutPresets?.find((entry) => entry.id === pairedPresentation.baselinePresetId);
+    const company = layoutStore.companies.find((entry) => entry.id === preset.companyId);
+    return preset.id === pairedPresentation.baselinePresetId
+      || Boolean(seed?.companyCode && company?.code.toUpperCase() === seed.companyCode.toUpperCase());
+  });
   const baselineLayout = useMemo(() => {
-    const untouched =
-      order.length === 0 && hiddenList.length === 0 && shownList.length === 0;
+    const untouched = order.length === 0 && hiddenList.length === 0 && shownList.length === 0;
     if (!untouched) return null;
-    const preset = resolvedPresets.find((p) => p.isDefault);
+    const preset = resolvedPresets.find((entry) => entry.isDefault);
     if (!preset) return null;
     const layout = presetLayout(preset);
+    if (compactPreset && pairedPresentation) {
+      const wanted = new Set(pairedPresentation.defaultFields);
+      const optionalPairs = pairedPresentation.pairs.flat().filter((key) => !wanted.has(key) && rawColumns.some((column) => column.key === key));
+      const rest = [...optionalPairs, ...rawColumns.filter((column) => !column.alwaysVisible && !wanted.has(column.key) && !optionalPairs.includes(column.key)).map((column) => column.key)];
+      return { order: [...pairedPresentation.defaultFields.filter((key) => key !== "doc_no"), ...rest],
+        hidden: new Set(rest), shown: wanted };
+    }
     return { order: layout.order, hidden: new Set(layout.hidden), shown: new Set(layout.shown) };
-  }, [resolvedPresets, presetLayout, order, hiddenList, shownList]);
+  }, [resolvedPresets, presetLayout, order, hiddenList, shownList, compactPreset, pairedPresentation, rawColumns]);
+  const compactBaseline = Boolean(compactPreset && baselineLayout);
+  const compactFit = compactBaseline && Object.keys(widths).length === 0;
+
 
   // Apply persisted order. alwaysVisible columns are pinned at the front
   // in their definition order (not reorderable); everything else follows
@@ -876,12 +897,25 @@ function DataTableInner<T, L>({
   /* `overlayHidden` narrows what is DRAWN (the delivery boards while their map
      is open) without touching the user's saved choice; the Columns drawer keeps
      showing their real prefs. */
+  // The untouched compact view keeps the pre-change workbook's 20-field preset.
+  // Explicit user layouts continue to export their own chosen fields and order.
+  const exportColumns = useMemo(() => {
+    if (!compactBaseline || !compactPreset) return visibleColumns;
+    const layout = presetLayout(compactPreset);
+    const byKey = new Map(allColumns.map((column) => [column.key, column]));
+    const keys = [...allColumns.filter((column) => column.alwaysVisible).map((column) => column.key), ...layout.order];
+    return keys.flatMap((key) => {
+      const column = byKey.get(key);
+      return column && (column.alwaysVisible || !layout.hidden.includes(key)) ? [column] : [];
+    });
+  }, [compactBaseline, compactPreset, presetLayout, allColumns, visibleColumns]);
+
   const onScreenColumns = useMemo(() => {
     if (!overlayHidden?.length) return visibleColumns;
     const off = new Set(overlayHidden);
     return visibleColumns.filter((c) => c.alwaysVisible || !off.has(c.key));
   }, [visibleColumns, overlayHidden]);
-  const displayColumns = useMemo(() => {
+  const orderedScreenColumns = useMemo(() => {
     if (pinnedSet.size === 0 && pinnedRightSet.size === 0) return onScreenColumns;
     const always = onScreenColumns.filter((c) => c.alwaysVisible);
     const pinnedCols = onScreenColumns.filter(
@@ -898,6 +932,33 @@ function DataTableInner<T, L>({
     // sides cannot exist — the cycle moves it, it never adds.
     return [...always, ...pinnedCols, ...rest, ...rightCols];
   }, [onScreenColumns, pinnedSet, pinnedRightSet]);
+
+  const presentationGroups = useMemo(() => pairedPresentation
+    ? pairedColumnGroups(orderedScreenColumns, pairedPresentation.pairs, compactBaseline, widths, pinnedSet, pinnedRightSet)
+    : orderedScreenColumns.map((column) => [column]),
+    [orderedScreenColumns, pairedPresentation, compactBaseline, widths, pinnedSet, pinnedRightSet]);
+  const displayColumns = useMemo(() => pairedPresentation
+    ? presentationGroups.map((fields) => pairedColumn(fields, (field) => <>
+        <button type="button" className="dt-paired-label" title={field.label}
+          onClick={(event) => { event.stopPropagation(); onHeaderClick(field); }}
+          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setHeaderMenu({ x: event.clientX, y: event.clientY, colKey: field.key }); }}>
+          {field.label}{sort?.key === field.key && (sort.dir === "asc" ? " ↑" : " ↓")}
+        </button>
+        {field.getValue && !field.disableFilter && <button type="button" className="dt-paired-filter"
+          aria-label={`Filter & sort ${field.label}`} title={`Filter & sort ${field.label}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            const anchor = event.currentTarget;
+            const rect = anchor.getBoundingClientRect();
+            setFilterQuery("");
+            setFilterMenu((current) => current?.colKey === field.key ? null
+              : { left: rect.left, top: rect.top, bottom: rect.bottom, colKey: field.key, anchor });
+          }}><Filter size={11} fill={Object.hasOwn(colFilters, field.key) && colFilters[field.key].length > 0 ? "currentColor" : "none"} /></button>}
+      </>)) : orderedScreenColumns,
+    [pairedPresentation, presentationGroups, orderedScreenColumns, sort, colFilters]);
+  function fieldKeysFor(key: string): string[] {
+    return presentationGroups.find((fields) => fields.some((field) => field.key === key))?.map((field) => field.key) ?? [key];
+  }
 
   // Display index of the header being dragged — decides which side of the drop
   // target the insertion bar is drawn on. -1 when no drag is in flight.
@@ -1040,8 +1101,8 @@ function DataTableInner<T, L>({
           wouldShow.every((k, i) => current[i] === k),
       };
     });
-    return withSingleActive(rows);
-  }, [resolvedPresets, presetLayout, allColumns, visibleColumns, layoutStore.canManageLayouts]);
+    return withSingleActive(rows.map((row) => compactBaseline ? { ...row, active: row.id === compactPreset?.id } : row));
+  }, [resolvedPresets, presetLayout, allColumns, visibleColumns, layoutStore.canManageLayouts, compactBaseline, compactPreset]);
 
   /* Visibility gestures live in dataTableColumnPrefs: under a default layout the
      two lists below are read PAST, so a gesture that edits only them can write
@@ -1248,7 +1309,7 @@ function DataTableInner<T, L>({
         .filter((c) => !c.alwaysVisible)
         .map((c) => ({
           key: c.key,
-          label: headerLabel(c.label || c.key),
+          label: pairedPresentation ? c.label || c.key : headerLabel(c.label || c.key),
           /* Explicit beats inferred: a page that sorted its columns by hand
              (Sales Orders) keeps that sort; every other list gets the shared
              classifier rather than one flat scroll. */
@@ -1261,7 +1322,7 @@ function DataTableInner<T, L>({
               ? ("right" as const)
               : null,
         })),
-    [allColumns, effectiveHidden, resolveWidth, pinnedSet, pinnedRightSet]
+    [allColumns, effectiveHidden, resolveWidth, pinnedSet, pinnedRightSet, pairedPresentation]
   );
 
   function showAllColumns() {
@@ -1427,7 +1488,9 @@ function DataTableInner<T, L>({
     const gesture = {
       key: col.key,
       startX: e.clientX,
-      startW: resolveWidth(col),
+      startW: compactFit
+        ? e.currentTarget.parentElement?.getBoundingClientRect().width || resolveWidth(col)
+        : resolveWidth(col),
     };
     resizeRef.current = gesture;
     const onMove = (ev: MouseEvent) => {
@@ -1435,7 +1498,7 @@ function DataTableInner<T, L>({
       if (r !== gesture) return;
       // Pointer px are screen px; a fitted grid draws each column px smaller.
       const next = Math.max(MIN_COL_WIDTH, r.startW + (ev.clientX - r.startX) / fit.scaleRef.current);
-      updateWidths((prev) => ({ ...prev, [r.key]: next }), false);
+      updateWidths((prev) => ({ ...prev, ...Object.fromEntries(fieldKeysFor(r.key).map((key) => [key, next])) }), false);
     };
     const onUp = () => finish();
     const onBlur = () => finish();
@@ -1468,7 +1531,8 @@ function DataTableInner<T, L>({
      header and the cells drawn now, measured on one line. With nothing drawn
      to measure, fall back to the column's natural size. */
   function autoFitColumn(key: string) {
-    const cells = scrollWrapRef.current?.querySelectorAll<HTMLElement>(`[data-col-key="${CSS.escape(key)}"]`);
+    const displayKey = fieldKeysFor(key)[0];
+    const cells = scrollWrapRef.current?.querySelectorAll<HTMLElement>(`[data-col-key="${CSS.escape(displayKey)}"]`);
     let widest = 0;
     cells?.forEach((cell) => {
       const was = cell.style.whiteSpace;
@@ -1478,13 +1542,13 @@ function DataTableInner<T, L>({
     });
     if (widest > 0) {
       const fit = Math.min(800, Math.max(MIN_COL_WIDTH, Math.ceil(widest) + 8));
-      updateWidths((prev) => ({ ...prev, [key]: fit }), true);
+      updateWidths((prev) => ({ ...prev, ...Object.fromEntries(fieldKeysFor(key).map((fieldKey) => [fieldKey, fit])) }), true);
       return;
     }
     updateWidths((prev) => {
       if (!(key in prev)) return prev;
       const next = { ...prev };
-      delete next[key];
+      for (const fieldKey of fieldKeysFor(key)) delete next[fieldKey];
       return next;
     }, true);
   }
@@ -1498,19 +1562,27 @@ function DataTableInner<T, L>({
    * state this can produce.
    */
   function togglePin(key: string) {
+    const keys = fieldKeysFor(key);
     const side = pinnedSet.has(key) ? "left" : pinnedRightSet.has(key) ? "right" : null;
     if (side === null) {
-      setPinned((prev) => [...prev, key]);
+      setPinned((prev) => [...new Set([...prev, ...keys])]);
     } else if (side === "left") {
-      setPinned((prev) => prev.filter((k) => k !== key));
-      setPinnedRight((prev) => (prev.includes(key) ? prev : [...prev, key]));
+      setPinned((prev) => prev.filter((k) => !keys.includes(k)));
+      setPinnedRight((prev) => [...new Set([...prev, ...keys])]);
     } else {
-      setPinnedRight((prev) => prev.filter((k) => k !== key));
+      setPinnedRight((prev) => prev.filter((k) => !keys.includes(k)));
     }
   }
 
   // Owner 2026-09-27: freeze the first N columns in one step (see DataTableFreezeItems).
-  const freezeUpTo = (key: string) => { const keys = keysThrough(displayColumns, key); setPinned(keys); setPinnedRight((p) => p.filter((k) => !keys.includes(k))); };
+  const freezeUpTo = (key: string) => {
+    const index = displayColumns.findIndex((column) => fieldKeysFor(column.key).includes(key));
+    const keys = displayColumns.slice(0, index + 1)
+      .flatMap((column) => fieldKeysFor(column.key))
+      .filter((fieldKey) => !allColumns.find((column) => column.key === fieldKey)?.alwaysVisible);
+    setPinned(keys);
+    setPinnedRight((previous) => previous.filter((fieldKey) => !keys.includes(fieldKey)));
+  };
 
   // ── Column reorder ─────────────────────────────────────────
   // Shared by the Columns drawer and by dragging a header directly. Moves
@@ -1524,14 +1596,15 @@ function DataTableInner<T, L>({
     (key: string, targetKey: string) => {
       if (key === targetKey) return;
       const next = allColumns.filter((c) => !c.alwaysVisible).map((c) => c.key);
+      const moving = fieldKeysFor(key).filter((fieldKey) => next.includes(fieldKey));
       const from = next.indexOf(key);
       const to = next.indexOf(targetKey);
       if (from < 0 || to < 0) return;
-      next.splice(from, 1);
-      next.splice(to, 0, key);
-      setOrder(next);
+      const remaining = next.filter((fieldKey) => !moving.includes(fieldKey));
+      remaining.splice(Math.min(to, remaining.length), 0, ...moving);
+      setOrder(remaining);
     },
-    [allColumns, setOrder]
+    [allColumns, setOrder, presentationGroups]
   );
 
   /* A header can be picked up unless it is `alwaysVisible` — those are pinned
@@ -1601,7 +1674,7 @@ function DataTableInner<T, L>({
     if (exporting) return;
     setExporting(true);
     try {
-      const cols = exportableColumns(visibleColumns as Column<T, L>[]);
+      const cols = exportableColumns(exportColumns as Column<T, L>[]);
       const filterKeys = Object.entries(colFilters).filter(([, v]) => v.length > 0).map(([k]) => k);
       const fetched = await spec.fetchRows({ exportKeys: cols.map((c) => c.key), filterKeys });
       const kept = tickedOrAll(sortTableRows(applyColumnFilters(fetched, colFilters, allColumns), sort, allColumns, Boolean(serverSort), defaultSort ?? null), selection?.selectedIds, getRowKey).rows;
@@ -1620,13 +1693,13 @@ function DataTableInner<T, L>({
     if (exportLines) { void handleLineExport(exportLines); return; }
     // Optional override: the caller exports a broader/full dataset (e.g. all
     // pages, ignoring a screen-only filter) with the same columns.
-    const csvCols = csvColumnsOf(visibleColumns as Column<T, L>[]);
+    const csvCols = csvColumnsOf(exportColumns as Column<T, L>[]);
     if (onExport) { onExport(csvCols); return; }
     if (!actionRows || actionRows.rows.length === 0 || csvCols.length === 0) return;
     const date = todayMyt(), outRows = actionRows.rows;
     if (exportXlsx) {
       // No lines: one sheet row per list row, keeping each column's exportFormat.
-      const matrix = buildLineExportMatrix(outRows, () => [], exportableColumns(visibleColumns as Column<T, L>[]));
+      const matrix = buildLineExportMatrix(outRows, () => [], exportableColumns(exportColumns as Column<T, L>[]));
       const sheet = exportSheet?.(outRows);
       void writeLineExportFile(matrix, sheet?.name ?? "Sheet1", `${exportName || tableId || "export"}-${date}.xlsx`, sheet?.heading);
       return;
@@ -1883,7 +1956,7 @@ function DataTableInner<T, L>({
   /* In the fixed layout a blank last column takes the slack, so a column made
      narrower gives its space to the blank instead of to its neighbours. It
      sits before any right-frozen run, which stays at the right edge. */
-  const fillerCount = layoutFixed ? 1 : 0;
+  const fillerCount = layoutFixed && !compactFit ? 1 : 0;
   const fillerAt = displayColumns.length - stickyRightCount;
   const totalColSpan = displayColumns.length + expandColCount + selectColCount + fillerCount;
   useLayoutEffect(() => {
@@ -1900,6 +1973,28 @@ function DataTableInner<T, L>({
     setMeasured({ idKey, widths: next });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- scrollWrapRef is a ref
   }, [layoutFixed, showTable, effectiveLoading, sortedRows, idKey]);
+
+  // Flexible default columns follow the canvas as it resizes. Measure their
+  // current tracks for frozen offsets without persisting viewport dimensions.
+  useLayoutEffect(() => {
+    const host = scrollWrapRef.current;
+    if (!compactFit || !showTable || !host || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const heads = Array.from(host.querySelectorAll<HTMLElement>("thead th[data-col-key]"));
+      if (!heads.length) return;
+      const next = Object.fromEntries(heads.map((head) => [head.dataset.colKey!, Math.round(head.getBoundingClientRect().width)]));
+      if (Object.values(next).some((width) => width <= 0)) return;
+      setMeasured((previous) => previous?.idKey === idKey
+        && Object.keys(previous.widths).length === heads.length
+        && Object.entries(next).every(([key, width]) => previous.widths[key] === width)
+        ? previous : { idKey, widths: next });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable scroll host ref
+  }, [compactFit, showTable, idKey, displayColumns.length]);
 
   const fit = useTableFitWidth(idKey, fitToWidth && showTable && !isSmallViewport, () => scrollWrapRef.current, fixedTableWidth);
 
@@ -2149,7 +2244,7 @@ function DataTableInner<T, L>({
   const cellRange = useCellRange({ enabled: cellRangeSum, scrollRef: scrollWrapRef, rows: shownRows, columns: visibleColumns, getRowKey });
 
   return (
-    <div ref={freezeRootRef}>
+    <div ref={freezeRootRef} className={pairedPresentation ? "dt-carres" : undefined} data-compact-baseline={compactBaseline || undefined} data-wrap={wrapText || undefined}>
       {urlFilterParam && inRouter && <UrlFilterResync param={urlFilterParam} value={serializeUrlColFilters(colFilters)} />}
       {/* ── Toolbar (always rendered; an embedded grid has none) ── */}
       <div className={cn("mb-2.5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between", embedded && "hidden")}>
@@ -2251,6 +2346,9 @@ function DataTableInner<T, L>({
             {exporting ? "Exporting…" : actionRows?.picked && !onExport ? `${exportLabel} (${actionRows.rows.length})` : exportLabel}
           </button>
           {toolbarExtra}
+          {pairedPresentation && <button type="button" className={toolbarBtn} onClick={() => setChooserOpen(true)}>
+            {presetOptions?.find((preset) => preset.active)?.label ?? "Custom"}
+          </button>}
           {/* Density toggle removed 2026-06 — layout is permanently comfy. */}
           {/* Mobile-only: flip between cards and the desktop-style table
               (horizontally scrollable). Hidden on `sm+` because the
@@ -2278,6 +2376,11 @@ function DataTableInner<T, L>({
             )}
             {mobileView === "cards" ? "Table" : "Cards"}
           </button>
+          {pairedPresentation ? <RowActionsMenu title="More actions" size={32} items={[
+            ...(onMoreFilters ? [{ icon: Filter, label: "More filters", onClick: onMoreFilters }] : []),
+            { icon: WrapText, label: "Wrap", type: "toggle", active: wrapText, onClick: () => setWrapText(!wrapText) },
+            { icon: Columns3, label: "Columns", onClick: () => setChooserOpen(true) },
+          ]} /> : <>
           <button
             type="button"
             onClick={() => setWrapText(!wrapText)}
@@ -2295,6 +2398,7 @@ function DataTableInner<T, L>({
             onClick={() => setChooserOpen(true)}
             active={chooserOpen}
           />
+          </>}
         </div>
       </div>
 
@@ -2313,7 +2417,7 @@ function DataTableInner<T, L>({
         onSetWidth={(key, px) => updateWidths((prev) => ({ ...prev, [key]: px }), true)}
         onShowAll={showAllColumns}
         onReset={resetLayout}
-        layouts={presetOptions}
+        layouts={pairedPresentation ? presetOptions?.filter((preset) => preset.id !== "so-autocount") : presetOptions}
         onApplyLayout={applyPreset}
         onSaveLayout={layoutStore.canManageLayouts ? saveNamedLayout : undefined}
         onDuplicateLayout={layoutStore.canManageLayouts ? duplicateNamedLayout : undefined}
@@ -2370,7 +2474,7 @@ function DataTableInner<T, L>({
             className="w-full border-separate border-spacing-0 text-sm"
             // Fixed: every column holds its width; the table is at least their
             // sum (it scrolls) and at least the container (the filler takes it).
-            style={layoutFixed ? { tableLayout: "fixed", minWidth: fixedTableWidth, zoom: fit.fitOn ? fit.fitScale : undefined } : undefined}
+            style={compactFit ? { tableLayout: "fixed" } : layoutFixed ? { tableLayout: "fixed", minWidth: fixedTableWidth, zoom: fit.fitOn ? fit.fitScale : undefined } : undefined}
           >
             {/* z-30, ABOVE the body sticky cells (z-20): the thead's own z-index
                 opens a stacking context, so a frozen header <th>'s inline z-30 is
@@ -2475,7 +2579,7 @@ function DataTableInner<T, L>({
                     {i === fillerAt && fillerCount > 0 && <th aria-hidden className="border-b-2 border-border bg-surface-dim p-0" />}
                     <th
                       data-col-key={c.key}
-                      style={cellStyle}
+                      style={compactFit ? { ...cellStyle, width: undefined, minWidth: undefined, maxWidth: undefined } : cellStyle}
                       /* Drag the header itself to reorder. HTML5 DnD, same as
                          the Columns drawer. The resize strip preventDefaults
                          its mousedown, which stops a drag from starting there,
@@ -2755,6 +2859,7 @@ function DataTableInner<T, L>({
                       <tr
                         data-vrow=""
                         data-rowkey={String(getRowKey(row))}
+                        aria-selected={pairedPresentation && selection ? isRowSelected : undefined}
                         draggable={rowReorderable}
                         onDragStart={rowReorderable ? (e) => { setDragKey(String(getRowKey(row))); e.dataTransfer.effectAllowed = "move"; } : undefined}
                         onDragOver={rowReorderable && dragKey ? (e) => { e.preventDefault(); dragScroll.at(e.clientY); const k = String(getRowKey(row)); if (k !== dragKey) setDropKey(k); } : undefined}
@@ -2882,6 +2987,8 @@ function DataTableInner<T, L>({
                           row={row}
                           columns={displayColumns}
                           widths={widths}
+                          paired={Boolean(pairedPresentation)}
+                          fitPresentation={compactFit}
                           stickyLeft={stickyLeft}
                           stickyRight={stickyRight}
                           stickyCount={stickyCount}
