@@ -189,6 +189,21 @@ describe("what leaves", () => {
     expect((await call({ view: "everything" })).status).toBe(422);
   });
 
+  it("names the engine Sales Order when the agreement carries it, the portal order otherwise", async () => {
+    agreements = [
+      agreementRow({ so_doc_no: "CR-SO-2611-007" }),
+      agreementRow({ id: "44444444-4444-4444-8444-444444444444", agreement_no: "RA-9", so_doc_no: null }),
+      agreementRow({ id: "55555555-5555-4555-8555-555555555555", agreement_no: "RA-10", so_doc_no: null, orders: null }),
+    ];
+    const body = await (await call({ view: "summary" })).json() as { orders: Array<{ agreementNo: string; soNo: string | null }> };
+    expect(Object.fromEntries(body.orders.map((o) => [o.agreementNo, o.soNo]))).toEqual({ "RA-7": "CR-SO-2611-007", "RA-9": "SO-321", "RA-10": null });
+    expect(reads.find((r) => r.table === "rental_agreements")!.columns).toContain("so_doc_no");
+
+    agreements = [agreementRow({ so_doc_no: "CR-SO-2611-007" })];
+    const one = await (await call({ view: "agreement", id: ID })).json() as { order: { soNo: string | null } };
+    expect(one.order.soNo).toBe("CR-SO-2611-007");
+  });
+
   it("an agreement with no schedule is not an order yet", async () => {
     agreements = [agreementRow(), agreementRow({ id: "33333333-3333-4333-8333-333333333333", agreement_no: "RA-8", rental_billings: [] })];
     const body = await (await call({ view: "summary" })).json() as { orders: Array<{ agreementNo: string }> };

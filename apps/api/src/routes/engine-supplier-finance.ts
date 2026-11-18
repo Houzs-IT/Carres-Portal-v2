@@ -73,7 +73,7 @@ export async function verifyFinanceRequest(
 const NOT_ORDERS = ["pending_approval", "rejected"];
 
 const AGREEMENT_COLUMNS =
-  "id, agreement_no, sku, term_months, monthly_fee, supplier_rate_pct, start_date, status, " +
+  "id, agreement_no, so_doc_no, sku, term_months, monthly_fee, supplier_rate_pct, start_date, status, " +
   "customers!rental_agreements_customer_id_fkey(name), " +
   "orders!rental_agreements_order_id_fkey(so), " +
   "rental_billings!rental_billings_agreement_id_fkey(seq, due_date, amount_due, status, paid_at, paid_amount, supplier_share)";
@@ -88,15 +88,23 @@ const dayMYT = (iso: unknown): string | null => {
   return Number.isFinite(at) ? new Date(at + 8 * 3_600_000).toISOString().slice(0, 10) : null;
 };
 
+/** The Sales Order a supplier knows: the engine's, the one on its Sales Orders page (0781), when the agreement
+ *  names it; otherwise the portal order it was sold through. */
+function soNoOf(raw: Raw): string | null {
+  const engine = typeof raw.so_doc_no === "string" ? raw.so_doc_no.trim() : "";
+  if (engine) return engine;
+  const so = one(raw.orders)?.so;
+  return so == null ? null : `SO-${String(so)}`;
+}
+
 function toRows(raw: Raw, itemNames: Map<string, string>): { agreement: SupplierFinanceAgreementRow; billings: SupplierFinanceBillingRow[] } {
   const id = String(raw.id);
-  const so = one(raw.orders)?.so;
   const sku = String(raw.sku ?? "");
   return {
     agreement: {
       id,
       agreementNo: String(raw.agreement_no ?? ""),
-      soNo: so == null ? null : `SO-${String(so)}`,
+      soNo: soNoOf(raw),
       customerName: String(one(raw.customers)?.name ?? ""),
       item: itemNames.get(sku) || sku,
       termMonths: num(raw.term_months),
