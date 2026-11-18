@@ -31,6 +31,89 @@ export interface Column<T> {
   exportValue: (row: T) => string | number;
   /** The totals row's cell for this column, worked out from the rows showing. */
   foot?: (rows: T[]) => { v: ReactNode; fg?: string };
+  /** Free text (a name, an item, an address, a note): when the list is wider than the window it may be shortened
+   *  with "…", the full text showing on hover. Every other column keeps at least the width of the widest thing it
+   *  shows, so a document number, a date, an amount or a status is never cut. */
+  shrink?: boolean;
+}
+
+// ── Fitting the window ──────────────────────────────────────────────────────────────────────────────────────────
+// UI MASTER, "proportional table fit": a list fits the width it is given. One wider than the window gives way column
+// by column, each in proportion to the room it can spare, and scrolls sideways inside its frame only when every
+// column is at its narrowest. No column goes below 70% of its width or 52px; one a person dragged keeps that width.
+
+const FIT_SHARE = 0.7;
+const FIT_MIN = 52;
+
+/** The narrowest a column may be drawn. `natural`: the widest thing it shows, padding included (null: not known). */
+export function columnFloor(width: number, opts: { resized: boolean; shrink: boolean; natural: number | null }): number {
+  if (opts.resized) return width;
+  const base = Math.min(width, Math.max(FIT_MIN, Math.ceil(width * FIT_SHARE)));
+  if (opts.shrink) return base;
+  return opts.natural === null ? width : Math.min(width, Math.max(base, Math.ceil(opts.natural)));
+}
+
+/** The widths to draw in `room` px: unchanged when they fit, else each column gives up the same share of what it can
+ *  spare above its floor, so the list fits exactly, or every column is at its floor. */
+export function fitWidths(cols: ReadonlyArray<{ width: number; floor: number }>, room: number): number[] {
+  const want = cols.reduce((a, c) => a + c.width, 0);
+  const spare = cols.map((c) => Math.max(0, c.width - Math.min(c.width, c.floor)));
+  const slack = spare.reduce((a, s) => a + s, 0);
+  if (room <= 0 || want <= room || slack === 0) return cols.map((c) => c.width);
+  const share = Math.min(1, (want - room) / slack);
+  return cols.map((c, i) => c.width - Math.min(spare[i]!, Math.ceil(spare[i]! * share)));
+}
+
+type TextWidth = (text: string, px: number, weight: number, mono?: boolean) => number;
+
+/** Text widths in the list's own fonts, from one canvas, remembered. Null where the browser draws no canvas. */
+function makeTextWidth(host: HTMLElement): TextWidth | null {
+  let ctx: CanvasRenderingContext2D | null = null;
+  try { ctx = document.createElement("canvas").getContext("2d"); } catch { ctx = null; }
+  if (!ctx) return null;
+  const family = getComputedStyle(host).fontFamily;
+  const probe = document.createElement("span");
+  probe.className = "font-docno";
+  probe.style.cssText = "position:absolute;visibility:hidden";
+  host.appendChild(probe);
+  const mono = getComputedStyle(probe).fontFamily;
+  probe.remove();
+  const seen = new Map<string, number>();
+  return (text, px, weight, isMono) => {
+    const font = `${weight} ${px}px ${isMono ? mono : family}`;
+    const key = `${font}|${text}`;
+    let w = seen.get(key);
+    if (w === undefined) {
+      ctx!.font = font;
+      w = ctx!.measureText(text).width;
+      seen.set(key, w);
+    }
+    return w;
+  };
+}
+
+/** The widest thing a column shows (its title, every row, its total) in the cells' own sizes, padding included.
+ *  Null when a cell draws something that is not text, so that column keeps its width. */
+function naturalWidth<T>(c: Column<T>, rows: T[], padX: number, totals: boolean, tw: TextWidth): number | null {
+  let w = tw(c.label, 11.5, 600);
+  for (const r of rows) {
+    const cell = c.render(r);
+    let cw: number;
+    if (cell.kind === "doc") cw = tw(cell.v, 12.5, 600, true);
+    else if (cell.kind === "badge") cw = tw(cell.b.label, 11, 700) + 16;
+    else if (cell.kind === "prog") cw = Math.max(44, tw(cell.v, 13, 600)) + 8 + 72;
+    else if (typeof cell.v === "string" || typeof cell.v === "number") cw = tw(String(cell.v), 13, cell.bold ? 600 : 400);
+    else if (cell.v === null || cell.v === undefined || cell.v === false) cw = 0;
+    else return null;
+    if (cw > w) w = cw;
+  }
+  if (totals && c.foot && rows.length > 0) {
+    const f = c.foot(rows).v;
+    if (typeof f === "string" || typeof f === "number") w = Math.max(w, tw(String(f), 13, 700));
+    else if (f !== null && f !== undefined && f !== "" && f !== false) return null;
+  }
+  // 4px: sub-pixel rounding, and a font that finishes loading after this was measured.
+  return Math.ceil(w) + padX + 4;
 }
 
 // ── What a person sets on a list, kept for this browser ─────────────────────────────────────────────────────────
@@ -248,6 +331,21 @@ export function ListTable<T>({ columns, rows, rowKey, api, openKey, onToggle, ex
     return () => ro.disconnect();
   }, []);
 
+  // Text is measured in the page's fonts; once a web font has loaded, measure again.
+  const textWidth = useRef<TextWidth | null | undefined>(undefined);
+  const [, setFontsLoaded] = useState(0);
+  useEffect(() => {
+    let live = true;
+    // Not every place this runs has a font list (the test DOM has none).
+    const fonts = (document as { fonts?: FontFaceSet }).fonts;
+    fonts?.ready.then(() => {
+      if (!live) return;
+      textWidth.current = undefined;
+      setFontsLoaded((n) => n + 1);
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+
   const cols = columns.filter((c) => isShown(c, api.prefs));
   const width = (c: Column<T>) => api.prefs.widths[c.key] ?? c.width;
   const canPick = !!onPick;
@@ -255,7 +353,22 @@ export function ListTable<T>({ columns, rows, rowKey, api, openKey, onToggle, ex
   const pickedCount = canPick ? keys.filter((k) => picked?.[k]).length : 0;
   const allPicked = canPick && keys.length > 0 && pickedCount === keys.length;
   const span = 1 + (canPick ? 1 : 0) + cols.length;
-  const tableWidth = 36 + (canPick ? 44 : 0) + cols.reduce((a, c) => a + width(c), 0);
+  const fixedPx = 36 + (canPick ? 44 : 0);
+  let drawn = cols.map(width);
+  if (visibleWidth > 0 && fixedPx + drawn.reduce((a, w) => a + w, 0) > visibleWidth && scroller.current) {
+    if (textWidth.current === undefined) textWidth.current = makeTextWidth(scroller.current);
+    const tw = textWidth.current;
+    const floors = cols.map((c, i) => {
+      const p = pad(i, cols.length);
+      return columnFloor(drawn[i]!, {
+        resized: c.key in api.prefs.widths,
+        shrink: !!c.shrink,
+        natural: tw && !c.shrink ? naturalWidth(c, rows, p.paddingLeft + p.paddingRight, !!totals, tw) : null,
+      });
+    });
+    drawn = fitWidths(cols.map((_, i) => ({ width: drawn[i]!, floor: floors[i]! })), visibleWidth - fixedPx);
+  }
+  const tableWidth = fixedPx + drawn.reduce((a, w) => a + w, 0);
   const wrap = api.prefs.wrap;
 
   const togglePick = (k: string) => onPick?.({ ...(picked ?? {}), [k]: !picked?.[k] });
@@ -278,7 +391,7 @@ export function ListTable<T>({ columns, rows, rowKey, api, openKey, onToggle, ex
                 </th>
               )}
               {cols.map((c, i) => (
-                <HeadCell key={c.key} label={c.label} align={c.align ?? "left"} width={width(c)} resized={c.key in api.prefs.widths} pad={pad(i, cols.length)}
+                <HeadCell key={c.key} label={c.label} align={c.align ?? "left"} width={drawn[i]!} resized={c.key in api.prefs.widths} pad={pad(i, cols.length)}
                   onResize={(w) => api.setWidth(c.key, w)} onReset={() => api.setWidth(c.key, null)} />
               ))}
             </tr>
