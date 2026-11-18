@@ -353,7 +353,7 @@ export function SupplierApp() {
 function Lazy({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   return (
-    <LazySlot resetKey={`supplier:${pathname}`} fallback={<div className="mx-auto w-full max-w-[1400px] px-6 py-4"><Loading /></div>}>
+    <LazySlot resetKey={`supplier:${pathname}`} fallback={<div className="w-full px-6 py-4"><Loading /></div>}>
       {children}
     </LazySlot>
   );

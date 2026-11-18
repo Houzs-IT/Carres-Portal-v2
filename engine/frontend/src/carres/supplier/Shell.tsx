@@ -182,7 +182,7 @@ export function PageBar({ eyebrow, title, mono, back, backTip, badges, right }: 
 }) {
   return (
     <div className="shrink-0 border-b border-border bg-bg">
-      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-4 px-6 pb-[14px] pt-4">
+      <div className="flex flex-wrap items-center gap-4 px-6 pb-[14px] pt-4">
         {back && (
           <button
             type="button"
@@ -237,7 +237,9 @@ export function BarButton({ icon, children, onClick, disabled }: { icon: ReactNo
 }
 
 /** The page under the bar. A list fills the window and scrolls inside its table; a full page scrolls. The page rises
- *  into view when it changes. */
+ *  into view when it changes. Every page uses the whole width of the window, edge to edge under the top bar and with
+ *  the same side margin (Loo, 19 Nov 2026: "the view occupies the screen"), so a wide table shows its columns
+ *  instead of scrolling sideways inside a narrow column. */
 export function PageBody({ scroll, riseKey, children }: { scroll: boolean; riseKey: unknown; children: ReactNode }) {
   const ref = useRef<HTMLDivElement | null>(null);
   useRise(ref, riseKey);
@@ -245,7 +247,7 @@ export function PageBody({ scroll, riseKey, children }: { scroll: boolean; riseK
   return (
     <div className="flex min-h-0 flex-1">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div ref={ref} className={cn("mx-auto flex min-h-0 w-full max-w-[1400px] flex-1 flex-col px-6 py-4", scroll ? "overflow-y-auto" : "overflow-y-hidden")}>
+        <div ref={ref} className={cn("flex min-h-0 w-full flex-1 flex-col px-6 py-4", scroll ? "overflow-y-auto" : "overflow-y-hidden")}>
           {children}
         </div>
       </div>
