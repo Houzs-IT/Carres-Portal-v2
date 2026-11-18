@@ -39,10 +39,10 @@ export function ForecastPage() {
     const months = f?.months ?? [];
     const sum = (rs: ForecastRow[], g: (r: ForecastRow) => number) => rs.reduce((a, r) => a + g(r), 0);
     return [
-      { key: "item", label: "Item", width: 240, render: (r) => ({ kind: "text", v: r.description, bold: true }), exportValue: (r) => r.description, foot: (rs) => ({ v: `Total · ${count(rs.length, "item")}` }) },
+      { key: "item", label: "Item", width: 240, shrink: true, render: (r) => ({ kind: "text", v: r.description, bold: true }), exportValue: (r) => r.description, foot: (rs) => ({ v: `Total · ${count(rs.length, "item")}` }) },
       { key: "code", label: "Item Code", width: 120, render: (r) => ({ kind: "text", v: r.itemCode, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (r) => r.itemCode },
       { key: "model", label: "Model", width: 120, hidden: true, render: (r) => ({ kind: "text", v: r.modelName || "No model", fg: r.modelName ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (r) => r.modelName ?? "" },
-      { key: "spec", label: "Specification", width: 160, render: (r) => ({ kind: "text", v: r.spec || "Standard", fg: r.spec ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (r) => r.spec || "Standard" },
+      { key: "spec", label: "Specification", width: 160, shrink: true, render: (r) => ({ kind: "text", v: r.spec || "Standard", fg: r.spec ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (r) => r.spec || "Standard" },
       { key: "unit", label: "Unit", width: 70, render: (r) => ({ kind: "text", v: r.uom, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (r) => r.uom },
       { key: "incoming", label: "Incoming", width: 96, align: "right", render: (r) => num(r.incoming), exportValue: (r) => r.incoming, foot: (rs) => ({ v: sum(rs, (r) => r.incoming) }) },
       { key: "processing", label: "In Production", width: 110, align: "right", render: (r) => num(r.processing), exportValue: (r) => r.processing, foot: (rs) => ({ v: sum(rs, (r) => r.processing) }) },

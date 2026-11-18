@@ -33,7 +33,7 @@ const COLUMNS: Column<Pickup>[] = [
   { key: "lines", label: "Lines", width: 70, align: "right", render: (p) => ({ kind: "text", v: p.lineCount }), exportValue: (p) => p.lineCount },
   { key: "qty", label: "Qty", width: 64, align: "right", render: (p) => ({ kind: "text", v: p.unitCount }), exportValue: (p) => p.unitCount },
   { key: "requested", label: "Requested", width: 140, render: (p) => ({ kind: "text", v: fmtStamp(p.requestedAt), fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (p) => fmtStamp(p.requestedAt) },
-  { key: "note", label: "Note from Carres", width: 220, hidden: true, render: (p) => ({ kind: "text", v: p.note || "No note", fg: p.note ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (p) => p.note ?? "" },
+  { key: "note", label: "Note from Carres", width: 220, hidden: true, shrink: true, render: (p) => ({ kind: "text", v: p.note || "No note", fg: p.note ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (p) => p.note ?? "" },
   { key: "status", label: "Status", width: 170, render: (p) => ({ kind: "badge", b: pickupBadge(p) }), exportValue: (p) => pickupBadge(p).label },
 ];
 

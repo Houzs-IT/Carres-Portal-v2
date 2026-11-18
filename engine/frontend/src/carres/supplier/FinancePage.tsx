@@ -133,8 +133,8 @@ export function CollectionsPage() {
     return [
       { key: "order", label: "Order", width: 140, render: (o) => ({ kind: "doc", v: docOf(o), go: () => open(o) }), exportValue: docOf, foot: (rs) => ({ v: `Total · ${count(rs.length, "order")}` }) },
       { key: "agreement", label: "Agreement No", width: 140, hidden: true, render: (o) => ({ kind: "text", v: o.agreementNo, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (o) => o.agreementNo },
-      ...(v.names ? [{ key: "customer", label: "Customer", width: 200, render: (o: FinanceOrder) => ({ kind: "text" as const, v: o.customerName, bold: true }), exportValue: (o: FinanceOrder) => o.customerName }] : []),
-      { key: "item", label: "Item", width: 240, render: (o) => ({ kind: "text", v: o.item, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (o) => o.item },
+      ...(v.names ? [{ key: "customer", label: "Customer", width: 200, shrink: true, render: (o: FinanceOrder) => ({ kind: "text" as const, v: o.customerName, bold: true }), exportValue: (o: FinanceOrder) => o.customerName }] : []),
+      { key: "item", label: "Item", width: 240, shrink: true, render: (o) => ({ kind: "text", v: o.item, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (o) => o.item },
       {
         key: "term", label: "Term", width: 150,
         render: (o) => ({ kind: "prog", v: `${o.paidCount} / ${o.termMonths}`, paid: o.termMonths ? o.paidCount / o.termMonths : 0, late: o.termMonths ? late(o) / o.termMonths : 0 }),

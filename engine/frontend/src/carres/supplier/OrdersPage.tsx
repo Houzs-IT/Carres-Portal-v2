@@ -54,7 +54,7 @@ export function trailWords(t: TrailEntry): { label: string; at: string } {
 const COLUMNS = (open: (o: Order) => void): Column<Order>[] => [
   { key: "doc", label: "SO No", width: 140, render: (o) => ({ kind: "doc", v: o.docNo, go: () => open(o) }), exportValue: (o) => o.docNo },
   { key: "date", label: "SO Date", width: 104, render: (o) => ({ kind: "text", v: fmtDay(o.soDate) || "No date", fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (o) => fmtDay(o.soDate) },
-  { key: "customer", label: "Customer", width: 200, render: (o) => ({ kind: "text", v: o.customerName || "No name", bold: true }), exportValue: (o) => o.customerName },
+  { key: "customer", label: "Customer", width: 200, shrink: true, render: (o) => ({ kind: "text", v: o.customerName || "No name", bold: true }), exportValue: (o) => o.customerName },
   {
     key: "items", label: "Items", width: 260,
     render: (o) => ({ kind: "text", v: o.lines.length > 1 ? `${o.lines[0]!.description} +${o.lines.length - 1}` : o.lines[0]?.description ?? "" }),
@@ -63,7 +63,7 @@ const COLUMNS = (open: (o: Order) => void): Column<Order>[] => [
   { key: "qty", label: "Qty", width: 64, align: "right", render: (o) => ({ kind: "text", v: o.unitCount }), exportValue: (o) => o.unitCount },
   { key: "processing", label: "Processing Date", width: 120, hidden: true, render: (o) => ({ kind: "text", v: fmtDay(o.processingDate) || "Not processed", fg: o.processingDate ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (o) => fmtDay(o.processingDate) },
   { key: "delivery", label: "Delivery", width: 104, render: (o) => ({ kind: "text", v: fmtDay(o.deliveryDate) || "Not set", fg: o.deliveryDate ? undefined : "rgb(var(--hz-ink-muted))" }), exportValue: (o) => fmtDay(o.deliveryDate) },
-  { key: "address", label: "Delivery Address", width: 260, hidden: true, render: (o) => ({ kind: "text", v: addressText(o) || "No address" }), exportValue: (o) => addressText(o) },
+  { key: "address", label: "Delivery Address", width: 260, hidden: true, shrink: true, render: (o) => ({ kind: "text", v: addressText(o) || "No address" }), exportValue: (o) => addressText(o) },
   { key: "stage", label: "Stage", width: 130, render: (o) => ({ kind: "badge", b: stageBadge(o.status) }), exportValue: (o) => stageBadge(o.status).label },
   { key: "pickup", label: "Pickup", width: 140, render: (o) => ({ kind: "badge", b: orderPickupBadge(o.pickupState) }), exportValue: (o) => orderPickupBadge(o.pickupState).label },
 ];
