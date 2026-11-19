@@ -11,6 +11,7 @@ import type { Env } from "../../types";
 import { requirePageAccess } from "../../middleware/auth";
 import { supplierPublicUrl } from "./address";
 import { dbFor } from "./db";
+import { threeplLogin } from "./threepl-login";
 import {
   accessOptions, addPerson, getAccess, listAccess, previewAccess, recentActivity, saveAccess, updatePerson,
   type AccessInput, type PersonInput, type PersonPatch,
@@ -23,6 +24,8 @@ import {
 import { financeSummary } from "./finance";
 import { attachmentHeader, fileStore } from "./files";
 import { takeDownAskNotice } from "./ask-notice";
+import { sendInvite } from "./invite";
+import { first, str, type Db } from "./db";
 
 type Ctx = Context<{ Bindings: Env }>;
 
@@ -44,6 +47,36 @@ const setupUrl = (c: Ctx, token: string) => `${supplierPublicUrl(c.env, "/suppli
 
 export const supplierAccess = new Hono<{ Bindings: Env }>();
 supplierAccess.use("*", requirePageAccess("settings", "full"));
+
+/** Email a person their set-password link (it lives three days, ./credentials.ts LINK_HOURS). The answer says whether
+ *  it left; the link is also on the staff screen, to send by WhatsApp when email fails. */
+async function emailLink(c: Ctx, db: Db, userId: number, token: string): Promise<{ mailed: boolean; mailNote: string | null }> {
+  const who = first(await db.query(
+    `SELECT u.email, u.name, s.name AS supplier_name FROM public.carres_supplier_users u JOIN scm.suppliers s ON s.id = u.supplier_id
+      WHERE u.id = $1`, [userId]));
+  if (!who) return { mailed: false, mailNote: "The person could not be read." };
+  const sent = await sendInvite(c.env, {
+    to: str(who.email), name: str(who.name), inviterName: staff(c).name, supplierName: str(who.supplier_name), token,
+  });
+  return { mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason };
+}
+
+// ── A 3PL company's login, from its own form (owner, 19 Nov 2026: "create the 3PL, then open its account") ──────
+// Registered before "/:supplierId" so the words "threepl" are never read as a supplier id.
+supplierAccess.get("/threepl/:threeplId", async (c) => {
+  const out = await threeplLogin(dbFor(c.env)).read(c.req.param("threeplId"));
+  if (!out.ok) return c.json({ error: out.error }, out.status);
+  return c.json(out.login);
+});
+
+supplierAccess.post("/threepl/:threeplId/invite", async (c) => {
+  const db = dbFor(c.env);
+  const b = await body<{ name?: unknown; email?: unknown }>(c);
+  const out = await threeplLogin(db).invite(c.req.param("threeplId"), { name: b.name, email: b.email }, staff(c).id);
+  if (!out.ok) return c.json({ error: out.error }, out.status);
+  const mail = await emailLink(c, db, out.person.id, out.link.token);
+  return c.json({ person: out.person, link: { url: setupUrl(c, out.link.token), expiresAt: out.link.expiresAt }, ...mail });
+});
 
 supplierAccess.get("/", async (c) => c.json({ suppliers: await listAccess(dbFor(c.env)), signInUrl: supplierPublicUrl(c.env, "/supplier") }));
 
@@ -78,9 +111,11 @@ supplierAccess.post("/:supplierId/preview", async (c) => {
 });
 
 supplierAccess.post("/:supplierId/people", async (c) => {
-  const out = await addPerson(dbFor(c.env), c.req.param("supplierId"), await body<PersonInput>(c), staff(c).id);
+  const db = dbFor(c.env);
+  const out = await addPerson(db, c.req.param("supplierId"), await body<PersonInput>(c), staff(c).id);
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  return c.json({ person: out.person, link: { url: setupUrl(c, out.link.token), expiresAt: out.link.expiresAt } });
+  const mail = await emailLink(c, db, out.person.id, out.link.token);
+  return c.json({ person: out.person, link: { url: setupUrl(c, out.link.token), expiresAt: out.link.expiresAt }, ...mail });
 });
 
 supplierAccess.patch("/people/:id", async (c) => {
@@ -92,9 +127,11 @@ supplierAccess.patch("/people/:id", async (c) => {
 supplierAccess.post("/people/:id/link", async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id <= 0) return c.json({ error: "Person not found." }, 404);
-  const link = await issueLink(dbFor(c.env), { userId: id, staffUserId: staff(c).id });
+  const db = dbFor(c.env);
+  const link = await issueLink(db, { userId: id, staffUserId: staff(c).id });
   if (!link) return c.json({ error: "This person is disabled. Enable them first." }, 409);
-  return c.json({ link: { url: setupUrl(c, link.token), expiresAt: link.expiresAt, purpose: link.purpose } });
+  const mail = await emailLink(c, db, id, link.token);
+  return c.json({ link: { url: setupUrl(c, link.token), expiresAt: link.expiresAt, purpose: link.purpose }, ...mail });
 });
 
 // ── Pickup requests ─────────────────────────────────────────────────────────────────────────────────────────────

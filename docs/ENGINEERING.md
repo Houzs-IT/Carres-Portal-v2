@@ -202,7 +202,10 @@ date through `advanceSoGeneration` + `recordSoAudit`), routes `GET /deliveries` 
 `routes.ts`, keys `v_deliveries` / `a_deldate` in `perms.ts`, `supplier.logistics` on `/auth/me`. Frontend
 `carres/supplier/DeliveriesPage.tsx`; `Shell.tsx` gives a logistics supplier only that tab. No migration and no Houzs
 file touched. Tests: `frontend/src/carres/supplier/deliveries.test.ts`; the statement guard in
-`tests/carresSupplierPlatformGuards.test.ts` admits the three fleet constants.
+`tests/carresSupplierPlatformGuards.test.ts` admits the three fleet constants. Opening a 3PL's login from its own form: backend `carres/supplier/threepl-login.ts`, staff routes
+`GET/POST /api/carres/supplier-access/threepl/:threeplId[/invite]`; staff-made links (invite, Add person, New link) are
+emailed through `invite.ts` (`supplier_invite` channel); frontend `carres/supplier-staff/ThreeplLoginPanel.tsx`,
+mounted with one `// Carres` line in Houzs's `pages/scm-v2/ThreePLCompanies.tsx` (its test mocks the panel).
 
 **Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT · DEPLOYED 15 Nov 2026; the owner's
 redesign DEPLOYED 17 Nov 2026).** A

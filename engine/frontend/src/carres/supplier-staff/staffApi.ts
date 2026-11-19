@@ -17,6 +17,8 @@ export interface AccessSummary {
   skuCount: number;
   userCount: number;
   lastSignInAt: string | null;
+  /** A 3PL company bills Carres through this supplier. */
+  logistics?: boolean;
 }
 
 export interface SupplierPerson {
@@ -60,6 +62,16 @@ export interface Preview { orders: number; lines: number; units: number; incomin
 /** `note`: why a password link asked for with Forgot password was not emailed (a fixed sentence from the server). */
 export interface ActivityRow { at: string; kind: string; who: string | null; subject: string | null; ip: string | null; note?: string | null }
 export interface SetupLink { url: string; expiresAt: string; purpose?: "setup" | "reset" }
+/** Whether the link was also emailed to the person, and if not, why (fixed words from the server). */
+export interface LinkMail { mailed?: boolean; mailNote?: string | null }
+
+/** A 3PL company's login, opened from its own form (engine/backend/src/carres/supplier/threepl-login.ts). */
+export interface ThreeplLogin {
+  threepl: { id: string; name: string; code: string | null };
+  supplier: { id: string; code: string; name: string } | null;
+  enabled: boolean;
+  people: SupplierPerson[];
+}
 
 const ACCESS = "/api/carres/supplier-access";
 
@@ -71,10 +83,13 @@ export const accessApi = {
   save: (supplierId: string, input: AccessInput) => api.put<{ access: AccessDetail }>(`${ACCESS}/${supplierId}`, input),
   preview: (supplierId: string, input: AccessInput) => api.post<{ preview: Preview }>(`${ACCESS}/${supplierId}/preview`, input),
   addPerson: (supplierId: string, input: { name: string; email: string; canOperation: boolean; canFinance: boolean }) =>
-    api.post<{ person: SupplierPerson; link: SetupLink }>(`${ACCESS}/${supplierId}/people`, input),
+    api.post<{ person: SupplierPerson; link: SetupLink } & LinkMail>(`${ACCESS}/${supplierId}/people`, input),
   updatePerson: (id: number, patch: Partial<{ name: string; canOperation: boolean; canFinance: boolean; status: "active" | "disabled" }>) =>
     api.patch<{ person: SupplierPerson }>(`${ACCESS}/people/${id}`, patch),
-  newLink: (id: number) => api.post<{ link: SetupLink }>(`${ACCESS}/people/${id}/link`, {}),
+  newLink: (id: number) => api.post<{ link: SetupLink } & LinkMail>(`${ACCESS}/people/${id}/link`, {}),
+  threepl: (threeplId: string) => api.get<ThreeplLogin>(`${ACCESS}/threepl/${threeplId}`),
+  inviteThreepl: (threeplId: string, input: { name: string; email: string }) =>
+    api.post<{ person: SupplierPerson; link: SetupLink } & LinkMail>(`${ACCESS}/threepl/${threeplId}/invite`, input),
 };
 
 export type PickupStatus = "REQUESTED" | "ACCEPTED" | "COLLECTED" | "CANCELLED";

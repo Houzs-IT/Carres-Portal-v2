@@ -18,7 +18,7 @@ import { cn } from "../../lib/utils";
 import { fmtStamp, plural } from "../supplier/ui";
 import {
   accessApi, type AccessDetail, type AccessInput, type AccessOptions, type ActivityRow, type Preview, type SetupLink,
-  type SupplierPerson,
+  type SupplierPerson, type LinkMail,
 } from "./staffApi";
 
 /** A moment in the engine's one date format ("2026/11/20 10:30", Kuala Lumpur time); "" when there is none. */
@@ -72,13 +72,15 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /** The one-time link, shown once. Carres sends it to the person; only they open it. */
-function LinkNotice({ name, link, onDone }: { name: string; link: SetupLink; onDone: () => void }) {
+export function LinkNotice({ name, link, mail, onDone }: { name: string; link: SetupLink; mail?: LinkMail; onDone: () => void }) {
   const toast = useToast();
   return (
     <div className="rounded-lg border border-primary/30 bg-primary-soft/40 px-4 py-3">
       <div className="text-[13px] font-semibold text-ink">Link for {name}</div>
       <p className="mt-1 text-[11.5px] leading-relaxed text-ink-secondary">
-        WhatsApp or email it to them: it lets them choose their own password. It works once, until {stamp(link.expiresAt)}, and is shown only now: copy it before closing.
+        {mail?.mailed
+          ? <>Emailed to them. It lets them choose their own password and works once, until {stamp(link.expiresAt)}. You can also WhatsApp this link; it is shown only now.</>
+          : <>{mail?.mailNote ? `Not emailed: ${mail.mailNote} ` : ""}WhatsApp or email it to them: it lets them choose their own password. It works once, until {stamp(link.expiresAt)}, and is shown only now: copy it before closing.</>}
       </p>
       <div className="mt-2.5 flex items-center gap-2">
         <input readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} className={cn(INPUT, "font-mono text-[11.5px]")} aria-label="Set-password link" />
@@ -98,14 +100,14 @@ function People({ supplierId, people, onChanged }: { supplierId: string; people:
   const [operation, setOperation] = useState(true);
   const [finance, setFinance] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [link, setLink] = useState<{ name: string; link: SetupLink } | null>(null);
+  const [link, setLink] = useState<{ name: string; link: SetupLink; mail?: LinkMail } | null>(null);
 
   const add = async () => {
     if (busy) return;
     setBusy("add");
     try {
       const out = await accessApi.addPerson(supplierId, { name, email, canOperation: operation, canFinance: finance });
-      setLink({ name: out.person.name, link: out.link });
+      setLink({ name: out.person.name, link: out.link, mail: out });
       setAdding(false); setName(""); setEmail(""); setOperation(true); setFinance(false);
       onChanged();
     } catch (e) { toast.error(problem(e)); } finally { setBusy(null); }
@@ -126,7 +128,7 @@ function People({ supplierId, people, onChanged }: { supplierId: string; people:
       confirmLabel: "Make link",
     }))) return;
     setBusy(`p${p.id}`);
-    try { const out = await accessApi.newLink(p.id); setLink({ name: p.name, link: out.link }); onChanged(); }
+    try { const out = await accessApi.newLink(p.id); setLink({ name: p.name, link: out.link, mail: out }); onChanged(); }
     catch (e) { toast.error(problem(e)); } finally { setBusy(null); }
   };
 
@@ -145,7 +147,7 @@ function People({ supplierId, people, onChanged }: { supplierId: string; people:
         <span>People</span>
         {!adding && <Button variant="secondary" className="h-7 px-2.5 text-[11.5px]" icon={<Plus size={12} />} onClick={() => setAdding(true)}>Add person</Button>}
       </div>
-      {link && <div className="border-b border-border-subtle p-4"><LinkNotice name={link.name} link={link.link} onDone={() => setLink(null)} /></div>}
+      {link && <div className="border-b border-border-subtle p-4"><LinkNotice name={link.name} link={link.link} mail={link.mail} onDone={() => setLink(null)} /></div>}
       {adding && (
         <div className="space-y-3 border-b border-border-subtle p-4">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -480,6 +482,7 @@ export function SupplierAccessTab() {
                       <span className="font-mono text-[11px] text-ink-muted">{r.code}</span>
                       <Badge tone={r.enabled ? "success" : "neutral"} size="sm" caseless>{r.enabled ? "Access on" : "Access off"}</Badge>
                       {r.subscriptionShare && <Badge tone="accent" size="sm" caseless>Subscription share</Badge>}
+                      {r.logistics && <Badge tone="neutral" size="sm" caseless>3PL</Badge>}
                     </span>
                     <span className="mt-1 block text-[11.5px] text-ink-secondary">
                       {[
