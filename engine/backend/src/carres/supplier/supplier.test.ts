@@ -263,6 +263,8 @@ describe("cleanAccessInput", () => {
     expect(cleanAccessInput(input({ skuCodes: [{ code: "x" }] }))).toMatchObject({ ok: false });
     expect(cleanAccessInput(input({ modelIds: ["not-a-uuid"] }))).toMatchObject({ ok: false });
     expect(cleanAccessInput(input({ enabled: false, categories: [] }))).toMatchObject({ ok: true });
+    // A 3PL's billing supplier sees Deliveries, not Sales Orders: access may be on with nothing shared.
+    expect(cleanAccessInput(input({ enabled: true, categories: [] }), true)).toMatchObject({ ok: true, value: { enabled: true, categories: [] } });
   });
 });
 

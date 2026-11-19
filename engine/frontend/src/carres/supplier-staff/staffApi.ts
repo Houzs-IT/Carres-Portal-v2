@@ -36,6 +36,8 @@ export interface AccessDetail {
   code: string;
   name: string;
   saved: boolean;
+  /** A 3PL company bills Carres through this supplier: it sees its Deliveries and needs no Sales Order scope. */
+  logistics?: boolean;
   enabled: boolean;
   ownItems: boolean;
   subscriptionShare: boolean;

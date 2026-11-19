@@ -9,6 +9,7 @@ import { isEmail, normEmail } from "./credentials";
 import { isUuid } from "./pickups";
 import { allPerms } from "./perms";
 import { issueLink, recordEvent, type Outcome } from "./session";
+import { isLogistics } from "./deliveries";
 
 /** What a person Carres adds holds: every page and button of each department they are given (./perms.ts). Their
  *  company's admin narrows it from the supplier pages. */
@@ -39,6 +40,9 @@ export interface AccessDetail extends Omit<AccessSummary, "modelCount" | "skuCou
   skus: ScopeSku[];
   /** Items bound to this supplier under Supplier › Items: what "own items" shares. */
   boundItemCount: number;
+  /** A 3PL company bills Carres through this supplier: its people see their Deliveries, so it needs no Sales Order
+   *  scope to sign in (./deliveries.ts; owner, 19 Nov 2026). */
+  logistics: boolean;
   users: SupplierPerson[];
 }
 
@@ -138,7 +142,7 @@ export async function getAccess(db: Db, supplierId: string): Promise<AccessDetai
   );
   const h = first(head);
   if (!h) return null;
-  const [scope, people] = await Promise.all([
+  const [scope, people, logistics] = await Promise.all([
     db.query(
       `SELECT sc.kind, sc.value,
               m.model_code, m.name AS model_name, m.category::text AS model_category,
@@ -152,10 +156,11 @@ export async function getAccess(db: Db, supplierId: string): Promise<AccessDetai
       [supplierId],
     ),
     listPeople(db, supplierId),
+    isLogistics(db, supplierId),
   ]);
   return {
     supplierId: str(h.supplier_id), code: str(h.code), name: str(h.name), saved: bool(h.saved), enabled: bool(h.enabled),
-    ownItems: bool(h.own_items), subscriptionShare: bool(h.subscription_share), boundItemCount: int(h.bound_items),
+    ownItems: bool(h.own_items), subscriptionShare: bool(h.subscription_share), boundItemCount: int(h.bound_items), logistics,
     categories: scope.filter((r) => r.kind === "category").map((r) => str(r.value)),
     models: scope.filter((r) => r.kind === "model").map((r) => ({
       id: str(r.value), code: str(r.model_code), name: str(r.model_name) || "(model removed)", category: str(r.model_category),
@@ -187,7 +192,7 @@ const stringList = (v: unknown, max: number): string[] | null => {
 };
 
 /** The typed shape of a save, or why it is refused. Exported for its test. */
-export function cleanAccessInput(input: AccessInput): { ok: true; value: CleanAccess } | { ok: false; error: string } {
+export function cleanAccessInput(input: AccessInput, logistics = false): { ok: true; value: CleanAccess } | { ok: false; error: string } {
   const categories = stringList(input.categories ?? [], 60);
   const modelIds = stringList(input.modelIds ?? [], 2000);
   const skuCodes = stringList(input.skuCodes ?? [], 5000);
@@ -202,7 +207,8 @@ export function cleanAccessInput(input: AccessInput): { ok: true; value: CleanAc
     modelIds,
     skuCodes,
   };
-  if (value.enabled && !value.ownItems && !value.categories.length && !value.modelIds.length && !value.skuCodes.length) {
+  // A 3PL's billing supplier sees its Deliveries, not Sales Orders: it may sign in with nothing shared.
+  if (value.enabled && !logistics && !value.ownItems && !value.categories.length && !value.modelIds.length && !value.skuCodes.length) {
     return { ok: false, error: "Choose what this supplier sees before turning access on: a category, a product, or its own items." };
   }
   return { ok: true, value };
@@ -259,7 +265,7 @@ async function checkAccess(db: Db, supplierId: string, v: CleanAccess): Promise<
 /** Save a supplier's access. Turning it off ends every session of its people at once. */
 export async function saveAccess(db: Db, supplierId: string, input: AccessInput, staffUserId: number | null): Promise<Outcome<{ access: AccessDetail }>> {
   if (!isUuid(supplierId)) return { ok: false, status: 404, error: "Supplier not found." };
-  const clean = cleanAccessInput(input);
+  const clean = cleanAccessInput(input, await isLogistics(db, supplierId));
   if (!clean.ok) return { ok: false, status: 400, error: clean.error };
   const problem = await checkAccess(db, supplierId, clean.value);
   if (problem) return { ok: false, status: problem === "Supplier not found." ? 404 : 409, error: problem };
