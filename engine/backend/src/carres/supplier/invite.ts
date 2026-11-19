@@ -37,13 +37,13 @@ export function useInviteDepsForTests(deps: InviteDeps): () => void {
 /** Email the invite. Never throws: the answer says whether it left, and if not, why, in fixed words. */
 export async function sendInvite(
   env: Env,
-  p: { to: string; name: string; inviterName: string; supplierName: string; token: string },
+  p: { to: string; name: string; inviterName: string; supplierName: string; token: string; logistics?: boolean },
   deps: InviteDeps = current,
 ): Promise<MailResult> {
   try {
     if (!(await deps.mailOn(env))) return { status: "not_sent", reason: "Supplier emails are switched off at Carres." };
     const url = `${supplierPublicUrl(env, "/supplier/setup")}#t=${p.token}`;
-    const mail = inviteMail({ name: p.name, inviterName: p.inviterName, supplierName: p.supplierName, companyName: await deps.companyName(env), url });
+    const mail = inviteMail({ name: p.name, inviterName: p.inviterName, supplierName: p.supplierName, companyName: await deps.companyName(env), url, logistics: p.logistics });
     return await deps.send(env, p.to, mail);
   } catch {
     // The error is not logged: it may quote the message, and the message holds the link.

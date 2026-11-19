@@ -55,12 +55,14 @@ export function resetMail(p: { name: string; companyName: string; url: string; s
  * The invite a supplier's admin sends to a new person of their company (Settings › Users and access). The same
  * one-time link Carres makes, living as long (three days). `url` carries the link's secret after the `#`.
  */
-export function inviteMail(p: { name: string; inviterName: string; supplierName: string; companyName: string; url: string }): Mail {
+export function inviteMail(p: { name: string; inviterName: string; supplierName: string; companyName: string; url: string; logistics?: boolean }): Mail {
   const company = p.companyName.trim() || "Carres";
   const act = "Choose your password";
   const lines = [
     `Hello ${p.name},`,
-    `${p.inviterName} added you to the ${company} supplier pages for ${p.supplierName}.`,
+    p.logistics
+      ? `${p.inviterName} added you to the ${company} delivery pages for ${p.supplierName}: your own deliveries, their dates and Last Mile.`
+      : `${p.inviterName} added you to the ${company} supplier pages for ${p.supplierName}.`,
     `The link works once, for ${life(LINK_HOURS)}. Use at least ${MIN_PASSWORD} characters.`,
     `If you did not expect this email, do nothing.`,
   ];

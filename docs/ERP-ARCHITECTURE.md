@@ -1547,6 +1547,10 @@ it sets the delivery date, sees Last Mile and keeps Last Mile's information up t
   hour. Disabling a person or a new link: Settings › Supplier Access, where a 3PL's supplier carries a `3PL` mark.
   Staff-added people in Settings › Supplier Access are emailed their link the same way. Turning on a real 3PL is a
   §6.4 cutover and needs the owner's word, as for any supplier.
+- **Its own name, not the supplier's** (owner, 19 Nov 2026: "what they see should not be the supplier's"): a 3PL's
+  people see the 3PL company's name in the header, their department reads `Logistics`, the first page after choosing a
+  password is already Deliveries (sign-in, the link and /auth/me answer alike), their own Users and access offers only
+  Deliveries keys, and every invite email says "delivery pages for <3PL>".
 - **Not mixed with goods suppliers.** One login system, separate data: each supplier sees only its own rows; a
   supplier a 3PL bills through sees only Deliveries; a goods supplier never sees Deliveries.
 

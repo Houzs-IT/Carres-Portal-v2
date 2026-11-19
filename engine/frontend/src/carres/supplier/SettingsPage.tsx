@@ -10,7 +10,7 @@ import { ArrowLeft, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { PERMS, supplierApi, supplierToken, type Department, type Person } from "./api";
 import { forgetAll } from "./data";
-import { PageBar, PageBody, ROLE_LABEL, homeFor, useSupplierSession } from "./Shell";
+import { PageBar, PageBody, homeFor, roleLabel, useSupplierSession } from "./Shell";
 import { Badge, LoadError, Loading, fmtStamp, play, useToast } from "./ui";
 
 // ── What each permission is called ──────────────────────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ const PRESETS: Record<Department, Array<{ id: string; label: string; sub: string
 
 const setOf = (keys: readonly string[]) => new Set(keys);
 const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((k) => b.has(k));
-const presetOf = (dept: Department, perms: Set<string>) => PRESETS[dept].find((p) => sameSet(setOf(p.keys), perms))?.label ?? "Custom";
+const presetOf = (dept: Department, perms: Set<string>, logistics = false) => presetsFor(dept, logistics).find((p) => sameSet(setOf(p.keys), perms))?.label ?? "Custom";
 /** The keys that are really on: a button whose page is off is off. */
 function effective(dept: Department, perms: Set<string>): string[] {
   const out: string[] = [];
@@ -108,7 +108,7 @@ export function SettingsPage() {
             {[
               { k: "account" as const, label: "My account", sub: "Profile and password" },
               ...(adminOf.length && !me.user.mustChangePassword
-                ? [{ k: "users" as const, label: "Users and access", sub: count === null ? `${ROLE_LABEL[dept]} users` : `${count} ${dept === "finance" ? "finance" : "operation"} users` }]
+                ? [{ k: "users" as const, label: "Users and access", sub: count === null ? `${roleLabel(dept, me.supplier.logistics)} users` : `${count} ${dept === "finance" ? "finance" : "operation"} users` }]
                 : []),
             ].map((n) => (
               <button
@@ -131,7 +131,7 @@ export function SettingsPage() {
                   {adminOf.map((d) => (
                     <button key={d} type="button" onClick={() => { setDept(d); setCount(null); }}
                       className={cn("rounded px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider", dept === d ? "bg-primary text-white" : "text-ink-secondary")}>
-                      {ROLE_LABEL[d]}
+                      {roleLabel(d, me.supplier.logistics)}
                     </button>
                   ))}
                 </div>
@@ -165,7 +165,7 @@ function MyAccount() {
   const ok = !!cur && nw.length >= 10 && nw === again && !busy;
   const hint = nw ? (nw.length < 10 ? `${10 - nw.length} more characters needed` : ["Weak", "Fair", "Good", "Strong"][Math.max(0, strength - 1)]) : "Use at least 10 characters. A few words together are strong and easy to remember.";
   const depts: Department[] = [...(me.user.canOperation ? (["operation"] as const) : []), ...(me.user.canFinance ? (["finance"] as const) : [])];
-  const role = depts.map((d) => ROLE_LABEL[d]).join(" and ");
+  const role = depts.map((d) => roleLabel(d, me.supplier.logistics)).join(" and ");
   const admin = depts.some((d) => can(d, "a_users"));
 
   const save = async () => {
@@ -256,6 +256,7 @@ interface Draft {
 
 function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => void }) {
   const toast = useToast();
+  const logistics = useSupplierSession().me.supplier.logistics;
   const [list, setList] = useState<Person[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -276,7 +277,7 @@ function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => vo
   if (error && !list) return <LoadError message={error} onRetry={() => setNonce((n) => n + 1)} />;
   if (!list) return <Loading />;
 
-  const total = GROUPS[dept].reduce((a, g) => a + g.items.length, 0);
+  const total = groupsFor(dept, logistics).reduce((a, g) => a + g.items.length, 0);
   const invited = list.filter((u) => u.status === "invited").length;
 
   const save = async (d: Draft) => {
@@ -292,7 +293,7 @@ function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => vo
           ...(d.how === "password" ? { password: d.password, mustChange: d.mustChange } : {}),
         });
         // A colleague from the other department: no password was set and no email left, so say so.
-        if (out.hadAccount) toast(`${out.user.name} already has an account. ${ROLE_LABEL[dept]} is added to it, and they sign in as before.`);
+        if (out.hadAccount) toast(`${out.user.name} already has an account. ${roleLabel(dept, logistics)} is added to it, and they sign in as before.`);
         else if (d.how === "password") toast(`${d.name.trim()} can sign in now`);
         else if (out.mailed === false) toast(`${d.name.trim()} is added. The invite email was not sent${out.mailNote ? `: ${out.mailNote}` : "."}`, "red");
         else toast(`Invite sent to ${d.email.trim()}`);
@@ -335,7 +336,7 @@ function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => vo
         </div>
         <button
           type="button"
-          onClick={() => { setNote(null); setDraft({ id: null, self: false, name: "", email: "", perms: setOf(PRESETS[dept].find((p) => p.id === "view")!.keys), how: "invite", password: "", mustChange: true }); }}
+          onClick={() => { setNote(null); setDraft({ id: null, self: false, name: "", email: "", perms: setOf(presetsFor(dept, logistics).find((p) => p.id === "view")!.keys), how: "invite", password: "", mustChange: true }); }}
           className="inline-flex h-[34px] items-center gap-1.5 rounded-lg border-0 bg-primary px-[14px] text-[12.5px] font-semibold text-white transition-colors duration-[160ms] hover:bg-primary-ink"
         >
           <Plus size={14} strokeWidth={2.2} aria-hidden="true" />Add user
@@ -367,7 +368,7 @@ function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => vo
                     </div>
                   </td>
                   <td className="whitespace-nowrap border-b border-border-subtle px-[14px] py-2.5 text-[13px]">
-                    <div className="font-semibold text-ink">{presetOf(dept, perms)}</div>
+                    <div className="font-semibold text-ink">{presetOf(dept, perms, logistics)}</div>
                     <div className="mt-px text-[12px] text-ink-muted">{effective(dept, perms).length} of {total} permissions</div>
                   </td>
                   <td className="whitespace-nowrap border-b border-border-subtle px-[14px] py-2.5 text-[13px]">
@@ -384,6 +385,20 @@ function Users({ dept, onCount }: { dept: Department; onCount: (n: number) => vo
   );
 }
 
+/** The keys a 3PL company's Logistics people can hold, and the ones only a goods supplier's people can. */
+const LOGISTICS_KEYS = new Set(["v_deliveries", "a_deldate", "a_export", "a_users"]);
+const SUPPLIER_ONLY = new Set(["v_deliveries", "a_deldate"]);
+const groupsFor = (dept: Department, logistics: boolean) => GROUPS[dept]
+  .map((g) => ({ ...g, items: g.items.filter((it) => dept !== "operation" || (logistics ? LOGISTICS_KEYS.has(it.k) : !SUPPLIER_ONLY.has(it.k))) }))
+  .filter((g) => g.items.length);
+const presetsFor = (dept: Department, logistics: boolean) => (dept === "operation" && logistics
+  ? [
+    { id: "full", label: "Full access", sub: "Deliveries, set dates, export and users", keys: [...LOGISTICS_KEYS] },
+    { id: "dispatch", label: "Dispatcher", sub: "Deliveries and set dates", keys: ["v_deliveries", "a_deldate"] },
+    { id: "view", label: "View only", sub: "Deliveries, no buttons", keys: ["v_deliveries"] },
+  ]
+  : PRESETS[dept]);
+
 function UserForm({ dept, draft: d, setDraft, list, busy, onSave, onRemove, onClose }: {
   dept: Department;
   draft: Draft;
@@ -394,6 +409,7 @@ function UserForm({ dept, draft: d, setDraft, list, busy, onSave, onRemove, onCl
   onRemove: (d: Draft) => void;
   onClose: () => void;
 }) {
+  const logistics = useSupplierSession().me.supplier.logistics;
   const ref = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     play(ref.current, [{ opacity: 0, transform: "translateX(16px)" }, { opacity: 1, transform: "none" }], 280);
@@ -405,7 +421,7 @@ function UserForm({ dept, draft: d, setDraft, list, busy, onSave, onRemove, onCl
   const note = dupe ? "This email already has an account."
     : isNew ? (d.how === "password" ? (d.password.length < 10 ? "Password needs at least 10 characters." : "They can sign in right away.") : "They get an email link to choose a password.")
       : `${on} permissions on`;
-  const preset = presetOf(dept, d.perms);
+  const preset = presetOf(dept, d.perms, logistics);
   const flip = (k: string) => {
     const next = new Set(d.perms);
     if (next.has(k)) next.delete(k); else next.add(k);
@@ -465,7 +481,7 @@ function UserForm({ dept, draft: d, setDraft, list, busy, onSave, onRemove, onCl
           )}
           <div className="text-[12px] font-semibold text-ink">Access</div>
           <div className="-mt-2 grid gap-1.5">
-            {PRESETS[dept].map((p) => {
+            {presetsFor(dept, logistics).map((p) => {
               const active = preset === p.label;
               return (
                 <button key={p.id} type="button" disabled={d.self} onClick={() => setDraft({ ...d, perms: setOf(p.keys) })}
@@ -479,7 +495,7 @@ function UserForm({ dept, draft: d, setDraft, list, busy, onSave, onRemove, onCl
           </div>
         </div>
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 p-[18px] lg:grid-cols-2">
-          {GROUPS[dept].map((g) => (
+          {groupsFor(dept, logistics).map((g) => (
             <div key={g.title}>
               <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">{g.title}</div>
               {g.items.map((it, i) => {

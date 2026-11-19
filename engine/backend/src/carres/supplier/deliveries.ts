@@ -48,6 +48,14 @@ export interface DeliveryJob {
   items: DeliveryItem[];
 }
 
+/** The 3PL company that bills Carres through this supplier, by name, or null: its people's pages carry the 3PL's own
+ *  name, not the supplier's (owner, 19 Nov 2026: "what they see should not be the supplier's"). */
+export async function logisticsName(db: Db, supplierId: string): Promise<string | null> {
+  const rows = await db.query(
+    `SELECT name FROM scm.threepl_companies WHERE supplier_id = $1::uuid AND is_active ORDER BY created_at LIMIT 1`, [supplierId]);
+  return rows[0] ? str(rows[0].name) : null;
+}
+
 /** Whether this supplier is a 3PL company's billing supplier: only then does it have a Deliveries page. */
 export async function isLogistics(db: Db, supplierId: string): Promise<boolean> {
   const rows = await db.query(

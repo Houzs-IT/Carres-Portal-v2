@@ -52,11 +52,15 @@ supplierAccess.use("*", requirePageAccess("settings", "full"));
  *  it left; the link is also on the staff screen, to send by WhatsApp when email fails. */
 async function emailLink(c: Ctx, db: Db, userId: number, token: string): Promise<{ mailed: boolean; mailNote: string | null }> {
   const who = first(await db.query(
-    `SELECT u.email, u.name, s.name AS supplier_name FROM public.carres_supplier_users u JOIN scm.suppliers s ON s.id = u.supplier_id
+    `SELECT u.email, u.name, s.name AS supplier_name,
+            (SELECT t.name FROM scm.threepl_companies t WHERE t.supplier_id = u.supplier_id AND t.is_active ORDER BY t.created_at LIMIT 1) AS threepl_name
+       FROM public.carres_supplier_users u JOIN scm.suppliers s ON s.id = u.supplier_id
       WHERE u.id = $1`, [userId]));
   if (!who) return { mailed: false, mailNote: "The person could not be read." };
   const sent = await sendInvite(c.env, {
-    to: str(who.email), name: str(who.name), inviterName: staff(c).name, supplierName: str(who.supplier_name), token,
+    // A 3PL's people are invited under the 3PL's own name, to its delivery pages.
+    to: str(who.email), name: str(who.name), inviterName: staff(c).name, supplierName: str(who.threepl_name) || str(who.supplier_name), token,
+    logistics: !!str(who.threepl_name),
   });
   return { mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason };
 }
