@@ -198,7 +198,7 @@ export function QuickActionsFAB() {
         }
         aria-expanded={actions.length > 1 ? open : undefined}
         className={cn(
-          "fixed right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-synced text-white shadow-slab",
+          "fixed right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#D64F20] text-white shadow-slab", // Carres: brand orange (owner 2026-11-19)
           "transition-all duration-200 hover:scale-105 hover:brightness-110 active:scale-95",
           "bottom-[calc(theme(spacing.24)+env(safe-area-inset-bottom))] lg:bottom-5 lg:right-5",
           open && "rotate-45",

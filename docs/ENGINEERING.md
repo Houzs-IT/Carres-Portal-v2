@@ -158,6 +158,14 @@ other door), and a live invoice refunds up to its credit notes (`carres/credited
 rights. Chew's chart itself is data in the engine database, never a committed file (it names people). The engine's
 own pure-logic suite fails 46 tests on main already (Carres numbering and names); a change must add no new failure.
 
+**Sales Orders list header (owner, 19 Nov 2026).** The owner kept Houzs's table unchanged (one value per cell,
+dates, columns) and changed only the top of `pages/scm-v2/MfgSalesOrdersListV2.tsx`, each spot marked `// Carres`:
+the title alone (no eyebrow or description), the four cards folded into a closed `Summary`, `More filters` in the
+table's own toolbar (`toolbarExtra`; in Cards view it stays beside the status pills), so Table / Cards sits on the
+right. The quick-actions button (`components/QuickActionsFAB.tsx`) is Carres orange on every page. The
+`SO-Round1-Carres.patch` that also restyled the table and rewrote `components/DataTable.tsx` was not taken: it
+would make every Houzs resync conflict.
+
 **Sales Order: Carres rulings (owner, 12 Nov 2026).** Four places where the engine's SO (desktop New SO and
 edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
 1. *Deposit before Proceed / Processing Date is 50%*: `processingDateThresholdFor` (backend

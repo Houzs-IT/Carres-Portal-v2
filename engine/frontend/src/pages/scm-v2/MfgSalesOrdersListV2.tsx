@@ -82,7 +82,7 @@ import { ListErrorPanel, SearchPendingPanel, SearchProgress } from "../../compon
 import { SearchScopeHint } from "../../components/SearchScopeHint";
 import { useStaffLookup } from "../../hooks/useStaffLookup";
 import { useBranding } from "../../hooks/useBranding";
-import { shortCompanyName, getBrandingCompanyCode } from "../../lib/branding";
+import { getBrandingCompanyCode } from "../../lib/branding";
 import { brandingLabel, isPlaceholderBrandText } from "../../vendor/shared/so-branding-label";
 import { soSaleTypeLabel } from "../../vendor/shared/so-sale-type";
 import { soOffersTransferToDo } from "../../lib/so-transfer-to-do";
@@ -2057,10 +2057,9 @@ export function MfgSalesOrdersListV2() {
           sticky search below. */}
       <div className="-mx-4 hidden pb-3 sm:-mx-6 md:block">
         <div className="px-4 sm:px-6">
+          {/* Carres (owner 2026-11-19): the title alone, no eyebrow or description line. */}
           <PageHeader
-            eyebrow="Supply Chain"
             title="Sales Orders"
-            description={`Every ${shortCompanyName(branding.companyName)} sales order — Draft to Delivered. Click any row for the quick view; open the full page to edit.`}
             primaryAction={
               <div className="flex items-stretch">
                 <Button
@@ -2092,7 +2091,10 @@ export function MfgSalesOrdersListV2() {
               match Service Cases — cards + status pills scroll away, and the
               freeze keeps only the DataTable's own toolbar + header + pager
               (the component-root default). */}
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* Carres (owner 2026-11-19): the four cards fold into a closed Summary. */}
+          <details className="mb-4 rounded-lg border border-border bg-surface px-4 py-3">
+            <summary className="cursor-pointer select-none text-[13px] font-semibold text-ink-secondary">Summary</summary>
+          <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
               pending={statsPending} failed={statsFailed} onRetry={() => void refetch()}
               label="Total Orders"
@@ -2125,6 +2127,7 @@ export function MfgSalesOrdersListV2() {
               rail="bg-synced"
             />
           </div>
+          </details>
 
           <div className="flex flex-wrap items-center gap-3">
             <FilterPills
@@ -2132,7 +2135,8 @@ export function MfgSalesOrdersListV2() {
               value={status}
               onChange={(v) => setStatusChip(v)}
             />
-            <SoListFilterBar q={debouncedSearch} />
+            {/* Carres (owner 2026-11-19): in the table view More Filters sits in the table's own toolbar. */}
+            {view !== "table" && <SoListFilterBar q={debouncedSearch} />}
             <div className="flex-1" />
             <ViewToggle value={view} onChange={setView} />
           </div>
@@ -2236,6 +2240,7 @@ export function MfgSalesOrdersListV2() {
               onError: (e) => void notify({ title: "Export failed", body: e.message || "The export could not be completed.", tone: "error" }),
             }}
             tableId="sales-orders-v2"
+            toolbarExtra={<SoListFilterBar q={debouncedSearch} />} // Carres
             documentLabel="Sales Orders"
             layoutPresets={layoutPresets}
             rows={rows}
