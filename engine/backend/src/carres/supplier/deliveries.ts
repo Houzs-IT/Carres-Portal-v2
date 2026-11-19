@@ -36,6 +36,8 @@ export interface DeliveryJob {
   customerDate: string | null;
   /** The planned delivery date the 3PL may set. */
   plannedDate: string | null;
+  /** The Sales Order's Sales Exemption Expiry date (owner, 20 Nov 2026: shown to the 3PL). */
+  exemptionDate: string | null;
   status: string;
   lorry: string | null;
   driver: string | null;
@@ -81,7 +83,8 @@ const ON_FLEET_PLAN = `(p.lorry_id IN (SELECT id FROM ly)
 const DO_JOBS = `${FLEET}
   SELECT 'do' AS kind, d.id::text AS key, d.so_doc_no, d.do_number, d.debtor_name,
          d.address1, d.address2, d.city, d.state, d.postcode, d.phone,
-         d.customer_delivery_date::text AS customer_date, s.amended_delivery_date::text AS planned_date, d.status,
+         d.customer_delivery_date::text AS customer_date, s.amended_delivery_date::text AS planned_date,
+         s.sales_exemption_expiry::text AS exemption_date, d.status,
          c.lorry_plate AS lorry, c.driver_1_name AS driver, c.helper_1_name AS helper_1, c.helper_2_name AS helper_2,
          to_char(d.departure_at AT TIME ZONE 'Asia/Kuala_Lumpur', 'YYYY-MM-DD HH24:MI') AS departed_at,
          to_char(d.arrival_at AT TIME ZONE 'Asia/Kuala_Lumpur', 'YYYY-MM-DD HH24:MI') AS arrived_at,
@@ -97,7 +100,8 @@ const SO_JOBS = `${FLEET}
          COALESCE(NULLIF(s.delivery_address1, ''), s.address1) AS address1,
          COALESCE(NULLIF(s.delivery_address2, ''), s.address2) AS address2,
          s.city, s.customer_state AS state, s.postcode, s.phone,
-         s.customer_delivery_date::text AS customer_date, s.amended_delivery_date::text AS planned_date, s.status,
+         s.customer_delivery_date::text AS customer_date, s.amended_delivery_date::text AS planned_date,
+         s.sales_exemption_expiry::text AS exemption_date, s.status,
          l.plate AS lorry, dv.name AS driver, h1.name AS helper_1, h2.name AS helper_2,
          NULL::text AS departed_at, NULL::text AS arrived_at, NULL::text AS delivered_at, false AS proof
     FROM scm.carres_so_crew_plan p
@@ -125,6 +129,7 @@ function toJob(r: Record<string, unknown>): DeliveryJob {
     phone: strOrNull(r.phone),
     customerDate: strOrNull(r.customer_date),
     plannedDate: strOrNull(r.planned_date),
+    exemptionDate: strOrNull(r.exemption_date),
     status,
     lorry: strOrNull(r.lorry),
     driver: strOrNull(r.driver),

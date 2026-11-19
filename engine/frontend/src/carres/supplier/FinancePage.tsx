@@ -20,6 +20,7 @@ import {
   Badge, EASE, Facts, Kpi, LoadError, Loading, MonthGrid, OpenFull, Pills, Section, StatStrip, TONE_TEXT, ViewToggle, count, finBadge, fmtDay,
   fmtMonth, instalmentBadge, money, play, todayMyt, useLoad, useToast, type FactSpec, type Stat,
 } from "./ui";
+import { BASE } from "./host";
 
 const ALL_VISIBLE: FinanceVisible = { names: true, share: true, bad: true };
 type Shared = Extract<FinanceSummary, { shared: true }>;
@@ -126,7 +127,7 @@ export function CollectionsPage() {
     return orders.filter((o) => (tab === "all" || o.state === tab) && (!t || `${o.soNo ?? ""} ${o.agreementNo} ${o.customerName} ${o.item}`.toLowerCase().includes(t)));
   }, [orders, tab, q]);
   const n = (st: string) => orders.filter((o) => o.state === st).length;
-  const open = (o: FinanceOrder) => navigate(`/supplier/collections/${encodeURIComponent(o.id)}?from=collections`);
+  const open = (o: FinanceOrder) => navigate(`${BASE}/collections/${encodeURIComponent(o.id)}?from=collections`);
 
   const columns = useMemo<Column<FinanceOrder>[]>(() => {
     const sum = (rs: FinanceOrder[], g: (o: FinanceOrder) => number) => money(Math.round(rs.reduce((a, o) => a + g(o), 0) * 100) / 100);
@@ -304,11 +305,11 @@ export function SubscriptionPage() {
   const step = (d: number) => {
     if (!all.length) return;
     const next = all[(idx + d + all.length) % all.length]!;
-    navigate(`/supplier/collections/${encodeURIComponent(next.id)}?from=${encodeURIComponent(from)}`, { replace: true });
+    navigate(`${BASE}/collections/${encodeURIComponent(next.id)}?from=${encodeURIComponent(from)}`, { replace: true });
   };
-  const backTo = from === "months" ? { to: "/supplier/months", tip: "Back to By Month" }
-    : from.startsWith("month:") ? { to: `/supplier/months/${from.slice(6)}`, tip: `Back to ${fmtMonth(from.slice(6))}` }
-      : { to: "/supplier/collections", tip: "Back to Collections" };
+  const backTo = from === "months" ? { to: `${BASE}/months`, tip: "Back to By Month" }
+    : from.startsWith("month:") ? { to: `${BASE}/months/${from.slice(6)}`, tip: `Back to ${fmtMonth(from.slice(6))}` }
+      : { to: `${BASE}/collections`, tip: "Back to Collections" };
 
   const header = (
     <PageBar
@@ -511,7 +512,7 @@ export function MonthsPage() {
       <PageBody scroll={false} riseKey="months">
         {error && !s && !notShared ? <LoadError message={error} onRetry={reload} /> : notShared ? <NotShared /> : !s ? <Loading /> : (
           <>
-            <StatStrip stats={financeStats(s, v, null, (t) => navigate("/supplier/collections", { state: { tab: t } }))} />
+            <StatStrip stats={financeStats(s, v, null, (t) => navigate(`${BASE}/collections`, { state: { tab: t } }))} />
             <Toolbar search={q} onSearch={setQ} placeholder="Search month" rowCount={shown.length} columns={columns} api={api}
               onExport={doExport} exportCount={0} canExport={can("finance", "a_export")} />
             <ListTable<FinanceMonth>
@@ -544,7 +545,7 @@ function MonthExpansion({ month, orders, v }: { month: string; orders: FinanceOr
         <span>Instalments due in {fmtMonth(month)}</span>
         <span className="flex items-center gap-[14px]">
           <span>{count(items.length, "order")} · {money(due)} due</span>
-          <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/supplier/months/${month}`); }}
+          <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`${BASE}/months/${month}`); }}
             className="inline-flex items-center gap-[3px] rounded-md border border-primary-ink/35 px-2.5 py-1 text-[12px] font-semibold text-primary-ink hover:bg-accent-soft hover:no-underline">
             All of {fmtMonth(month)}<ChevronRight size={12} aria-hidden="true" />
           </a>
@@ -569,7 +570,7 @@ function MonthExpansion({ month, orders, v }: { month: string; orders: FinanceOr
               const b = instalmentBadge(d.x.state, d.next);
               return (
                 <MonthRow key={key} d={d} on={on} b={b} v={v} cols={cols} onToggle={() => setOpenKey(on ? null : key)}
-                  onOpen={() => navigate(`/supplier/collections/${encodeURIComponent(d.o.id)}?from=months`)} />
+                  onOpen={() => navigate(`${BASE}/collections/${encodeURIComponent(d.o.id)}?from=months`)} />
               );
             })}
           </tbody>
@@ -649,13 +650,13 @@ export function MonthPage() {
   const idx = months.indexOf(month);
   const step = (d: number) => {
     if (!months.length) return;
-    navigate(`/supplier/months/${months[(idx + d + months.length) % months.length]}`, { replace: true });
+    navigate(`${BASE}/months/${months[(idx + d + months.length) % months.length]}`, { replace: true });
   };
   const header = (
     <PageBar
       eyebrow="Month Due"
       title={fmtMonth(month)}
-      back={() => navigate("/supplier/months")}
+      back={() => navigate(`${BASE}/months`)}
       backTip="Back to By Month"
       right={<Stepper pos={idx >= 0 ? `${idx + 1} of ${months.length}` : ""} onPrev={() => step(-1)} onNext={() => step(1)} what="month" />}
     />
@@ -721,7 +722,7 @@ export function MonthPage() {
                     const st = d.x.state;
                     const rcv = d.x.paidOn ? fmtDay(d.x.paidOn) : st === "late" ? "Not received" : "Not yet";
                     return (
-                      <tr key={`${d.o.id}|${d.x.seq}`} onClick={() => navigate(`/supplier/collections/${encodeURIComponent(d.o.id)}?from=month:${month}`)}
+                      <tr key={`${d.o.id}|${d.x.seq}`} onClick={() => navigate(`${BASE}/collections/${encodeURIComponent(d.o.id)}?from=month:${month}`)}
                         className="cursor-pointer hover:!bg-primary-soft/35" style={{ background: st === "late" ? "rgba(178,58,58,0.04)" : "#fff" }}>
                         <td className="whitespace-nowrap border-b border-border-subtle px-[14px] py-[9px] text-[13px]"><span className="font-docno text-[12.5px] font-semibold text-primary-ink">{docOf(d.o)}</span></td>
                         {v.names && <td className="whitespace-nowrap border-b border-border-subtle px-[14px] py-[9px] text-[13px] font-semibold text-ink">{d.o.customerName}</td>}

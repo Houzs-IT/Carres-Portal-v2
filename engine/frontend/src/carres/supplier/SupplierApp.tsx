@@ -14,6 +14,7 @@ import { onMustChangePassword, onSignedOut, supplierApi, supplierToken, Supplier
 import { forgetAll } from "./data";
 import { homeFor, LOGO, makeCan, SessionProvider, Shell, type Session } from "./Shell";
 import { LoadError, Loading, ToastProvider, useRise } from "./ui";
+import { BASE } from "./host";
 
 const OrdersPage = lazy(() => import("./OrdersPage").then((m) => ({ default: m.OrdersPage })));
 const OrderPage = lazy(() => import("./OrdersPage").then((m) => ({ default: m.OrderPage })));
@@ -107,7 +108,7 @@ function LoginPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
           {/* The email already typed goes along, so it is not typed twice. It travels in the page's own state, never
               in the address. */}
           <div className="mt-1.5 text-right">
-            <Link to="/supplier/forgot" state={{ email }} className={TEXT_LINK}>Forgot password?</Link>
+            <Link to={`${BASE}/forgot`} state={{ email }} className={TEXT_LINK}>Forgot password?</Link>
           </div>
         </div>
         {error && <Alert>{error}</Alert>}
@@ -142,7 +143,7 @@ function ForgotPage() {
     }
   };
 
-  const back = <Link to="/supplier/login" state={{ email: email.trim() }} className={TEXT_LINK}>Back to sign in</Link>;
+  const back = <Link to={`${BASE}/login`} state={{ email: email.trim() }} className={TEXT_LINK}>Back to sign in</Link>;
 
   if (sent) {
     return (
@@ -209,7 +210,7 @@ function SetPasswordPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
       }
       // The supplier's access is off: the password is saved, and signing in waits for Carres to turn it on.
       supplierToken.clear();
-      navigate("/supplier/login", { replace: true, state: { email: out.email, notice: "Your password is set. Sign in with it." } });
+      navigate(`${BASE}/login`, { replace: true, state: { email: out.email, notice: "Your password is set. Sign in with it." } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "The password could not be saved.");
     } finally {
@@ -222,7 +223,7 @@ function SetPasswordPage({ onSignedIn }: { onSignedIn: (me: Me) => void }) {
       <AuthFrame title="This link cannot be used">
         <p className="m-0 text-[12.5px] leading-relaxed text-ink-secondary">{invalid}</p>
         {/* A link that ran out is the common case for one sent by email: the person asks for the next one here. */}
-        <div className="mt-4"><Link to="/supplier/forgot" className={TEXT_LINK}>Ask for a new link</Link></div>
+        <div className="mt-4"><Link to={`${BASE}/forgot`} className={TEXT_LINK}>Ask for a new link</Link></div>
       </AuthFrame>
     );
   }
@@ -254,11 +255,11 @@ function Only({ dept, perm, me, children }: { dept: Department; perm: string | s
 
 function OldPickupLink() {
   const { id = "" } = useParams();
-  return <Navigate to={`/supplier/pickups?open=${encodeURIComponent(id)}`} replace />;
+  return <Navigate to={`${BASE}/pickups?open=${encodeURIComponent(id)}`} replace />;
 }
 function OldFinanceLink() {
   const { id = "" } = useParams();
-  return <Navigate to={`/supplier/collections/${encodeURIComponent(id)}`} replace />;
+  return <Navigate to={`${BASE}/collections/${encodeURIComponent(id)}`} replace />;
 }
 
 export function SupplierApp() {
@@ -294,7 +295,7 @@ export function SupplierApp() {
       forgetAll();
       setMe(null);
       setState("out");
-      navigate("/supplier/login", { replace: true });
+      navigate(`${BASE}/login`, { replace: true });
     });
   }, [navigate]);
   const session = useMemo<Session | null>(() => (me ? { me, refresh, signOut, can: makeCan(me) } : null), [me, refresh, signOut]);
@@ -302,7 +303,7 @@ export function SupplierApp() {
   const enter = (m: Me) => { forgetAll(); setMe(m); setState("in"); navigate(homeFor(m), { replace: true }); };
 
   const path = location.pathname.replace(/\/+$/, "");
-  if (path === "/supplier/setup") return <SetPasswordPage onSignedIn={enter} />;
+  if (path === `${BASE}/setup`) return <SetPasswordPage onSignedIn={enter} />;
 
   if (state === "checking") return <div className="flex min-h-[100dvh] items-center justify-center bg-bg text-[12.5px] text-ink-muted">Loading</div>;
   if (state === "error") {
@@ -313,34 +314,34 @@ export function SupplierApp() {
     );
   }
   if (state === "out" || !session) {
-    if (path === "/supplier/forgot") return <ForgotPage />;
-    if (path !== "/supplier/login") return <Navigate to="/supplier/login" replace state={location.state} />;
+    if (path === `${BASE}/forgot`) return <ForgotPage />;
+    if (path !== `${BASE}/login`) return <Navigate to={`${BASE}/login`} replace state={location.state} />;
     return <LoginPage onSignedIn={enter} />;
   }
 
   const m = session.me;
   // Until a person who was given a password chooses their own, Settings is the only page.
-  if (m.user.mustChangePassword && path !== "/supplier/settings") return <Navigate to="/supplier/settings" replace />;
+  if (m.user.mustChangePassword && path !== `${BASE}/settings`) return <Navigate to={`${BASE}/settings`} replace />;
   return (
     <SessionProvider value={session}>
       <ToastProvider>
         <Shell me={m} onSignOut={signOut}>
           <Routes>
-            <Route path="/supplier/orders" element={<Only me={m} dept="operation" perm="v_orders"><Lazy><OrdersPage /></Lazy></Only>} />
-            <Route path="/supplier/orders/:docNo" element={<Only me={m} dept="operation" perm="v_orders"><Lazy><OrderPage /></Lazy></Only>} />
-            <Route path="/supplier/forecast" element={<Only me={m} dept="operation" perm="v_forecast"><Lazy><ForecastPage /></Lazy></Only>} />
-            <Route path="/supplier/pickups" element={<Only me={m} dept="operation" perm="v_pickups"><Lazy><PickupsPage /></Lazy></Only>} />
-            <Route path="/supplier/deliveries" element={<Only me={m} dept="operation" perm="v_deliveries"><Lazy><DeliveriesPage /></Lazy></Only>} />
-            <Route path="/supplier/pickups/:id" element={<OldPickupLink />} />
-            <Route path="/supplier/collections" element={<Only me={m} dept="finance" perm="v_coll"><Lazy><CollectionsPage /></Lazy></Only>} />
-            <Route path="/supplier/collections/:id" element={<Only me={m} dept="finance" perm={["v_coll", "v_month"]}><Lazy><SubscriptionPage /></Lazy></Only>} />
-            <Route path="/supplier/months" element={<Only me={m} dept="finance" perm="v_month"><Lazy><MonthsPage /></Lazy></Only>} />
-            <Route path="/supplier/months/:month" element={<Only me={m} dept="finance" perm="v_month"><Lazy><MonthPage /></Lazy></Only>} />
-            <Route path="/supplier/settings" element={<Lazy><SettingsPage /></Lazy>} />
+            <Route path={`${BASE}/orders`} element={<Only me={m} dept="operation" perm="v_orders"><Lazy><OrdersPage /></Lazy></Only>} />
+            <Route path={`${BASE}/orders/:docNo`} element={<Only me={m} dept="operation" perm="v_orders"><Lazy><OrderPage /></Lazy></Only>} />
+            <Route path={`${BASE}/forecast`} element={<Only me={m} dept="operation" perm="v_forecast"><Lazy><ForecastPage /></Lazy></Only>} />
+            <Route path={`${BASE}/pickups`} element={<Only me={m} dept="operation" perm="v_pickups"><Lazy><PickupsPage /></Lazy></Only>} />
+            <Route path={`${BASE}/deliveries`} element={<Only me={m} dept="operation" perm="v_deliveries"><Lazy><DeliveriesPage /></Lazy></Only>} />
+            <Route path={`${BASE}/pickups/:id`} element={<OldPickupLink />} />
+            <Route path={`${BASE}/collections`} element={<Only me={m} dept="finance" perm="v_coll"><Lazy><CollectionsPage /></Lazy></Only>} />
+            <Route path={`${BASE}/collections/:id`} element={<Only me={m} dept="finance" perm={["v_coll", "v_month"]}><Lazy><SubscriptionPage /></Lazy></Only>} />
+            <Route path={`${BASE}/months`} element={<Only me={m} dept="finance" perm="v_month"><Lazy><MonthsPage /></Lazy></Only>} />
+            <Route path={`${BASE}/months/:month`} element={<Only me={m} dept="finance" perm="v_month"><Lazy><MonthPage /></Lazy></Only>} />
+            <Route path={`${BASE}/settings`} element={<Lazy><SettingsPage /></Lazy>} />
             {/* Addresses the pages had before 17 Nov 2026, kept so a saved link still lands. */}
-            <Route path="/supplier/finance" element={<Navigate to="/supplier/collections" replace />} />
-            <Route path="/supplier/finance/:id" element={<OldFinanceLink />} />
-            <Route path="/supplier/account" element={<Navigate to="/supplier/settings" replace />} />
+            <Route path={`${BASE}/finance`} element={<Navigate to={`${BASE}/collections`} replace />} />
+            <Route path={`${BASE}/finance/:id`} element={<OldFinanceLink />} />
+            <Route path={`${BASE}/account`} element={<Navigate to={`${BASE}/settings`} replace />} />
             <Route path="*" element={<Navigate to={homeFor(m)} replace />} />
           </Routes>
         </Shell>

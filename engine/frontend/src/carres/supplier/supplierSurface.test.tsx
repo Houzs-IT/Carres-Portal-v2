@@ -86,7 +86,7 @@ describe("the supplier surface", () => {
     const page = app.slice(app.indexOf("function SetPasswordPage"), app.indexOf("// ── The signed-in pages"));
     expect(page).toContain("supplierToken.set(out.token);");
     expect(page).toContain("onSignedIn(out.me);");
-    expect(app).toContain('if (path === "/supplier/setup") return <SetPasswordPage onSignedIn={enter} />;');
+    expect(app).toContain('if (path === `${BASE}/setup`) return <SetPasswordPage onSignedIn={enter} />;');
   });
 
   it("main.tsx does not offer a supplier the staff app's install prompt", () => {

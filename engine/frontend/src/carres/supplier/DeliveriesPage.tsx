@@ -4,7 +4,7 @@
 // the customer's date and the planned date, and how Last Mile stands (left, arrived, delivered, proof). Never a
 // price. A person who holds "Set delivery date" plans the day of an open job; the customer's own date never changes.
 // The driver records Last Mile on the driver's phone page as before; this page shows what was recorded.
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { supplierApi, type DeliveryJob, type DeliveryView } from "./api";
 import { useShared } from "./data";
 import { Calendar } from "./Calendar";
@@ -35,13 +35,45 @@ export function deliveryBadge(j: DeliveryJob): BadgeSpec {
 const dayOf = (j: DeliveryJob) => j.plannedDate ?? j.customerDate;
 const units = (j: DeliveryJob) => j.items.reduce((a, i) => a + i.qty, 0);
 
-const COLUMNS: Column<DeliveryJob>[] = [
-  { key: "date", label: "Delivery date", width: 130, render: (j) => ({ kind: "text", v: fmtDay(dayOf(j)) || "Not set", bold: true }), exportValue: (j) => dayOf(j) ?? "" },
+/** The goods in one line: "1 × CARRES HUSHY.S MATTRESS (3FT), 2 × PILLOW". */
+const goodsOf = (j: DeliveryJob) => j.items.map((i) => `${i.qty} × ${i.description || i.code}`).join(", ");
+
+/** The planned date, set right in its cell as on Delivery Planning (owner, 20 Nov 2026), for someone who may. */
+function DateCell({ job, canSet, onSaved }: { job: DeliveryJob; canSet: boolean; onSaved: (date: string) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const day = dayOf(job);
+  if (!canSet || job.done) return <span className="font-semibold">{fmtDay(day) || "Not set"}</span>;
+  const save = async (date: string) => {
+    if (!date || date === day) return;
+    setBusy(true);
+    try {
+      await supplierApi.setDeliveryDate(job, date);
+      onSaved(date);
+      toast(`Delivery date set to ${fmtDay(date)}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "That did not work. Try again.", "red");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <input type="date" value={day ?? ""} min={todayMyt()} disabled={busy} aria-label="Delivery date"
+      onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
+      onChange={(e) => void save(e.target.value)}
+      className="h-8 w-full rounded-md border border-border bg-surface px-2 text-[12.5px] font-semibold text-ink outline-none focus:border-primary disabled:opacity-60" />
+  );
+}
+
+const columnsFor = (dateCell: (j: DeliveryJob) => ReactNode): Column<DeliveryJob>[] => [
+  { key: "date", label: "Delivery date", width: 150, render: (j) => ({ kind: "text", v: dateCell(j) }), exportValue: (j) => dayOf(j) ?? "" },
   { key: "doc", label: "Document", width: 150, render: (j) => ({ kind: "doc", v: j.doNo ?? j.soDocNo ?? "" }), exportValue: (j) => j.doNo ?? j.soDocNo ?? "" },
   { key: "customer", label: "Customer", width: 180, render: (j) => ({ kind: "text", v: j.customer }), exportValue: (j) => j.customer },
+  { key: "goods", label: "Goods", width: 300, shrink: true, render: (j) => ({ kind: "text", v: goodsOf(j), title: goodsOf(j) }), exportValue: (j) => goodsOf(j) },
+  { key: "qty", label: "Qty", width: 64, align: "right", render: (j) => ({ kind: "text", v: units(j) }), exportValue: (j) => units(j) },
   { key: "address", label: "Address", width: 280, shrink: true, render: (j) => ({ kind: "text", v: j.address, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (j) => j.address },
   { key: "phone", label: "Phone", width: 130, render: (j) => ({ kind: "text", v: j.phone ?? "" }), exportValue: (j) => j.phone ?? "" },
-  { key: "qty", label: "Qty", width: 64, align: "right", render: (j) => ({ kind: "text", v: units(j) }), exportValue: (j) => units(j) },
+  { key: "exemption", label: "Sales Exemption Expiry", width: 170, render: (j) => ({ kind: "text", v: fmtDay(j.exemptionDate) }), exportValue: (j) => j.exemptionDate ?? "" },
   { key: "lorry", label: "Lorry", width: 100, render: (j) => ({ kind: "text", v: j.lorry ?? "" }), exportValue: (j) => j.lorry ?? "" },
   { key: "driver", label: "Driver", width: 140, render: (j) => ({ kind: "text", v: j.driver ?? "" }), exportValue: (j) => j.driver ?? "" },
   { key: "status", label: "Last Mile", width: 190, render: (j) => ({ kind: "badge", b: deliveryBadge(j) }), exportValue: (j) => deliveryBadge(j).label },
@@ -64,6 +96,9 @@ export function DeliveriesPage() {
   const inView = (j: DeliveryJob) => (view === "all" ? true : view === "done" ? j.done : !j.done);
   const shown = useMemo(() => all.filter((j) => inView(j) && matches(j, q.trim())), [all, q, view]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = all.filter((j) => !j.done).length;
+  const canSetDate = can("operation", "a_deldate");
+  const savedDate = (j: DeliveryJob, date: string) => jobs.put(all.map((x) => (x.kind === j.kind && x.key === j.key ? { ...x, plannedDate: date } : x)));
+  const COLUMNS = columnsFor((j) => <DateCell job={j} canSet={canSetDate} onSaved={(d) => savedDate(j, d)} />);
 
   const doExport = async () => {
     try { await exportList("deliveries", COLUMNS, api.prefs, shown); }
@@ -98,8 +133,7 @@ export function DeliveriesPage() {
             columns={COLUMNS} rows={shown} rowKey={(j) => `${j.kind}:${j.key}`} api={api}
             openKey={openKey} onToggle={(k) => setOpenKey((cur) => (cur === k ? null : k))}
             expanded={(j) => (
-              <DeliveryExpansion job={j} canSetDate={can("operation", "a_deldate")}
-                onSaved={(date) => jobs.put(all.map((x) => (x.kind === j.kind && x.key === j.key ? { ...x, plannedDate: date } : x)))} />
+              <DeliveryExpansion job={j} canSetDate={canSetDate} onSaved={(date) => savedDate(j, date)} />
             )}
             empty={empty}
             footer={<ListCount>{count(shown.length, "delivery", "deliveries")}</ListCount>}
@@ -143,6 +177,7 @@ function DeliveryExpansion({ job, canSetDate, onSaved }: { job: DeliveryJob; can
           { label: "Phone", value: job.phone ?? "Not given", muted: !job.phone },
           { label: "Customer's date", value: fmtDay(job.customerDate) || "Not given", muted: !job.customerDate },
           { label: "Planned date", value: fmtDay(job.plannedDate) || "Not set", muted: !job.plannedDate },
+          { label: "Sales Exemption Expiry", value: fmtDay(job.exemptionDate) || "Not given", muted: !job.exemptionDate },
           { label: "Sales Order", value: job.soDocNo ?? "" },
           { label: "Delivery Order", value: job.doNo ?? "Not made yet", muted: !job.doNo },
           { label: "Lorry", value: job.lorry ?? "Not given", muted: !job.lorry },

@@ -16,6 +16,7 @@ import {
   Badge, Facts, LoadError, Loading, OpenFull, PdfMark, Pills, Section, StatStrip, ViewToggle, collectOn, count, fmtDay, fmtStamp,
   orderPickupBadge, pickupBadge, plural, stageBadge, useLoad, useToast, type FactSpec,
 } from "./ui";
+import { BASE } from "./host";
 
 // ── Shared words ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ export function OrdersPage() {
   const shown = useMemo(() => all.filter((o) => inView(o, view) && matches(o, q.trim())), [all, view, q]);
   const cnt = (v: OrderView) => all.filter((o) => inView(o, v)).length;
   const waiting = me.badges.pickupsToAccept;
-  const openFull = (o: Order) => navigate(`/supplier/orders/${encodeURIComponent(o.docNo)}`);
+  const openFull = (o: Order) => navigate(`${BASE}/orders/${encodeURIComponent(o.docNo)}`);
   const columns = useMemo(() => COLUMNS(openFull), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tickedRows = shown.filter((o) => picked[o.docNo]);
@@ -128,7 +129,7 @@ export function OrdersPage() {
             { label: "In Production", value: cnt("processing"), rail: "rgb(var(--hz-warning-text))", active: view === "processing", onClick: () => setView("processing") },
             {
               label: "Pickups to Accept", value: waiting, rail: waiting ? "rgb(var(--hz-err))" : "rgb(var(--hz-synced))", fg: waiting ? "rgb(var(--hz-warning-text))" : undefined,
-              onClick: can("operation", "v_pickups") ? () => navigate("/supplier/pickups") : undefined,
+              onClick: can("operation", "v_pickups") ? () => navigate(`${BASE}/pickups`) : undefined,
             },
           ]}
         />
@@ -282,7 +283,7 @@ function OrderMap({ open, onClose, nodes }: { open: boolean; onClose: () => void
       rowLabels={{ primary: "Order to pickup", secondary: "After collection" }}
       onNodeClick={(node) => {
         const id = nodes.find((n) => n.type === node.type)?.requestId;
-        if (node.type === "Pickup Request" && id) navigate(`/supplier/pickups?open=${encodeURIComponent(id)}&tab=all`);
+        if (node.type === "Pickup Request" && id) navigate(`${BASE}/pickups?open=${encodeURIComponent(id)}&tab=all`);
       }}
     />
   );
@@ -304,14 +305,14 @@ export function OrderPage() {
   const go = (i: number) => {
     if (!all.length) return;
     const next = all[(i + all.length) % all.length]!;
-    navigate(`/supplier/orders/${encodeURIComponent(next.docNo)}`, { replace: true });
+    navigate(`${BASE}/orders/${encodeURIComponent(next.docNo)}`, { replace: true });
   };
 
   // The requests that carry this order: from the pickup list when the person may read it, else from the lines.
   const reqs: Pickup[] = (pickups.data ?? []).filter((p) => p.soDocNos.includes(docNo));
   const lineReqs = o ? [...new Map(o.lines.filter((l) => l.pickup.requestNo).map((l) => [l.pickup.requestId ?? l.pickup.requestNo!, l])).values()] : [];
 
-  const back = () => navigate("/supplier/orders");
+  const back = () => navigate(`${BASE}/orders`);
   const header = (
     <PageBar
       eyebrow="Sales Order"
@@ -462,7 +463,7 @@ export function OrderPage() {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => navigate(`/supplier/pickups?open=${encodeURIComponent(p.id)}&tab=all`)}
+                    onClick={() => navigate(`${BASE}/pickups?open=${encodeURIComponent(p.id)}&tab=all`)}
                     className="flex w-full items-center justify-between gap-3 border-0 bg-surface px-4 py-3 text-left transition-colors duration-[160ms] hover:bg-primary-soft/35"
                     style={{ borderTop: i ? "1px solid rgb(var(--hz-border-subtle))" : "0" }}
                   >

@@ -41,6 +41,30 @@ function world() {
   return { engine, site, ask, askAt };
 }
 
+describe("Carres 3PL address: the same pages under /logistics", () => {
+  const env3 = () => {
+    const w = world();
+    return (path: string, init?: RequestInit) => handle(new Request(`https://3pl.carresofficial.com${path}`, init),
+      { SITE_ORIGIN: 'https://carres-scm.pages.dev', PUBLIC_HOST: 'supp.carresofficial.com', LOGISTICS_HOST: '3pl.carresofficial.com',
+        ENGINE: { fetch: async () => new Response('{}', { status: 200 }) } }, async () => new Response('<!doctype html>', { status: 200, headers: { 'content-type': 'text/html' } }))
+      .then((r) => ({ r, w }));
+  };
+  it('pages live under /logistics there; /supplier and the root go to /logistics', async () => {
+    const ask = env3();
+    expect(plan('GET', '/logistics/deliveries', '/logistics')).toEqual({ kind: 'page' });
+    expect(plan('GET', '/supplier/orders', '/logistics')).toEqual({ kind: 'redirect', to: '/logistics' });
+    expect((await ask('/logistics/setup')).r.status).toBe(200);
+    const root = (await ask('/')).r;
+    expect(root.status).toBe(302);
+    expect(root.headers.get('location')).toBe('/logistics');
+    expect((await ask('/api/auth/status')).r.status).toBe(404);
+  });
+  it('the supplier address is unchanged: /logistics there goes to /supplier', () => {
+    expect(plan('GET', '/logistics/deliveries')).toEqual({ kind: 'redirect', to: '/supplier' });
+    expect(plan('GET', '/supplier/orders')).toEqual({ kind: 'page' });
+  });
+});
+
 describe('Carres supplier address: what each request gets', () => {
   it('the supplier API and the public company name go to the engine', () => {
     expect(plan('POST', '/api/carres-supplier/auth/login')).toEqual({ kind: 'api' });
@@ -205,9 +229,14 @@ describe('Carres supplier address: how it is deployed', () => {
     // Worker itself, before it decides anything else.
     expect(toml).toMatch(/^workers_dev = true$/m);
     const worker = readFileSync(new URL('../src/carres/supplier-site/worker.ts', import.meta.url), 'utf8');
-    const guard = worker.indexOf('if (!isPublicHost(url.hostname, env.PUBLIC_HOST)) return plain("Not found.", 404);');
+    const guard = worker.indexOf('if (!isPublicHost(url.hostname, env.PUBLIC_HOST) && !isPublicHost(url.hostname, env.LOGISTICS_HOST)) return plain("Not found.", 404);');
     expect(guard).toBeGreaterThan(-1);
     expect(guard).toBeLessThan(worker.indexOf('const decided = plan('));
+  });
+
+  it("also answers at a 3PL company's address (owner, 20 Nov 2026), and only there", () => {
+    expect(toml).toContain('{ pattern = "3pl.carresofficial.com", custom_domain = true }');
+    expect(toml).toMatch(/^LOGISTICS_HOST = "3pl\.carresofficial\.com"$/m);
   });
 
   it('holds no secret and no database: one binding, to the engine Worker', () => {

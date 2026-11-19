@@ -31,7 +31,7 @@ describe("a 3PL company on the Supplier Platform (owner, 19 Nov 2026)", () => {
   it("Last Mile reads the driver's steps in order", () => {
     const base: DeliveryJob = {
       kind: "do", key: "x", soDocNo: "CR-SO-1", doNo: "CR-DO-1", customer: "TEST", address: "", phone: null, customerDate: null,
-      plannedDate: null, status: "CONFIRMED", lorry: null, driver: null, helpers: [], departedAt: null, arrivedAt: null,
+      plannedDate: null, exemptionDate: null, status: "CONFIRMED", lorry: null, driver: null, helpers: [], departedAt: null, arrivedAt: null,
       deliveredAt: null, proof: false, done: false, items: [],
     };
     expect(deliveryBadge({ ...base, kind: "so" }).label).toBe("Waiting for Delivery Order");

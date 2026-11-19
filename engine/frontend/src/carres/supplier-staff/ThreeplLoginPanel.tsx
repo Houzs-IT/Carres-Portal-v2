@@ -53,7 +53,7 @@ export function ThreeplLoginPanel({ threeplId, defaultName = "", defaultEmail = 
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2.5">
         <div>
           <div className="text-[12px] font-semibold uppercase tracking-wide text-ink-muted">Login for this 3PL</div>
-          <div className="text-[11.5px] text-ink-secondary">They sign in at supp.carresofficial.com and see only the deliveries on their own lorries.</div>
+          <div className="text-[11.5px] text-ink-secondary">They sign in at 3pl.carresofficial.com and see only the deliveries on their own lorries.</div>
         </div>
         {d.supplier && !adding && <Button variant="secondary" className="h-8 px-3" icon={<Plus size={13} />} onClick={() => {
           const fresh = !d.people.some((p) => p.email.toLowerCase() === defaultEmail.trim().toLowerCase());

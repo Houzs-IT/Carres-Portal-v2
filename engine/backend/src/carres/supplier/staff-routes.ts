@@ -9,7 +9,7 @@
 import { Hono, type Context } from "hono";
 import type { Env } from "../../types";
 import { requirePageAccess } from "../../middleware/auth";
-import { supplierPublicUrl } from "./address";
+import { pagesUrl, supplierPublicUrl } from "./address";
 import { dbFor } from "./db";
 import { threeplLogin } from "./threepl-login";
 import {
@@ -41,7 +41,7 @@ async function body<T>(c: Ctx): Promise<T> {
 
 /** Where a supplier person opens their one-time link. The secret sits after the `#`, which a browser never sends to
  *  a server, so it reaches no access log. Built here because only this answer ever holds the token. */
-const setupUrl = (c: Ctx, token: string) => `${supplierPublicUrl(c.env, "/supplier/setup")}#t=${token}`;
+const setupUrl = (c: Ctx, token: string, logistics = false) => `${pagesUrl(c.env, logistics, "/supplier/setup")}#t=${token}`;
 
 // ── Settings › Supplier Access ──────────────────────────────────────────────────────────────────────────────────
 
@@ -50,19 +50,20 @@ supplierAccess.use("*", requirePageAccess("settings", "full"));
 
 /** Email a person their set-password link (it lives three days, ./credentials.ts LINK_HOURS). The answer says whether
  *  it left; the link is also on the staff screen, to send by WhatsApp when email fails. */
-async function emailLink(c: Ctx, db: Db, userId: number, token: string): Promise<{ mailed: boolean; mailNote: string | null }> {
+async function emailLink(c: Ctx, db: Db, userId: number, token: string): Promise<{ mailed: boolean; mailNote: string | null; url: string }> {
   const who = first(await db.query(
     `SELECT u.email, u.name, s.name AS supplier_name,
             (SELECT t.name FROM scm.threepl_companies t WHERE t.supplier_id = u.supplier_id AND t.is_active ORDER BY t.created_at LIMIT 1) AS threepl_name
        FROM public.carres_supplier_users u JOIN scm.suppliers s ON s.id = u.supplier_id
       WHERE u.id = $1`, [userId]));
-  if (!who) return { mailed: false, mailNote: "The person could not be read." };
+  if (!who) return { mailed: false, mailNote: "The person could not be read.", url: setupUrl(c, token) };
+  const logistics = !!str(who.threepl_name);
   const sent = await sendInvite(c.env, {
     // A 3PL's people are invited under the 3PL's own name, to its delivery pages.
     to: str(who.email), name: str(who.name), inviterName: staff(c).name, supplierName: str(who.threepl_name) || str(who.supplier_name), token,
     logistics: !!str(who.threepl_name),
   });
-  return { mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason };
+  return { mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason, url: setupUrl(c, token, logistics) };
 }
 
 // ── A 3PL company's login, from its own form (owner, 19 Nov 2026: "create the 3PL, then open its account") ──────
@@ -78,8 +79,8 @@ supplierAccess.post("/threepl/:threeplId/invite", async (c) => {
   const b = await body<{ name?: unknown; email?: unknown }>(c);
   const out = await threeplLogin(db).invite(c.req.param("threeplId"), { name: b.name, email: b.email }, staff(c).id);
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  const mail = await emailLink(c, db, out.person.id, out.link.token);
-  return c.json({ person: out.person, link: { url: setupUrl(c, out.link.token), expiresAt: out.link.expiresAt }, ...mail });
+  const { url, ...mail } = await emailLink(c, db, out.person.id, out.link.token);
+  return c.json({ person: out.person, link: { url, expiresAt: out.link.expiresAt }, ...mail });
 });
 
 supplierAccess.get("/", async (c) => c.json({ suppliers: await listAccess(dbFor(c.env)), signInUrl: supplierPublicUrl(c.env, "/supplier") }));
@@ -118,8 +119,8 @@ supplierAccess.post("/:supplierId/people", async (c) => {
   const db = dbFor(c.env);
   const out = await addPerson(db, c.req.param("supplierId"), await body<PersonInput>(c), staff(c).id);
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  const mail = await emailLink(c, db, out.person.id, out.link.token);
-  return c.json({ person: out.person, link: { url: setupUrl(c, out.link.token), expiresAt: out.link.expiresAt }, ...mail });
+  const { url, ...mail } = await emailLink(c, db, out.person.id, out.link.token);
+  return c.json({ person: out.person, link: { url, expiresAt: out.link.expiresAt }, ...mail });
 });
 
 supplierAccess.patch("/people/:id", async (c) => {
@@ -134,8 +135,8 @@ supplierAccess.post("/people/:id/link", async (c) => {
   const db = dbFor(c.env);
   const link = await issueLink(db, { userId: id, staffUserId: staff(c).id });
   if (!link) return c.json({ error: "This person is disabled. Enable them first." }, 409);
-  const mail = await emailLink(c, db, id, link.token);
-  return c.json({ link: { url: setupUrl(c, link.token), expiresAt: link.expiresAt, purpose: link.purpose }, ...mail });
+  const { url, ...mail } = await emailLink(c, db, id, link.token);
+  return c.json({ link: { url, expiresAt: link.expiresAt, purpose: link.purpose }, ...mail });
 });
 
 // ── Pickup requests ─────────────────────────────────────────────────────────────────────────────────────────────

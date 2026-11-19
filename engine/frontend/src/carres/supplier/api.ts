@@ -132,6 +132,7 @@ export interface DeliveryJob {
   phone: string | null;
   customerDate: string | null;
   plannedDate: string | null;
+  exemptionDate: string | null;
   status: string;
   lorry: string | null;
   driver: string | null;

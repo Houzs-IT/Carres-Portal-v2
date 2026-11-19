@@ -18,6 +18,7 @@ import { Calendar, fromToText } from "./Calendar";
 import { CardsCount, CardsView, ListCount, ListTable, Toolbar, exportList, useListPrefs, type CardSpec, type Column } from "./ListTable";
 import { PageBar, PageBody, useSupplierSession } from "./Shell";
 import { Badge, Facts, LoadError, Loading, PdfMark, Pills, StatStrip, ViewToggle, collectOn, count, fmtDay, fmtStamp, pickupBadge, play, plural, todayMyt, useToast, type FactSpec } from "./ui";
+import { BASE } from "./host";
 
 type Tab = "todo" | "accepted" | "collected" | "cancelled" | "all";
 const TAB_STATUS: Record<Exclude<Tab, "all">, Pickup["status"]> = { todo: "REQUESTED", accepted: "ACCEPTED", collected: "COLLECTED", cancelled: "CANCELLED" };
@@ -54,7 +55,7 @@ export function PickupsPage() {
 
   // A link to one request (from a Sales Order, or an old address) opens it once, then leaves the address plain.
   useEffect(() => {
-    if (search.get("open")) navigate("/supplier/pickups", { replace: true });
+    if (search.get("open")) navigate(`${BASE}/pickups`, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const all = pickups.data ?? [];
@@ -232,7 +233,7 @@ function PickupExpansion({ pickup: p, onChanged }: { pickup: Pickup; onChanged: 
             <div className="mb-1 flex justify-between gap-3">
               <h3 className="m-0 text-[12px] font-semibold text-ink-muted">{so} · {count(units(lines), "unit")}</h3>
               {can("operation", "v_orders") && (
-                <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/supplier/orders/${encodeURIComponent(so)}`); }} className="text-[12px] font-semibold text-primary-ink hover:underline">Open order</a>
+                <a href="#" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`${BASE}/orders/${encodeURIComponent(so)}`); }} className="text-[12px] font-semibold text-primary-ink hover:underline">Open order</a>
               )}
             </div>
             {lines.map((l, i) => (

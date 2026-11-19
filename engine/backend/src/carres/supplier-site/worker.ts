@@ -13,6 +13,9 @@
 //   a page under /supplier   the site's one page; the app draws the supplier pages for that path
 //   any other page           sent to /supplier
 //
+// It also answers at a 3PL company's address, 3pl.carresofficial.com (LOGISTICS_HOST; owner, 20 Nov 2026): the same
+// rules, with /logistics in place of /supplier, so a 3PL's link never says "supplier".
+//
 // It keeps no session, reads no database and holds no secret: what a supplier may read is still decided by the
 // engine (the session, and the two functions of migration 2012). This is the address, and a second lock in front.
 
@@ -21,8 +24,11 @@ interface Env {
   ENGINE: { fetch: (request: Request) => Promise<Response> };
   /** The engine site that holds the built pages and files (https://carres-scm.pages.dev). */
   SITE_ORIGIN: string;
-  /** The one address this Worker answers at (supp.carresofficial.com). */
+  /** The supplier's address (supp.carresofficial.com). */
   PUBLIC_HOST: string;
+  /** A 3PL company's address (3pl.carresofficial.com; owner, 20 Nov 2026: a 3PL's link must not say "supplier"). The
+   *  same platform and API; its pages live under /logistics instead of /supplier. */
+  LOGISTICS_HOST?: string;
 }
 
 /** Whether a request came for the address suppliers are given. The Worker also has a workers.dev address, on only
@@ -41,9 +47,15 @@ export type Plan =
 
 /** The supplier pages' own address prefix (frontend routing/appSurface.ts). */
 export const SUPPLIER_HOME = "/supplier";
+/** The same pages at a 3PL company's address (frontend carres/supplier/host.ts BASE). */
+export const LOGISTICS_HOME = "/logistics";
+
+/** Which pages an address serves: the 3PL address serves /logistics, the supplier address /supplier. */
+export const homeFor = (hostname: string, env: Pick<Env, "LOGISTICS_HOST">): string =>
+  isPublicHost(hostname, env.LOGISTICS_HOST) ? LOGISTICS_HOME : SUPPLIER_HOME;
 
 const isSupplierApi = (path: string): boolean => path === "/api/carres-supplier" || path.startsWith("/api/carres-supplier/");
-const isSupplierPage = (path: string): boolean => path === SUPPLIER_HOME || path.startsWith(`${SUPPLIER_HOME}/`);
+const isPageOf = (path: string, home: string): boolean => path === home || path.startsWith(`${home}/`);
 
 /** A path that names a file: its last part carries an extension (the built files, the logo, the fonts). */
 const isFile = (path: string): boolean => /\.[a-z0-9]{1,12}$/i.test(path.split("/").pop() ?? "");
@@ -51,7 +63,7 @@ const isFile = (path: string): boolean => /\.[a-z0-9]{1,12}$/i.test(path.split("
 /** `pathname` is the request's own path, as the runtime parsed it (dot segments already resolved). It is matched
  *  as written, never tidied first: a path that only resembles the supplier API after tidying is not the supplier
  *  API, and must not be handed to the engine. */
-export function plan(method: string, pathname: string): Plan {
+export function plan(method: string, pathname: string, home: string = SUPPLIER_HOME): Plan {
   const path = pathname;
   if (isSupplierApi(path)) return { kind: "api" };
   if (path === "/api/track/company") return method === "GET" || method === "HEAD" ? { kind: "api" } : { kind: "refuse", status: 405 };
@@ -59,9 +71,9 @@ export function plan(method: string, pathname: string): Plan {
   if (path === "/api" || path.startsWith("/api/")) return { kind: "refuse", status: 404 };
   if (method !== "GET" && method !== "HEAD") return { kind: "refuse", status: 405 };
   if (path === "/robots.txt") return { kind: "robots" };
-  if (isSupplierPage(path)) return { kind: "page" };
+  if (isPageOf(path, home)) return { kind: "page" };
   if (isFile(path)) return { kind: "file" };
-  return { kind: "redirect", to: SUPPLIER_HOME };
+  return { kind: "redirect", to: home };
 }
 
 /** On every answer: nothing here needs the camera, the microphone or the place, and nothing is guessed from a
@@ -106,8 +118,8 @@ type SiteFetch = (input: string, init?: RequestInit) => Promise<Response>;
 export async function handle(request: Request, env: Env, siteFetch: SiteFetch = fetch): Promise<Response> {
   const url = new URL(request.url);
   // Any other host is not this address. Nothing is answered there, and nothing behind it is asked.
-  if (!isPublicHost(url.hostname, env.PUBLIC_HOST)) return plain("Not found.", 404);
-  const decided = plan(request.method, url.pathname);
+  if (!isPublicHost(url.hostname, env.PUBLIC_HOST) && !isPublicHost(url.hostname, env.LOGISTICS_HOST)) return plain("Not found.", 404);
+  const decided = plan(request.method, url.pathname, homeFor(url.hostname, env));
   const site = (env.SITE_ORIGIN || "").replace(/\/+$/, "");
 
   switch (decided.kind) {

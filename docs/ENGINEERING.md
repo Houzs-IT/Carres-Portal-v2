@@ -205,7 +205,9 @@ file touched. Tests: `frontend/src/carres/supplier/deliveries.test.ts`; the stat
 `tests/carresSupplierPlatformGuards.test.ts` admits the three fleet constants. Opening a 3PL's login from its own form: backend `carres/supplier/threepl-login.ts`, staff routes
 `GET/POST /api/carres/supplier-access/threepl/:threeplId[/invite]`; staff-made links (invite, Add person, New link) are
 emailed through `invite.ts` (`supplier_invite` channel); frontend `carres/supplier-staff/ThreeplLoginPanel.tsx`,
-mounted with one `// Carres` line in Houzs's `pages/scm-v2/ThreePLCompanies.tsx` (its test mocks the panel).
+mounted with one `// Carres` line in Houzs's `pages/scm-v2/ThreePLCompanies.tsx` (its test mocks the panel). A 3PL's own address `3pl.carresofficial.com`: a second custom domain on `carres-supplier-site`
+(`LOGISTICS_HOST`, pages under `/logistics`); frontend `carres/supplier/host.ts` `BASE`; backend
+`carres/supplier/address.ts` `pagesUrl` picks the address for every link; `deploy-engine.yml` checks it after deploy.
 
 **Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT · DEPLOYED 15 Nov 2026; the owner's
 redesign DEPLOYED 17 Nov 2026).** A
