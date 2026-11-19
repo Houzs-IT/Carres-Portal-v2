@@ -268,6 +268,8 @@ function Editor({ supplierId, options, onSaved }: { supplierId: string; options:
   } : null), [draft]);
   const scopeKey = input ? JSON.stringify([input.ownItems, input.categories, input.modelIds, input.skuCodes]) : "";
   const nothingShared = !!input && !input.ownItems && !input.categories.length && !input.modelIds.length && !input.skuCodes.length;
+  /** A 3PL's billing supplier sees its own Deliveries, so it signs in with no Sales Orders shared (owner, 19 Nov 2026). */
+  const logistics = !!saved?.logistics;
 
   // What the supplier would see with the scope on screen, counted by the server a moment after the last change.
   useEffect(() => {
@@ -367,7 +369,8 @@ function Editor({ supplierId, options, onSaved }: { supplierId: string; options:
             hint={`Orders with the items bound to this supplier under Suppliers › Items (${draft.boundItemCount} now). The narrowest choice: it follows the bindings as they change.`}
           />
           <div className={cn("rounded-md border px-3 py-2.5 text-[12.5px]", nothingShared ? "border-border bg-surface-2 text-ink-muted" : "border-primary/30 bg-primary-soft/40 text-ink")}>
-            {nothingShared ? "Nothing is ticked: this supplier would see no Sales Orders."
+            {nothingShared && logistics ? "A 3PL company bills Carres through this supplier: its people see their Deliveries, and no Sales Orders."
+              : nothingShared ? "Nothing is ticked: this supplier would see no Sales Orders."
               : preview ? <>With this, the supplier sees <span className="font-bold">{preview.orders.toLocaleString()}</span> {plural(preview.orders, "Sales Order")} today ({preview.incomingOrders.toLocaleString()} incoming), <span className="font-bold">{preview.units.toLocaleString()}</span> {plural(preview.units, "unit")} on {preview.lines.toLocaleString()} {plural(preview.lines, "line")}.</>
                 : "Counting what the supplier would see"}
           </div>
@@ -392,9 +395,9 @@ function Editor({ supplierId, options, onSaved }: { supplierId: string; options:
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={save} disabled={saving || !dirty || (draft.enabled && nothingShared)}>{saving ? "Saving" : "Save"}</Button>
+        <Button onClick={save} disabled={saving || !dirty || (draft.enabled && nothingShared && !logistics)}>{saving ? "Saving" : "Save"}</Button>
         {dirty && <Button variant="ghost" onClick={() => setDraft(saved)}>Discard changes</Button>}
-        {draft.enabled && nothingShared && <span className="text-[12px] text-err">Tick what this supplier sees before turning access on.</span>}
+        {draft.enabled && nothingShared && !logistics && <span className="text-[12px] text-err">Tick what this supplier sees before turning access on.</span>}
         {!dirty && saved.saved && <span className="text-[12px] text-ink-muted">Saved</span>}
       </div>
 
