@@ -19,7 +19,9 @@ compatibility_date = "2024-12-01"
 workers_dev = true
 preview_urls = false
 routes = [
-  { pattern = "supp.carresofficial.com", custom_domain = true }
+  { pattern = "supp.carresofficial.com", custom_domain = true },
+  # A 3PL company's address (owner, 20 Nov 2026): the same Worker, pages under /logistics.
+  { pattern = "3pl.carresofficial.com", custom_domain = true }
 ]
 
 [observability]
@@ -28,6 +30,8 @@ enabled = true
 [vars]
 # The one address this Worker answers at. A request for any other host (its workers.dev address) gets 404.
 PUBLIC_HOST = "supp.carresofficial.com"
+# A 3PL company's address. Both hosts are answered; every other host gets 404.
+LOGISTICS_HOST = "3pl.carresofficial.com"
 # Where the built pages and files are (the engine site). No trailing slash.
 SITE_ORIGIN = "https://carres-scm.pages.dev"
 

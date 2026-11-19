@@ -10,7 +10,8 @@
 import type { Env } from "../../types";
 import { getBranding } from "../../services/branding";
 import { isChannelEnabled } from "../../services/email";
-import { supplierPublicUrl } from "./address";
+import { pagesUrl } from "./address";
+import { logisticsName } from "./deliveries";
 import { dbFor } from "./db";
 import { resetMail, sendMail, type Mail, type MailResult } from "./mail";
 import { requestReset, settleReset } from "./session";
@@ -54,7 +55,9 @@ export async function sendResetLink(env: Env, input: { email: unknown; ip: strin
     if (!(await deps.mailOn(env))) {
       result = { status: "not_sent", reason: "Supplier emails are switched off in Settings." };
     } else {
-      const url = `${supplierPublicUrl(env, "/supplier/setup")}#t=${ask.token}`;
+      // A 3PL's person is sent to the 3PL address, never to one that says "supplier".
+      const logistics = (await logisticsName(db, ask.supplierId)) !== null;
+      const url = `${pagesUrl(env, logistics, "/supplier/setup")}#t=${ask.token}`;
       const mail = resetMail({ name: ask.name, companyName: await deps.companyName(env), url, setup: ask.purpose === "setup" });
       result = await deps.send(env, ask.email, mail);
     }

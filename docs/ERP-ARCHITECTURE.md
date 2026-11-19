@@ -1551,6 +1551,12 @@ it sets the delivery date, sees Last Mile and keeps Last Mile's information up t
   people see the 3PL company's name in the header, their department reads `Logistics`, the first page after choosing a
   password is already Deliveries (sign-in, the link and /auth/me answer alike), their own Users and access offers only
   Deliveries keys, and every invite email says "delivery pages for <3PL>".
+- **Its own address** (owner, 20 Nov 2026: "the link still says supplier"): a 3PL signs in at
+  `https://3pl.carresofficial.com/logistics`; every link a 3PL person is sent (invite, new link, Forgot password) is on
+  that address. The same Worker serves it (`LOGISTICS_HOST`), with `/logistics` in place of `/supplier`; the
+  supplier address is unchanged.
+- **The list** shows each job's goods and quantity, the Sales Exemption Expiry date, and the delivery date is set
+  right in its column (a date picker, as on Delivery Planning).
 - **Not mixed with goods suppliers.** One login system, separate data: each supplier sees only its own rows; a
   supplier a 3PL bills through sees only Deliveries; a goods supplier never sees Deliveries.
 

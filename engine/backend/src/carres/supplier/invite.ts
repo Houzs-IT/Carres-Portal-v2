@@ -8,7 +8,7 @@
 import type { Env } from "../../types";
 import { getBranding } from "../../services/branding";
 import { isChannelEnabled } from "../../services/email";
-import { supplierPublicUrl } from "./address";
+import { pagesUrl } from "./address";
 import { inviteMail, sendMail, type Mail, type MailResult } from "./mail";
 
 /** The three things this reaches outside the platform's own tables, so a test can stand in for each. */
@@ -42,7 +42,7 @@ export async function sendInvite(
 ): Promise<MailResult> {
   try {
     if (!(await deps.mailOn(env))) return { status: "not_sent", reason: "Supplier emails are switched off at Carres." };
-    const url = `${supplierPublicUrl(env, "/supplier/setup")}#t=${p.token}`;
+    const url = `${pagesUrl(env, !!p.logistics, "/supplier/setup")}#t=${p.token}`;
     const mail = inviteMail({ name: p.name, inviterName: p.inviterName, supplierName: p.supplierName, companyName: await deps.companyName(env), url, logistics: p.logistics });
     return await deps.send(env, p.to, mail);
   } catch {

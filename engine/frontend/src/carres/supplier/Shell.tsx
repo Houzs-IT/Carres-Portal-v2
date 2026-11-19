@@ -11,6 +11,7 @@ import { cn } from "../../lib/utils";
 import { usePublicCompany } from "../publicBranding";
 import type { Department, Me } from "./api";
 import { EASE, useRise } from "./ui";
+import { BASE } from "./host";
 
 export const LOGO = "/logo-wordmark.png";
 
@@ -48,17 +49,17 @@ export function tabsFor(me: Me): Tab[] {
   const operation = me.user.canOperation && !me.supplier.logistics;
   const finance = me.user.canFinance;
   const out: Tab[] = [];
-  if (logistics && can("operation", "v_deliveries")) out.push({ to: "/supplier/deliveries", label: "Deliveries", badge: 0, dept: "operation" });
-  if (operation && can("operation", "v_orders")) out.push({ to: "/supplier/orders", label: "Sales Orders", badge: 0, dept: "operation" });
-  if (finance && can("finance", "v_coll")) out.push({ to: "/supplier/collections", label: "Collections", badge: 0, dept: "finance" });
-  if (operation && can("operation", "v_forecast")) out.push({ to: "/supplier/forecast", label: "Forecast", badge: 0, dept: "operation" });
-  if (operation && can("operation", "v_pickups")) out.push({ to: "/supplier/pickups", label: "Pickup Requests", badge: me.badges.pickupsToAccept, dept: "operation" });
-  if (finance && can("finance", "v_month")) out.push({ to: "/supplier/months", label: "By Month", badge: 0, dept: "finance" });
+  if (logistics && can("operation", "v_deliveries")) out.push({ to: `${BASE}/deliveries`, label: "Deliveries", badge: 0, dept: "operation" });
+  if (operation && can("operation", "v_orders")) out.push({ to: `${BASE}/orders`, label: "Sales Orders", badge: 0, dept: "operation" });
+  if (finance && can("finance", "v_coll")) out.push({ to: `${BASE}/collections`, label: "Collections", badge: 0, dept: "finance" });
+  if (operation && can("operation", "v_forecast")) out.push({ to: `${BASE}/forecast`, label: "Forecast", badge: 0, dept: "operation" });
+  if (operation && can("operation", "v_pickups")) out.push({ to: `${BASE}/pickups`, label: "Pickup Requests", badge: me.badges.pickupsToAccept, dept: "operation" });
+  if (finance && can("finance", "v_month")) out.push({ to: `${BASE}/months`, label: "By Month", badge: 0, dept: "finance" });
   return out;
 }
 
 /** Where a person lands: the first page their access opens, else Settings. */
-export const homeFor = (me: Me): string => (me.user.mustChangePassword ? "/supplier/settings" : tabsFor(me)[0]?.to ?? "/supplier/settings");
+export const homeFor = (me: Me): string => (me.user.mustChangePassword ? `${BASE}/settings` : tabsFor(me)[0]?.to ?? `${BASE}/settings`);
 
 export const ROLE_LABEL: Record<Department, string> = { operation: "Warehouse and Operation", finance: "Finance" };
 
@@ -72,9 +73,9 @@ const initials = (name: string): string =>
 
 /** Which tab a path belongs to: a full page sits under the tab it was opened from. */
 function activeTab(pathname: string, search: string, tabs: Tab[]): string | null {
-  if (pathname.startsWith("/supplier/settings")) return null;
+  if (pathname.startsWith(`${BASE}/settings`)) return null;
   const from = new URLSearchParams(search).get("from") ?? "";
-  if (pathname.startsWith("/supplier/collections/") && (from === "months" || from.startsWith("month:"))) return "/supplier/months";
+  if (pathname.startsWith(`${BASE}/collections/`) && (from === "months" || from.startsWith("month:"))) return `${BASE}/months`;
   const hit = tabs.find((t) => pathname === t.to || pathname.startsWith(`${t.to}/`));
   return hit?.to ?? null;
 }
@@ -87,7 +88,7 @@ function Header({ me, onSignOut, locked }: { me: Me; onSignOut: () => void; lock
   const active = activeTab(pathname, search, tabs);
   const nav = useRef<HTMLElement | null>(null);
   const [bar, setBar] = useState({ x: 0, w: 0 });
-  const inSettings = pathname.startsWith("/supplier/settings");
+  const inSettings = pathname.startsWith(`${BASE}/settings`);
 
   const measure = useCallback(() => {
     const el = nav.current?.querySelector<HTMLElement>(`[data-tab="${active ?? ""}"]`);
@@ -143,7 +144,7 @@ function Header({ me, onSignOut, locked }: { me: Me; onSignOut: () => void; lock
         type="button"
         title="Settings"
         aria-label="Settings"
-        onClick={() => navigate("/supplier/settings", { state: { back: `${pathname}${search}` } })}
+        onClick={() => navigate(`${BASE}/settings`, { state: { back: `${pathname}${search}` } })}
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-all duration-[160ms] hover:border-primary hover:text-primary",
           inSettings ? "border-primary bg-primary-soft text-primary" : "border-border bg-surface text-ink-secondary",

@@ -106,3 +106,8 @@ jobs:
           curl -sI https://supp.carresofficial.com/supplier | grep -qi "^content-security-policy: frame-ancestors 'none'"
           # The Worker's own workers.dev address is on only because the deploy needs it on. It must answer nothing.
           test "$(curl -s -o /dev/null -w '%{http_code}' https://carres-supplier-site.wwch.workers.dev/supplier)" = "404"
+          # A 3PL company's address (owner, 20 Nov 2026): the same Worker, pages under /logistics, no staff API.
+          curl -fsS --retry 20 --retry-delay 15 --retry-all-errors -o /dev/null https://3pl.carresofficial.com/logistics
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://3pl.carresofficial.com/api/carres-supplier/auth/me)" = "401"
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://3pl.carresofficial.com/api/auth/status)" = "404"
+          curl -sI https://3pl.carresofficial.com/logistics | grep -qi "^content-security-policy: frame-ancestors 'none'"

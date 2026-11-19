@@ -12,6 +12,7 @@ import { PERMS, supplierApi, supplierToken, type Department, type Person } from 
 import { forgetAll } from "./data";
 import { PageBar, PageBody, homeFor, roleLabel, useSupplierSession } from "./Shell";
 import { Badge, LoadError, Loading, fmtStamp, play, useToast } from "./ui";
+import { BASE } from "./host";
 
 // ── What each permission is called ──────────────────────────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ export function SettingsPage() {
       <PageBar
         eyebrow="Account"
         title="Settings"
-        back={me.user.mustChangePassword ? undefined : () => navigate(backTo && !backTo.startsWith("/supplier/settings") ? backTo : homeFor(me))}
+        back={me.user.mustChangePassword ? undefined : () => navigate(backTo && !backTo.startsWith(`${BASE}/settings`) ? backTo : homeFor(me))}
         backTip="Back"
       />
       <PageBody scroll riseKey="settings">
