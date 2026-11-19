@@ -39,22 +39,21 @@ export function makeCan(me: Me) {
 
 export interface Tab { to: string; label: string; badge: number; dept: Department }
 
-/** The tabs a person sees: each page their access opens, Warehouse and Operation first. */
+/** The tabs a person sees, in one order, each only when their access opens its page: Sales Orders, Collections right
+ *  beside it (Loo, 19 Nov 2026), Forecast, Pickup Requests, By Month. */
 export function tabsFor(me: Me): Tab[] {
   const can = makeCan(me);
+  // A 3PL company sees its own deliveries, never Sales Orders, Forecast or Pickup Requests (owner, 19 Nov 2026).
+  const logistics = me.user.canOperation && me.supplier.logistics;
+  const operation = me.user.canOperation && !me.supplier.logistics;
+  const finance = me.user.canFinance;
   const out: Tab[] = [];
-  if (me.user.canOperation && me.supplier.logistics) {
-    // A 3PL company sees its own deliveries, never Sales Orders, Forecast or Pickup Requests (owner, 19 Nov 2026).
-    if (can("operation", "v_deliveries")) out.push({ to: "/supplier/deliveries", label: "Deliveries", badge: 0, dept: "operation" });
-  } else if (me.user.canOperation) {
-    if (can("operation", "v_orders")) out.push({ to: "/supplier/orders", label: "Sales Orders", badge: 0, dept: "operation" });
-    if (can("operation", "v_forecast")) out.push({ to: "/supplier/forecast", label: "Forecast", badge: 0, dept: "operation" });
-    if (can("operation", "v_pickups")) out.push({ to: "/supplier/pickups", label: "Pickup Requests", badge: me.badges.pickupsToAccept, dept: "operation" });
-  }
-  if (me.user.canFinance) {
-    if (can("finance", "v_coll")) out.push({ to: "/supplier/collections", label: "Collections", badge: 0, dept: "finance" });
-    if (can("finance", "v_month")) out.push({ to: "/supplier/months", label: "By Month", badge: 0, dept: "finance" });
-  }
+  if (logistics && can("operation", "v_deliveries")) out.push({ to: "/supplier/deliveries", label: "Deliveries", badge: 0, dept: "operation" });
+  if (operation && can("operation", "v_orders")) out.push({ to: "/supplier/orders", label: "Sales Orders", badge: 0, dept: "operation" });
+  if (finance && can("finance", "v_coll")) out.push({ to: "/supplier/collections", label: "Collections", badge: 0, dept: "finance" });
+  if (operation && can("operation", "v_forecast")) out.push({ to: "/supplier/forecast", label: "Forecast", badge: 0, dept: "operation" });
+  if (operation && can("operation", "v_pickups")) out.push({ to: "/supplier/pickups", label: "Pickup Requests", badge: me.badges.pickupsToAccept, dept: "operation" });
+  if (finance && can("finance", "v_month")) out.push({ to: "/supplier/months", label: "By Month", badge: 0, dept: "finance" });
   return out;
 }
 

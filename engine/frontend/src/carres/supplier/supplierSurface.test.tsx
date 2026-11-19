@@ -19,6 +19,7 @@ import { MemoryRouter } from "react-router-dom";
 import { appSurfaceForPath } from "../../routing/appSurface";
 import { normalizeMe, supplierToken } from "./api";
 import { SUPPLIER_HOSTS, isSupplierHost } from "./host";
+import { homeFor, tabsFor } from "./Shell";
 import { clock12, fmtDay, fmtMonth, fmtStamp, money, pickupBadge, stageBadge } from "./ui";
 import { SupplierApp } from "./SupplierApp";
 
@@ -177,6 +178,24 @@ describe("words and numbers", () => {
     expect(me.user.perms.operation).toContain("a_users");
     expect(me.user.perms.finance).toEqual([]);
     expect(me.user.mustChangePassword).toBe(false);
+  });
+});
+
+describe("the header's tabs", () => {
+  const meOf = (canOperation: boolean, canFinance: boolean) => normalizeMe({
+    user: { id: 1, name: "A", email: "a@x.test", canOperation, canFinance },
+    supplier: { name: "S", code: "1", logistics: false }, badges: { pickupsToAccept: 0 },
+  });
+  const labels = (canOperation: boolean, canFinance: boolean) => tabsFor(meOf(canOperation, canFinance)).map((t) => t.label);
+
+  it("puts Collections right of Sales Orders, and the person still lands on Sales Orders (Loo, 19 Nov 2026)", () => {
+    expect(labels(true, true)).toEqual(["Sales Orders", "Collections", "Forecast", "Pickup Requests", "By Month"]);
+    expect(homeFor(meOf(true, true))).toBe("/supplier/orders");
+  });
+
+  it("a person of one department sees that department's pages in the same order as before", () => {
+    expect(labels(true, false)).toEqual(["Sales Orders", "Forecast", "Pickup Requests"]);
+    expect(labels(false, true)).toEqual(["Collections", "By Month"]);
   });
 });
 
