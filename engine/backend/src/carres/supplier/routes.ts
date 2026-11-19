@@ -28,6 +28,7 @@ import { sendInvite } from "./invite";
 import { sendResetLink } from "./reset";
 import { MAX_DO_BYTES, MAX_UPLOAD_BYTES, attachmentHeader, deliveryOrderKey, deliveryOrderName, fileStore, isPdf } from "./files";
 import { noticeSupplierAsk, takeDownAskNotice } from "./ask-notice";
+import { isLogistics, listDeliveries, setDeliveryDate } from "./deliveries";
 
 type Vars = { supplier: SupplierUser; sdb: Db; stoken: string };
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
@@ -95,13 +96,13 @@ async function body(c: Ctx): Promise<Record<string, unknown> | null> {
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
 }
 
-const me = (u: SupplierUser, pickupsToAccept: number) => ({
+const me = (u: SupplierUser, pickupsToAccept: number, logistics = false) => ({
   user: {
     id: u.id, name: u.name, email: u.email, canOperation: u.canOperation, canFinance: u.canFinance,
     mustChangePassword: u.mustChangePassword,
     perms: { operation: [...u.perms.operation], finance: [...u.perms.finance] },
   },
-  supplier: { name: u.supplierName, code: u.supplierCode },
+  supplier: { name: u.supplierName, code: u.supplierCode, logistics },
   badges: { pickupsToAccept },
 });
 
@@ -172,7 +173,8 @@ app.use("*", session);
 
 app.get("/auth/me", async (c) => {
   const u = c.get("supplier");
-  return c.json(me(u, await waitingFor(c.get("sdb"), u)));
+  const db = c.get("sdb");
+  return c.json(me(u, await waitingFor(db, u), await isLogistics(db, u.supplierId)));
 });
 
 app.post("/auth/logout", async (c) => {
@@ -385,6 +387,22 @@ app.post("/pickups/:id/ask/withdraw", operation, need("operation", "v_pickups"),
   const requestNo = out.pickup.requestNo;
   await afterResponse("carres-supplier ask notice down", () => takeDownAskNotice(env, requestNo));
   return c.json({ pickup: out.pickup });
+});
+
+// A 3PL company's own deliveries (./deliveries.ts). The jobs are those on the 3PL's own lorries, drivers and helpers;
+// a supplier no 3PL company bills through has none.
+app.get("/deliveries", operation, need("operation", "v_deliveries"), async (c) => {
+  return c.json(await listDeliveries(c.get("sdb"), c.get("supplier").supplierId, c.req.query("view")));
+});
+
+app.post("/deliveries/date", operation, need("operation", "v_deliveries"), need("operation", "a_deldate"), async (c) => {
+  const b = await body(c);
+  const u = c.get("supplier");
+  const out = await setDeliveryDate(c.env, c.get("sdb"),
+    { supplierId: u.supplierId, userId: u.id, userName: u.name, supplierName: u.supplierName, ip: caller(c) },
+    { kind: b?.kind, key: b?.key, date: b?.date });
+  if (!out.ok) return c.json({ error: out.error }, out.status);
+  return c.json(out);
 });
 
 // Finance ────────────────────────────────────────────────────────────────────────────────────────────────────────

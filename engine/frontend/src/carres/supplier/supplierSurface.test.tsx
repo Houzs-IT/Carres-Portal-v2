@@ -172,7 +172,7 @@ describe("words and numbers", () => {
 
   it("reads a server one step behind as every page of the person's departments", () => {
     // An answer from before the per-person permissions: no perms, no mustChangePassword.
-    const me = normalizeMe({ user: { id: 1, name: "A", email: "a@x.test", canOperation: true, canFinance: false }, supplier: { name: "S", code: "1" }, badges: { pickupsToAccept: 0 } });
+    const me = normalizeMe({ user: { id: 1, name: "A", email: "a@x.test", canOperation: true, canFinance: false }, supplier: { name: "S", code: "1", logistics: false }, badges: { pickupsToAccept: 0 } });
     expect(me.user.perms.operation).toContain("v_orders");
     expect(me.user.perms.operation).toContain("a_users");
     expect(me.user.perms.finance).toEqual([]);

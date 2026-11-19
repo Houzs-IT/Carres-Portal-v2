@@ -19,6 +19,7 @@ const OrdersPage = lazy(() => import("./OrdersPage").then((m) => ({ default: m.O
 const OrderPage = lazy(() => import("./OrdersPage").then((m) => ({ default: m.OrderPage })));
 const ForecastPage = lazy(() => import("./ForecastPage").then((m) => ({ default: m.ForecastPage })));
 const PickupsPage = lazy(() => import("./PickupsPage").then((m) => ({ default: m.PickupsPage })));
+const DeliveriesPage = lazy(() => import("./DeliveriesPage").then((m) => ({ default: m.DeliveriesPage })));
 const CollectionsPage = lazy(() => import("./FinancePage").then((m) => ({ default: m.CollectionsPage })));
 const SubscriptionPage = lazy(() => import("./FinancePage").then((m) => ({ default: m.SubscriptionPage })));
 const MonthsPage = lazy(() => import("./FinancePage").then((m) => ({ default: m.MonthsPage })));
@@ -329,6 +330,7 @@ export function SupplierApp() {
             <Route path="/supplier/orders/:docNo" element={<Only me={m} dept="operation" perm="v_orders"><Lazy><OrderPage /></Lazy></Only>} />
             <Route path="/supplier/forecast" element={<Only me={m} dept="operation" perm="v_forecast"><Lazy><ForecastPage /></Lazy></Only>} />
             <Route path="/supplier/pickups" element={<Only me={m} dept="operation" perm="v_pickups"><Lazy><PickupsPage /></Lazy></Only>} />
+            <Route path="/supplier/deliveries" element={<Only me={m} dept="operation" perm="v_deliveries"><Lazy><DeliveriesPage /></Lazy></Only>} />
             <Route path="/supplier/pickups/:id" element={<OldPickupLink />} />
             <Route path="/supplier/collections" element={<Only me={m} dept="finance" perm="v_coll"><Lazy><CollectionsPage /></Lazy></Only>} />
             <Route path="/supplier/collections/:id" element={<Only me={m} dept="finance" perm={["v_coll", "v_month"]}><Lazy><SubscriptionPage /></Lazy></Only>} />

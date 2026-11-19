@@ -43,7 +43,10 @@ export interface Tab { to: string; label: string; badge: number; dept: Departmen
 export function tabsFor(me: Me): Tab[] {
   const can = makeCan(me);
   const out: Tab[] = [];
-  if (me.user.canOperation) {
+  if (me.user.canOperation && me.supplier.logistics) {
+    // A 3PL company sees its own deliveries, never Sales Orders, Forecast or Pickup Requests (owner, 19 Nov 2026).
+    if (can("operation", "v_deliveries")) out.push({ to: "/supplier/deliveries", label: "Deliveries", badge: 0, dept: "operation" });
+  } else if (me.user.canOperation) {
     if (can("operation", "v_orders")) out.push({ to: "/supplier/orders", label: "Sales Orders", badge: 0, dept: "operation" });
     if (can("operation", "v_forecast")) out.push({ to: "/supplier/forecast", label: "Forecast", badge: 0, dept: "operation" });
     if (can("operation", "v_pickups")) out.push({ to: "/supplier/pickups", label: "Pickup Requests", badge: me.badges.pickupsToAccept, dept: "operation" });
