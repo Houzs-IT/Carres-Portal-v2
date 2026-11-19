@@ -40,6 +40,7 @@ import { useConfirm } from '../../vendor/scm/components/ConfirmDialog';
 import { writeFailedAs } from '../../vendor/scm/lib/mutation-error';
 import { cn } from '../../lib/utils';
 import { LorrySide } from './fleet/Lorry3D';
+import { ThreeplLoginPanel } from "../../carres/supplier-staff/ThreeplLoginPanel"; // Carres
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
@@ -297,6 +298,8 @@ const CompanyRow = ({ row, open, onToggleOpen, editNow = false }: { row: ThreePL
             <Button variant="primary" size="sm" onClick={save} disabled={update.isPending}><Check {...ICON} /><span>Save</span></Button>
             <Button variant="ghost" size="sm" onClick={() => setEditing(false)}><X {...ICON} /><span>Cancel</span></Button>
           </div>
+          {/* Carres: the 3PL's own login, opened here (owner 2026-11-19; carres/supplier-staff/ThreeplLoginPanel.tsx). */}
+          <ThreeplLoginPanel threeplId={row.id} defaultName={row.contactName ?? ""} defaultEmail={row.email ?? ""} />
         </div>
       </div>
     );

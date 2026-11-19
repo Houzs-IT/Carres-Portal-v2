@@ -1539,9 +1539,16 @@ it sets the delivery date, sees Last Mile and keeps Last Mile's information up t
   code and PIN) exactly as before: one door for proof of delivery, stock and the Sales Order. The 3PL's page shows
   what was recorded. NOT BUILT: the 3PL's office changing a job's lorry, driver or helper, or recording a delivery
   itself; each needs its own door reused from Delivery Planning, not a second one.
-- **Giving a 3PL a login:** link the 3PL company to its supplier (3PL Companies › Supplier), then Settings › Supplier
-  Access › that supplier: turn access on, add the person under Warehouse and Operation, send the link. Turning on a
-  real 3PL is a §6.4 cutover and needs the owner's word, as for any supplier.
+- **Giving a 3PL a login (owner, 19 Nov 2026: "create the 3PL, then open his account here"):** on 3PL Companies,
+  open the company (double-click), choose its Supplier and save, then `Invite person` in `Login for this 3PL`: name
+  and email (the company's contact person and email are offered). One press switches that supplier's access on (a 3PL
+  needs no Sales Order scope), adds the person under Warehouse and Operation, and **emails** the set-password link,
+  which works once for **three days**; it is also shown once to copy for WhatsApp. Forgot password links stay one
+  hour. Disabling a person or a new link: Settings › Supplier Access, where a 3PL's supplier carries a `3PL` mark.
+  Staff-added people in Settings › Supplier Access are emailed their link the same way. Turning on a real 3PL is a
+  §6.4 cutover and needs the owner's word, as for any supplier.
+- **Not mixed with goods suppliers.** One login system, separate data: each supplier sees only its own rows; a
+  supplier a 3PL bills through sees only Deliveries; a goods supplier never sees Deliveries.
 
 ## §6.7 · What Carres pays and who Carres buys from — owner ruling 2026-11-16 (BUILT · DEPLOYED 2026-11-16)
 

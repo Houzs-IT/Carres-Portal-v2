@@ -31,9 +31,11 @@ export interface AccessSummary {
   skuCount: number;
   userCount: number;
   lastSignInAt: string | null;
+  /** A 3PL company bills Carres through this supplier: its people see their Deliveries (./deliveries.ts). */
+  logistics: boolean;
 }
 
-export interface AccessDetail extends Omit<AccessSummary, "modelCount" | "skuCount" | "userCount" | "lastSignInAt"> {
+export interface AccessDetail extends Omit<AccessSummary, "modelCount" | "skuCount" | "userCount" | "lastSignInAt" | "logistics"> {
   /** False until Carres saves this supplier's access for the first time. */
   saved: boolean;
   models: ScopeModel[];
@@ -70,7 +72,8 @@ export async function listAccess(db: Db): Promise<AccessSummary[]> {
             (SELECT count(*)::int FROM public.carres_supplier_access_scope sc WHERE sc.supplier_id = a.supplier_id AND sc.kind = 'model') AS model_count,
             (SELECT count(*)::int FROM public.carres_supplier_access_scope sc WHERE sc.supplier_id = a.supplier_id AND sc.kind = 'sku') AS sku_count,
             (SELECT count(*)::int FROM public.carres_supplier_users u WHERE u.supplier_id = a.supplier_id AND u.status = 'active') AS user_count,
-            (SELECT ${ts("max(u.last_login_at)")} FROM public.carres_supplier_users u WHERE u.supplier_id = a.supplier_id) AS last_sign_in_at
+            (SELECT ${ts("max(u.last_login_at)")} FROM public.carres_supplier_users u WHERE u.supplier_id = a.supplier_id) AS last_sign_in_at,
+            EXISTS (SELECT 1 FROM scm.threepl_companies t WHERE t.supplier_id = a.supplier_id AND t.is_active) AS logistics
        FROM public.carres_supplier_access a
        JOIN scm.suppliers s ON s.id = a.supplier_id
       ORDER BY a.enabled DESC, s.name`,
@@ -79,6 +82,7 @@ export async function listAccess(db: Db): Promise<AccessSummary[]> {
     supplierId: str(r.supplier_id), code: str(r.code), name: str(r.name), enabled: bool(r.enabled), ownItems: bool(r.own_items),
     subscriptionShare: bool(r.subscription_share), categories: JSON.parse(str(r.categories) || "[]") as string[],
     modelCount: int(r.model_count), skuCount: int(r.sku_count), userCount: int(r.user_count), lastSignInAt: strOrNull(r.last_sign_in_at),
+    logistics: bool(r.logistics),
   }));
 }
 

@@ -5265,6 +5265,12 @@ Delivery Order`, `Planned`, `Loaded`, `On the way`, `Arrived`, `Delivered` · fa
 `Left`, `Arrived`, `Delivered`, `Proof of delivery` (`Received` / `Not yet`) · button `Set delivery date`, then
 `Set <day>` · toast `Delivery date set to <day>` · permissions `Deliveries` ("A 3PL's own delivery jobs and their Last
 Mile") and `Set delivery date` ("Plan the day of a delivery on your lorries").
+Staff side: section `Login for this 3PL` on the 3PL company form ("They sign in at supp.carresofficial.com and see
+only the deliveries on their own lorries.") · `Invite person` · `Send invite` / `Sending` · toast `Invite emailed to
+<email>` · "Choose this company's Supplier above and save, then you can invite its people." · "Nobody from <3PL> can
+sign in yet." · badges `Waiting for them to choose a password`, `Password set`, `Signed in <time>`, `Disabled` · in
+Settings › Supplier Access a `3PL` mark, and the link notice "Emailed to them. It lets them choose their own password
+and works once, until <time>. You can also WhatsApp this link; it is shown only now." (or "Not emailed: <reason>").
 ## Sales Orders navigation — owner approved 2026-09-23 · BUILT 2026-09-23
 
 | Meaning | Approved wording | Do not use for this entry |
