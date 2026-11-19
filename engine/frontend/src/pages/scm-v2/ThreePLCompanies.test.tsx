@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const authedFetch = vi.hoisted(() => vi.fn());
 vi.mock('../../vendor/scm/lib/authed-fetch', () => ({ authedFetch }));
+vi.mock('../../carres/supplier-staff/ThreeplLoginPanel', () => ({ ThreeplLoginPanel: () => null })); // Carres: its own tests cover the login panel
 
 import { ThreePLCompanies } from './ThreePLCompanies';
 import { NotifyProvider } from '../../vendor/scm/components/NotifyDialog';
