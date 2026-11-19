@@ -10,7 +10,9 @@ export const DEPARTMENTS: readonly Department[] = ["operation", "finance"];
 
 /** Every key, in the order the screens list them. */
 export const PERM_KEYS: Readonly<Record<Department, readonly string[]>> = {
-  operation: ["v_orders", "v_forecast", "v_pickups", "a_accept", "a_collect", "a_date", "a_cancel", "a_export", "a_users"],
+  // v_deliveries / a_deldate: a 3PL company's own delivery jobs and setting their date (./deliveries.ts; owner,
+  // 19 Nov 2026). They show only for a supplier that a 3PL company bills through.
+  operation: ["v_orders", "v_forecast", "v_pickups", "v_deliveries", "a_accept", "a_collect", "a_date", "a_cancel", "a_deldate", "a_export", "a_users"],
   finance: ["v_coll", "v_month", "d_names", "d_share", "d_bad", "a_export", "a_stmt", "a_users"],
 };
 
@@ -20,6 +22,7 @@ const NEEDS: Readonly<Record<string, string>> = {
   a_collect: "v_pickups",
   a_date: "v_pickups",
   a_cancel: "v_pickups",
+  a_deldate: "v_deliveries",
 };
 
 export interface Perms { operation: string[]; finance: string[] }

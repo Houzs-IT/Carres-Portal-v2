@@ -1516,6 +1516,33 @@ a new agreement there while the old order book is off (`apps/api/src/lib/old-ord
 the pages show real figures only once signing has a home. Engineering detail and how to run it:
 `ENGINEERING.md` §2. Words: COPY-STANDARD "Supplier Platform words".
 
+### §6.6.1 · A 3PL company on the Supplier Platform — owner ruling 2026-11-19 · BUILT, deploys with its pull request
+
+RULING (owner, 19 Nov 2026): a 3PL company gets its own login and "can only see its own orders, not Sales Orders";
+it sets the delivery date, sees Last Mile and keeps Last Mile's information up to date.
+
+- **One platform, not two.** A 3PL company (`scm.threepl_companies`) names the supplier it bills Carres through
+  (`supplier_id`). People of THAT supplier sign in to the Supplier Platform as any supplier does (same address, same
+  invite and Forgot password, same per-person keys). A supplier a 3PL company bills through is a *logistics*
+  supplier: its Warehouse and Operation people see **only** `Deliveries`, never Sales Orders, Forecast or Pickup
+  Requests.
+- **What it sees** (`v_deliveries`): the jobs Carres gave the 3PL's own lorries, drivers or helpers — a Delivery
+  Order whose crew is theirs, or a Sales Order not yet on a Delivery Order whose planned crew is theirs. Per job:
+  customer name, address, phone, goods and quantities, the customer's date, the planned date, lorry, driver, helpers,
+  and Last Mile (left, arrived, delivered, proof received). Never a price, cost, margin, payment, salesperson, supplier
+  or another 3PL's job.
+- **What it does** (`a_deldate`): sets the planned delivery date of an open job. It writes the Sales Order's planned
+  date through the engine's own header writer and history (`advanceSoGeneration`, `recordSoAudit`, source
+  `carres-3pl`), the same door as Delivery Planning; the customer's original date never changes. Recorded in
+  `carres_supplier_events` as `delivery_date_set`.
+- **Last Mile updates** are recorded by the driver on the driver's phone page (`Last Mile Delivery (Driver)`, staff
+  code and PIN) exactly as before: one door for proof of delivery, stock and the Sales Order. The 3PL's page shows
+  what was recorded. NOT BUILT: the 3PL's office changing a job's lorry, driver or helper, or recording a delivery
+  itself; each needs its own door reused from Delivery Planning, not a second one.
+- **Giving a 3PL a login:** link the 3PL company to its supplier (3PL Companies › Supplier), then Settings › Supplier
+  Access › that supplier: turn access on, add the person under Warehouse and Operation, send the link. Turning on a
+  real 3PL is a §6.4 cutover and needs the owner's word, as for any supplier.
+
 ## §6.7 · What Carres pays and who Carres buys from — owner ruling 2026-11-16 (BUILT · DEPLOYED 2026-11-16)
 
 **RULING (Loo, 2026-11-16).** A dealer and a salesperson must not be able to see the cost of an item

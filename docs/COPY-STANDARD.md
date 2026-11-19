@@ -5257,6 +5257,14 @@ whose access has no Export does not see the button. A page that does not load: `
 | Request number | `CR-PKR-{YYMM}-{NNN}`, by the month of the pickup day |
 | The staff bell, System tab (owner, 17 Nov 2026; everyone who can answer the ask) | a move: title `{request no}: {supplier} asks to move the pickup` · `{supplier} asks Carres to move pickup {request no} from {date} to {date}. Nothing changes until you answer it in Supplier Pickups.` · a cancel: title `{request no}: {supplier} asks to cancel the pickup` · `{supplier} asks Carres to cancel pickup {request no}, set for {date}. Nothing changes until you answer it in Supplier Pickups.` · switched off once the ask is answered, taken back or overtaken |
 
+
+### A 3PL company's Deliveries (owner, 19 Nov 2026) · BUILT, deploys with its pull request
+Tab and page `Deliveries` (eyebrow `Logistics`) · pills `To deliver` · `Delivered` · `All` · columns `Delivery date`,
+`Document`, `Customer`, `Address`, `Phone`, `Qty`, `Lorry`, `Driver`, `Last Mile` · Last Mile words `Waiting for
+Delivery Order`, `Planned`, `Loaded`, `On the way`, `Arrived`, `Delivered` · facts `Customer's date`, `Planned date`,
+`Left`, `Arrived`, `Delivered`, `Proof of delivery` (`Received` / `Not yet`) · button `Set delivery date`, then
+`Set <day>` · toast `Delivery date set to <day>` · permissions `Deliveries` ("A 3PL's own delivery jobs and their Last
+Mile") and `Set delivery date` ("Plan the day of a delivery on your lorries").
 ## Sales Orders navigation — owner approved 2026-09-23 · BUILT 2026-09-23
 
 | Meaning | Approved wording | Do not use for this entry |

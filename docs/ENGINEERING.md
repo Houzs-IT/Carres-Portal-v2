@@ -196,6 +196,14 @@ edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `/
    `consignment_delivery_orders` and `consignment_delivery_returns`; those columns exist but nothing reads or
    writes them, by owner decision. Do not drop them without a new migration and the owner's word.
 
+**3PL Deliveries on the Supplier Platform (owner, 19 Nov 2026; rules in ERP-ARCHITECTURE §6.6.1).** Backend
+`engine/backend/src/carres/supplier/deliveries.ts` (jobs on the 3PL's own fleet, read with named columns only; the
+date through `advanceSoGeneration` + `recordSoAudit`), routes `GET /deliveries` and `POST /deliveries/date` in
+`routes.ts`, keys `v_deliveries` / `a_deldate` in `perms.ts`, `supplier.logistics` on `/auth/me`. Frontend
+`carres/supplier/DeliveriesPage.tsx`; `Shell.tsx` gives a logistics supplier only that tab. No migration and no Houzs
+file touched. Tests: `frontend/src/carres/supplier/deliveries.test.ts`; the statement guard in
+`tests/carresSupplierPlatformGuards.test.ts` admits the three fleet constants.
+
 **Supplier Platform (owner, 15 Nov 2026; rules in ERP-ARCHITECTURE §6.6; BUILT · DEPLOYED 15 Nov 2026; the owner's
 redesign DEPLOYED 17 Nov 2026).** A
 supplier's own pages inside the engine, a Carres addition, each Houzs file it touches marked `// Carres:`.

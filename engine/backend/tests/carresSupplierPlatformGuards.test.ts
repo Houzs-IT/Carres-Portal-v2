@@ -100,7 +100,7 @@ describe('Carres supplier platform: statements', () => {
       const source = readFileSync(new URL(f, dir), 'utf8');
       const spliced = [...source.matchAll(/`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b[^`]*`/g)].flatMap((m) => m[0].match(/\$\{[^}]+\}/g) ?? []);
       for (const s of spliced) {
-        expect(s, `${f}: ${s}`).toMatch(/^\$\{(USER_COLUMNS|ORDER_COLUMNS|REQUEST_COLUMNS|PERSON_COLUMNS|LINE_SELECT|FRESH|sortColumn|direction|ts\("[a-z_.()]+"\))\}$/);
+        expect(s, `${f}: ${s}`).toMatch(/^\$\{(USER_COLUMNS|ORDER_COLUMNS|REQUEST_COLUMNS|PERSON_COLUMNS|LINE_SELECT|FRESH|FLEET|ON_FLEET_CREW|ON_FLEET_PLAN|sortColumn|direction|ts\("[a-z_.()]+"\))\}$/);
       }
     }
   });

@@ -116,9 +116,33 @@ export type Department = "operation" | "finance";
 /** The permission keys, by department. A key the person does not hold hides its page or its button; the server
  *  refuses the same act on its own. */
 export const PERMS: Record<Department, readonly string[]> = {
-  operation: ["v_orders", "v_forecast", "v_pickups", "a_accept", "a_collect", "a_date", "a_cancel", "a_export", "a_users"],
+  operation: ["v_orders", "v_forecast", "v_pickups", "v_deliveries", "a_accept", "a_collect", "a_date", "a_cancel", "a_deldate", "a_export", "a_users"],
   finance: ["v_coll", "v_month", "d_names", "d_share", "d_bad", "a_export", "a_stmt", "a_users"],
 };
+
+/** A 3PL company's own delivery job (engine/backend/src/carres/supplier/deliveries.ts). No money is ever in it. */
+export type DeliveryView = "open" | "done" | "all";
+export interface DeliveryJob {
+  kind: "do" | "so";
+  key: string;
+  soDocNo: string | null;
+  doNo: string | null;
+  customer: string;
+  address: string;
+  phone: string | null;
+  customerDate: string | null;
+  plannedDate: string | null;
+  status: string;
+  lorry: string | null;
+  driver: string | null;
+  helpers: string[];
+  departedAt: string | null;
+  arrivedAt: string | null;
+  deliveredAt: string | null;
+  proof: boolean;
+  done: boolean;
+  items: Array<{ code: string; description: string; description2: string | null; qty: number; uom: string | null }>;
+}
 
 export interface Me {
   user: {
@@ -130,7 +154,8 @@ export interface Me {
     mustChangePassword: boolean;
     perms: Record<Department, string[]>;
   };
-  supplier: { name: string; code: string };
+  /** `logistics`: a 3PL company bills Carres through this supplier, so it has a Deliveries page. */
+  supplier: { name: string; code: string; logistics: boolean };
   badges: { pickupsToAccept: number };
 }
 
@@ -155,7 +180,7 @@ export function normalizeMe(raw: Partial<Omit<Me, "user">> & { user?: Partial<Me
       mustChangePassword: !!u.mustChangePassword,
       perms,
     },
-    supplier: { name: String(raw.supplier?.name ?? ""), code: String(raw.supplier?.code ?? "") },
+    supplier: { name: String(raw.supplier?.name ?? ""), code: String(raw.supplier?.code ?? ""), logistics: !!raw.supplier?.logistics },
     badges: { pickupsToAccept: Number(raw.badges?.pickupsToAccept ?? 0) },
   };
 }
@@ -379,6 +404,10 @@ export const supplierApi = {
   askCancel: (id: string) => request<{ pickup: Pickup }>("POST", `/pickups/${encodeURIComponent(id)}/ask`, { kind: "cancel" }),
   withdrawAsk: (id: string) => request<{ pickup: Pickup }>("POST", `/pickups/${encodeURIComponent(id)}/ask/withdraw`),
   deliveryOrder: (id: string, name: string) => download(`/pickups/${encodeURIComponent(id)}/do`, name),
+
+  deliveries: (view: DeliveryView) => request<{ rows: DeliveryJob[] }>("GET", `/deliveries${qs({ view })}`),
+  setDeliveryDate: (job: Pick<DeliveryJob, "kind" | "key">, date: string) =>
+    request<{ ok: true; soDocNo: string; plannedDate: string }>("POST", "/deliveries/date", { kind: job.kind, key: job.key, date }),
 
   finance: () => request<FinanceSummary>("GET", "/finance/summary"),
   financeOrder: (id: string) => request<FinanceAgreement>("GET", `/finance/orders/${encodeURIComponent(id)}`),
