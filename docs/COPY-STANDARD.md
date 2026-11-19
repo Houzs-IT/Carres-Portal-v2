@@ -5265,6 +5265,10 @@ Delivery Order`, `Planned`, `Loaded`, `On the way`, `Arrived`, `Delivered` · fa
 `Left`, `Arrived`, `Delivered`, `Proof of delivery` (`Received` / `Not yet`) · button `Set delivery date`, then
 `Set <day>` · toast `Delivery date set to <day>` · permissions `Deliveries` ("A 3PL's own delivery jobs and their Last
 Mile") and `Set delivery date` ("Plan the day of a delivery on your lorries").
+A 3PL's own header shows the 3PL company's name and the chip `Logistics`; its Users and access presets are `Full
+access` ("Deliveries, set dates, export and users"), `Dispatcher` ("Deliveries and set dates") and `View only`
+("Deliveries, no buttons"); its invite email reads "<inviter> added you to the Carres delivery pages for <3PL>: your own
+deliveries, their dates and Last Mile."
 Staff side: section `Login for this 3PL` on the 3PL company form ("They sign in at supp.carresofficial.com and see
 only the deliveries on their own lorries.") · `Invite person` · `Send invite` / `Sending` · toast `Invite emailed to
 <email>` · "Choose this company's Supplier above and save, then you can invite its people." · "Nobody from <3PL> can

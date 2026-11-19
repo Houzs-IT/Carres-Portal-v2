@@ -451,6 +451,10 @@ describe("the invite email", () => {
     expect(m.text.split(url)).toHaveLength(2);
     expect(m.html.split(url)).toHaveLength(2);
     expect(inviteMail({ name: "<b>x</b>", inviterName: "a", supplierName: "b", companyName: "c", url }).html).not.toContain("<b>x</b>");
+    // A 3PL's people are invited to its delivery pages, never to "supplier pages" (owner, 19 Nov 2026).
+    const t = inviteMail({ name: "Ana", inviterName: "Lim", supplierName: "AL Transport", companyName: "Carres", url, logistics: true });
+    expect(t.text).toContain("delivery pages for AL Transport");
+    expect(t.text).not.toContain("supplier pages");
   });
 });
 

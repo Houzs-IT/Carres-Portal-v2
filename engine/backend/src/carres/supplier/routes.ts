@@ -28,7 +28,7 @@ import { sendInvite } from "./invite";
 import { sendResetLink } from "./reset";
 import { MAX_DO_BYTES, MAX_UPLOAD_BYTES, attachmentHeader, deliveryOrderKey, deliveryOrderName, fileStore, isPdf } from "./files";
 import { noticeSupplierAsk, takeDownAskNotice } from "./ask-notice";
-import { isLogistics, listDeliveries, setDeliveryDate } from "./deliveries";
+import { listDeliveries, logisticsName, setDeliveryDate } from "./deliveries";
 
 type Vars = { supplier: SupplierUser; sdb: Db; stoken: string };
 type Ctx = Context<{ Bindings: Env; Variables: Vars }>;
@@ -96,19 +96,27 @@ async function body(c: Ctx): Promise<Record<string, unknown> | null> {
   return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
 }
 
-const me = (u: SupplierUser, pickupsToAccept: number, logistics = false) => ({
+/** `threepl`: the 3PL company this supplier bills for, if any. Its people then see the 3PL's name and only Deliveries. */
+const me = (u: SupplierUser, pickupsToAccept: number, threepl: string | null = null) => ({
   user: {
     id: u.id, name: u.name, email: u.email, canOperation: u.canOperation, canFinance: u.canFinance,
     mustChangePassword: u.mustChangePassword,
     perms: { operation: [...u.perms.operation], finance: [...u.perms.finance] },
   },
-  supplier: { name: u.supplierName, code: u.supplierCode, logistics },
+  supplier: { name: threepl ?? u.supplierName, code: u.supplierCode, logistics: threepl !== null },
   badges: { pickupsToAccept },
 });
 
 /** The number on the Pickup Requests tab, for a person who sees that page. */
 const waitingFor = async (db: Db, u: SupplierUser): Promise<number> =>
   (u.canOperation && holds(u, "operation", "v_pickups") ? pickupsWaiting(db, u.supplierId) : 0);
+
+/** Who is signed in, as every answer that signs someone in gives it: the same on sign-in, on choosing a password
+ *  through a link, and on /auth/me, so a 3PL's first page is already its own. */
+const meOf = async (db: Db, u: SupplierUser) => {
+  const threepl = await logisticsName(db, u.supplierId);
+  return me(u, threepl === null ? await waitingFor(db, u) : 0, threepl);
+};
 
 // ── No session needed: sign in, and choosing a password through a one-time link ─────────────────────────────────
 
@@ -117,7 +125,7 @@ app.post("/auth/login", async (c) => {
   const db = dbFor(c.env);
   const out = await signIn(db, { email: b?.email, password: b?.password, ip: caller(c), userAgent: c.req.header("User-Agent") ?? null });
   if (!out.ok) return c.json({ error: out.error }, out.status);
-  return c.json({ token: out.token, expiresAt: out.expiresAt, ...me(out.user, await waitingFor(db, out.user)) });
+  return c.json({ token: out.token, expiresAt: out.expiresAt, ...(await meOf(db, out.user)) });
 });
 
 // The link's secret travels in the request BODY, never in the address, so it is not written to an access log.
@@ -139,7 +147,7 @@ app.post("/auth/link/use", async (c) => {
   if (!out.ok) return c.json({ error: out.error }, out.status);
   if (!out.session) return c.json({ ok: true, email: out.email });
   const { token, expiresAt, user } = out.session;
-  return c.json({ ok: true, email: out.email, token, expiresAt, ...me(user, await waitingFor(db, user)) });
+  return c.json({ ok: true, email: out.email, token, expiresAt, ...(await meOf(db, user)) });
 });
 
 // Forgot password (./reset.ts). The answer is the same for every email, and it leaves BEFORE anything is looked
@@ -172,9 +180,7 @@ app.use("*", session);
 // choose their own password (the gate below). Registered first, so a request for them never reaches that gate.
 
 app.get("/auth/me", async (c) => {
-  const u = c.get("supplier");
-  const db = c.get("sdb");
-  return c.json(me(u, await waitingFor(db, u), await isLogistics(db, u.supplierId)));
+  return c.json(await meOf(c.get("sdb"), c.get("supplier")));
 });
 
 app.post("/auth/logout", async (c) => {
@@ -460,7 +466,11 @@ app.post("/users", async (c) => {
   });
   if (!out.ok) return c.json({ error: out.error }, out.status);
   if (!out.linkToken) return c.json({ user: out.person, mailed: null, mailNote: null, hadAccount: out.hadAccount });
-  const sent = await sendInvite(c.env, { to: out.person.email, name: out.person.name, inviterName: u.name, supplierName: u.supplierName, token: out.linkToken });
+  const threepl = await logisticsName(c.get("sdb"), u.supplierId);
+  const sent = await sendInvite(c.env, {
+    to: out.person.email, name: out.person.name, inviterName: u.name, supplierName: threepl ?? u.supplierName, token: out.linkToken,
+    logistics: threepl !== null,
+  });
   return c.json({ user: out.person, mailed: sent.status === "sent", mailNote: sent.status === "sent" ? null : sent.reason, hadAccount: false });
 });
 

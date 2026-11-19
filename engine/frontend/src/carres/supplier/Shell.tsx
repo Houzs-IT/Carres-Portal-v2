@@ -62,6 +62,9 @@ export const homeFor = (me: Me): string => (me.user.mustChangePassword ? "/suppl
 
 export const ROLE_LABEL: Record<Department, string> = { operation: "Warehouse and Operation", finance: "Finance" };
 
+/** A department's name as this person reads it: a 3PL company's Warehouse and Operation people are its Logistics. */
+export const roleLabel = (d: Department, logistics: boolean): string => (logistics && d === "operation" ? "Logistics" : ROLE_LABEL[d]);
+
 const initials = (name: string): string =>
   name.split(/\s+/).filter(Boolean).map((w) => w[0]!.toUpperCase()).slice(0, 2).join("") || "?";
 
@@ -128,7 +131,7 @@ function Header({ me, onSignOut, locked }: { me: Me; onSignOut: () => void; lock
       <div className="flex-1" />
       {depts.map((d) => (
         <span key={d} className={cn("hidden whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold md:inline", d === "finance" ? "bg-accent-soft text-primary-ink" : "bg-synced/[0.12] text-synced")}>
-          {ROLE_LABEL[d]}
+          {roleLabel(d, me.supplier.logistics)}
         </span>
       ))}
       <div className="hidden whitespace-nowrap text-right leading-[1.3] md:block">

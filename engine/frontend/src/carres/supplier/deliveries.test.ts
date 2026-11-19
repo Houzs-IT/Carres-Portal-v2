@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeMe, PERMS, type DeliveryJob } from "./api";
-import { tabsFor } from "./Shell";
+import { roleLabel, tabsFor } from "./Shell";
 import { deliveryBadge } from "./DeliveriesPage";
 
 const meOf = (logistics: boolean) => normalizeMe({
@@ -11,6 +11,12 @@ const meOf = (logistics: boolean) => normalizeMe({
 describe("a 3PL company on the Supplier Platform (owner, 19 Nov 2026)", () => {
   it("sees only its Deliveries: never Sales Orders, Forecast or Pickup Requests", () => {
     expect(tabsFor(meOf(true)).map((t) => t.label)).toEqual(["Deliveries"]);
+  });
+
+  it("a 3PL's people read their department as Logistics, never Warehouse and Operation", () => {
+    expect(roleLabel("operation", true)).toBe("Logistics");
+    expect(roleLabel("operation", false)).toBe("Warehouse and Operation");
+    expect(roleLabel("finance", true)).toBe("Finance");
   });
 
   it("a supplier that is not a 3PL never sees a Deliveries tab", () => {
