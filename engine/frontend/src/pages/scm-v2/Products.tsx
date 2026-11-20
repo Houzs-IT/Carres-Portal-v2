@@ -737,7 +737,7 @@ const SkuMasterTab = () => {
         {
           key: 'price',
           label: 'Price',
-          width: '120px',
+          width: '140px',
           align: 'right',
           getValue: (r) => r.base_price_sen ?? -1,
           render: (r) => (
@@ -766,7 +766,7 @@ const SkuMasterTab = () => {
         {
           key: 'price2',
           label: 'Price 2',
-          width: '110px',
+          width: '140px',
           align: 'right',
           getValue: (r) => r.base_price_sen ?? -1,
           render: (r) => (
@@ -778,7 +778,7 @@ const SkuMasterTab = () => {
         {
           key: 'price1',
           label: 'Price 1',
-          width: '110px',
+          width: '140px',
           align: 'right',
           getValue: (r) => r.price1_sen ?? -1,
           render: (r) => (
