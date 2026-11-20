@@ -5,14 +5,15 @@
 // (three days) is emailed to them. They then sign in at the supplier address and see only their own Deliveries.
 // Shown only to staff who manage Settings (the server refuses the rest), so it stays out of everyone else's way.
 import { useState } from "react";
-import { Mail, Plus } from "lucide-react";
+import { KeyRound, Mail, Plus } from "lucide-react";
 import { useQuery } from "../../hooks/useQuery";
 import { useToast } from "../../hooks/useToast";
+import { useDialog } from "../../hooks/useDialog";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { fmtStamp } from "../supplier/ui";
 import { LinkNotice } from "./SupplierAccessTab";
-import { accessApi, type LinkMail, type SetupLink } from "./staffApi";
+import { accessApi, type LinkMail, type SetupLink, type SupplierPerson } from "./staffApi";
 
 const INPUT = "h-9 w-full rounded-md border border-border bg-surface px-3 text-[12.5px] text-ink outline-none placeholder:text-ink-muted focus:border-primary focus:ring-2 focus:ring-primary/20";
 
@@ -25,16 +26,54 @@ export function ThreeplLoginPanel({ threeplId, defaultName = "", defaultEmail = 
   defaultEmail?: string;
 }) {
   const toast = useToast();
+  const dialog = useDialog();
   const login = useQuery(`carres-threepl-login:${threeplId}`, () => accessApi.threepl(threeplId));
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rowBusy, setRowBusy] = useState<number | null>(null);
   const [link, setLink] = useState<{ name: string; link: SetupLink; mail: LinkMail } | null>(null);
 
   // A person without Settings access gets a refusal: the panel then simply is not there.
   if (login.error || !login.data) return null;
   const d = login.data;
+
+  /** A new set-password link, emailed (three days). For someone who already has a password, asked first: their
+   *  password keeps working until they use the link (owner, 20 Nov 2026: these buttons here, not only in Settings). */
+  const newLink = async (p: SupplierPerson) => {
+    if (rowBusy) return;
+    if (p.hasPassword && !(await dialog.confirm({
+      title: `New password link for ${p.name}?`,
+      message: "Their current password keeps working until they use the link. Using it signs them out everywhere.",
+      confirmLabel: "Send link",
+    }))) return;
+    setRowBusy(p.id);
+    try {
+      const out = await accessApi.newLink(p.id);
+      setLink({ name: p.name, link: out.link, mail: out });
+      if (out.mailed) toast.success(`Link emailed to ${p.email}`);
+      login.reload();
+    } catch (e) { toast.error(problem(e)); } finally { setRowBusy(null); }
+  };
+
+  /** Disable signs the person out at once and stops their sign-in; Enable lets them in again. */
+  const toggle = async (p: SupplierPerson) => {
+    if (rowBusy) return;
+    const disabling = p.status === "active";
+    if (disabling && !(await dialog.confirm({
+      title: `Disable ${p.name}?`,
+      message: "They are signed out at once and cannot sign in until enabled again.",
+      confirmLabel: "Disable",
+      danger: true,
+    }))) return;
+    setRowBusy(p.id);
+    try {
+      await accessApi.updatePerson(p.id, { status: disabling ? "disabled" : "active" });
+      toast.success(disabling ? `${p.name} is disabled` : `${p.name} is enabled`);
+      login.reload();
+    } catch (e) { toast.error(problem(e)); } finally { setRowBusy(null); }
+  };
 
   const invite = async () => {
     if (busy) return;
@@ -89,11 +128,20 @@ export function ThreeplLoginPanel({ threeplId, defaultName = "", defaultEmail = 
                     : p.hasPassword
                       ? <Badge tone="success" size="sm" caseless>{p.lastLoginAt ? `Signed in ${fmtStamp(p.lastLoginAt)}` : "Password set"}</Badge>
                       : <Badge tone="warning" size="sm" caseless>Waiting for them to choose a password</Badge>}
+                  <span className="flex-1" />
+                  {p.status === "active" && (
+                    <Button variant="secondary" className="h-8 px-3" icon={<KeyRound size={13} />} disabled={rowBusy !== null} onClick={() => void newLink(p)}>
+                      {p.hasPassword ? "New password link" : "New link"}
+                    </Button>
+                  )}
+                  <Button variant={p.status === "active" ? "danger" : "secondary"} className="h-8 px-3" disabled={rowBusy !== null} onClick={() => void toggle(p)}>
+                    {p.status === "active" ? "Disable" : "Enable"}
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
-          <div className="text-[11.5px] text-ink-muted">To disable someone or send a new link: Settings › Supplier Access › {d.supplier.name}.</div>
+          <div className="text-[11.5px] text-ink-muted">Turning off the whole company's sign-in: Settings › Supplier Access › {d.supplier.name}.</div>
         </div>
       )}
     </div>
