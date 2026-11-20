@@ -725,14 +725,14 @@ const SkuMasterTab = () => {
           getValue: (r) => r.branding ?? '',
           render: (r) => r.branding
             ? <span className={styles.catPill}>{r.branding}</span>
-            : <span className={styles.priceEmpty}>—</span>,
+            : <span />,
         },
         {
           key: 'size',
           label: 'Size',
           width: '120px',
           getValue: (r) => r.size_label ?? '',
-          render: (r) => r.size_label ?? '—',
+          render: (r) => <span>{r.size_label ?? ''}</span>,
         },
         {
           key: 'price',
@@ -742,7 +742,7 @@ const SkuMasterTab = () => {
           getValue: (r) => r.base_price_sen ?? -1,
           render: (r) => (
             <span className={r.base_price_sen ? styles.price : styles.priceEmpty}>
-              {fmtRm(r.base_price_sen)}{costMarker(r.costAnchorState)}
+              {r.base_price_sen ? fmtRm(r.base_price_sen) : ''}{costMarker(r.costAnchorState)}
             </span>
           ),
         },
@@ -761,7 +761,7 @@ const SkuMasterTab = () => {
           label: 'Size',
           width: '120px',
           getValue: (r) => r.size_label ?? '',
-          render: (r) => r.size_label ?? '—',
+          render: (r) => <span>{r.size_label ?? ''}</span>,
         },
         {
           key: 'price2',
@@ -771,7 +771,7 @@ const SkuMasterTab = () => {
           getValue: (r) => r.base_price_sen ?? -1,
           render: (r) => (
             <span className={r.base_price_sen ? styles.price : styles.priceEmpty}>
-              {fmtRm(r.base_price_sen)}{costMarker(r.costAnchorState)}
+              {r.base_price_sen ? fmtRm(r.base_price_sen) : ''}{costMarker(r.costAnchorState)}
             </span>
           ),
         },
@@ -783,7 +783,7 @@ const SkuMasterTab = () => {
           getValue: (r) => r.price1_sen ?? -1,
           render: (r) => (
             <span className={r.price1_sen ? styles.price : styles.priceEmpty}>
-              {fmtRm(r.price1_sen)}
+              {r.price1_sen ? fmtRm(r.price1_sen) : ''}
             </span>
           ),
         },
@@ -799,7 +799,7 @@ const SkuMasterTab = () => {
         getValue: (r) => r.barcode ?? '',
         render: (r) => r.barcode
           ? <span className={styles.codeChip}>{r.barcode}</span>
-          : <span className={styles.priceEmpty}>—</span>,
+          : <span />,
       },
       {
         key: 'unit',
