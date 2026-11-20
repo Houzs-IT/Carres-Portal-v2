@@ -5275,7 +5275,8 @@ deliveries, their dates and Last Mile."
 Staff side: section `Login for this 3PL` on the 3PL company form ("They sign in at supp.carresofficial.com and see
 only the deliveries on their own lorries.") · `Invite person` · `Send invite` / `Sending` · toast `Invite emailed to
 <email>` · "Choose this company's Supplier above and save, then you can invite its people." · "Nobody from <3PL> can
-sign in yet." · badges `Waiting for them to choose a password`, `Password set`, `Signed in <time>`, `Disabled` · in
+sign in yet." · badges `Waiting for them to choose a password`, `Password set`, `Signed in <time>`, `Disabled` · per person
+`New link` / `New password link` (toast `Link emailed to <email>`) and `Disable` / `Enable` (owner, 20 Nov 2026) · in
 Settings › Supplier Access a `3PL` mark, and the link notice "Emailed to them. It lets them choose their own password
 and works once, until <time>. You can also WhatsApp this link; it is shown only now." (or "Not emailed: <reason>").
 ## Sales Orders navigation — owner approved 2026-09-23 · BUILT 2026-09-23
