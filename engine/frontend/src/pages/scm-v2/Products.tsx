@@ -680,7 +680,7 @@ const SkuMasterTab = () => {
         label: 'Model',
         width: '120px',
         getValue: (r) => modelLabelOf(r),
-        render: (r) => modelLabelOf(r),
+        render: (r) => <span>{modelLabelOf(r)}</span>,
       });
       /* The two columns that make the exported sheet a TEMPLATE and not a
          picture of the screen — docs/bugs/0662. Labelled with the importer's
@@ -709,9 +709,10 @@ const SkuMasterTab = () => {
           align: 'right',
           getValue: (r) => priceForHeightTier(r.seat_height_prices, s, tier) ?? -1,
           // No price for this size → a blank cell, never a dash (UI MASTER: missing values stay empty).
+          // An empty <span>, not null: DataTableRowCells turns a null cell into "—".
           render: (r) => {
             const sen = priceForHeightTier(r.seat_height_prices, s, tier);
-            return sen ? <span className={styles.price}>{fmtRm(sen)}</span> : null;
+            return sen ? <span className={styles.price}>{fmtRm(sen)}</span> : <span />;
           },
         });
       }
