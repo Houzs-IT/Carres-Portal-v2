@@ -123,6 +123,7 @@ import { Categories } from './Categories';
 import { useBrandingPool, useProductModel } from '../../vendor/scm/lib/product-models-queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseMoneyToSen } from '../../lib/money';
+import { seatHeightLabel } from '../../lib/seatHeightLabel';
 import styles from './Products.module.css';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
@@ -679,7 +680,7 @@ const SkuMasterTab = () => {
         label: 'Model',
         width: '120px',
         getValue: (r) => modelLabelOf(r),
-        render: (r) => modelLabelOf(r) || '—',
+        render: (r) => modelLabelOf(r),
       });
       /* The two columns that make the exported sheet a TEMPLATE and not a
          picture of the screen — docs/bugs/0662. Labelled with the importer's
@@ -701,13 +702,16 @@ const SkuMasterTab = () => {
       for (const s of sofaSizes) {
         cols.push({
           key: `size-${s}`,
-          label: s,
-          width: '110px',
+          label: seatHeightLabel(s),
+          // 128: "RM 1,500.00" in the price face measures 90px + 24px cell
+          // padding; 110 cut every four-digit price (Chew 2026-11-20).
+          width: '128px',
           align: 'right',
           getValue: (r) => priceForHeightTier(r.seat_height_prices, s, tier) ?? -1,
+          // No price for this size → a blank cell, never a dash (UI MASTER: missing values stay empty).
           render: (r) => {
             const sen = priceForHeightTier(r.seat_height_prices, s, tier);
-            return <span className={sen ? styles.price : styles.priceEmpty}>{fmtRm(sen)}</span>;
+            return sen ? <span className={styles.price}>{fmtRm(sen)}</span> : null;
           },
         });
       }
@@ -1030,7 +1034,7 @@ const SkuMasterTab = () => {
                 <>
                   <th>Model</th>
                   {sofaSizes.map((s) => (
-                    <th key={s} style={{ textAlign: 'right' }}>{s}</th>
+                    <th key={s} style={{ textAlign: 'right' }}>{seatHeightLabel(s)}</th>
                   ))}
                 </>
               ) : isMattressView ? (

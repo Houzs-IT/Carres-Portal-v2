@@ -19,6 +19,7 @@
 //   DELETE /suppliers/:id/bindings/:bindingId
 // ----------------------------------------------------------------------------
 
+import { seatHeightLabel } from '../../lib/seatHeightLabel';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -1217,10 +1218,7 @@ const SOFA_TIER_CHIPS: { value: 'P1' | 'P2' | 'P3' | 'P4'; label: string }[] = [
 
 const SOFA_HEIGHT_FALLBACK = ['24', '26', '28', '30', '32', '35'];
 
-/** Column header for a seat-height. Pool values are free text: a bare number
- *  gains its inch mark, anything typed with one (`25"`) or a word (`DEFAULT`)
- *  shows as typed, so the header never reads `25""`. */
-export const seatHeightLabel = (h: string): string => (/^\d+(\.\d+)?$/.test(h.trim()) ? `${h.trim()}"` : h);
+export { seatHeightLabel };
 
 const SofaSkuMappingsTable = ({
   supplierId,

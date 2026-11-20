@@ -40,7 +40,7 @@ export { normalizeImportHeader };
  * retired vocabulary (the catalogue's term is `item_code`), and a detector
  * pinned to one label breaks the day somebody renames a column header. */
 export function looksLikeGridExport(header: string[]): boolean {
-  return !header.includes('code') && header.some((h) => /^\d+$/.test(h));
+  return !header.includes('code') && header.some((h) => /^\d+"?$/.test(h));
 }
 
 /* ---------------------------------------------------------------------------
@@ -96,7 +96,9 @@ function asLabel(h: string): string {
  *  no conversion happens anywhere — 47250 stays 47250, and RM 472.50 cannot be
  *  lost to a rounding step that never runs. */
 export function gridSizeHeaderToKey(h: string): string | null {
-  return /^\d+$/.test(h) ? `price_${h}_sen` : null;
+  // The grid labels a size with its inch mark (`24"`); older exports wrote `24`.
+  const m = /^(\d+)"?$/.exec(h.trim());
+  return m ? `price_${m[1]}_sen` : null;
 }
 
 /** Map a table-export header row onto the importer's keys.
