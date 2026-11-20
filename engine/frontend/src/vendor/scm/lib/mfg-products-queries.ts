@@ -164,6 +164,8 @@ export type MfgProductRow = {
   // promoting them to required is safe for the PO / SO / ProductModels callers.
   base_price_sen: number | null;
   price1_sen: number | null;
+  /** SKU cost; absent unless the reader may see product cost (list route strip). */
+  cost_price_sen?: number | null;
   status: 'ACTIVE' | 'INACTIVE';
   branding?: string | null;
   model_id?: string | null;
