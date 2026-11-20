@@ -163,18 +163,10 @@ export const listMfgProductsHandler = async (c: AppContext) => {
   // the ACTIVE SKU master (1141 rows live) was silently truncated to 1000.
   // Page through with .range() and concatenate the lot.
   const s = search ? escapeForOr(search) : '';
-  /* 防呆 — cost_price_sen IS NOT IN THIS SELECT, AND ITS ABSENCE IS THE GATE.
-     There is no canViewScmProductCost strip below because there is nothing to
-     strip: unlike GET /:id (select('*'), so it needs one), this select is an
-     explicit column allowlist and cost has never been on it (#673 verified the
-     same thing: "The LIST endpoint never selected cost_price_sen").
-
-     IF YOU ADD IT — and the obvious ask is "Purchasing wants cost on the SKU
-     Master" — add the strip in the SAME edit, or you hand every products reader
-     a number the owner ruled is for Purchasing + Finance + Sales Director only
-     (2026-07-17). The gate already exists and is one line; copy GET /:id:
-         if (!canViewScmProductCost(c)) for (const k of PRODUCT_FINANCE_KEYS) delete p[k];
-     Both are already imported at the top of this file.
+  /* 防呆 — cost_price_sen IS IN THIS SELECT (Chew 2026-11-20, the SKU Master's
+     Price 2 column), and the strip after the read is its gate: the owner ruled a
+     product cost is for Purchasing + Finance + Sales Director only (2026-07-17).
+     Never drop that strip while cost_price_sen stays on the select.
 
      NOT a claim that this route is cost-free. seat_height_prices (below) IS a
      per-height COST and does ride this select to every caller — finance-keys.ts
@@ -185,7 +177,7 @@ export const listMfgProductsHandler = async (c: AppContext) => {
     let q = supabase
       .from('mfg_products')
       .select(
-        'id, code, name, category, description, base_model, size_code, size_label, base_price_sen, price1_sen, sell_price_sen, pwp_price_sen, ' +
+        'id, code, name, category, description, base_model, size_code, size_label, base_price_sen, price1_sen, cost_price_sen, sell_price_sen, pwp_price_sen, ' +
           'unit_m3_milli, status, pos_active, one_shot, source_doc_no, included_addons, sku_code, model_id, ' +
           'branding, barcode, sub_assemblies, pieces, seat_height_prices, default_variants, updated_at, ' +
           // Commander 2026-05-29 — surface the Model's allowed_options so the SO
@@ -218,6 +210,11 @@ export const listMfgProductsHandler = async (c: AppContext) => {
     .map(({ model, ...p }) => ({ p, m: Array.isArray(model) ? model[0] : model }))
     .filter(({ m }) => m?.active !== false)
     .map(({ p, m }) => ({ ...p, allowed_options: m?.allowed_options ?? null, model_default_variants: m?.default_variants ?? null, model_name: m?.name ?? null }));
+
+  /* cost_price_sen rides the select so the SKU Master's Price 2 column can show a
+     SKU whose cost lives only there (Chew 2026-11-20). It is a product cost, so it
+     is stripped for anyone who may not see one, as GET /:id does. */
+  if (!canViewScmProductCost(c)) for (const p of products) for (const k of PRODUCT_FINANCE_KEYS) delete p[k];
 
   /* B1 — per-row cost-anchor STATE for the SKU Master cost column (teal ok /
      amber suppliers-differ / red gap / service). One BULK binding read over the

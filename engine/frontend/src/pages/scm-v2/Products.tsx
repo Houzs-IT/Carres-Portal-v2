@@ -739,12 +739,15 @@ const SkuMasterTab = () => {
           label: 'Price',
           width: '140px',
           align: 'right',
-          getValue: (r) => r.base_price_sen ?? -1,
-          render: (r) => (
-            <span className={r.base_price_sen ? styles.price : styles.priceEmpty}>
-              {r.base_price_sen ? fmtRm(r.base_price_sen) : ''}{costMarker(r.costAnchorState)}
-            </span>
-          ),
+          getValue: (r) => r.base_price_sen || r.cost_price_sen || -1,
+          render: (r) => {
+            const sen = r.base_price_sen || r.cost_price_sen || null;
+            return (
+              <span className={sen ? styles.price : styles.priceEmpty}>
+                {sen ? fmtRm(sen) : ''}{costMarker(r.costAnchorState)}
+              </span>
+            );
+          },
         },
       );
     } else {
@@ -764,28 +767,23 @@ const SkuMasterTab = () => {
           render: (r) => <span>{r.size_label ?? ''}</span>,
         },
         {
+          // Price 2 is the Carres base cost (Chew 2026-11-20). A SKU's cost sits on
+          // base_price_sen or, for most SKUs, only on cost_price_sen; a sofa's is
+          // its smallest seat size (the Sofa view shows each size). Price 1 is not
+          // shown: no SKU carries one.
           key: 'price2',
           label: 'Price 2',
           width: '140px',
           align: 'right',
-          getValue: (r) => r.base_price_sen ?? -1,
-          render: (r) => (
-            <span className={r.base_price_sen ? styles.price : styles.priceEmpty}>
-              {r.base_price_sen ? fmtRm(r.base_price_sen) : ''}{costMarker(r.costAnchorState)}
-            </span>
-          ),
-        },
-        {
-          key: 'price1',
-          label: 'Price 1',
-          width: '140px',
-          align: 'right',
-          getValue: (r) => r.price1_sen ?? -1,
-          render: (r) => (
-            <span className={r.price1_sen ? styles.price : styles.priceEmpty}>
-              {r.price1_sen ? fmtRm(r.price1_sen) : ''}
-            </span>
-          ),
+          getValue: (r) => r.base_price_sen || r.cost_price_sen || -1,
+          render: (r) => {
+            const sen = r.base_price_sen || r.cost_price_sen || null;
+            return (
+              <span className={sen ? styles.price : styles.priceEmpty}>
+                {sen ? fmtRm(sen) : ''}{costMarker(r.costAnchorState)}
+              </span>
+            );
+          },
         },
       );
     }
@@ -796,6 +794,7 @@ const SkuMasterTab = () => {
         key: 'barcode',
         label: 'Barcode',
         width: '140px',
+        defaultHidden: !isSofaView && !isMattressView,
         getValue: (r) => r.barcode ?? '',
         render: (r) => r.barcode
           ? <span className={styles.codeChip}>{r.barcode}</span>
@@ -805,6 +804,7 @@ const SkuMasterTab = () => {
         key: 'unit',
         label: 'Unit (m³)',
         width: '90px',
+        defaultHidden: !isSofaView && !isMattressView,
         align: 'right',
         getValue: (r) => r.unit_m3_milli,
         render: (r) => fmtUnit(r.unit_m3_milli),
