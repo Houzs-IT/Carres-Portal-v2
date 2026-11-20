@@ -5261,7 +5261,9 @@ whose access has no Export does not see the button. A page that does not load: `
 ### A 3PL company's Deliveries (owner, 19 Nov 2026) · BUILT, deploys with its pull request
 Tab and page `Deliveries` (eyebrow `Logistics`) · pills `To deliver` · `Delivered` · `All` · columns `Delivery date`
 (a date picker for someone who may set it), `Document`, `Customer`, `Goods` ("1 × <item>, …"), `Qty`, `Address`,
-`Phone`, `Sales Exemption Expiry`, `Lorry`, `Driver`, `Last Mile` · Last Mile words `Waiting for
+`Phone`, `Sales Exemption Expiry`, `Stock` (`Ready to deliver` · `Goods due <day>` · `Not in stock yet` · `No goods
+listed`), `Balance`, `Lorry`, `Driver`, `Last Mile` · per line `In stock` · `Part in stock` · `Not in stock`, `Goods due
+<day> · <PO no>` or `No Purchase Order date yet` · Last Mile words `Waiting for
 Delivery Order`, `Planned`, `Loaded`, `On the way`, `Arrived`, `Delivered` · facts `Customer's date`, `Planned date`,
 `Left`, `Arrived`, `Delivered`, `Proof of delivery` (`Received` / `Not yet`) · button `Set delivery date`, then
 `Set <day>` · toast `Delivery date set to <day>` · permissions `Deliveries` ("A 3PL's own delivery jobs and their Last

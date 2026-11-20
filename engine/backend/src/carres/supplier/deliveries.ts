@@ -5,7 +5,8 @@
 // person of THAT supplier who holds `v_deliveries` sees the jobs given to the 3PL's own lorries, drivers or helpers:
 //   · a Delivery Order whose crew (scm.delivery_order_crew) is one of them, and
 //   · a Sales Order not yet on a Delivery Order whose planned crew (scm.carres_so_crew_plan) is one of them.
-// Nothing else: never a price, cost, margin, payment, salesperson, supplier or another 3PL's job. Every column read
+// Nothing else: never a price, cost, margin, payment detail, salesperson, supplier or another 3PL's job; the one money
+// figure is the balance the customer still owes (owner, 20 Nov 2026), for collecting on delivery. Every column read
 // below is named; this file never reads a money column.
 //
 // Setting the delivery date writes the Sales Order's planned date (amended_delivery_date) through the engine's own
@@ -15,13 +16,26 @@ import type { Env } from "../../types";
 import { getSupabaseService } from "../../db/supabase";
 import { advanceSoGeneration } from "../../scm/lib/so-generation";
 import { recordSoAudit } from "../../scm/lib/so-audit";
+import { buildVariantSummary } from "../../scm/shared/variant-summary";
 import { bool, str, strOrNull, type Db } from "./db";
 import { recordEvent } from "./session";
 
 /** Delivery Order states that mean the goods reached the customer (scm/shared/do-shipped-states.ts DO_ARRIVED_STATES). */
 const ARRIVED = ["SIGNED", "DELIVERED", "INVOICED"] as const;
 
-export interface DeliveryItem { code: string; description: string; description2: string | null; qty: number; uom: string | null }
+export interface DeliveryItem {
+  code: string; description: string; description2: string | null; qty: number; uom: string | null;
+  /** The item group (Mattress, Bedframe, Sofa, …), so the goods read by category. */
+  category: string | null;
+  /** Its variant in the documents' own words (fabric, sizes, legs, specials: scm/shared/variant-summary.ts). */
+  variant: string | null;
+  /** The line's stock status as the Sales Order list shows it: READY, PARTIAL or PENDING. */
+  stock: "READY" | "PARTIAL" | "PENDING";
+  /** When goods not yet in stock are due: the earliest delivery date of the Purchase Orders bought for this line
+   *  (cancelled ones left out), the same as the Sales Order list's PO date. */
+  poEta: string | null;
+  poNos: string | null;
+}
 
 export interface DeliveryJob {
   /** "do" once a Delivery Order exists, "so" while the order is only planned on the board. */
@@ -38,6 +52,9 @@ export interface DeliveryJob {
   plannedDate: string | null;
   /** The Sales Order's Sales Exemption Expiry date (owner, 20 Nov 2026: shown to the 3PL). */
   exemptionDate: string | null;
+  /** What the customer still owes on the Sales Order, in sen (owner, 20 Nov 2026: "balance must be seen"). The same
+   *  live figure as the Sales Order list's Balance; no price, cost or payment detail beside it. */
+  balanceSen: number | null;
   status: string;
   lorry: string | null;
   driver: string | null;
@@ -84,7 +101,7 @@ const DO_JOBS = `${FLEET}
   SELECT 'do' AS kind, d.id::text AS key, d.so_doc_no, d.do_number, d.debtor_name,
          d.address1, d.address2, d.city, d.state, d.postcode, d.phone,
          d.customer_delivery_date::text AS customer_date, s.amended_delivery_date::text AS planned_date,
-         s.sales_exemption_expiry::text AS exemption_date, d.status,
+         COALESCE(s.sales_exemption_expiry, s.customer_delivery_date)::text AS exemption_date, COALESCE(pt.balance_sen_live, s.balance_sen) AS balance_sen, d.status,
          c.lorry_plate AS lorry, c.driver_1_name AS driver, c.helper_1_name AS helper_1, c.helper_2_name AS helper_2,
          to_char(d.departure_at AT TIME ZONE 'Asia/Kuala_Lumpur', 'YYYY-MM-DD HH24:MI') AS departed_at,
          to_char(d.arrival_at AT TIME ZONE 'Asia/Kuala_Lumpur', 'YYYY-MM-DD HH24:MI') AS arrived_at,
@@ -93,6 +110,7 @@ const DO_JOBS = `${FLEET}
     FROM scm.delivery_orders d
     JOIN scm.delivery_order_crew c ON c.do_id = d.id
     LEFT JOIN scm.mfg_sales_orders s ON s.doc_no = d.so_doc_no
+    LEFT JOIN scm.mfg_sales_orders_with_payment_totals pt ON pt.doc_no = s.doc_no
    WHERE ${ON_FLEET_CREW} AND d.status <> 'CANCELLED'`;
 
 const SO_JOBS = `${FLEET}
@@ -101,17 +119,23 @@ const SO_JOBS = `${FLEET}
          COALESCE(NULLIF(s.delivery_address2, ''), s.address2) AS address2,
          s.city, s.customer_state AS state, s.postcode, s.phone,
          s.customer_delivery_date::text AS customer_date, s.amended_delivery_date::text AS planned_date,
-         s.sales_exemption_expiry::text AS exemption_date, s.status,
+         COALESCE(s.sales_exemption_expiry, s.customer_delivery_date)::text AS exemption_date, COALESCE(pt.balance_sen_live, s.balance_sen) AS balance_sen, s.status,
          l.plate AS lorry, dv.name AS driver, h1.name AS helper_1, h2.name AS helper_2,
          NULL::text AS departed_at, NULL::text AS arrived_at, NULL::text AS delivered_at, false AS proof
     FROM scm.carres_so_crew_plan p
     JOIN scm.mfg_sales_orders s ON s.doc_no = p.so_doc_no
+    LEFT JOIN scm.mfg_sales_orders_with_payment_totals pt ON pt.doc_no = s.doc_no
     LEFT JOIN scm.lorries l ON l.id = p.lorry_id
     LEFT JOIN scm.drivers dv ON dv.id = p.driver_1_id
     LEFT JOIN scm.helpers h1 ON h1.id = p.helper_1_id
     LEFT JOIN scm.helpers h2 ON h2.id = p.helper_2_id
    WHERE ${ON_FLEET_PLAN} AND upper(s.status::text) NOT IN ('CANCELLED', 'DRAFT')
      AND NOT EXISTS (SELECT 1 FROM scm.delivery_orders d WHERE d.so_doc_no = s.doc_no AND d.status <> 'CANCELLED')`;
+
+const stockOf = (v: unknown): DeliveryItem["stock"] => {
+  const t = str(v).toUpperCase();
+  return t === "READY" ? "READY" : t === "PARTIAL" ? "PARTIAL" : "PENDING";
+};
 
 const joinAddress = (r: Record<string, unknown>): string =>
   [r.address1, r.address2, [r.postcode, r.city].filter((v) => v).join(" "), r.state]
@@ -130,6 +154,7 @@ function toJob(r: Record<string, unknown>): DeliveryJob {
     customerDate: strOrNull(r.customer_date),
     plannedDate: strOrNull(r.planned_date),
     exemptionDate: strOrNull(r.exemption_date),
+    balanceSen: r.balance_sen == null ? null : Number(r.balance_sen),
     status,
     lorry: strOrNull(r.lorry),
     driver: strOrNull(r.driver),
@@ -153,21 +178,39 @@ export async function listDeliveries(db: Db, supplierId: string, view: unknown):
   const soNos = jobs.filter((j) => j.kind === "so").map((j) => j.key);
   const [doItems, soItems] = await Promise.all([
     doIds.length
-      ? db.query(`SELECT delivery_order_id::text AS owner, item_code, description, description2, qty, uom
-                    FROM scm.delivery_order_items WHERE delivery_order_id IN (SELECT jsonb_array_elements_text($1::text::jsonb)::uuid)
-                   ORDER BY line_no NULLS LAST, created_at`, [JSON.stringify(doIds)])
+      ? db.query(`SELECT di.delivery_order_id::text AS owner, di.item_code, di.description, di.description2, di.qty, di.uom, di.item_group,
+              di.variants::text AS variants, si.stock_status,
+              (SELECT min(pi.delivery_date)::text FROM scm.purchase_order_items pi JOIN scm.purchase_orders po ON po.id = pi.purchase_order_id
+                WHERE pi.so_item_id = di.so_item_id AND upper(coalesce(po.status::text, '')) <> 'CANCELLED') AS po_eta,
+              (SELECT string_agg(DISTINCT po.po_number, ', ') FROM scm.purchase_order_items pi JOIN scm.purchase_orders po ON po.id = pi.purchase_order_id
+                WHERE pi.so_item_id = di.so_item_id AND upper(coalesce(po.status::text, '')) <> 'CANCELLED') AS po_nos
+                    FROM scm.delivery_order_items di LEFT JOIN scm.mfg_sales_order_items si ON si.id = di.so_item_id
+                   WHERE di.delivery_order_id IN (SELECT jsonb_array_elements_text($1::text::jsonb)::uuid)
+                   ORDER BY di.line_no NULLS LAST, di.created_at`, [JSON.stringify(doIds)])
       : Promise.resolve([]),
     soNos.length
-      ? db.query(`SELECT doc_no AS owner, item_code, description, description2, qty, uom
-                    FROM scm.mfg_sales_order_items
-                   WHERE doc_no IN (SELECT jsonb_array_elements_text($1::text::jsonb)) AND NOT COALESCE(cancelled, false)
-                   ORDER BY line_no NULLS LAST, created_at`, [JSON.stringify(soNos)])
+      ? db.query(`SELECT i.doc_no AS owner, i.item_code, i.description, i.description2, i.qty, i.uom, i.item_group,
+              i.variants::text AS variants, i.stock_status,
+              (SELECT min(pi.delivery_date)::text FROM scm.purchase_order_items pi JOIN scm.purchase_orders po ON po.id = pi.purchase_order_id
+                WHERE pi.so_item_id = i.id AND upper(coalesce(po.status::text, '')) <> 'CANCELLED') AS po_eta,
+              (SELECT string_agg(DISTINCT po.po_number, ', ') FROM scm.purchase_order_items pi JOIN scm.purchase_orders po ON po.id = pi.purchase_order_id
+                WHERE pi.so_item_id = i.id AND upper(coalesce(po.status::text, '')) <> 'CANCELLED') AS po_nos
+                    FROM scm.mfg_sales_order_items i
+                   WHERE i.doc_no IN (SELECT jsonb_array_elements_text($1::text::jsonb)) AND NOT COALESCE(i.cancelled, false)
+                   ORDER BY i.line_no NULLS LAST, i.created_at`, [JSON.stringify(soNos)])
       : Promise.resolve([]),
   ]);
   const byOwner = new Map<string, DeliveryItem[]>();
   for (const r of [...doItems, ...soItems]) {
     const list = byOwner.get(str(r.owner)) ?? [];
-    list.push({ code: str(r.item_code), description: str(r.description), description2: strOrNull(r.description2), qty: Number(r.qty ?? 0), uom: strOrNull(r.uom) });
+    let variants: Record<string, unknown> | null = null;
+    try { variants = r.variants ? (JSON.parse(str(r.variants)) as Record<string, unknown>) : null; } catch { variants = null; }
+    const variant = variants && typeof variants === "object" ? buildVariantSummary(strOrNull(r.item_group), variants) : "";
+    list.push({
+      code: str(r.item_code), description: str(r.description), description2: strOrNull(r.description2), qty: Number(r.qty ?? 0),
+      uom: strOrNull(r.uom), category: strOrNull(r.item_group), variant: variant || null,
+      stock: stockOf(r.stock_status), poEta: strOrNull(r.po_eta), poNos: strOrNull(r.po_nos),
+    });
     byOwner.set(str(r.owner), list);
   }
   for (const j of jobs) j.items = byOwner.get(j.key) ?? [];

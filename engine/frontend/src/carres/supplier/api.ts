@@ -133,6 +133,8 @@ export interface DeliveryJob {
   customerDate: string | null;
   plannedDate: string | null;
   exemptionDate: string | null;
+  /** What the customer still owes, in sen (owner, 20 Nov 2026). */
+  balanceSen: number | null;
   status: string;
   lorry: string | null;
   driver: string | null;
@@ -142,7 +144,11 @@ export interface DeliveryJob {
   deliveredAt: string | null;
   proof: boolean;
   done: boolean;
-  items: Array<{ code: string; description: string; description2: string | null; qty: number; uom: string | null }>;
+  items: Array<{
+    code: string; description: string; description2: string | null; qty: number; uom: string | null;
+    category: string | null; variant: string | null;
+    stock: "READY" | "PARTIAL" | "PENDING"; poEta: string | null; poNos: string | null;
+  }>;
 }
 
 export interface Me {
