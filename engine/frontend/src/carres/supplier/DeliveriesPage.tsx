@@ -10,7 +10,7 @@ import { useShared } from "./data";
 import { Calendar } from "./Calendar";
 import { ListCount, ListTable, Toolbar, exportList, useListPrefs, type Column } from "./ListTable";
 import { PageBar, PageBody, useSupplierSession } from "./Shell";
-import { Badge, Facts, LoadError, Loading, Pills, count, fmtDay, todayMyt, useToast, type BadgeSpec } from "./ui";
+import { Badge, Facts, LoadError, Loading, Pills, count, fmtDay, money, todayMyt, useToast, type BadgeSpec } from "./ui";
 
 const STATUS: Record<string, BadgeSpec> = {
   DRAFT: { label: "Planned", tone: "neutral" },
@@ -35,8 +35,27 @@ export function deliveryBadge(j: DeliveryJob): BadgeSpec {
 const dayOf = (j: DeliveryJob) => j.plannedDate ?? j.customerDate;
 const units = (j: DeliveryJob) => j.items.reduce((a, i) => a + i.qty, 0);
 
-/** The goods in one line: "1 × CARRES HUSHY.S MATTRESS (3FT), 2 × PILLOW". */
-const goodsOf = (j: DeliveryJob) => j.items.map((i) => `${i.qty} × ${i.description || i.code}`).join(", ");
+/** The goods in one line: "1 × CARRES HUSHY.S MATTRESS (3FT) (CG-001 Pearl / SEAT 18), 2 × PILLOW". */
+const goodsOf = (j: DeliveryJob) => j.items.map((i) => `${i.qty} × ${i.description || i.code}${i.variant ? ` (${i.variant})` : ""}`).join(", ");
+
+/** Whether the goods are in, as the Sales Order list's stock status says, and when the rest is due (the latest PO
+ *  date among lines not yet in): what tells a 3PL a job can go out (owner, 20 Nov 2026). */
+export function stockBadge(j: DeliveryJob): BadgeSpec {
+  if (!j.items.length) return { label: "No goods listed", tone: "neutral" };
+  const waiting = j.items.filter((i) => i.stock !== "READY");
+  if (!waiting.length) return { label: "Ready to deliver", tone: "success" };
+  const etas = waiting.map((i) => i.poEta).filter((d): d is string => !!d).sort();
+  if (etas.length === waiting.length) return { label: `Goods due ${fmtDay(etas[etas.length - 1]!)}`, tone: "warning" };
+  return { label: "Not in stock yet", tone: "error" };
+}
+
+const STOCK_ITEM: Record<DeliveryJob["items"][number]["stock"], BadgeSpec> = {
+  READY: { label: "In stock", tone: "success" },
+  PARTIAL: { label: "Part in stock", tone: "warning" },
+  PENDING: { label: "Not in stock", tone: "error" },
+};
+
+const balanceOf = (j: DeliveryJob) => (j.balanceSen == null ? "" : money(j.balanceSen / 100));
 
 /** The planned date, set right in its cell as on Delivery Planning (owner, 20 Nov 2026), for someone who may. */
 function DateCell({ job, canSet, onSaved }: { job: DeliveryJob; canSet: boolean; onSaved: (date: string) => void }) {
@@ -67,13 +86,15 @@ function DateCell({ job, canSet, onSaved }: { job: DeliveryJob; canSet: boolean;
 
 const columnsFor = (dateCell: (j: DeliveryJob) => ReactNode): Column<DeliveryJob>[] => [
   { key: "date", label: "Delivery date", width: 150, render: (j) => ({ kind: "text", v: dateCell(j) }), exportValue: (j) => dayOf(j) ?? "" },
+  { key: "exemption", label: "Sales Exemption Expiry", width: 170, render: (j) => ({ kind: "text", v: fmtDay(j.exemptionDate), bold: true }), exportValue: (j) => j.exemptionDate ?? "" },
+  { key: "stock", label: "Stock", width: 170, render: (j) => ({ kind: "badge", b: stockBadge(j) }), exportValue: (j) => stockBadge(j).label },
   { key: "doc", label: "Document", width: 150, render: (j) => ({ kind: "doc", v: j.doNo ?? j.soDocNo ?? "" }), exportValue: (j) => j.doNo ?? j.soDocNo ?? "" },
   { key: "customer", label: "Customer", width: 180, render: (j) => ({ kind: "text", v: j.customer }), exportValue: (j) => j.customer },
   { key: "goods", label: "Goods", width: 300, shrink: true, render: (j) => ({ kind: "text", v: goodsOf(j), title: goodsOf(j) }), exportValue: (j) => goodsOf(j) },
   { key: "qty", label: "Qty", width: 64, align: "right", render: (j) => ({ kind: "text", v: units(j) }), exportValue: (j) => units(j) },
+  { key: "balance", label: "Balance", width: 120, align: "right", render: (j) => ({ kind: "text", v: balanceOf(j), bold: (j.balanceSen ?? 0) > 0 }), exportValue: (j) => (j.balanceSen == null ? "" : j.balanceSen / 100) },
   { key: "address", label: "Address", width: 280, shrink: true, render: (j) => ({ kind: "text", v: j.address, fg: "rgb(var(--hz-ink-secondary))" }), exportValue: (j) => j.address },
   { key: "phone", label: "Phone", width: 130, render: (j) => ({ kind: "text", v: j.phone ?? "" }), exportValue: (j) => j.phone ?? "" },
-  { key: "exemption", label: "Sales Exemption Expiry", width: 170, render: (j) => ({ kind: "text", v: fmtDay(j.exemptionDate) }), exportValue: (j) => j.exemptionDate ?? "" },
   { key: "lorry", label: "Lorry", width: 100, render: (j) => ({ kind: "text", v: j.lorry ?? "" }), exportValue: (j) => j.lorry ?? "" },
   { key: "driver", label: "Driver", width: 140, render: (j) => ({ kind: "text", v: j.driver ?? "" }), exportValue: (j) => j.driver ?? "" },
   { key: "status", label: "Last Mile", width: 190, render: (j) => ({ kind: "badge", b: deliveryBadge(j) }), exportValue: (j) => deliveryBadge(j).label },
@@ -178,6 +199,7 @@ function DeliveryExpansion({ job, canSetDate, onSaved }: { job: DeliveryJob; can
           { label: "Customer's date", value: fmtDay(job.customerDate) || "Not given", muted: !job.customerDate },
           { label: "Planned date", value: fmtDay(job.plannedDate) || "Not set", muted: !job.plannedDate },
           { label: "Sales Exemption Expiry", value: fmtDay(job.exemptionDate) || "Not given", muted: !job.exemptionDate },
+          { label: "Balance", value: balanceOf(job) || "Not given", muted: job.balanceSen == null },
           { label: "Sales Order", value: job.soDocNo ?? "" },
           { label: "Delivery Order", value: job.doNo ?? "Not made yet", muted: !job.doNo },
           { label: "Lorry", value: job.lorry ?? "Not given", muted: !job.lorry },
@@ -209,21 +231,35 @@ function DeliveryExpansion({ job, canSetDate, onSaved }: { job: DeliveryJob; can
           { label: "Delivered", value: job.deliveredAt ?? "Not yet", muted: !job.deliveredAt },
           { label: "Proof of delivery", value: job.proof ? "Received" : "Not yet", muted: !job.proof },
         ]} />
-        <div className="mb-2 mt-5 text-[12px] font-semibold uppercase tracking-wide text-ink-muted">Goods</div>
+        <div className="mb-2 mt-5 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-ink-muted">Goods <Badge b={stockBadge(job)} size="xs" /></div>
         {job.items.length ? (
-          <table className="w-full text-[13px]">
-            <tbody>
-              {job.items.map((i, n) => (
-                <tr key={`${i.code}-${n}`} className="border-b border-border-subtle last:border-0">
-                  <td className="py-1.5 pr-3 align-top">
-                    <div className="font-semibold text-ink">{i.description || i.code}</div>
-                    {i.description2 && <div className="text-[12px] text-ink-secondary">{i.description2}</div>}
-                  </td>
-                  <td className="whitespace-nowrap py-1.5 text-right align-top">{i.qty} {i.uom ?? ""}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-3">
+            {[...new Set(job.items.map((i) => i.category || "Other"))].map((cat) => (
+              <div key={cat}>
+                <div className="mb-1 text-[11.5px] font-semibold uppercase tracking-wide text-ink-secondary">{cat}</div>
+                <table className="w-full text-[13px]">
+                  <tbody>
+                    {job.items.filter((i) => (i.category || "Other") === cat).map((i, n) => (
+                      <tr key={`${i.code}-${n}`} className="border-b border-border-subtle last:border-0">
+                        <td className="py-1.5 pr-3 align-top">
+                          <div className="font-semibold text-ink">{i.description || i.code}</div>
+                          {i.variant && <div className="text-[12px] text-ink-secondary">{i.variant}</div>}
+                          {i.description2 && i.description2 !== i.variant && <div className="text-[12px] text-ink-secondary">{i.description2}</div>}
+                          {i.stock !== "READY" && (
+                            <div className="mt-0.5 text-[12px] text-ink-muted">
+                              {i.poEta ? `Goods due ${fmtDay(i.poEta)}` : "No Purchase Order date yet"}{i.poNos ? ` · ${i.poNos}` : ""}
+                            </div>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap py-1.5 pr-3 text-right align-top">{i.qty} {i.uom ?? ""}</td>
+                        <td className="whitespace-nowrap py-1.5 text-right align-top"><Badge b={STOCK_ITEM[i.stock]} size="xs" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="text-[13px] text-ink-muted">No goods listed.</div>
         )}

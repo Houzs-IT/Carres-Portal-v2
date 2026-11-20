@@ -1529,8 +1529,13 @@ it sets the delivery date, sees Last Mile and keeps Last Mile's information up t
 - **What it sees** (`v_deliveries`): the jobs Carres gave the 3PL's own lorries, drivers or helpers — a Delivery
   Order whose crew is theirs, or a Sales Order not yet on a Delivery Order whose planned crew is theirs. Per job:
   customer name, address, phone, goods and quantities, the customer's date, the planned date, lorry, driver, helpers,
-  and Last Mile (left, arrived, delivered, proof received). Never a price, cost, margin, payment, salesperson, supplier
-  or another 3PL's job.
+  and Last Mile (left, arrived, delivered, proof received). Owner, 20 Nov 2026: also the Sales Exemption Expiry date
+  (the Sales Order list's rule: its own date, else the customer's date), so the 3PL plans the day against it; the
+  **Stock** of each line as the Sales Order list shows it (In stock / Part / Not in stock) and, for goods not in, the
+  earliest date of the Purchase Orders bought for that line (`Goods due <date>`), so the 3PL knows when a job can go;
+  goods grouped by category with each line's variant; and the **Balance** the customer still owes (the live figure
+  of the Sales Order list), for collecting on delivery. Never a price, cost, margin, payment detail, salesperson,
+  supplier or another 3PL's job.
 - **What it does** (`a_deldate`): sets the planned delivery date of an open job. It writes the Sales Order's planned
   date through the engine's own header writer and history (`advanceSoGeneration`, `recordSoAudit`, source
   `carres-3pl`), the same door as Delivery Planning; the customer's original date never changes. Recorded in
