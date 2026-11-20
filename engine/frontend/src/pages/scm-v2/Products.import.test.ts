@@ -166,3 +166,17 @@ describe('a hand-made sheet with label headers and no size column', () => {
     expect(msg).not.toMatch(/missing a category/);
   });
 });
+
+/* The grid labels a seat height with its inch mark since 2026-11-20 (`24"`),
+   so its own export must still come back in; files written before keep `24`. */
+describe('a seat height with its inch mark reads the same as a bare one', () => {
+  const inch = ['Product Code', 'Description', 'Model', '24"', '30"', 'Status'].map(normalizeImportHeader);
+  test('the file is still recognised as the grid export', () => {
+    expect(looksLikeGridExport(inch)).toBe(true);
+  });
+  test('24" maps to the 24 price column', () => {
+    const mapped = mapGridHeaders(inch);
+    expect(mapped[3]).toBe('price_24_sen');
+    expect(mapped[4]).toBe('price_30_sen');
+  });
+});
