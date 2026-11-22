@@ -113,6 +113,9 @@ export const BROWSER_STORAGE_KEY_REGISTRY: readonly StorageKeyRegistration[] = [
   { id: "finance-report-last", classification: "TRANSIENT", storage: ["sessionStorage"], keyFamily: "fin-reports-last", matches: exact("fin-reports-last") },
   // The Finance report list pinned open (owner's redesign, batch 6 §4.1; the
   // design's own key) — '1'/'0', a per-device layout preference.
+  // Meetings calendar: what the colours mean for this viewer (room / company / me).
+  // A per-device display preference, no identity/company data.
+  { id: "meetings-color-by", classification: "DEVICE_PREF", storage: ["localStorage"], keyFamily: "meetings.colorBy", matches: exact("meetings.colorBy") },
   { id: "finance-report-list-pin", classification: "DEVICE_PREF", storage: ["localStorage"], keyFamily: "fin-reports-rail-pinned", matches: exact("fin-reports-rail-pinned") },
   // The last date range picked on a Finance report in this tab (batch 6 §4.3):
   // a report opened with no dates in its address follows it. {from,to} ISO days.
@@ -256,6 +259,8 @@ export const PRODUCTION_STORAGE_CALLERS = [
   "mobile/useIsMobile.ts",
   "pages/MailCenter/mail-local.ts",
   "pages/MailCenter/mail-prefs.ts",
+  // Meetings: the "Colours show" choice (meetings.colorBy), a display preference.
+  "pages/Meetings/index.tsx",
   // Projects list scroll memory for detail Back (projects-list-scroll family).
   "pages/Projects.tsx",
   // Project Overview: where the page and its project table were scrolled when a

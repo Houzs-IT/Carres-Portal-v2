@@ -48,6 +48,7 @@ import {
   Building2,
   Mail,
   LifeBuoy,
+  CalendarDays,
   ListChecks,
   AlertCircle,
   Activity,
@@ -514,6 +515,8 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "change-log", label: "Change Log", icon: History, path: "/operation/sc/change-log", section: "System", roles: SYSTEM_ROLES },
       { key: "assistant", label: "Assistant", icon: Bot, path: "/operation/sc/assistant", section: "System", roles: SYSTEM_ROLES },
       { key: "agent-console", label: "Agent Console", icon: Bot, path: "/operation/sc/agent-console", section: "System", roles: SYSTEM_ROLES },
+      // Meetings: the meeting rooms every company shares (Houzs IT Hub; owner 22 Nov 2026), before IT Support as in Houzs.
+      { key: "meetings", label: "Meetings", icon: CalendarDays, path: "/operation/sc/meetings", section: "System", roles: SYSTEM_ROLES },
       { key: "it-support", label: "IT Support", icon: LifeBuoy, path: "/operation/sc/it-support", section: "System", roles: SYSTEM_ROLES },
       { key: "ocr", label: "OCR", icon: ScanLine, path: "/operation/sc/ocr", section: "System", roles: SYSTEM_ROLES },
     ],
@@ -558,7 +561,7 @@ export const ENGINE_PAGES: Readonly<Record<string, string>> = {
   "stock-takes": "/scm/stock-takes",
   "hub-team": "/team?tab=hub", "team-directory": "/team?tab=directory", "team-org-chart": "/team?tab=orgchart2",
   "team-departments": "/team?tab=departments2", "team-mailboxes": "/team?tab=mail2", "team-roles": "/team?tab=permissions",
-  "mail-center": "/mail-center", "it-support": "/it-support",
+  "mail-center": "/mail-center", "it-support": "/it-support", meetings: "/meetings",
   // The rest of Houzs's System rows the engine keeps (navOnly.ts KEEP), and Announcements.
   announcements: "/announcements", "system-health": "/system-health", "ai-usage": "/ai-usage",
   "change-log": "/change-log", assistant: "/assistant", "agent-console": "/agents", ocr: "/ocr",
