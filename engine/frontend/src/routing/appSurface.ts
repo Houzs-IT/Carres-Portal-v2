@@ -11,6 +11,7 @@ export type AppSurface =
   | "privacy"
   | "contractor"
   | "brand"
+  | "book"
   | "supplier" // Carres: the Supplier Platform (carres/supplier/SupplierApp.tsx)
   | "staff";
 
@@ -53,6 +54,9 @@ export function appSurfaceForPath(pathname: string, hostname: string = currentHo
   // The per-brand calendar share link — the same no-login token rule, a brand's
   // own events with display floorplan, size and total sales.
   if (pathname.startsWith("/b/")) return "brand";
+  // A meeting-room booking link (routes/meetings.ts). NO LOGIN — a customer or
+  // supplier opens it and sees only free times; the code in the path is all it needs.
+  if (pathname.startsWith("/book/")) return "book";
   if (pathname.startsWith("/reset/")) return "reset";
   if (pathname.startsWith("/invite/")) return "invite";
   // The App Store's privacy-policy URL. A static file cannot survive the

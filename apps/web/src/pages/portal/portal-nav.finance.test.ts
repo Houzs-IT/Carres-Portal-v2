@@ -88,7 +88,7 @@ describe("Payment Requests for HR staff", () => {
     expect(keys("hr")).toEqual([
       "team-directory", "team-org-chart", "team-departments", "team-mailboxes", "team-roles",
       "mail-center", "announcements", "system-health", "ai-usage",
-      "change-log", "assistant", "agent-console", "it-support", "ocr",
+      "change-log", "assistant", "agent-console", "meetings", "it-support", "ocr",
     ]);
   });
 });

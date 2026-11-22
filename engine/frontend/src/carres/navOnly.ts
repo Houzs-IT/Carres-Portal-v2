@@ -12,7 +12,7 @@
  *  report list read this, so a page left out here was missing from them even when the portal opened it. */
 const KEEP = new Set([
   "Overview", "Sales Orders", "Payment Requests", "Service Cases", "Fairs", "Supply Chain", "Finance",
-  "Mail Center", "Announcements", "Team", "IT", "Change Log", "Assistant", "Agent Console", "IT Support", "OCR",
+  "Mail Center", "Announcements", "Team", "IT", "Change Log", "Assistant", "Agent Console", "Meetings", "IT Support", "OCR",
   "Settings",
 ]);
 

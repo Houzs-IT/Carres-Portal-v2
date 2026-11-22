@@ -134,6 +134,18 @@ and the Operations Payments rows (Finance keeps Monitor and Payment Records). `h
 the System rows only; the engine opens for them only once its `ENGINE_ROLES` (engine/backend/src/carres/sso.ts)
 admits `hr`.
 
+**Meetings (owner, 22 Nov 2026).** The meeting rooms Houzs, Hookka, Theconts and Carres share live in the Houzs IT
+Hub (`/api/v1/sys/meetings`); the engine has Houzs's Meetings page (Houzs-ERP #5927 and #5928: `routes/meetings.ts`,
+`services/meetingsDirectory.ts`, `pages/Meetings/*`, `pages/MeetingBook.tsx`, `mobile/MobileMeetings.tsx`) and the
+portal draws it as the System row `Meetings` before IT Support (`portal-nav.ts`, `navOnly.ts` KEEP). It uses IT
+Support's two settings, `IT_HUB_URL` and `IT_HUB_API_KEY_<company code>`, and is hidden with IT Support where they are
+unset. Booking needs no permission; adding and changing rooms and the change log need Houzs's `meetings.manage_rooms`
+(Team › Roles & Permissions). Carres differences, each marked `// Carres`: every Carres person is sent to the hub as
+company `Carres` (`carres/meetings.ts`, backend), and a guest booking link carries `https://erp.carresofficial.com/book/…`
+(`carres/meetings.ts`, frontend), which the portal sends on to the engine site's no-login booking page
+(`apps/web/public/_redirects`). The staff list goes to the hub once an hour from the engine's 5-minute cron. Gmail,
+Meet/Zoom links and WhatsApp reminders wait for the Google and Meta setup; until then reminders are ERP notices only.
+
 **Houzs Finance (owner, 11 Nov 2026).** The engine's Finance module is on (`navOnly.ts` KEEP has `Finance`;
 only `/scm/hr` stays hidden, since Carres keeps people in Team). The menu draws Houzs's Finance group as one
 row after Supply Chain: To do · Money today · Money in ▸ · Money out ▸ · Bank & cards ▸ · Books ▸ · Reports ·

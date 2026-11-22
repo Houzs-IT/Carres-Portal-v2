@@ -2,4 +2,7 @@
 # the old address answers with a permanent redirect to the shared module card.
 /ui-kit/delivery-card.html  /ui-kit/module-card  301
 /ui-kit/delivery-card       /ui-kit/module-card  301
+# A meeting-room booking link (engine pages/MeetingBook.tsx; owner 22 Nov 2026): links carry this address and the
+# no-login booking page lives on the engine site, the same site the portal frames for Supply Chain.
+/book/*  https://carres-scm.pages.dev/book/:splat  302
 /*    /index.html   200

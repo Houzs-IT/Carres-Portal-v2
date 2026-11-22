@@ -66,6 +66,7 @@ describe("the Houzs tree", () => {
           "Change Log",
           "Assistant",
           "Agent Console",
+          "Meetings",
           "IT Support",
           "OCR",
         ],
@@ -92,6 +93,7 @@ describe("the Houzs tree", () => {
       ["change-log", "/change-log"],
       ["assistant", "/assistant"],
       ["agent-console", "/agents"],
+      ["meetings", "/meetings"],
       ["it-support", "/it-support"],
       ["ocr", "/ocr"],
     ];

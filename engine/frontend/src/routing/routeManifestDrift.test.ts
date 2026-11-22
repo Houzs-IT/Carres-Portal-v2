@@ -134,7 +134,8 @@ describe("executable route contract", () => {
     // 195 since 2026-11-10: /scm/ap-invoices/duplicates — supplier bills booked twice, for Finance to review.
     // Carres: 196 = Houzs's 195 plus /scm/supplier-pickups (15 Nov 2026), the Carres side of the Supplier
     // Platform's pickup requests. On a Houzs resync keep this at Houzs's number plus one.
-    expect(STAFF_ROUTE_PATTERNS).toHaveLength(196);
+    // 197 since 2026-11-23: /meetings — the meeting rooms every company shares.
+    expect(STAFF_ROUTE_PATTERNS).toHaveLength(197);
     expect(new Set(STAFF_ROUTE_PATTERNS).size).toBe(STAFF_ROUTE_PATTERNS.length);
     expect([...STAFF_ROUTE_PATTERNS].sort()).toEqual([...appPages].sort());
   });
@@ -204,7 +205,8 @@ describe("executable route contract", () => {
     // 206 since 2026-11-10 — /scm/ap-invoices/duplicates; see the staff-route count above.
     // Carres: 207 = Houzs's 206 plus /scm/supplier-pickups; see the staff-route count above. The suppliers' own
     // pages (/supplier/*) are a surface of their own and are pinned in carres/supplier/supplierSurface.test.tsx.
-    expect(ROUTE_CONTRACT).toHaveLength(207);
+    // 208 since 2026-11-23 — /meetings; see the staff-route count above.
+    expect(ROUTE_CONTRACT).toHaveLength(208);
   });
 
   it("keeps every desktop nav destination on a live staff route", () => {
@@ -260,10 +262,11 @@ describe("mobile route drift gate", () => {
     // the last desktop-only Roles & Permissions surface to reach the phone.
     // 8 since 2026-10-13: /it-support, report a problem to IT from the phone;
     // the row shows only where IT Support is connected, as on desktop.
-    expect(PROFILE_ORG_ITEMS).toHaveLength(8);
-    expect(allMobile).toHaveLength(52);
-    expect(new Set(allMobile.map((item) => item.to)).size).toBe(52);
-    expect(new Set(allMobile.map((item) => item.to.split("?")[0])).size).toBe(51);
+    // 9 since 2026-11-23: /meetings, the shared meeting rooms (dropped with IT Support where unconnected).
+    expect(PROFILE_ORG_ITEMS).toHaveLength(9);
+    expect(allMobile).toHaveLength(53);
+    expect(new Set(allMobile.map((item) => item.to)).size).toBe(53);
+    expect(new Set(allMobile.map((item) => item.to.split("?")[0])).size).toBe(52);
   });
 
   it("maps every declared mobile row to a real screen, never a placeholder stub", () => {

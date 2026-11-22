@@ -282,6 +282,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "child-change-log",
       "child-assistant",
       "child-agent-console",
+      "child-meetings",
       "child-it-support",
       "child-ocr",
     ]);
@@ -310,6 +311,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "child-change-log",
       "child-assistant",
       "child-agent-console",
+      "child-meetings",
       "child-it-support",
       "child-ocr",
     ]);
@@ -890,7 +892,7 @@ describe("PortalSidebar — the Sales Order module", () => {
     expect(child("sales-invoices").className).toContain("bg-c-select-pill");
   });
 
-  it("the bottom group sits under the caps SYSTEM heading, in Houzs's order: Team, Mail Center, Announcements, IT, Change Log, Assistant, Agent Console, IT Support, OCR", () => {
+  it("the bottom group sits under the caps SYSTEM heading, in Houzs's order: Team, Mail Center, Announcements, IT, Change Log, Assistant, Agent Console, Meetings, IT Support, OCR", () => {
     renderAt("/operation");
     const head = screen.getByTestId("nav-group-head-system");
     expect(head).toHaveTextContent(/^System$/);
@@ -908,6 +910,7 @@ describe("PortalSidebar — the Sales Order module", () => {
       "nav-child-change-log",
       "nav-child-assistant",
       "nav-child-agent-console",
+      "nav-child-meetings",
       "nav-child-it-support",
       "nav-child-ocr",
     ]);
