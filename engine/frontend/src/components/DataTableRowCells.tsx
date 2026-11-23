@@ -5,8 +5,9 @@ import type { Column } from "./dataTableTypes";
 
 /* One mark for "nothing here" in every table (owner 2026-09-25): a cell that
    renders nothing reads as a dash, not as a blank a user might think failed. */
+/* Carres (owner, 23 Nov 2026; Constitution "no dash anywhere on a screen"): an empty cell stays blank. */
 const showDash = (node: ReactNode): ReactNode =>
-  node == null || node === "" || node === false ? <span className="text-ink-muted">—</span> : node;
+  node == null || node === "" || node === false ? null : node;
 
 /* SCROLL PERF (owner 2026-10-21 "滚动变顺" step 2): the DATA cells of one row.
    The <tr>, its selection checkbox, expand chevron, click/drag handlers and

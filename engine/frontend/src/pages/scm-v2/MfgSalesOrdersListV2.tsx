@@ -21,6 +21,8 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getTableLayoutsSnapshot, subscribeTableLayouts } from "../../lib/tableLayouts"; // Carres
+import "../../carres/so-list.css"; // Carres: the list's table and badge look (owner 2026-11-23)
+import { blankDashes } from "../../carres/blank-dashes"; // Carres
 import { shippedProgressColumn, ShippedProgressPill } from "./so-list-shipped-column";
 import { SO_STATUS_TABS, statusFor, type StatusTab } from "./so-list-status";
 import { SoListStatusCell } from "./SoListStatusCell";
@@ -1942,7 +1944,7 @@ export function MfgSalesOrdersListV2() {
         ]
       : []),
     ...soLineColumnList,
-  ]);
+  ]).map(blankDashes); // Carres: an empty cell stays blank (owner 2026-11-23)
 
   /* ── Column layouts ──────────────────────────────────────────────────────
      Houzs and 2990 run their sales desks off the SAME list page but read it for
@@ -2023,7 +2025,7 @@ export function MfgSalesOrdersListV2() {
   };
 
   return (
-    <PullToRefresh onRefresh={onPullToRefresh}>
+    <PullToRefresh onRefresh={onPullToRefresh} className="carres-so-list" /* Carres: carres/so-list.css */>
       {/* When the drawer is open the desktop shell reflows into the left
           520 + gutter, so stats/table are cleanly visible next to it instead
           of being half-covered. Mobile keeps the full-width overlay. */}
