@@ -58,6 +58,9 @@ const FINANCE_TODO_COUNT_PATH = "/api/scm/accounting/todo/count";
    write (vendor/scm/lib/product-request-queries.ts) moves the badge. */
 export const PRODUCT_REQUEST_APPROVALS_KEY = ["product-requests", "pending-count"] as const;
 const IT_SUPPORT_UNREAD_PATH = "/api/it-support/unread-count";
+/* Meetings: invites, changes and cancellations not yet seen (hub notifications).
+   Opening My meetings marks them read, and that screen refreshes this key. */
+export const MEETINGS_UNREAD_KEY = ["meetings", "unread-count"] as const;
 
 interface PendingCountResponse {
   count: number;
@@ -66,7 +69,7 @@ interface PendingCountResponse {
 /** The badge sources a nav entry can name. Mirrored by NavTab["badge"]. */
 export type ApprovalBadgeSource =
   | "amendment-approvals" | "po-amendment-approvals" | "payment-backdate-approvals" | "payment-requests-waiting" | "it-support-replies"
-  | "fair-links-to-settle" | "product-request-approvals" | "finance-todo";
+  | "fair-links-to-settle" | "product-request-approvals" | "finance-todo" | "meetings-unread";
 
 /** What the count is, in the entry's tooltip ("Payment Requests · 3 waiting for Finance"). */
 export const BADGE_MEANING: Record<ApprovalBadgeSource, string> = {
@@ -78,6 +81,7 @@ export const BADGE_MEANING: Record<ApprovalBadgeSource, string> = {
   "fair-links-to-settle": "orders with no fair",
   "product-request-approvals": "awaiting your approval",
   "finance-todo": "waiting on you",
+  "meetings-unread": "new meeting updates",
 };
 
 /** How often the sidebar counts are re-read while the tab is visible. */
@@ -98,6 +102,7 @@ const SOURCES: Record<ApprovalBadgeSource, { key: readonly string[]; path: strin
   "fair-links-to-settle": { key: FAIR_LINKS_TO_SETTLE_KEY, path: FAIR_LINKS_TO_SETTLE_PATH },
   "product-request-approvals": { key: PRODUCT_REQUEST_APPROVALS_KEY, path: "/api/scm/product-requests/pending-count" },
   "finance-todo": { key: FINANCE_TODO_COUNT_KEY, path: FINANCE_TODO_COUNT_PATH },
+  "meetings-unread": { key: MEETINGS_UNREAD_KEY, path: "/api/meetings/unread-count" },
 };
 
 /** Sidebar order; also the order of the combined request's `sources`. */
@@ -179,6 +184,8 @@ export function useApprovalBadgeCounts(): Record<ApprovalBadgeSource, number> {
     "product-request-approvals": enabled && can("scm.product_request.approve"),
     /* Finance only — the people who work its To do. */
     "finance-todo": enabled && (can("scm.payment_voucher.create") || can("scm.payment_voucher.post")),
+    /* Every signed-in user books rooms; the row (and so the count) exists only where the hub is connected. */
+    "meetings-unread": enabled && itConnected,
   };
   const sources = SOURCE_ORDER.filter((s) => wanted[s]);
   const sourcesParam = sources.join(",");
@@ -238,6 +245,7 @@ export function useApprovalBadgeCounts(): Record<ApprovalBadgeSource, number> {
       ownPoll,
     ),
     "finance-todo": usePendingCount("finance-todo", wanted["finance-todo"] && batchSettled, ownPoll),
+    "meetings-unread": usePendingCount("meetings-unread", wanted["meetings-unread"] && batchSettled, ownPoll),
   };
 }
 
@@ -246,6 +254,19 @@ export function useItSupportUnread(): number {
   const { user } = useAuth();
   const connected = useItSupportConnected();
   return usePendingCount("it-support-replies", !!user?.id && connected, BADGE_POLL_MS);
+}
+
+/** Meeting updates not yet seen, for the phone's Profile > Meetings row. Shares the sidebar's query. */
+export function useMeetingsUnread(): number {
+  const { user } = useAuth();
+  const connected = useItSupportConnected();
+  return usePendingCount("meetings-unread", !!user?.id && connected, BADGE_POLL_MS);
+}
+
+/** Re-read the Meetings count now: My meetings was just opened, which marks every update read. */
+export function useRefreshMeetingsUnread(): () => void {
+  const qc = useQueryClient();
+  return useCallback(() => void qc.invalidateQueries({ queryKey: MEETINGS_UNREAD_KEY }), [qc]);
 }
 
 /** Re-read the IT Support count now: a request was just opened, which marks it seen on the hub. */
