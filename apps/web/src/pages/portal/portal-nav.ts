@@ -516,7 +516,7 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "assistant", label: "Assistant", icon: Bot, path: "/operation/sc/assistant", section: "System", roles: SYSTEM_ROLES },
       { key: "agent-console", label: "Agent Console", icon: Bot, path: "/operation/sc/agent-console", section: "System", roles: SYSTEM_ROLES },
       // Meetings: the meeting rooms every company shares (Houzs IT Hub; owner 22 Nov 2026), before IT Support as in Houzs.
-      { key: "meetings", label: "Meetings", icon: CalendarDays, path: "/operation/sc/meetings", section: "System", roles: SYSTEM_ROLES },
+      { key: "meetings", label: "Meetings", icon: CalendarDays, path: "/operation/sc/meetings", badge: "meetings-unread", section: "System", roles: SYSTEM_ROLES },
       { key: "it-support", label: "IT Support", icon: LifeBuoy, path: "/operation/sc/it-support", section: "System", roles: SYSTEM_ROLES },
       { key: "ocr", label: "OCR", icon: ScanLine, path: "/operation/sc/ocr", section: "System", roles: SYSTEM_ROLES },
     ],

@@ -32,4 +32,11 @@ describe("Houzs's menu counts from the engine frame", () => {
     expect(badgeOf("fin-todo")).toBe("finance-todo");
     expect(badgeOf("fin-payment-requests")).toBe("payment-requests-waiting");
   });
+
+  it("keeps the Meetings count and shows it on the Meetings row", () => {
+    useEngineBadges.getState().set({ "meetings-unread": 3 });
+    expect(useEngineBadges.getState().counts).toEqual({ "meetings-unread": 3 });
+    const op = PORTAL_NAV.find((g) => g.area === "operation")!;
+    expect(op.items.find((i) => i.key === "meetings")?.badge).toBe("meetings-unread");
+  });
 });

@@ -12,6 +12,8 @@ export const ENGINE_BADGES = [
   /* Houzs Finance (11 Nov 2026): To do's count and Money out's Payment requests waiting for Finance. */
   "finance-todo",
   "payment-requests-waiting",
+  /* Meetings (Houzs IT Hub): invites, changes and cancellations not yet seen. */
+  "meetings-unread",
 ] as const;
 export type EngineBadge = (typeof ENGINE_BADGES)[number];
 

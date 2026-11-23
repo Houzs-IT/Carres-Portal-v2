@@ -1083,6 +1083,7 @@ export const ALL_NAV_TABS: NavTab[] = [
     to: "/meetings",
     label: "Meetings",
     icon: CalendarDays,
+    badge: "meetings-unread",
   },
   {
     section: "system",
