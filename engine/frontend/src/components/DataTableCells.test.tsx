@@ -30,10 +30,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("DataTable cells", () => {
-  it("draws a dash where a cell renders nothing", () => {
+  // Carres (owner 2026-11-23; Constitution "no dash anywhere on a screen"): an empty cell stays blank.
+  it("leaves a cell blank where it renders nothing", () => {
     render(<DataTable tableId="cells-dash" columns={columns} rows={rows} getRowKey={(r) => r.id} />);
     const cell = document.querySelector('tr[data-rowkey="b"] td[data-col-key="ref"]')!;
-    expect(cell.textContent).toBe("—");
+    expect(cell.textContent).toBe("");
   });
 
   it("shows a column's description when its header is hovered", () => {

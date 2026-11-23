@@ -1,0 +1,61 @@
+/* Carres only (not part of Houzs's code): the Sales Orders list's table and status badges, as the owner chose from
+   the SO-Round1 design (owner, 23 Nov 2026): 40px header, 52px rows, 8px corners, a light blue row under the pointer
+   and when ticked, and soft status badges. Only the look: Houzs's table (components/DataTable.tsx) is untouched, and
+   every colour is a theme token, so dark mode follows (theme.css). Scoped to the Sales Orders page
+   (pages/scm-v2/MfgSalesOrdersListV2.tsx gives its body the class carres-so-list). */
+
+.carres-so-list table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.carres-so-list thead th {
+  height: 40px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: var(--hz-c-surface-dim);
+}
+
+.carres-so-list tbody > tr[data-rowkey] > td {
+  height: 52px;
+  vertical-align: middle;
+}
+
+.carres-so-list tbody > tr[data-rowkey]:hover > td {
+  background: var(--hz-c-primary-soft);
+}
+
+/* A ticked row (DataTable marks it bg-primary/10). */
+.carres-so-list tbody > tr[data-rowkey].bg-primary\/10 > td {
+  background: rgb(var(--hz-primary) / 0.16);
+}
+
+/* Status badges: soft colours, readable words (not tiny capitals). */
+.carres-so-list [data-badge-tone] {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 4px 8px;
+}
+
+.carres-so-list [data-badge-tone="success"] {
+  background: var(--hz-c-synced-bg);
+  color: var(--hz-c-synced);
+}
+
+.carres-so-list [data-badge-tone="warning"] {
+  background: var(--hz-c-warning-bg);
+  color: var(--hz-c-warning-text);
+}
+
+.carres-so-list [data-badge-tone="error"] {
+  background: var(--hz-c-err-bg);
+  color: var(--hz-c-err);
+}
+
+.carres-so-list [data-badge-tone="neutral"] {
+  background: rgb(var(--hz-ink-muted) / 0.12);
+  color: var(--hz-c-ink-secondary);
+}
