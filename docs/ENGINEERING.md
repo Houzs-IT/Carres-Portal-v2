@@ -1,5 +1,24 @@
 # ENGINEERING — the stack, the repo, and how work reaches production
 
+## Local preview and daily IT handoff
+
+Owner direction, 23 November 2026. Use one shared local checkout for frontend work across chats. Save the daily handoff once at the end of the working day. IT reviews the commits and selects changes for production.
+
+The local checkout is `C:/Users/User/.codex/visualizations/2026/11/16/01a1e3fc-973b-7760-8264-564d116d2bee/carres-local-preview`, cloned from `Houzs-IT/Carres-Portal-v2` at `6b1b0f6`. The frontend runs from `engine/frontend` at `http://127.0.0.1:5173/`. Set `VITE_API_URL` and `VITE_DEV_API_PROXY_TARGET` to `http://localhost:8787` when starting Vite. Dependencies are installed. The login page was observed in the browser on 23 November. The local backend and authenticated module pages remain unverified. A local frontend URL alone does not establish database isolation.
+
+Each subsequent chat reads the repository instructions, the owning MASTER, this handoff, and the current Git changes before editing. Reuse the running server when available. Keep each independently reviewable change in its own commit. At daily close, update the following handoff in this file and give IT the exact commit IDs and a patch or accessible Git branch. A localhost URL works only on the host computer. Mark local, pushed, reviewed, and deployed status from observed evidence.
+
+### Daily handoff — 23 November 2026
+
+- Page and goal — prepare the existing frontend for local preview and daily IT review.
+- Before — the correct repository was downloaded, with frontend dependencies absent and no running preview.
+- After — dependencies installed and the frontend login page observed at `http://127.0.0.1:5173/`.
+- Changed files — this engineering handoff. Dependency installation did not intentionally change tracked application files.
+- Verification — browser displayed the Carres login screen. SO list, API connectivity, login, data writes, exports, and cross-device layout restoration are pending.
+- Pending dependency — configure and verify the local test backend before authenticated SO/PO testing.
+- Review evidence — for subsequent visual changes, attach before and after screenshots at the same viewport, list affected files and functions, record checks performed and unresolved failures, and name the exact commit IDs.
+- Release status — local setup only. IT release review and production publication remain pending.
+
 > **Open this when you need a specific answer. Do not read it to start work** — that is
 > `CLAUDE.md` plus your module's MASTER.
 >
