@@ -52,7 +52,7 @@ jobs:
           for probe in $(seq 1 12); do
             served="$(curl -fsS "${URL}/__carres_engine_preview.json?sha=${HEAD_SHA}" || true)"
             if [[ "${served}" == *"\"${HEAD_SHA}\""* ]]; then
-              echo "Engine preview: ${URL}/scm/sales-orders#engine-login" >> "$GITHUB_STEP_SUMMARY"
+              echo "Review through Portal: https://pr-${PR_NUMBER}.carres-portal.pages.dev/operation/sc/orders" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             sleep 10
@@ -66,7 +66,7 @@ jobs:
         with:
           script: |
             const marker = "<!-- carres-engine-preview -->";
-            const body = `${marker}\n**Sales Orders engine preview:** ${process.env.URL}/scm/sales-orders#engine-login\nServes engine frontend commit \`${process.env.HEAD_SHA}\`. The existing engine-login entry keeps sign-in on this preview instead of redirecting to the production Portal. This preview uses the existing Carres API. Review live data read only; do not Save or Send. The outer Portal preview has its own link.`;
+            const body = `${marker}\n**Open Sales Orders preview:** https://pr-${process.env.PR_NUMBER}.carres-portal.pages.dev/operation/sc/orders\nSign in with your normal Carres Portal account. This Portal opens the matching engine preview at ${process.env.URL} through the existing staff sign-in hand-over.\nServes engine frontend commit \`${process.env.HEAD_SHA}\`. This preview uses the existing Carres API. Review live data read only; do not Save or Send.`;
             const { owner, repo } = context.repo;
             const issue_number = Number(process.env.PR_NUMBER);
             const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });

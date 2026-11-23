@@ -17,6 +17,15 @@ import { useAuth } from "@/lib/auth";
  */
 export type EngineSession = { site: string; token: string; sessionPass: string | null };
 
+/** PR Portals open their matching engine build through the existing staff sign-in hand-over. */
+export function engineSiteForHost(site: string, hostname: string): string {
+  const preview = /^pr-([1-9]\d*)\.carres-portal\.pages\.dev$/.exec(hostname);
+  if (preview && site.replace(/\/$/, "") === "https://carres-scm.pages.dev") {
+    return `https://engine-pr-${preview[1]}.carres-scm.pages.dev`;
+  }
+  return site;
+}
+
 /** Carres roles that open the engine — in step with the portal API gate (routes/operation/scm-engine.ts, hr from
  *  PR #2268) and the engine (engine/backend/src/carres/sso.ts ENGINE_ROLES). */
 const ENGINE_ROLES: ReadonlySet<string> = new Set(["operation", "principal", "hr"]);
@@ -41,7 +50,9 @@ function readStore(): Stored | null {
     const raw = sessionStorage.getItem(STORE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw) as Stored;
-    return v && isSession(v.session) ? { uid: v.uid ?? null, session: v.session } : null;
+    return v && isSession(v.session)
+      ? { uid: v.uid ?? null, session: { ...v.session, site: engineSiteForHost(v.session.site, window.location.hostname) } }
+      : null;
   } catch { return null; }
 }
 
@@ -69,7 +80,7 @@ function fetchFresh(): Promise<EngineSession> {
   if (inflight && inflight.uid === uid) return inflight.promise;
   const promise = apiFetch<EngineSession>(SESSION_URL, { method: "POST" })
     .then((r) => {
-      const session: EngineSession = { site: r.site, token: r.token, sessionPass: r.sessionPass ?? null };
+      const session: EngineSession = { site: engineSiteForHost(r.site, window.location.hostname), token: r.token, sessionPass: r.sessionPass ?? null };
       // Only kept when it is still the same person who asked for it.
       if (currentUid() === uid) {
         memory = { uid, session };

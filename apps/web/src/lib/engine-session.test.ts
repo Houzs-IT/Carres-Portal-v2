@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import {
   cachedEngineSession,
   dropEngineSession,
+  engineSiteForHost,
   getEngineSession,
   installEngineSessionPrefetch,
   isEngineRowTarget,
@@ -15,6 +16,24 @@ import {
 } from "./engine-session";
 
 const site = "https://scm.test";
+
+describe("the PR Portal's engine destination", () => {
+  it("uses the matching engine preview with the normal staff hand-over", () => {
+    expect(engineSiteForHost("https://carres-scm.pages.dev", "pr-2386.carres-portal.pages.dev"))
+      .toBe("https://engine-pr-2386.carres-scm.pages.dev");
+  });
+
+  it("keeps production, local, and custom engine destinations", () => {
+    expect(engineSiteForHost("https://carres-scm.pages.dev", "erp.carresofficial.com"))
+      .toBe("https://carres-scm.pages.dev");
+    expect(engineSiteForHost("https://carres-scm.pages.dev", "localhost"))
+      .toBe("https://carres-scm.pages.dev");
+    expect(engineSiteForHost("https://staging.example", "pr-2386.carres-portal.pages.dev"))
+      .toBe("https://staging.example");
+    expect(engineSiteForHost("https://carres-scm.pages.dev", "pr-2386.carres-portal.pages.dev.evil.test"))
+      .toBe("https://carres-scm.pages.dev");
+  });
+});
 const signedIn = (id: string, role: string | null = "operation") =>
   useAuth.setState({ user: { id } as never, session: { access_token: "jwt" } as never, role: role as never });
 

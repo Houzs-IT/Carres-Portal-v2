@@ -21,7 +21,9 @@ Each subsequent chat reads the repository instructions, the owning MASTER, this 
 
 ### SCM engine review preview
 
-The existing `preview` job publishes `apps/web` to the outer Portal preview. It does not build the embedded `engine/frontend`. The proposed `engine-preview` job in the same workflow independently builds that frontend and publishes `engine-pr-<PR number>.carres-scm.pages.dev/scm/sales-orders`. It verifies the served commit before posting the link on the PR. Same-repository PRs only receive deployment credentials. No production branch is published by this job.
+The existing `preview` job publishes `apps/web` to the outer Portal preview. It does not build the embedded `engine/frontend`. The `engine-preview` job in the same workflow independently builds that frontend and publishes `engine-pr-<PR number>.carres-scm.pages.dev`. It verifies the served commit before posting the review link on the PR. Reviewers enter through `https://pr-<PR number>.carres-portal.pages.dev/operation/sc/orders` using their normal Portal account. On that exact preview hostname, `engine-session.ts` routes the existing staff sign-in hand-over to the matching engine build. Cached sessions receive the same mapping. Production, localhost, and custom engine destinations retain their existing destination. Same-repository PRs only receive deployment credentials. No production branch is published by this job.
+
+Direct engine login is a different authentication entry. The first direct `#engine-login` review link displayed an incorrect-credentials message for the Portal user's attempt. It must not be presented as the normal Portal login route. The replacement Portal review link preserves the established sign-in hand-over.
 
 The engine preview uses its existing same-origin Pages API proxy, whose default destination is the Carres production engine. Review is read only. This workflow does not create an isolated test backend. Authenticated sign-in and the rendered module must be checked on the published preview before reporting it usable. Existing SO design PR #2385 is a separate review item; its source branch is `feat/so-list-style`.
 
