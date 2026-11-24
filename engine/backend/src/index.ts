@@ -173,6 +173,7 @@ import { publicContractorCalendar } from "./routes/publicContractorCalendar";
 import { publicBrandCalendar } from "./routes/publicBrandCalendar";
 import { brandShare } from "./routes/brandShare";
 import { drainEmailOutbox } from "./services/email";
+import { sendAllMeetingMail } from "./services/meetingMail";
 import { backfillOutboundMessageIds } from "./lib/mail-threading";
 import { pollVelocity } from "./scm/lib/velocity-poll";
 import { pollItrack } from "./scm/lib/itrack-poll";
@@ -774,6 +775,14 @@ export default {
       // can't stall the slot.
       // Then give Mail Center sends Resend's Message-ID, which a customer's
       // reply quotes to land back on its thread.
+      // Meeting emails the IT Hub wrote for meetings made here, reminders included (services/meetingMail.ts).
+      ctx.waitUntil(
+        track("meeting-mail", () => sendAllMeetingMail(env))
+          .then((r) => {
+            if (r.sent || r.failed) console.log(`[cron meeting-mail] sent=${r.sent} failed=${r.failed}`);
+          })
+          .catch((e) => console.error("[cron meeting-mail]", e))
+      );
       ctx.waitUntil(
         track("email-outbox", () => drainEmailOutbox(env))
           .then((r) => {

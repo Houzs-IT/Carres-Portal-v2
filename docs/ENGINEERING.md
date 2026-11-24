@@ -148,8 +148,10 @@ unset. Booking needs no permission; adding and changing rooms and the change log
 (Team › Roles & Permissions). Carres differences, each marked `// Carres`: every Carres person is sent to the hub as
 company `Carres` (`carres/meetings.ts`, backend), and a guest booking link carries `https://erp.carresofficial.com/book/…`
 (`carres/meetings.ts`, frontend), which the portal sends on to the engine site's no-login booking page
-(`apps/web/public/_redirects`). The staff list goes to the hub once an hour from the engine's 5-minute cron. Gmail,
-Meet/Zoom links and WhatsApp reminders wait for the Google and Meta setup; until then reminders are ERP notices only.
+(`apps/web/public/_redirects`). The staff list goes to the hub once an hour from the engine's 5-minute cron. Meeting
+emails are written by the hub and sent from here: `services/meetingMail.ts` collects Carres's with its hub key, sends
+them through `sendEmail` (this engine's Resend and carresofficial.com) and reports each result; it runs after a booking,
+change or cancel and from the 5-minute cron (reminders). WhatsApp reminders wait for the Meta setup.
 
 **Houzs Finance (owner, 11 Nov 2026).** The engine's Finance module is on (`navOnly.ts` KEEP has `Finance`;
 only `/scm/hr` stays hidden, since Carres keeps people in Team). The menu draws Houzs's Finance group as one
