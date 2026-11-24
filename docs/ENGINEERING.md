@@ -32,6 +32,11 @@ The engine preview uses its existing same-origin Pages API proxy, whose default 
 >
 > Everything here is mechanics. **Rules live in the Constitution; business lives in a MASTER.**
 
+**Local notes stay on your own computer.** Never commit a daily handoff, a session diary or a
+path from your own computer (`C:/Users/…`, `/Users/…`, `.codex/…`) to any file in this repo.
+This applies to every person and every chat. Keep these notes in a folder outside the repo.
+A PR that adds them is sent back.
+
 ---
 
 ## 1 · Stack — do not deviate without asking
@@ -204,6 +209,14 @@ table's own toolbar (`toolbarExtra`; in Cards view it stays beside the status pi
 right. The quick-actions button (`components/QuickActionsFAB.tsx`) is Carres orange on every page. The
 `SO-Round1-Carres.patch` that also restyled the table and rewrote `components/DataTable.tsx` was not taken: it
 would make every Houzs resync conflict.
+
+**Sales Orders list look (owner, 23 Nov 2026).** From the SO-Round1 design the owner took, besides the header: the
+table's look on the Sales Orders page only (40px header, 52px rows, 8px corners, light blue under the pointer and when
+ticked, soft status badges), all in `engine/frontend/src/carres/so-list.css` with theme tokens (dark mode follows); the
+page body carries the class `carres-so-list`, and `components/Badge.tsx` gains one `data-badge-tone` attribute. Empty
+cells are blank, never "—" (Constitution): `components/DataTableRowCells.tsx` showDash returns nothing (every list),
+and the Sales Orders columns that write their own dash are wrapped by `carres/blank-dashes.ts`. Export is unchanged:
+it exports the columns on screen. The two-line cells and the DataTable rewrite stay out (Houzs resyncs).
 
 **Sales Order: Carres rulings (owner, 12 Nov 2026).** Four places where the engine's SO (desktop New SO and
 edit, phone form, scan-to-SO, backend checks) differs from Houzs, each marked `// Carres:`:
