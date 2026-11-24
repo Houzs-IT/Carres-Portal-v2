@@ -13,6 +13,66 @@ concurrency:
   group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
+  engine-preview:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    defaults:
+      run:
+        working-directory: engine/frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: engine/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Stamp the engine preview
+        run: node -e 'require("node:fs").writeFileSync("dist/__carres_engine_preview.json", JSON.stringify({sha:process.env.HEAD_SHA, pr:process.env.PR_NUMBER}))'
+      - name: Publish the engine preview
+        id: publish
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          branch="engine-pr-${PR_NUMBER}"
+          npx wrangler pages deploy dist --project-name carres-scm --branch "${branch}" --commit-hash "${HEAD_SHA}" --commit-message "PR #${PR_NUMBER} engine preview" --commit-dirty=true
+          echo "url=https://${branch}.carres-scm.pages.dev" >> "$GITHUB_OUTPUT"
+      - name: Verify the published engine commit
+        env:
+          URL: ${{ steps.publish.outputs.url }}
+        run: |
+          for probe in $(seq 1 12); do
+            served="$(curl -fsS "${URL}/__carres_engine_preview.json?sha=${HEAD_SHA}" || true)"
+            if [[ "${served}" == *"\"${HEAD_SHA}\""* ]]; then
+              echo "Review through Portal: https://pr-${PR_NUMBER}.carres-portal.pages.dev/operation/sc/orders" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Engine preview does not serve ${HEAD_SHA}"
+          exit 1
+      - name: Publish the engine review link
+        uses: actions/github-script@v7
+        env:
+          URL: ${{ steps.publish.outputs.url }}
+        with:
+          script: |
+            const marker = "<!-- carres-engine-preview -->";
+            const body = `${marker}\n**Open Sales Orders preview:** https://pr-${process.env.PR_NUMBER}.carres-portal.pages.dev/operation/sc/orders\nSign in with your normal Carres Portal account. This Portal opens the matching engine preview at ${process.env.URL} through the existing staff sign-in hand-over.\nServes engine frontend commit \`${process.env.HEAD_SHA}\`. This preview uses the existing Carres API. Review live data read only; do not Save or Send.`;
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.PR_NUMBER);
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const mine = comments.find(c => c.user?.login === "github-actions[bot]" && c.body?.includes(marker));
+            if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
   preview:
     # Secrets never reach a fork's PR, so only this repository's branches get a preview.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}

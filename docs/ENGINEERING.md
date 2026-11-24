@@ -786,6 +786,14 @@ owner approval before the file lands, production assertions plus a negative cont
 back transaction, exact-file apply, tracker/source reconciliation, then dependent-code deploy.
 Destructive or uncertain SQL therefore cannot ride an ordinary merge-to-main deployment.
 
+### SCM engine review preview
+
+The existing `preview` job publishes `apps/web` to the outer Portal preview. It does not build the embedded `engine/frontend`. The `engine-preview` job in the same workflow independently builds that frontend and publishes `engine-pr-<PR number>.carres-scm.pages.dev`. It verifies the served commit before posting the review link on the PR. Reviewers enter through `https://pr-<PR number>.carres-portal.pages.dev/operation/sc/orders` using their normal Portal account. On that exact preview hostname, `engine-session.ts` routes the existing staff sign-in hand-over to the matching engine build. Cached sessions receive the same mapping. Production, localhost, and custom engine destinations retain their existing destination. Same-repository PRs only receive deployment credentials. No production branch is published by this job.
+
+Direct engine login is a different authentication entry. The first direct `#engine-login` review link displayed an incorrect-credentials message for the Portal user's attempt. It must not be presented as the normal Portal login route. The replacement Portal review link preserves the established sign-in hand-over.
+
+The engine preview uses its existing same-origin Pages API proxy, whose default destination is the Carres production engine. Review is read only. This workflow does not create an isolated test backend. Authenticated sign-in and the rendered module must be checked on the published preview before reporting it usable.
+
 ---
 
 ## 7 · Testing
