@@ -5,6 +5,11 @@
 >
 > Everything here is mechanics. **Rules live in the Constitution; business lives in a MASTER.**
 
+**Local notes stay on your own computer.** Never commit a daily handoff, a session diary or a
+path from your own computer (`C:/Users/…`, `/Users/…`, `.codex/…`) to any file in this repo.
+This applies to every chat that works for the GitHub account `limchaichiew-lgtm`, and to everyone
+else. Keep these notes in a folder outside the repo. IT sends back a PR that adds them.
+
 ---
 
 ## 1 · Stack — do not deviate without asking
