@@ -1,32 +1,5 @@
 # ENGINEERING — the stack, the repo, and how work reaches production
 
-## Local preview and daily IT handoff
-
-Owner direction, 23 November 2026. Use one shared local checkout for frontend work across chats. Save the daily handoff once at the end of the working day. Deliver proposed changes as Draft PRs with a shared preview URL and request YH (`yhcominthruWork`) as reviewer. IT reviews and selects changes for production. Localhost serves the developer's computer; the review URL must work on IT's computer.
-
-The local checkout is `C:/Users/User/.codex/visualizations/2026/11/16/01a1e3fc-973b-7760-8264-564d116d2bee/carres-local-preview`, cloned from `Houzs-IT/Carres-Portal-v2` at `6b1b0f6`. The frontend runs from `engine/frontend` at `http://127.0.0.1:5173/`. Set `VITE_API_URL` and `VITE_DEV_API_PROXY_TARGET` to `http://localhost:8787` when starting Vite. Dependencies are installed. The login page was observed in the browser on 23 November. The local backend and authenticated module pages remain unverified. A local frontend URL alone does not establish database isolation.
-
-Each subsequent chat reads the repository instructions, the owning MASTER, this handoff, and the current Git changes before editing. Reuse the running server when available. Keep each independently reviewable change in its own commit. At daily close, update the following handoff in this file and give IT the exact commit IDs and a patch or accessible Git branch. A localhost URL works only on the host computer. Mark local, pushed, reviewed, and deployed status from observed evidence.
-
-### Daily handoff — 23 November 2026
-
-- Page and goal — prepare the existing frontend for local preview and daily IT review.
-- Before — the correct repository was downloaded, with frontend dependencies absent and no running preview.
-- After — dependencies installed and the frontend login page observed at `http://127.0.0.1:5173/`.
-- Changed files — this engineering handoff. Dependency installation did not intentionally change tracked application files.
-- Verification — browser displayed the Carres login screen. SO list, API connectivity, login, data writes, exports, and cross-device layout restoration are pending.
-- Pending dependency — configure and verify the local test backend before authenticated SO/PO testing.
-- Review evidence — for subsequent visual changes, attach before and after screenshots at the same viewport, list affected files and functions, record checks performed and unresolved failures, and name the exact commit IDs.
-- Release status — local setup only. IT release review and production publication remain pending.
-
-### SCM engine review preview
-
-The existing `preview` job publishes `apps/web` to the outer Portal preview. It does not build the embedded `engine/frontend`. The `engine-preview` job in the same workflow independently builds that frontend and publishes `engine-pr-<PR number>.carres-scm.pages.dev`. It verifies the served commit before posting the review link on the PR. Reviewers enter through `https://pr-<PR number>.carres-portal.pages.dev/operation/sc/orders` using their normal Portal account. On that exact preview hostname, `engine-session.ts` routes the existing staff sign-in hand-over to the matching engine build. Cached sessions receive the same mapping. Production, localhost, and custom engine destinations retain their existing destination. Same-repository PRs only receive deployment credentials. No production branch is published by this job.
-
-Direct engine login is a different authentication entry. The first direct `#engine-login` review link displayed an incorrect-credentials message for the Portal user's attempt. It must not be presented as the normal Portal login route. The replacement Portal review link preserves the established sign-in hand-over.
-
-The engine preview uses its existing same-origin Pages API proxy, whose default destination is the Carres production engine. Review is read only. This workflow does not create an isolated test backend. Authenticated sign-in and the rendered module must be checked on the published preview before reporting it usable. Existing SO design PR #2385 is a separate review item; its source branch is `feat/so-list-style`.
-
 > **Open this when you need a specific answer. Do not read it to start work** — that is
 > `CLAUDE.md` plus your module's MASTER.
 >
@@ -812,6 +785,14 @@ links to Supabase and never applies SQL. The governed migration flow in §5 rema
 owner approval before the file lands, production assertions plus a negative control in a rolled-
 back transaction, exact-file apply, tracker/source reconciliation, then dependent-code deploy.
 Destructive or uncertain SQL therefore cannot ride an ordinary merge-to-main deployment.
+
+### SCM engine review preview
+
+The existing `preview` job publishes `apps/web` to the outer Portal preview. It does not build the embedded `engine/frontend`. The `engine-preview` job in the same workflow independently builds that frontend and publishes `engine-pr-<PR number>.carres-scm.pages.dev`. It verifies the served commit before posting the review link on the PR. Reviewers enter through `https://pr-<PR number>.carres-portal.pages.dev/operation/sc/orders` using their normal Portal account. On that exact preview hostname, `engine-session.ts` routes the existing staff sign-in hand-over to the matching engine build. Cached sessions receive the same mapping. Production, localhost, and custom engine destinations retain their existing destination. Same-repository PRs only receive deployment credentials. No production branch is published by this job.
+
+Direct engine login is a different authentication entry. The first direct `#engine-login` review link displayed an incorrect-credentials message for the Portal user's attempt. It must not be presented as the normal Portal login route. The replacement Portal review link preserves the established sign-in hand-over.
+
+The engine preview uses its existing same-origin Pages API proxy, whose default destination is the Carres production engine. Review is read only. This workflow does not create an isolated test backend. Authenticated sign-in and the rendered module must be checked on the published preview before reporting it usable.
 
 ---
 
