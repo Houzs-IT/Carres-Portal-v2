@@ -109,7 +109,7 @@ describe("Meetings", () => {
     cleanup();
     serve(true);
     open("/meetings?tab=email");
-    expect(await screen.findByText(/Not connected yet/)).toBeTruthy();
+    expect(await screen.findByText(/Email is on/)).toBeTruthy();
   });
 
   it("month, rooms and list views draw the same meeting; the phone uses the same page", async () => {
