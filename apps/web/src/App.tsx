@@ -26,6 +26,8 @@ import { PayCancelled, PaySuccess } from "@/pages/pay/PayResult";
 const UiShowcase = lazy(() => import("@/pages/dev/UiShowcase"));
 /* 0581 — the external logistics link: public, lazy, its own chunk. */
 const DeliveryLinkPage = lazy(() => import("@/pages/public/DeliveryLinkPage"));
+/* The AI Connector's "Allow?" screen (owner, 25 Nov 2026): an AI app sends the person here to approve it. Lazy, its own chunk. */
+const AiConnect = lazy(() => import("@/pages/AiConnect"));
 
 function HomeRedirect() {
   const location = useLocation();
@@ -110,6 +112,8 @@ export default function App() {
             checks the session itself and says which case it is. */}
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/me" element={<RequireAuth><Me /></RequireAuth>} />
+        {/* Any signed-in account; the server decides who may connect (apps/api routes/mcp-admin.ts). */}
+        <Route path="/ai-connect" element={<RequireAuth><Suspense fallback={null}><AiConnect /></Suspense></RequireAuth>} />
         <Route
           path="/dealer/*"
           element={

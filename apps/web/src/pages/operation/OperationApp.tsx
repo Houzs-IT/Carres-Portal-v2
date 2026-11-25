@@ -8,12 +8,13 @@ import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import PortalSidebar from "@/pages/portal/PortalSidebar";
 import { useAuth } from "@/lib/auth";
 import SupplyChainEngine from "./SupplyChainEngine";
+import AiConnector from "./AiConnector";
 import { CATALOG_TAB_PARAM } from "@/pages/catalog/catalog-tabs";
 import ShellHeader, { ShellHeaderContext, useShellHeaderHost } from "./components/ShellHeader";
 import ShellTasks, { useShellTasks } from "./components/ShellTasks";
 import { useTasksHost } from "./tasks/tasks-host";
 import { TEAM_DEPARTMENTS_HREF } from "@carres/shared";
-import { activeNavTitle, engineFor, retiredRedirect, roleMayOpenEngineRow } from "@/pages/portal/portal-nav";
+import { AI_CONNECTOR_PATH, activeNavTitle, engineFor, retiredRedirect, roleMayOpenEngineRow } from "@/pages/portal/portal-nav";
 
 /** Where a person who may open only some rows lands: `finance` on Houzs Finance's To do, `hr` on Houzs's Team hub. */
 const limitedHome = (role: string | null) => (role === "finance" ? "/operation/sc/fin-todo" : "/operation/sc/hub-team");
@@ -56,7 +57,10 @@ export default function OperationApp() {
   const fullAccess = role === "operation" || role === "principal";
 
   const navTitle = activeNavTitle(location.pathname, location.search);
-  if (!fullAccess && !(enginePage && engineRow && roleMayOpenEngineRow(role, engineRow))) {
+  /* System › AI Connector (owner, 25 Nov 2026): a Carres page every role of this shell may open; what each person
+     may do on it is the server's (apps/api routes/mcp-admin.ts). */
+  const aiConnector = location.pathname === AI_CONNECTOR_PATH;
+  if (!fullAccess && !aiConnector && !(enginePage && engineRow && roleMayOpenEngineRow(role, engineRow))) {
     const home = limitedHome(role);
     return location.pathname === home ? null : <Navigate to={home} replace />;
   }
@@ -151,6 +155,8 @@ export default function OperationApp() {
         <main className={`flex min-h-0 min-w-0 flex-1 flex-col ${enginePage ? "overflow-hidden" : "overflow-auto"} ${phone || enginePage ? "" : "rounded-lg"}`}>
           {enginePage ? (
             <SupplyChainEngine path={enginePage} phone={phone} onMenu={() => setMenuOpen(true)} />
+          ) : aiConnector ? (
+            <AiConnector />
           ) : (
             tabPage()
           )}

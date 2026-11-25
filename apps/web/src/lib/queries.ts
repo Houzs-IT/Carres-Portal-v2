@@ -7,6 +7,10 @@ import { withDepartment } from "@/pages/finance/department";
 import { uploadCompartmentPhoto, uploadModelPhoto } from "./photo-upload";
 
 export const qk = {
+  /* The AI Connector (routes/mcp-admin.ts): my access, the principal's overview, one "Allow?" screen. */
+  aiConnectorMe: () => ["ai-connector", "me"] as const,
+  aiConnectorOverview: () => ["ai-connector", "overview"] as const,
+  aiConnectConsent: (id: string) => ["ai-connector", "consent", id] as const,
   purchaseRequestRelease: () => ["operation","purchasing","requests","context-release"] as const,
   poCancellations:(id:string)=>["operation","pos",id,"cancellations"] as const,
   purchaseRequestPlan: (skus: string[], proceedDate: string | null, purpose: string | null, origin: string | null = null, requestId: string | null = null) => ["operation", "purchasing", "requests", "plan", skus.join("|"), proceedDate, purpose, origin, requestId] as const,

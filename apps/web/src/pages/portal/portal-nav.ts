@@ -344,6 +344,9 @@ export interface PortalNavGroup {
   items: PortalNavItem[];
 }
 
+/** System › AI Connector (owner, 25 Nov 2026): a Carres page, not an engine row (OperationApp renders it). */
+export const AI_CONNECTOR_PATH = "/operation/ai-connector";
+
 /** Who sees the System rows: everyone who sees Operations, and `hr` (owner 11 Nov 2026). */
 const SYSTEM_ROLES: ReadonlyArray<Role> = ["operation", "principal", "hr"];
 /** Who sees the Houzs Finance rows: everyone who sees Operations, and `finance` (owner 11 Nov 2026). What each
@@ -519,6 +522,9 @@ export const PORTAL_NAV: PortalNavGroup[] = [
       { key: "meetings", label: "Meetings", icon: CalendarDays, path: "/operation/sc/meetings", badge: "meetings-unread", section: "System", roles: SYSTEM_ROLES },
       { key: "it-support", label: "IT Support", icon: LifeBuoy, path: "/operation/sc/it-support", section: "System", roles: SYSTEM_ROLES },
       { key: "ocr", label: "OCR", icon: ScanLine, path: "/operation/sc/ocr", section: "System", roles: SYSTEM_ROLES },
+      /* Carres's own AI Connector page (owner, 25 Nov 2026): connect Claude or ChatGPT, read only, as yourself. Every
+       * System row reader sees it (Finance and bd reach it from the AI app's "Allow?" screen); the principal approves. */
+      { key: "ai-connector", label: "AI Connector", icon: Bot, path: AI_CONNECTOR_PATH, section: "System", roles: SYSTEM_ROLES },
     ],
   },
   /* No Admin or old Carres Finance areas (owner, 16 Nov 2026): Houzs's pages are the system. /principal and

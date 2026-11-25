@@ -204,3 +204,15 @@ export const RENTAL_UNIT_EVENTS   = "rental_unit_events" as const;
 // change-request approve / AutoCount import) is covered by construction.
 export const GUARANTEE_TERMS        = "guarantee_terms" as const;
 export const GUARANTEE_ENTITLEMENTS = "guarantee_entitlements" as const;
+
+// ---------------------------------------------------------------------------
+// AI Connector (migration 0782) — read and written only by the API with the
+// service key (RLS on, no policy). apps/api/src/lib/mcp-store.ts.
+// ---------------------------------------------------------------------------
+export const MCP_ACCESS          = "mcp_access" as const;
+export const MCP_ACCESS_REQUESTS = "mcp_access_requests" as const;
+export const MCP_OAUTH_CLIENTS   = "mcp_oauth_clients" as const;
+export const MCP_AUTH_REQUESTS   = "mcp_auth_requests" as const;
+export const MCP_OAUTH_CODES     = "mcp_oauth_codes" as const;
+export const MCP_TOKENS          = "mcp_tokens" as const;
+export const MCP_CALLS           = "mcp_calls" as const;

@@ -32,6 +32,8 @@ export type Bindings = {
   SCM_ENGINE_SSO_SECRET?: string;
   /** The staff portal origin a Team invite link lands on (routes/engine-staff-accounts.ts); unset => https://erp.carresofficial.com. */
   STAFF_WEB_URL?: string;
+  /** The AI Connector's public origin (routes/mcp.ts); unset => the request's own origin (api.carresofficial.com). */
+  MCP_PUBLIC_ORIGIN?: string;
   /** The engine Worker itself (service binding, production); unset => SCM_ENGINE_API over the internet. */
   SCM_ENGINE?: Fetcher;
   /** NOT a Worker secret and never configured: middleware/api-door.ts puts it on ONE request's copy of `env`

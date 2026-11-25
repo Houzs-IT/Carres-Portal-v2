@@ -89,6 +89,8 @@ describe("Payment Requests for HR staff", () => {
       "team-directory", "team-org-chart", "team-departments", "team-mailboxes", "team-roles",
       "mail-center", "announcements", "system-health", "ai-usage",
       "change-log", "assistant", "agent-console", "meetings", "it-support", "ocr",
+      // Carres's own AI Connector page (owner, 25 Nov 2026), last in System.
+      "ai-connector",
     ]);
   });
 });
