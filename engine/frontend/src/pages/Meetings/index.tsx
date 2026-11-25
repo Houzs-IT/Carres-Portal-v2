@@ -41,7 +41,7 @@ function rangeFor(view: CalView, anchor: number): [number, number] {
   return [first, first + 35 * DAY];
 }
 
-export function Meetings({ erpName = "Houzs ERP", embedded = false }: { erpName?: string; embedded?: boolean }) {
+export function Meetings({ erpName = "Carres ERP", embedded = false }: { erpName?: string; embedded?: boolean }) {
   const [params, setParams] = useSearchParams();
   const refreshUnread = useRefreshMeetingsUnread();
   const tab: MeetingsTab = isMeetingsTab(params.get("tab")) ? (params.get("tab") as MeetingsTab) : "calendar";

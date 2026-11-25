@@ -110,6 +110,7 @@ describe("Meetings", () => {
     serve(true);
     open("/meetings?tab=email");
     expect(await screen.findByText(/Email is on/)).toBeTruthy();
+    expect(screen.getByText(/Email and WhatsApp for Carres ERP/)).toBeTruthy();
   });
 
   it("month, rooms and list views draw the same meeting; the phone uses the same page", async () => {
