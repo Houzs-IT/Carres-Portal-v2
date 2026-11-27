@@ -19,7 +19,7 @@ const iso = (v: unknown) => (v == null ? null : new Date(v as string).toISOStrin
 
 app.get("/jobs", async (c) => {
   try {
-    const data = await readJobs(getDb(c.env), Date.now());
+    const data = await readJobs(getDb(c.env), Date.now(), c.env);
     return c.json({ ok: true, data });
   } catch (e) {
     return c.json({ ok: false, error: errMsg(e), data: [] });

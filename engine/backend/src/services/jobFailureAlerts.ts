@@ -80,7 +80,7 @@ async function readLastAlerts(env: Env): Promise<Map<string, number>> {
 
 export async function runJobFailureAlerts(env: Env, nowMs: number): Promise<{ critical: number; alerted: string[] }> {
   const db = getDb(env);
-  const [jobs, lastOk, lastAlert] = await Promise.all([readJobs(db, nowMs), readLastOk(db), readLastAlerts(env)]);
+  const [jobs, lastOk, lastAlert] = await Promise.all([readJobs(db, nowMs, env), readLastOk(db), readLastAlerts(env)]);
   const due = pickJobAlerts(jobs, lastOk, lastAlert, nowMs);
   if (due.length) {
     const { userIds } = await usersOnDeskFor(env, "it.view", { companyId: null });

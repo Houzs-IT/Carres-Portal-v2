@@ -5,6 +5,9 @@ export type Verdict = "ok" | "warning" | "critical";
 
 const DAY = 24 * 60;
 
+/** The AutoCount pulls index.ts skips while AUTOCOUNT_SYNC_DISABLED="true". */
+export const AUTOCOUNT_PULL_JOBS = ["so-pull", "do-mirror", "po-docs-pull", "po-pull", "ac-snapshot-so", "ac-snapshot-po"];
+
 /** How often each job named in scheduled() (index.ts) is expected to start, in
  *  minutes. Jobs gated to one hour of a sub-daily slot (scan-so-warm,
  *  push-reminders, fair-reconcile) count as daily, or they would read as missed

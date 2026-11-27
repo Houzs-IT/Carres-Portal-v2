@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DB } from "../db/client";
 import { readJobs, type JobRow } from "./healthMeasures";
-import { JOB_CADENCE_MIN } from "./jobHealth";
+import { AUTOCOUNT_PULL_JOBS, JOB_CADENCE_MIN } from "./jobHealth";
 import {
   JOB_ALERT_COOLDOWN_MS, jobAlertBody, jobAlertTitle, jobFromAlertTitle, pickJobAlerts,
 } from "./jobFailureAlerts";
@@ -70,10 +70,19 @@ describe("job classification reuse", () => {
         run("stock-close", 27 * 60, "running"), // daily job that never finished
         run("keepwarm", 1, "running"), // running now: fine
       ]);
-    const jobs = await readJobs(fakeDb(rows), NOW);
+    const jobs = await readJobs(fakeDb(rows), NOW, {});
     const critical = jobs.filter((j) => j.verdict === "critical").map((j) => j.job).sort();
     expect(critical).toEqual(["mrp-snapshot", "so-pull", "stock-close"]);
     const alerted = pickJobAlerts(jobs, new Map(), new Map(), NOW).map((j) => j.job).sort();
     expect(alerted).toEqual(critical);
+  });
+
+  it("leaves the AutoCount pulls out while the sync is switched off, and only then", async () => {
+    const names = async (env: { AUTOCOUNT_SYNC_DISABLED?: string }) =>
+      (await readJobs(fakeDb([]), NOW, env)).map((j) => j.job);
+    const off = await names({ AUTOCOUNT_SYNC_DISABLED: "true" });
+    for (const j of AUTOCOUNT_PULL_JOBS) expect(off).not.toContain(j);
+    expect(off).toContain("keepwarm");
+    expect(await names({})).toEqual(expect.arrayContaining(AUTOCOUNT_PULL_JOBS));
   });
 });
