@@ -1,6 +1,7 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { DB } from "../db/client";
-import { JOB_CADENCE_MIN, classifyJob, classifyQueue, type Verdict } from "./jobHealth";
+import { AUTOCOUNT_PULL_JOBS, JOB_CADENCE_MIN, classifyJob, classifyQueue, type Verdict } from "./jobHealth";
+import { isAutoCountSyncDisabled } from "./autocount";
 
 // The measurements behind the System Health "Background jobs" and "Waiting
 // queues" panels (routes/systemHealthJobs.ts), shared with the 5-minute report
@@ -22,8 +23,14 @@ export interface JobRow {
   reason: string;
 }
 
-/** Last run and verdict for every catalogued job and every job that has run. */
-export async function readJobs(db: DB, nowMs: number): Promise<JobRow[]> {
+/** Last run and verdict for every catalogued job and every job that has run.
+ *  While the AutoCount sync is switched off its pulls are left out: not
+ *  running is then what they are meant to do. */
+export async function readJobs(
+  db: DB,
+  nowMs: number,
+  env: { AUTOCOUNT_SYNC_DISABLED?: string },
+): Promise<JobRow[]> {
   const rows = await db.execute<{
     job: string;
     started_at: string;
@@ -52,7 +59,8 @@ export async function readJobs(db: DB, nowMs: number): Promise<JobRow[]> {
       FROM last l LEFT JOIN d24 USING (job) LEFT JOIN d7 USING (job)`);
 
   const byJob = new Map(rows.map((r) => [r.job, r]));
-  const names = [...new Set([...Object.keys(JOB_CADENCE_MIN), ...byJob.keys()])].sort();
+  const skip = new Set(isAutoCountSyncDisabled(env) ? AUTOCOUNT_PULL_JOBS : []);
+  const names = [...new Set([...Object.keys(JOB_CADENCE_MIN), ...byJob.keys()])].filter((j) => !skip.has(j)).sort();
   return names.map((job) => {
     const r = byJob.get(job);
     const cadenceMin = JOB_CADENCE_MIN[job] ?? null;
@@ -111,11 +119,18 @@ export const QUEUES: Array<{ name: string; label: string; query: SQL }> = [
   {
     name: "venture_portal_outbox",
     label: "Venture Portal feed",
+    // While the feed is off (venture-portal-feed-flag.ts) orders wait on purpose,
+    // so only failures count. shortcut: a per-company scope counts every
+    // company's waiting rows; split by scope if one company is ever left out.
     // company-scope: system-wide counts for IT health, no row data returned.
-    query: sql`SELECT count(*) FILTER (WHERE status = 'pending')::int AS waiting,
+    query: sql`WITH feed AS (
+                 SELECT EXISTS (SELECT 1 FROM scm.app_config WHERE key = 'scm.venture_portal_feed'
+                                  AND lower(trim(value)) NOT IN ('', 'off', '0', 'false')) AS feed_on
+               )
+               SELECT count(*) FILTER (WHERE status = 'pending' AND feed.feed_on)::int AS waiting,
                       count(*) FILTER (WHERE status = 'failed')::int AS failed,
-                      extract(epoch FROM now() - min(created_at) FILTER (WHERE status = 'pending'))::int AS oldest_s
-                 FROM scm.venture_portal_outbox
+                      extract(epoch FROM now() - min(created_at) FILTER (WHERE status = 'pending' AND feed.feed_on))::int AS oldest_s
+                 FROM scm.venture_portal_outbox, feed
                 WHERE status = 'pending' OR (status = 'failed' AND updated_at > now() - interval '24 hours')`,
   },
   {

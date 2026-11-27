@@ -279,7 +279,7 @@ export async function measureHealthForHub(env: Env, nowMs: number): Promise<HubH
   }
   try {
     if (!db) throw new Error("no database");
-    jobs = await readJobs(db, nowMs);
+    jobs = await readJobs(db, nowMs, env);
     checks.push(jobsCheck(jobs));
     counts.jobs_failing = jobs.filter((j) => j.job !== HEALTH_HUB_JOB && j.verdict !== "ok").length;
   } catch {
