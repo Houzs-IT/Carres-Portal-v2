@@ -244,6 +244,8 @@ app.post("/meetings/:id/files", async (c) => {
   return relay(c, hubFetch(hub, `/meetings/${id}/files`, { method: "POST", body: out }));
 });
 
+const SAFE_FILE_TYPES = new Set(["image/png", "image/jpeg", "application/pdf"]); // the same list as houzs-hub
+
 app.get("/meetings/:id/files/:fid", async (c) => {
   const hub = hubFor(c);
   if (hub instanceof Response) return hub;
@@ -258,9 +260,14 @@ app.get("/meetings/:id/files/:fid", async (c) => {
   }
   if (res.status === 404) return c.json({ error: "That file could not be found." }, 404);
   if (!res.ok || !res.body) return c.json({ error: UNREACHABLE }, 502);
-  const headers = new Headers({ "Content-Type": res.headers.get("Content-Type") ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" });
+  // The hub keeps the type the uploader declared, so only these open in the browser; anything else
+  // (an HTML or SVG file could run script on this origin) downloads as plain bytes.
+  const type = (res.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase();
+  const safe = SAFE_FILE_TYPES.has(type);
+  const headers = new Headers({ "Content-Type": safe ? type : "application/octet-stream", "X-Content-Type-Options": "nosniff" });
   const disposition = res.headers.get("Content-Disposition");
-  if (disposition) headers.set("Content-Disposition", disposition);
+  if (safe && disposition) headers.set("Content-Disposition", disposition);
+  if (!safe) headers.set("Content-Disposition", `attachment${disposition?.match(/;\s*filename.*$/i)?.[0] ?? ""}`);
   return new Response(res.body, { status: 200, headers });
 });
 

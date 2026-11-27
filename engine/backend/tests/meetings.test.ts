@@ -100,6 +100,25 @@ describe("/api/meetings", () => {
     expect((await appAs({ id: 0, email: "svc@local", permissions: [] }).request("/api/meetings/mine")).status).toBe(403);
   });
 
+  test("a file opens as its own type only for png, jpeg and pdf; anything else downloads as plain bytes", async () => {
+    const ID = "12";
+    const inline = 'inline; filename="x.html"';
+    for (const [type, disposition, wantType, wantDisposition] of [
+      ["text/html; charset=utf-8", inline, "application/octet-stream", 'attachment; filename="x.html"'],
+      ["image/svg+xml", inline, "application/octet-stream", 'attachment; filename="x.html"'],
+      ["text/html", null, "application/octet-stream", "attachment"],
+      ["application/pdf", inline, "application/pdf", inline],
+      ["Image/PNG; x=y", inline, "image/png", inline],
+    ]) {
+      fakeHub(() => new Response("<script>1</script>", { headers: { "Content-Type": type!, ...(disposition ? { "Content-Disposition": disposition } : {}) } }));
+      const res = await appAs(AINA).request(`/api/meetings/meetings/${ID}/files/${ID}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe(wantType);
+      expect(res.headers.get("Content-Disposition")).toBe(wantDisposition);
+      expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    }
+  });
+
   test("unread count is { count }", async () => {
     fakeHub(() => json({ unread: 4 }));
     expect(await (await appAs(AINA).request("/api/meetings/unread-count")).json()).toEqual({ count: 4 });
