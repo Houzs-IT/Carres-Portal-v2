@@ -28,6 +28,8 @@ import { EmailPage, LinkDialog, LinksPage, LogPage, MyMeetings, RoomDialog, Room
  */
 
 const POLL_MS = 60_000;
+// Only these open in a tab as their own type; anything else stays plain bytes (the server sends it as a download).
+const OPENS_INLINE = new Set(["image/png", "image/jpeg", "application/pdf"]);
 const COLOR_KEY = "meetings.colorBy";
 const fresh = <T,>(path: string) => api.get<T>(path, { signal: new AbortController().signal });
 const message = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong. Please try again.");
@@ -343,7 +345,7 @@ export function Meetings({ erpName = "Carres ERP", embedded = false }: { erpName
       {detail && (
         <MeetingDetail m={detail.m} rooms={rooms} people={people} me={me} x={detail.x} y={detail.y} color={colorOf(detail.m)} history={detail.history} files={detail.files}
           canChange={canChange(detail.m)} busy={saving} onClose={() => setDetail(null)}
-          onFile={(f) => { openLoadedTab(() => api.fetchBlobUrl(`/api/meetings/meetings/${detail.m.id}/files/${f.id}`, f.mime_type), 60_000).catch((e) => showError(e)); }}
+          onFile={(f) => { openLoadedTab(() => api.fetchBlobUrl(`/api/meetings/meetings/${detail.m.id}/files/${f.id}`, OPENS_INLINE.has(f.mime_type ?? "") ? f.mime_type : null), 60_000).catch((e) => showError(e)); }}
           onEdit={() => { setPendingFiles([]); setEditor({ draft: draftFrom(detail.m), isNew: false }); setDetail(null); }}
           onCancel={() => (detail.m.seriesId ? setScopeAsk({ act: "cancel", draft: draftFrom(detail.m), m: detail.m }) : void act(detail.m, "cancel"))}
           onStart={() => void act(detail.m, "start")} onEnd={() => void act(detail.m, "end")} />
