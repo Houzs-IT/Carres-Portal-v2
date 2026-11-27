@@ -482,6 +482,32 @@ the full-access Owner role · Operation → Ops Exec · Warehouse → Storekeepe
 existing account keeps its role unless it is still on "New member". A person reaches the engine only when their
 portal role is in `ENGINE_ROLES` (operation, principal, hr, finance).
 
+### The AI Connector — Claude / ChatGPT read the ERP as the person (owner, 25 Nov 2026; PR feat/mcp-connector)
+
+The same connector Hookka ERP and Houzs ERP have. Staff add `https://api.carresofficial.com/api/mcp` to Claude or
+ChatGPT as a custom connector, sign in with their own account and press Allow. Read only, and only what their own
+login sees. The principal approves each person, sees every lookup and disconnects anyone on System › AI Connector
+(`/operation/ai-connector`).
+
+- **Where.** `apps/api/src/routes/mcp.ts` (MCP Streamable HTTP + OAuth 2.1: dynamic registration, PKCE S256,
+  rotating refresh; discovery at the API root `/.well-known/oauth-*`), `routes/mcp-admin.ts` (the page and the
+  "Allow?" step), `lib/mcp-access.ts` (blocked paths, secret stripping; pure, tested), `lib/mcp-store.ts`,
+  `lib/mcp-session.ts`; web `pages/operation/AiConnector.tsx`, `pages/AiConnect.tsx` (`/ai-connect`). Tables: `0782`.
+- **Read-only and own permissions by construction.** A tool call re-enters the API in-process as a **GET**, with a
+  genuine Supabase session of that person (`auth.admin.generateLink` magic-link hash → `verifyOtp`; no e-mail sent;
+  a banned account is refused by GoTrue). So authMiddleware, every route guard, the API door and RLS run exactly as
+  for their own login. The service key only reads and writes the `mcp_*` tables (RLS on, no policy). The minted JWT
+  never leaves the Worker; its refresh token is discarded at once; the session is signed out when replaced or
+  released. A `crmcp_` token is refused by authMiddleware everywhere else.
+- **Never read through it:** `/api/auth`, `/api/account`, the connector itself, `/api/operation/scm-engine`,
+  `/api/operation/staff` (its GET enrols the caller into auto-assign), any `/stripe/` path (its GET reconciles and
+  records a payment), file links (`/files/url`, `/signed-document`) and files. **A new GET route that writes must
+  join `MCP_BLOCKED_PREFIXES` / `MCP_BLOCKED_PATTERNS`.** Credential-shaped keys are stripped from every reply;
+  replies are capped at 60k characters.
+- **Not covered:** the engine (Supply Chain, Service Cases, Projects, Team, Houzs Finance under `/operation/sc`) is
+  its own Worker and database and is not covered. Bringing Houzs's own connector to it through the engine sync is an
+  open owner decision (PROPOSAL, not built).
+
 ---
 
 ## 3 · RLS performance — three rules that are not optional

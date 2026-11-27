@@ -69,6 +69,8 @@ describe("the Houzs tree", () => {
           "Meetings",
           "IT Support",
           "OCR",
+          // Carres's own AI Connector page (owner, 25 Nov 2026), last in System.
+          "AI Connector",
         ],
       },
     ]);

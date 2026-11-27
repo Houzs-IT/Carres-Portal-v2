@@ -285,6 +285,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "child-meetings",
       "child-it-support",
       "child-ocr",
+      "child-ai-connector",
     ]);
     openSupply();
     expect(walk()).toEqual([
@@ -314,6 +315,7 @@ describe("a module is an expandable PARENT ROW, never a heading", () => {
       "child-meetings",
       "child-it-support",
       "child-ocr",
+      "child-ai-connector",
     ]);
   });
 
@@ -913,6 +915,7 @@ describe("PortalSidebar — the Sales Order module", () => {
       "nav-child-meetings",
       "nav-child-it-support",
       "nav-child-ocr",
+      "nav-child-ai-connector",
     ]);
   });
 

@@ -91,6 +91,8 @@ import opsTasksRouter from "./routes/ops/tasks";
 import stripeCheckoutRouter from "./routes/stripe-checkout";
 import stripeWebhookRouter from "./routes/stripe-webhook";
 import rentalRouter from "./routes/rental";
+import mcpRouter, { mcpWellKnown, setMcpApp } from "./routes/mcp";
+import mcpAdminRouter from "./routes/mcp-admin";
 import { runContactByCron, runFollowUpMaintenanceCron } from "./cron/contact-by";
 import { runDealerCommissionCloseCron } from "./cron/dealer-commission-close";
 import { runWorkActivityCron } from "./cron/work-activity";
@@ -148,6 +150,12 @@ app.route("/engine/staff-accounts", engineStaffAccountsRouter);
 app.route("/engine/supplier-finance", engineSupplierFinanceRouter);
 // The supplier, warehouse and delivery partner portals, the service case/note routers and the public
 // survey were removed on 12 Nov 2026 (owner): Houzs's engine serves its own pages for them.
+
+// THE AI CONNECTOR (owner, 25 Nov 2026) — OUTSIDE the signed-in /api group and registered before it, so a connector
+// token never meets authMiddleware: /api/mcp authenticates its own crmcp_ tokens and reads as the person through an
+// in-process GET with that person's own Supabase session (routes/mcp.ts). Discovery is at the API site's root.
+app.route("/.well-known", mcpWellKnown);
+app.route("/api/mcp", mcpRouter);
 
 const api = new Hono<AppEnv>();
 api.use("*", authMiddleware);
@@ -259,8 +267,12 @@ api.route("/operation/work", operationWorkRouter);
 api.route("/operation/internal-tasks", internalTasksRouter);
 // 0247-0249 — Rental + Service Plan base (config CRUD + registry reads)
 api.route("/rental", rentalRouter);
+// The AI Connector page and its "Allow?" screen (routes/mcp-admin.ts). Signed in, like every /api route.
+api.route("/mcp-admin", mcpAdminRouter);
 
 app.route("/api", api);
+// The connector's tool calls re-enter this app in-process, and list_modules reads its GET routes.
+setMcpApp(app);
 
 // Cloudflare entry — HTTP via Hono + a daily Contact-by cron (migration 0197).
 // The cron schedule is declared in wrangler.toml ("0 1 * * *" = 09:00 MYT).
